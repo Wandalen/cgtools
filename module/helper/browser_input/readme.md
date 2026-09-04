@@ -100,6 +100,9 @@ pub enum EventType
   Wheel( F64x3 ),
   // pointer_id only — coordinates are unreliable for cancel events
   PointerCancel( i32 ),
+  // fires on window `blur` or document `visibilitychange` — resets all currently-held
+  // key/button/pointer state, since the OS delivers the eventual release elsewhere
+  FocusLost,
 }
 ```
 

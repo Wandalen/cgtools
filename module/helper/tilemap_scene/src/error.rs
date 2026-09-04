@@ -111,10 +111,12 @@ mod private
     /// The spec requests a tiling strategy not supported by this implementation.
     ///
     /// Version 0.2.0 implements `HexFlatTop` and `HexPointyTop` only; the
-    /// `Square4` / `Square8` values are reserved. This variant is declared
-    /// for the future SPEC §16 tiling check but is not yet constructed —
-    /// square specs currently pass [`crate::spec::RenderSpec::load`] and fail at render
-    /// time with [`crate::compile::CompileError::UnsupportedAnchor`].
+    /// `Square4` / `Square8` values are reserved. Constructed by the SPEC
+    /// §16 tiling check in [`crate::validate`] — a square spec now fails
+    /// [`crate::spec::RenderSpec::load`] (which runs validation) with this
+    /// variant instead of reaching [`crate::compile::CompileError::UnsupportedAnchor`]
+    /// at render time. [`crate::spec::RenderSpec::from_ron_str`] does not
+    /// run validation, so it still parses square specs successfully.
     UnsupportedTiling( String ),
     /// A sprite source is not valid for the declaring object's anchor type.
     ///
@@ -143,6 +145,19 @@ mod private
       /// The reserved id that was illegally declared.
       id : String,
     },
+    /// A `SceneSnapshot` declared both `tiles` and the `(palette, map)`
+    /// shorthand; the two are mutually exclusive.
+    ///
+    /// `Scene::from_snapshot` silently prefers `tiles` and drops `map`
+    /// when both are populated (see `SceneSnapshot::palette_expand`), so
+    /// this rule exists to catch that silent-data-loss case at load time.
+    ConflictingTileSource
+    {
+      /// Number of explicit `tiles` entries present.
+      tiles_len : usize,
+      /// Number of `map` rows present.
+      map_rows : usize,
+    },
   }
 
   impl fmt::Display for ValidationError
@@ -164,6 +179,13 @@ mod private
         Self::MissingDefaultState { object, state } =>
           write!( f, "object {object:?} declares default_state {state:?} but has no such entry" ),
         Self::ReservedId { id } => write!( f, "reserved id used in declaration: {id:?}" ),
+        Self::ConflictingTileSource { tiles_len, map_rows } =>
+          write!
+          (
+            f,
+            "snapshot declares both `tiles` ({tiles_len} entries) and `map` ({map_rows} rows); \
+             these are mutually exclusive",
+          ),
       }
     }
   }
@@ -188,6 +210,16 @@ mod private
       /// `"edge instance"`, `"entity"`, etc.).
       context : String,
     },
+    /// Snapshot's `initial_global_tint` names a tint id that is not
+    /// declared in the spec.
+    UnknownTint
+    {
+      /// The undeclared id.
+      id : String,
+      /// Where in the snapshot the reference appeared
+      /// (`"initial_global_tint"`).
+      context : String,
+    },
     /// An ASCII `map` row uses a character missing from `palette`.
     UnknownPaletteChar
     {
@@ -207,6 +239,8 @@ mod private
       {
         Self::UnknownObject { id, context } =>
           write!( f, "snapshot references object {id:?} in {context} but the spec does not declare it" ),
+        Self::UnknownTint { id, context } =>
+          write!( f, "snapshot references tint {id:?} in {context} but the spec does not declare it" ),
         Self::UnknownPaletteChar { ch, pos : ( q, r ) } =>
           write!( f, "ASCII map cell at (q={q}, r={r}) uses character {ch:?} which is not in the palette" ),
       }

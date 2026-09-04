@@ -4,9 +4,9 @@
 
 use shader_chunks_core::
 {
-  compose, try_compose, compose_set, try_compose_set, parse_depends_on, parse_description, parse_stage,
-  parse_exports, parse_tags, ComposeError, ChunkDescriptor, CHUNKS, chunk_get, chunk, chunk_get_from,
-  dependency_closed, manifest_mismatches,
+  compose, try_compose, set_compose, set_try_compose, set_resolve, depends_on_parse, description_parse,
+  stage_parse, exports_parse, tags_parse, ComposeError, ResolveError, ChunkDescriptor, CHUNKS, chunk_get,
+  chunk, chunk_get_from, dependency_closed, manifest_mismatches,
 };
 
 /// Test-only: pulls the declared symbol name out of an `export` line's
@@ -40,7 +40,7 @@ const LOCAL_GLOW_WGSL : &str = "\
 
 fn glow( p : vec2f ) -> f32
 {
-  return value_noise( p ) * 2.0;
+  return value_noise( p, 0.0 ) * 2.0;
 }
 ";
 
@@ -70,7 +70,7 @@ fn depends_on_covers_every_actual_wgsl_call_to_another_chunk()
   for chunk in CHUNKS
   {
     let name = chunk.name;
-    let declared = parse_depends_on( chunk.wgsl );
+    let declared = depends_on_parse( chunk.wgsl );
     for other in CHUNKS
     {
       let other_name = other.name;
@@ -94,7 +94,7 @@ fn export_names_match_a_real_declaration_in_the_wgsl_body()
 {
   for chunk in CHUNKS
   {
-    for signature in parse_exports( chunk.wgsl )
+    for signature in exports_parse( chunk.wgsl )
     {
       let name = exported_name( signature );
       let declared = chunk.wgsl.contains( &format!( "fn {name}(" ) ) || chunk.wgsl.contains( &format!( "struct {name}" ) );
@@ -133,19 +133,19 @@ fn compose_panics_on_cyclic_dependency()
 #[ test ]
 fn parse_depends_on_handles_empty_value()
 {
-  assert_eq!( parse_depends_on( "//@ name: x\n//@ depends_on:\n" ), Vec::< &str >::new() );
+  assert_eq!( depends_on_parse( "//@ name: x\n//@ depends_on:\n" ), Vec::< &str >::new() );
 }
 
 #[ test ]
 fn parse_depends_on_handles_multiple_entries()
 {
-  assert_eq!( parse_depends_on( "//@ depends_on: a, b\n" ), vec![ "a", "b" ] );
+  assert_eq!( depends_on_parse( "//@ depends_on: a, b\n" ), vec![ "a", "b" ] );
 }
 
 #[ test ]
 fn chunks_table_lists_every_bundled_chunk()
 {
-  assert_eq!( CHUNKS.len(), 4 );
+  assert_eq!( CHUNKS.len(), 50 );
 }
 
 #[ test ]
@@ -237,7 +237,7 @@ fn dependency_closed_is_false_when_a_dependency_is_missing_from_the_set()
 #[ test ]
 fn compose_set_orders_a_mixed_set_dependency_before_dependent()
 {
-  let composed = compose_set( MIXED_SET );
+  let composed = set_compose( MIXED_SET );
   let hash21_pos = composed.find( "fn hash21" ).expect( "hash21 present" );
   let value_noise_pos = composed.find( "fn value_noise" ).expect( "value_noise present" );
   let glow_pos = composed.find( "fn glow" ).expect( "local glow chunk present" );
@@ -248,7 +248,7 @@ fn compose_set_orders_a_mixed_set_dependency_before_dependent()
 #[ test ]
 fn try_compose_set_reports_missing_dependency()
 {
-  let err = try_compose_set( &[ chunk( "fbm3" ) ] ).expect_err( "should fail" );
+  let err = set_try_compose( &[ chunk( "fbm3" ) ] ).expect_err( "should fail" );
   assert!( matches!( err, ComposeError::MissingDependency { .. } ), "expected MissingDependency, got {err:?}" );
 }
 
@@ -262,12 +262,12 @@ fn local_chunk_descriptor_matches_its_manifest()
 #[ test ]
 fn parse_description_reads_every_bundled_chunk()
 {
-  assert_eq!( parse_description( wgsl( "hash21" ) ), "Single-value hash of a 2D point into [0, 1)." );
-  assert_eq!( parse_description( wgsl( "value_noise" ) ), "Bilinear-interpolated value noise sampled at a 2D point, in [0, 1)." );
-  assert_eq!( parse_description( wgsl( "fbm3" ) ), "Fixed 3-octave fractal Brownian motion built on value_noise, in [0, 0.875]." );
+  assert_eq!( description_parse( wgsl( "hash21" ) ), "Single-value hash of a 2D point into [0, 1)." );
+  assert_eq!( description_parse( wgsl( "value_noise" ) ), "Bilinear-interpolated value noise sampled at a 2D point, in [0, 1)." );
+  assert_eq!( description_parse( wgsl( "fbm3" ) ), "Fixed 3-octave fractal Brownian motion built on value_noise, in [0, 0.5*(1+gain+gain^2)]." );
   assert_eq!
   (
-    parse_description( wgsl( "fullscreen_triangle" ) ),
+    description_parse( wgsl( "fullscreen_triangle" ) ),
     "Fullscreen-triangle vertex stage: 3 vertices, no vertex buffer, vertex_index alone picks the corner."
   );
 }
@@ -275,35 +275,35 @@ fn parse_description_reads_every_bundled_chunk()
 #[ test ]
 fn parse_stage_is_some_only_for_the_vertex_chunk()
 {
-  assert_eq!( parse_stage( wgsl( "hash21" ) ), None );
-  assert_eq!( parse_stage( wgsl( "value_noise" ) ), None );
-  assert_eq!( parse_stage( wgsl( "fbm3" ) ), None );
-  assert_eq!( parse_stage( wgsl( "fullscreen_triangle" ) ), Some( "vertex" ) );
+  assert_eq!( stage_parse( wgsl( "hash21" ) ), None );
+  assert_eq!( stage_parse( wgsl( "value_noise" ) ), None );
+  assert_eq!( stage_parse( wgsl( "fbm3" ) ), None );
+  assert_eq!( stage_parse( wgsl( "fullscreen_triangle" ) ), Some( "vertex" ) );
 }
 
 #[ test ]
 fn parse_exports_counts_match_each_chunk()
 {
-  assert_eq!( parse_exports( wgsl( "hash21" ) ).len(), 1 );
-  assert_eq!( parse_exports( wgsl( "value_noise" ) ).len(), 1 );
-  assert_eq!( parse_exports( wgsl( "fbm3" ) ).len(), 1 );
-  assert_eq!( parse_exports( wgsl( "fullscreen_triangle" ) ).len(), 2 );
+  assert_eq!( exports_parse( wgsl( "hash21" ) ).len(), 1 );
+  assert_eq!( exports_parse( wgsl( "value_noise" ) ).len(), 1 );
+  assert_eq!( exports_parse( wgsl( "fbm3" ) ).len(), 1 );
+  assert_eq!( exports_parse( wgsl( "fullscreen_triangle" ) ).len(), 2 );
 }
 
 #[ test ]
 fn parse_tags_reads_every_bundled_chunk()
 {
-  assert_eq!( parse_tags( wgsl( "hash21" ) ), vec![ ( "category", "hash" ) ] );
-  assert_eq!( parse_tags( wgsl( "value_noise" ) ), vec![ ( "category", "noise" ) ] );
-  assert_eq!( parse_tags( wgsl( "fbm3" ) ), vec![ ( "category", "noise" ), ( "technique", "fractal" ) ] );
-  assert_eq!( parse_tags( wgsl( "fullscreen_triangle" ) ), vec![ ( "category", "vertex" ) ] );
+  assert_eq!( tags_parse( wgsl( "hash21" ) ), vec![ ( "category", "hash" ) ] );
+  assert_eq!( tags_parse( wgsl( "value_noise" ) ), vec![ ( "category", "noise" ) ] );
+  assert_eq!( tags_parse( wgsl( "fbm3" ) ), vec![ ( "category", "noise" ), ( "technique", "fractal" ) ] );
+  assert_eq!( tags_parse( wgsl( "fullscreen_triangle" ) ), vec![ ( "category", "vertex" ) ] );
 }
 
 #[ test ]
 #[ should_panic( expected = "malformed `//@ tags:` entry" ) ]
 fn parse_tags_panics_on_malformed_entry()
 {
-  let _ = parse_tags( "//@ name: x\n//@ tags: not_a_pair\n" );
+  let _ = tags_parse( "//@ name: x\n//@ tags: not_a_pair\n" );
 }
 
 #[ test ]
@@ -328,4 +328,104 @@ fn try_compose_returns_err_on_cyclic_dependency()
   const B : &str = "//@ name: b\n//@ depends_on: a\nfn b() {}";
   let err = try_compose( &[ A, B ] ).expect_err( "should fail" );
   assert!( matches!( err, ComposeError::CyclicDependency( _ ) ), "expected CyclicDependency, got {err:?}" );
+}
+
+#[ test ]
+fn set_resolve_returns_named_chunks_in_given_order()
+{
+  let resolved = set_resolve( &[ "fbm3", "hash21" ], false ).expect( "both names are bundled" );
+  let names : Vec< &str > = resolved.iter().map( | chunk | chunk.name ).collect();
+  assert_eq!( names, vec![ "fbm3", "hash21" ] );
+}
+
+#[ test ]
+fn set_resolve_transitive_widens_to_full_dependency_closure()
+{
+  let resolved = set_resolve( &[ "fbm3" ], true ).expect( "fbm3 and its closure are bundled" );
+  let names : Vec< &str > = resolved.iter().map( | chunk | chunk.name ).collect();
+  assert_eq!( names[ 0 ], "fbm3", "named chunks come first, in given order" );
+  assert!( names.contains( &"value_noise" ) && names.contains( &"hash21" ), "closure must pull in fbm3's whole chain, got {names:?}" );
+  assert_eq!( names.len(), 3, "each closure member appears exactly once" );
+}
+
+#[ test ]
+fn set_resolve_rejects_unknown_name()
+{
+  let err = set_resolve( &[ "bogus_chunk" ], false ).expect_err( "should fail" );
+  assert_eq!( err, ResolveError::UnknownChunk( "bogus_chunk".to_string() ) );
+}
+
+#[ test ]
+fn set_resolve_feeds_set_try_compose_identically_to_explicit_selection()
+{
+  let closure = set_resolve( &[ "fbm3" ], true ).expect( "resolves" );
+  let closure : Vec< ChunkDescriptor > = closure.into_iter().copied().collect();
+  let explicit = [ chunk( "hash21" ), chunk( "value_noise" ), chunk( "fbm3" ) ];
+  assert_eq!
+  (
+    set_try_compose( &closure ).expect( "composes" ),
+    set_try_compose( &explicit ).expect( "composes" ),
+    "topological sort makes closure-selected and explicitly-selected sets compose to identical text"
+  );
+}
+
+// test_kind: bug_reproducer(BUG-280)
+/// ## Root Cause
+/// `depends_on_parse` split a manifest line's value on `,` and trimmed each
+/// piece, but never dropped pieces that trim down to an empty string — a
+/// trailing comma ( `//@ depends_on: a,` ), a leading comma, or a doubled
+/// comma ( `a,,b` ) all produce a spurious `""` entry mixed in with the real
+/// chunk names. That empty-string "name" then silently rides along as a
+/// bogus dependency into `compose`/`try_compose`, surfacing ( if at all ) as
+/// a confusing `MissingDependency { missing: "" }` instead of anything
+/// pointing at the real stray-comma typo. `tags_parse` and `build.rs`'s
+/// `list_entries` ( its compile-time counterpart, shared by both the
+/// `depends_on` and `tags` fields when generating `CHUNKS` ) had the
+/// identical unfiltered `split(',').map(str::trim)` pattern.
+///
+/// ## Why Not Caught
+/// The existing coverage ( `parse_depends_on_handles_empty_value`,
+/// `parse_depends_on_handles_multiple_entries` ) only exercises a fully
+/// empty value and a clean `"a, b"` list — never a list with a stray-comma
+/// artifact — and none of the 50 currently-bundled `shader/*/*.wgsl`
+/// manifests happen to have a trailing or doubled comma, so the defect
+/// never surfaced against real data.
+///
+/// ## Fix Applied
+/// `depends_on_parse` and `tags_parse` ( `src/lib.rs` ) and `list_entries`
+/// ( `build.rs` ) now filter out empty trimmed segments before collecting,
+/// so a stray comma is tolerated the same way surrounding whitespace
+/// already was, instead of leaking an empty-string entry or panicking on it.
+///
+/// ## Prevention
+/// This test pins `depends_on_parse` and `tags_parse` directly against a
+/// trailing/doubled comma; the bundled-registry tests
+/// ( `chunks_table_matches_each_manifest`,
+/// `depends_on_covers_every_actual_wgsl_call_to_another_chunk` ) already
+/// guard the compile-time side against any future chunk manifest that
+/// happens to carry the same artifact.
+///
+/// ## Pitfall
+/// A `str::split(',').map(str::trim)` pipeline over a human-authored,
+/// comma-separated manifest value must filter empty segments explicitly —
+/// `split` always yields one segment per delimiter occurrence, including
+/// the empty one after a trailing delimiter, and trimming does not remove
+/// an already-empty string.
+#[ test ]
+fn parse_depends_on_ignores_stray_commas()
+{
+  assert_eq!( depends_on_parse( "//@ depends_on: a, b,\n" ), vec![ "a", "b" ] );
+  assert_eq!( depends_on_parse( "//@ depends_on: a,,b\n" ), vec![ "a", "b" ] );
+}
+
+// test_kind: bug_reproducer(BUG-280)
+/// Second symptom of BUG-280 — a stray comma in `//@ tags:` panicked with a
+/// "malformed" message that doesn't name the real cause, instead of being
+/// tolerated like extra whitespace; full Root Cause / Why Not Caught / Fix /
+/// Prevention / Pitfall sections are on
+/// [`parse_depends_on_ignores_stray_commas`].
+#[ test ]
+fn parse_tags_ignores_stray_commas()
+{
+  assert_eq!( tags_parse( "//@ name: x\n//@ tags: category:hash,\n" ), vec![ ( "category", "hash" ) ] );
 }

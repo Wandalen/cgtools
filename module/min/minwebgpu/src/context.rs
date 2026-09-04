@@ -16,31 +16,88 @@ mod private
     window.navigator()
   }
 
+  // Fix(BUG-164): `adapter_request`/`preferred_format` used to call `navigator.gpu()`
+  // unconditionally and immediately invoke a method on the result, panicking at the wasm-bindgen
+  // FFI boundary ("can't access property ..., arg0 is undefined") when the browser has no
+  // WebGPU support at all -- `navigator.gpu` is then JS `undefined`, not a `Gpu` object.
+  // Root cause: `web_sys::Navigator::gpu()` is a raw, unchecked property getter (it returns
+  // whatever is there, even `undefined`, typed as `Gpu` regardless) -- discovered via BUG-162's
+  // own regression test throwing this exact FFI error in a real, WebGPU-less headless test
+  // browser, one call earlier than anything BUG-162 touched.
+  // Pitfall: `web_sys` types the return of a getter like `.gpu()` as non-`Option` even when the
+  // underlying browser feature is experimental/optional -- the crate calling it is responsible
+  // for feature-detecting first (`JsValue::is_undefined`), the binding itself won't.
+  /// Returns the browser's `Gpu` interface, or `ContextError::WebGpuUnsupported` if this browser
+  /// has no WebGPU support at all (`navigator.gpu` itself is `undefined`, not merely a failed
+  /// or empty adapter/device request).
+  fn gpu_or_unsupported() -> Result< web_sys::Gpu, WebGPUError >
+  {
+    let gpu = navigator().gpu();
+    if AsRef::< wasm_bindgen::JsValue >::as_ref( &gpu ).is_undefined()
+    {
+      return Err( crate::error::ContextError::WebGpuUnsupported.into() );
+    }
+
+    Ok( gpu )
+  }
+
+  // Fix(BUG-162): `adapter_request`/`device_request` used to unconditionally `.unwrap()` both
+  // the JsFuture result and the dyn_into cast, panicking on two ordinary, reachable outcomes
+  // ("no adapter available", "device request rejected") that this crate's own written invariant
+  // (docs/invariant/001_result_based_error_handling.md) requires surfacing as `Result::Err`.
+  // Root cause: `Gpu::request_adapter()` resolves (never rejects) with `null` on "no adapter" --
+  // a normal spec-defined outcome, not an exception -- so a blind `.unwrap()` on the outer
+  // JsFuture result masked that this specific failure mode needed its own check, not error
+  // handling on the wrong side of the Result.
+  // Pitfall: a Promise's own resolve/reject shape doesn't map 1:1 onto "success/failure" --
+  // `request_adapter` communicates its one failure mode through a resolved `null`, while
+  // `request_device` communicates its failure mode through rejection. Each needs its own check
+  // matching its actual signature, not a uniform `.unwrap()` on the outer Result.
   /// Asynchronously requests a WebGPU adapter from the browser.
   ///
+  /// # Errors
+  /// Returns `error::ContextError::WebGpuUnsupported` if `navigator.gpu` itself is absent (this
+  /// browser has no WebGPU support at all). Returns `error::ContextError::NoAdapterAvailable` if
+  /// `navigator.gpu.requestAdapter()` resolves to `null` -- the browser has WebGPU infrastructure
+  /// but no compatible `GPUAdapter` available. Both are normal, spec-defined outcomes, not
+  /// browser exceptions.
+  ///
   /// # Panics
-  /// Panics if no adapter is available (e.g. WebGPU is unsupported or disabled), or if the
-  /// value the browser returns does not cast to `web_sys::GpuAdapter`.
+  /// Panics if the non-null value the browser resolves the request with does not cast to
+  /// `web_sys::GpuAdapter` -- unreachable per the WebGPU spec, which guarantees
+  /// `requestAdapter()` resolves with either `null` or a valid `GPUAdapter`.
   #[ inline ]
-  pub async fn adapter_request() -> web_sys::GpuAdapter
+  pub async fn adapter_request() -> Result< web_sys::GpuAdapter, WebGPUError >
   {
-    let navigator = navigator();
-    let gpu = navigator.gpu();
+    let gpu = gpu_or_unsupported()?;
 
     let adapter = JsFuture::from( gpu.request_adapter() ).await.unwrap();
-    adapter.dyn_into().unwrap()
+    if adapter.is_null()
+    {
+      return Err( crate::error::ContextError::NoAdapterAvailable.into() );
+    }
+
+    Ok( adapter.dyn_into().unwrap() )
   }
 
   /// Asynchronously requests a logical GPU device from a given adapter.
   ///
+  /// # Errors
+  /// Returns `error::ContextError::DeviceRequestRejected` if the device request's promise is
+  /// rejected by the browser.
+  ///
   /// # Panics
-  /// Panics if the device request is rejected by the browser, or if the returned value
-  /// does not cast to `web_sys::GpuDevice`.
+  /// Panics if the value the browser resolves the request with does not cast to
+  /// `web_sys::GpuDevice` -- unreachable per the WebGPU spec, which guarantees
+  /// `requestDevice()` resolves only with a valid `GPUDevice` on success.
   #[ inline ]
-  pub async fn device_request( adapter : &web_sys::GpuAdapter ) -> web_sys::GpuDevice
+  pub async fn device_request( adapter : &web_sys::GpuAdapter ) -> Result< web_sys::GpuDevice, WebGPUError >
   {
-    let device = JsFuture::from( adapter.request_device() ).await.unwrap();
-    device.dyn_into().unwrap()
+    let device = JsFuture::from( adapter.request_device() )
+    .await
+    .map_err( | e | crate::error::ContextError::DeviceRequestRejected( format!( "{e:?}" ) ) )?;
+
+    Ok( device.dyn_into().unwrap() )
   }
 
   /// Retrieves the WebGPU context from an HTML canvas element.
@@ -78,13 +135,20 @@ mod private
     Ok( () )
   }
 
+  // Fix(BUG-164): see `gpu_or_unsupported`'s own comment above `adapter_request` -- this
+  // function had the identical unconditional-`navigator.gpu()` panic risk, independently
+  // reachable since callers may query the preferred format before ever calling
+  // `adapter_request` (the WebGPU spec defines `getPreferredCanvasFormat()` as a standalone
+  // capability query, not dependent on a live adapter/device).
   /// Retrieves the preferred texture format for the current canvas.
+  ///
+  /// # Errors
+  /// Returns `error::ContextError::WebGpuUnsupported` if `navigator.gpu` itself is absent (this
+  /// browser has no WebGPU support at all).
   #[ inline ]
-  #[ must_use ]
-  pub fn preferred_format() -> GpuTextureFormat
+  pub fn preferred_format() -> Result< GpuTextureFormat, WebGPUError >
   {
-    let navigator = navigator();
-    navigator.gpu().get_preferred_canvas_format()
+    Ok( gpu_or_unsupported()?.get_preferred_canvas_format() )
   }
 
   /// Gets the current texture from the WebGPU context.
@@ -145,15 +209,16 @@ mod private
   /// partway through.
   ///
   /// # Errors
-  /// Returns whatever [`from_canvas`] or [`configure`] returns on failure.
+  /// Returns whatever [`from_canvas`], [`adapter_request`], [`device_request`] or
+  /// [`configure`] returns on failure.
   #[ inline ]
   pub async fn setup( canvas : &web_sys::HtmlCanvasElement ) -> Result< GpuSetup, WebGPUError >
   {
     let context = from_canvas( canvas )?;
-    let adapter = adapter_request().await;
-    let device = device_request( &adapter ).await;
+    let adapter = adapter_request().await?;
+    let device = device_request( &adapter ).await?;
     let queue = device.queue();
-    let format = preferred_format();
+    let format = preferred_format()?;
     configure( &device, &context, format )?;
 
     Ok( GpuSetup { context, adapter, device, queue, format } )

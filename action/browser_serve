@@ -48,7 +48,8 @@ then
     then
       _feature_args=( features::"$_features" )
     fi
-    timeout 90 browsee .launch session::"$_session" url::"$_url" "${_feature_args[@]}" > /dev/null 2>&1 \
+    browsee .kill session::"$_session" > /dev/null 2>&1 || true
+    timeout 90 browsee .launch session::"$_session" url::"$_url" "${_feature_args[@]}" > /dev/null \
       || printf 'note: browsee could not open a browser tab — open %s manually\n' "$_url" >&2
   else
     printf 'note: dev server not ready in time — skipping browser auto-open (open %s manually once ready)\n' "$_url" >&2

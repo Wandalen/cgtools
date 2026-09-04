@@ -140,7 +140,24 @@ pub struct SpatialEntity<C> {
 
 impl<C> SpatialEntity<C> {
     /// Creates a new spatial entity.
+    ///
+    /// `radius` is clamped to a non-negative value: a negative radius would
+    /// invert `bounds()`'s rectangle and wrap to a huge value when cast to
+    /// `u32` in `intersects_entity`.
     pub fn new(id: u32, position: C, radius: i32) -> Self {
+        // Fix(BUG-482): clamp radius to a non-negative value at construction.
+        // Root cause: `radius` was stored unclamped. `bounds()` computes
+        // `SpatialBounds::from_center_size(x, y, radius * 2, radius * 2)` --
+        // a negative radius produces a negative width/height, which
+        // `from_center_size` silently turns into an inverted rectangle
+        // (`left > right`, `top > bottom`), and `intersects_entity` computes
+        // `(self.radius + other.radius) as u32`, which wraps to a huge
+        // positive value when the signed sum is negative.
+        // Pitfall: casting a signed integer that can be negative to an
+        // unsigned type (`as u32`) never panics -- it silently wraps, so a
+        // missing non-negative invariant at construction surfaces far away,
+        // as a bogus huge distance threshold, not as an obvious crash here.
+        let radius = radius.max(0);
         Self { id, position, radius }
     }
 
@@ -234,10 +251,34 @@ where
     }
 
     /// Inserts an entity into the quadtree.
-    pub fn insert(&mut self, entity: SpatialEntity<C>) {
+    ///
+    /// Returns `false` (and leaves the quadtree unchanged) if the entity's position falls
+    /// outside the quadtree's own bounds.
+    #[must_use]
+    pub fn insert(&mut self, entity: SpatialEntity<C>) -> bool {
+        // Fix(BUG-134)
+        // Root cause: insert_recursive_static's quadrant routing always finds
+        // SOME quadrant via unbounded center-point comparisons, with no check
+        // that the entity's position actually falls within the tree's own
+        // bounds -- an out-of-bounds entity got filed into a leaf whose real
+        // bounds don't contain it, then region_query's node_bounds
+        // intersects() pruning (walked from the tree's fixed self.bounds,
+        // which never grows) silently excluded it from every spatially-scoped
+        // query while it remained visible via all_entities().
+        // Pitfall: this check must live here, once, at the entry point -- the
+        // recursive quadrant split (bounds.center() then >=/<= comparison)
+        // already preserves containment correctly for any position that
+        // starts inside bounds, so duplicating a bounds check at every
+        // recursion level would be redundant, not defensive.
+        let (x, y) = entity.position.to_spatial_coords();
+        if !self.bounds.contains_point(x, y) {
+            return false;
+        }
+
         let bounds = self.bounds;
         let max_entities = self.max_entities;
         Self::insert_recursive_static(&mut self.root, entity, &bounds, 0, max_entities, &mut self.max_depth);
+        true
     }
 
     /// Removes all entities with the specified ID from the quadtree.

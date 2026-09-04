@@ -18,7 +18,7 @@
 //! fails the build ), a locally-defined chunk is a plain
 //! [`ChunkDescriptor`] literal over `include_str!`, [`dependency_closed`]
 //! const-asserts that a hand-selected set is transitively complete, and
-//! [`compose_set`] composes the mixed set — imported and local rows alike —
+//! [`set_compose`] composes the mixed set — imported and local rows alike —
 //! straight from descriptor fields. See `readme.md`'s "Importing chunks
 //! into an application" section for the full pattern.
 //!
@@ -98,7 +98,7 @@ mod private
   /// application actually uses instead of absorbing all of [`CHUNKS`]:
   ///
   /// ```
-  /// use shader_chunks_core::{ ChunkDescriptor, chunk, dependency_closed, compose_set };
+  /// use shader_chunks_core::{ ChunkDescriptor, chunk, dependency_closed, set_compose };
   ///
   /// const MY_CHUNKS : &[ ChunkDescriptor ] =
   /// &[
@@ -107,7 +107,7 @@ mod private
   /// ];
   /// const _ : () = assert!( dependency_closed( MY_CHUNKS ) );
   ///
-  /// let wgsl = compose_set( MY_CHUNKS );
+  /// let wgsl = set_compose( MY_CHUNKS );
   /// assert!( wgsl.contains( "fn value_noise(" ) );
   /// ```
   ///
@@ -148,7 +148,7 @@ mod private
   }
 
   /// True when every `depends_on` entry of every chunk in `set` names a
-  /// chunk that is itself in `set` — the precondition [`compose_set`] needs
+  /// chunk that is itself in `set` — the precondition [`set_compose`] needs
   /// to succeed. `const`, so a hand-selected set is validated at compile
   /// time: `const _ : () = assert!( dependency_closed( MY_CHUNKS ) );`
   /// fails the build, naming this assert, when an import was forgotten.
@@ -189,12 +189,12 @@ mod private
   {
     let name = chunk.name;
     let mut mismatches = Vec::new();
-    let manifest_name = parse_name( chunk.wgsl );
+    let manifest_name = name_parse( chunk.wgsl );
     if name != manifest_name
     {
       mismatches.push( format!( "chunk `{name}`: descriptor name `{name}` != manifest `//@ name:` value `{manifest_name}`" ) );
     }
-    let manifest_description = parse_description( chunk.wgsl );
+    let manifest_description = description_parse( chunk.wgsl );
     if chunk.description != manifest_description
     {
       mismatches.push( format!
@@ -203,40 +203,40 @@ mod private
         chunk.description
       ));
     }
-    if parse_tags( chunk.wgsl ) != chunk.tags
+    if tags_parse( chunk.wgsl ) != chunk.tags
     {
       mismatches.push( format!
       (
         "chunk `{name}`: descriptor tags {:?} != manifest `//@ tags:` value {:?}",
         chunk.tags,
-        parse_tags( chunk.wgsl )
+        tags_parse( chunk.wgsl )
       ));
     }
-    if chunk.stage != parse_stage( chunk.wgsl )
+    if chunk.stage != stage_parse( chunk.wgsl )
     {
       mismatches.push( format!
       (
         "chunk `{name}`: descriptor stage {:?} != manifest `//@ stage:` value {:?}",
         chunk.stage,
-        parse_stage( chunk.wgsl )
+        stage_parse( chunk.wgsl )
       ));
     }
-    if parse_depends_on( chunk.wgsl ) != chunk.depends_on
+    if depends_on_parse( chunk.wgsl ) != chunk.depends_on
     {
       mismatches.push( format!
       (
         "chunk `{name}`: descriptor depends_on {:?} != manifest `//@ depends_on:` value {:?}",
         chunk.depends_on,
-        parse_depends_on( chunk.wgsl )
+        depends_on_parse( chunk.wgsl )
       ));
     }
-    if parse_exports( chunk.wgsl ) != chunk.exports
+    if exports_parse( chunk.wgsl ) != chunk.exports
     {
       mismatches.push( format!
       (
         "chunk `{name}`: descriptor exports {:?} != manifest `//@ export:` lines {:?}",
         chunk.exports,
-        parse_exports( chunk.wgsl )
+        exports_parse( chunk.wgsl )
       ));
     }
     mismatches
@@ -282,7 +282,7 @@ mod private
   ///
   /// Panics if the chunk has no `//@ name:` header line.
   #[ must_use ]
-  pub fn parse_name( wgsl : &str ) -> &str
+  pub fn name_parse( wgsl : &str ) -> &str
   {
     manifest_field( wgsl, "name" )
   }
@@ -294,14 +294,22 @@ mod private
   ///
   /// Panics if the chunk has no `//@ depends_on:` header line.
   #[ must_use ]
-  pub fn parse_depends_on( wgsl : &str ) -> Vec< &str >
+  pub fn depends_on_parse( wgsl : &str ) -> Vec< &str >
   {
     let raw = manifest_field( wgsl, "depends_on" );
     if raw.is_empty()
     {
       return Vec::new();
     }
-    raw.split( ',' ).map( str::trim ).collect()
+    // Fix(BUG-280): drop empty segments left by a trailing/leading/doubled
+    // comma instead of collecting them as bogus `""` dependency names.
+    // Root cause: `split(',').map(trim)` alone still yields one segment per
+    // delimiter, including an empty one after a stray comma — trimming
+    // never removes an already-empty string.
+    // Pitfall: any comma-list manifest parser here needs the same
+    // `filter(|s| !s.is_empty())` step; a trailing comma is an easy typo to
+    // make and must not silently become a fake list entry.
+    raw.split( ',' ).map( str::trim ).filter( | entry | !entry.is_empty() ).collect()
   }
 
   /// Reads the chunk's `//@ description:` manifest line.
@@ -310,7 +318,7 @@ mod private
   ///
   /// Panics if the chunk has no `//@ description:` header line.
   #[ must_use ]
-  pub fn parse_description( wgsl : &str ) -> &str
+  pub fn description_parse( wgsl : &str ) -> &str
   {
     manifest_field( wgsl, "description" )
   }
@@ -318,7 +326,7 @@ mod private
   /// Reads the chunk's `//@ stage:` manifest line, if present ( only the
   /// vertex-stage chunk declares one — ordinary function chunks have none ).
   #[ must_use ]
-  pub fn parse_stage( wgsl : &str ) -> Option< &str >
+  pub fn stage_parse( wgsl : &str ) -> Option< &str >
   {
     manifest_field_opt( wgsl, "stage" )
   }
@@ -327,7 +335,7 @@ mod private
   /// export more than one symbol, e.g. a struct plus the function that
   /// returns it ).
   #[ must_use ]
-  pub fn parse_exports( wgsl : &str ) -> Vec< &str >
+  pub fn exports_parse( wgsl : &str ) -> Vec< &str >
   {
     manifest_field_all( wgsl, "export" )
   }
@@ -340,15 +348,24 @@ mod private
   /// Panics if the chunk has no `//@ tags:` header line, or if an entry has
   /// no `:` separator.
   #[ must_use ]
-  pub fn parse_tags( wgsl : &str ) -> Vec< ( &str, &str ) >
+  pub fn tags_parse( wgsl : &str ) -> Vec< ( &str, &str ) >
   {
     let raw = manifest_field( wgsl, "tags" );
     if raw.is_empty()
     {
       return Vec::new();
     }
+    // Fix(BUG-280): drop empty segments ( same stray-comma artifact as
+    // `depends_on_parse` ) before pairing, instead of feeding `""` into
+    // `split_once( ':' )` and panicking on a "malformed entry" that isn't
+    // actually one.
+    // Root cause: the outer `split(',').map(trim)` step retained empty
+    // segments produced by a trailing/leading/doubled comma.
+    // Pitfall: a genuinely malformed non-empty entry ( no `:` ) must still
+    // panic — only the comma-artifact empty case should be tolerated.
     raw.split( ',' )
     .map( str::trim )
+    .filter( | entry | !entry.is_empty() )
     .map( | entry | entry.split_once( ':' )
       .unwrap_or_else( || panic!( "malformed `//@ tags:` entry (expected `group:tag`): {entry:?}" ) ) )
     .collect()
@@ -393,6 +410,30 @@ mod private
 
   impl std::error::Error for ComposeError {}
 
+  /// Error returned by [`set_resolve`] when a requested name — or, under
+  /// `transitive`, a reachable dependency name — is not in the bundled
+  /// [`CHUNKS`] registry.
+  #[ derive( Debug, Clone, PartialEq, Eq ) ]
+  pub enum ResolveError
+  {
+    /// The offending chunk name as given ( or as found in a `depends_on`
+    /// list during transitive widening ).
+    UnknownChunk( String ),
+  }
+
+  impl std::fmt::Display for ResolveError
+  {
+    fn fmt( &self, f : &mut std::fmt::Formatter< '_ > ) -> std::fmt::Result
+    {
+      match self
+      {
+        Self::UnknownChunk( name ) => write!( f, "unknown chunk name `{name}` — not in the bundled set" ),
+      }
+    }
+  }
+
+  impl std::error::Error for ResolveError {}
+
   /// Topologically sorts `chunks` by each one's header-declared `depends_on`
   /// and concatenates their WGSL bodies in that order, dependency before
   /// dependent, regardless of the order they were passed in.
@@ -423,9 +464,9 @@ mod private
   pub fn try_compose( chunks : &[ &str ] ) -> Result< String, ComposeError >
   {
     let entries : Vec< ParsedChunk< '_ > > = chunks.iter()
-    .map( | &wgsl | ParsedChunk { name : parse_name( wgsl ), depends_on : parse_depends_on( wgsl ), wgsl } )
+    .map( | &wgsl | ParsedChunk { name : name_parse( wgsl ), depends_on : depends_on_parse( wgsl ), wgsl } )
     .collect();
-    sort_and_join( &entries )
+    entries_sort_and_join( &entries )
   }
 
   /// [`compose`] over a set of [`ChunkDescriptor`]s — imported via
@@ -438,14 +479,14 @@ mod private
   /// `depends_on` entry not present in `set` — same contract as
   /// [`compose`]. `const _ : () = assert!( dependency_closed( SET ) );`
   /// rules the missing-dependency case out at compile time; use
-  /// [`try_compose_set`] instead when `set` is not trusted.
+  /// [`set_try_compose`] instead when `set` is not trusted.
   #[ must_use ]
-  pub fn compose_set( set : &[ ChunkDescriptor ] ) -> String
+  pub fn set_compose( set : &[ ChunkDescriptor ] ) -> String
   {
-    try_compose_set( set ).unwrap_or_else( | err | panic!( "{err}" ) )
+    set_try_compose( set ).unwrap_or_else( | err | panic!( "{err}" ) )
   }
 
-  /// Non-panicking twin of [`compose_set`], same as [`try_compose`] is to
+  /// Non-panicking twin of [`set_compose`], same as [`try_compose`] is to
   /// [`compose`].
   ///
   /// # Errors
@@ -453,18 +494,53 @@ mod private
   /// Returns [`ComposeError::CyclicDependency`] on a dependency cycle, or
   /// [`ComposeError::MissingDependency`] when a descriptor's `depends_on`
   /// names a chunk not present in `set`.
-  pub fn try_compose_set( set : &[ ChunkDescriptor ] ) -> Result< String, ComposeError >
+  pub fn set_try_compose( set : &[ ChunkDescriptor ] ) -> Result< String, ComposeError >
   {
     let entries : Vec< ParsedChunk< '_ > > = set.iter()
     .map( | chunk | ParsedChunk { name : chunk.name, depends_on : chunk.depends_on.to_vec(), wgsl : chunk.wgsl } )
     .collect();
-    sort_and_join( &entries )
+    entries_sort_and_join( &entries )
+  }
+
+  /// Resolves `names` against the bundled [`CHUNKS`] registry into their
+  /// descriptors, preserving the given order ( duplicates included ). With
+  /// `transitive` set, the named set is widened to its full dependency
+  /// closure — every reachable `depends_on` chunk is appended after the
+  /// named ones, each exactly once. The result is a *selection*, not a
+  /// composition: pass it on to [`set_try_compose`] ( or read the `wgsl`
+  /// fields ) to obtain ordered WGSL text.
+  ///
+  /// # Errors
+  ///
+  /// Returns [`ResolveError::UnknownChunk`] if any name — or, under
+  /// `transitive`, any reachable dependency name — is not bundled.
+  pub fn set_resolve( names : &[ &str ], transitive : bool ) -> Result< Vec< &'static ChunkDescriptor >, ResolveError >
+  {
+    let find = | name : &str | chunk_get( name ).ok_or_else( || ResolveError::UnknownChunk( name.to_string() ) );
+    let mut selected : Vec< &'static ChunkDescriptor > = names.iter()
+    .map( | &name | find( name ) )
+    .collect::< Result< _, _ > >()?;
+    if transitive
+    {
+      let mut seen : std::collections::HashSet< &str > = selected.iter().map( | chunk | chunk.name ).collect();
+      let mut queue : Vec< &str > = selected.iter().flat_map( | chunk | chunk.depends_on.iter().copied() ).collect();
+      while let Some( name ) = queue.pop()
+      {
+        if seen.insert( name )
+        {
+          let chunk = find( name )?;
+          queue.extend( chunk.depends_on.iter().copied() );
+          selected.push( chunk );
+        }
+      }
+    }
+    Ok( selected )
   }
 
   // Shared sort core of `try_compose` ( entries parsed from raw text ) and
-  // `try_compose_set` ( entries read from descriptor fields ): topological
+  // `set_try_compose` ( entries read from descriptor fields ): topological
   // order via `visit`, then dependency-before-dependent concatenation.
-  fn sort_and_join( entries : &[ ParsedChunk< '_ > ] ) -> Result< String, ComposeError >
+  fn entries_sort_and_join( entries : &[ ParsedChunk< '_ > ] ) -> Result< String, ComposeError >
   {
     let mut ordered : Vec< &ParsedChunk< '_ > > = Vec::with_capacity( entries.len() );
     let mut visiting : Vec< &str > = Vec::new();
@@ -531,15 +607,17 @@ mod private
   own use chunk_get_from;
   own use dependency_closed;
   own use manifest_mismatches;
-  own use compose_set;
-  own use try_compose_set;
-  own use parse_name;
-  own use parse_depends_on;
-  own use parse_description;
-  own use parse_stage;
-  own use parse_exports;
-  own use parse_tags;
+  own use set_compose;
+  own use set_try_compose;
+  own use name_parse;
+  own use depends_on_parse;
+  own use description_parse;
+  own use stage_parse;
+  own use exports_parse;
+  own use tags_parse;
   own use ComposeError;
   own use compose;
   own use try_compose;
+  own use ResolveError;
+  own use set_resolve;
 }

@@ -14,11 +14,7 @@
 //! and a scene hierarchy.
 mod private
 {
-  use minwebgl::
-  {
-    self as gl,
-    BufferDescriptor
-  };
+  use minwebgl as gl;
   use gl::
   {
     GL,
@@ -84,7 +80,21 @@ mod private
     /// Vertex positions in 3D space.
     pub positions : Vec< [ f32; 3 ] >,
     /// Triangle indices referencing the positions array.
-    pub indices : Vec< u32 >
+    pub indices : Vec< u32 >,
+    // Fix(BUG-217)
+    // Root cause: `primitives_data_to_gltf` never uploaded any per-vertex
+    // normal, yet `PbrMaterial`'s vertex shader unconditionally computes
+    // `normalize( normalMatrix * normal )` from a `layout(location=1)`
+    // attribute -- an unbound attribute reads WebGL's default `(0,0,0)`,
+    // and `normalize` of the zero vector is NaN (`0 * inversesqrt(0)` =
+    // `0 * Inf`), corrupting every downstream lighting calculation for
+    // every primitive this crate generates.
+    // Pitfall: a shader that unconditionally reads and normalizes a vertex
+    // attribute gives no signal (no error, no panic) when the attribute
+    // was never bound -- the defect only shows up as NaN in the final
+    // shaded output, far from its actual cause.
+    /// Per-vertex surface normals, parallel to `positions`.
+    pub normals : Vec< [ f32; 3 ] >
   }
 
   /// Complete primitive data including geometry attributes, color, and transform.
@@ -104,38 +114,96 @@ mod private
   }
 
   /// Creates an `AttributeInfo` object using one function call for a WebGL buffer.
+  ///
+  /// `attribute` carries the cross-backend location/vector-shape/offset description;
+  /// `stride`/`normalized` are WebGL-only concerns `mingl::VertexAttribute` doesn't model,
+  /// so they're layered on top of the bridged `BufferDescriptor` directly.
   #[ must_use ]
   pub fn buffer_attribute_info_make
   (
     buffer : &web_sys::WebGlBuffer,
-    descriptor : gl::BufferDescriptor,
-    offset : i32,
+    attribute : mingl::VertexAttribute,
     stride : i32,
-    slot : u32,
-    normalized : bool,
-    vector: gl::VectorDataType
+    normalized : bool
   ) -> AttributeInfo
   {
-    let descriptor = descriptor
-    .offset( offset )
-    .normalized( normalized )
+    let descriptor = gl::BufferDescriptor::from_vector( attribute.vector )
+    .offset( attribute.offset )
     .stride( stride )
-    .vector( vector );
+    .normalized( normalized );
 
     AttributeInfo
     {
-      slot,
+      slot : attribute.location,
       buffer : buffer.clone(),
       descriptor,
       bounding_box : mingl::geometry::BoundingBox::default()
     }
   }
 
+  /// Validates that the `parent` links across `primitives_data` form an acyclic graph.
+  ///
+  /// Each primitive's `parent` chain is walked toward the root. An out-of-bounds parent
+  /// index is treated as "no parent", matching `primitives_data_to_gltf`'s own wiring
+  /// fallback ( an invalid index roots that node at the scene instead of erroring ). A
+  /// self-reference or any longer cycle is rejected.
+  ///
+  /// # Errors
+  ///
+  /// Returns `Err` naming the primitive index that closes a cycle when the parent graph
+  /// is not acyclic.
+  // Fix(BUG-499)
+  // Root cause: the parent/child wiring loop in `primitives_data_to_gltf` linked
+  // `Rc<RefCell<Node>>` parent/child pointers directly from `PrimitiveData::parent`
+  // indices with no acyclic check -- a self-referencing or cyclic parent index (e.g.
+  // primitive 2's parent is primitive 2, or 0 -> 1 -> 0) built a `Node` graph containing
+  // a reference cycle with no error surfaced, silently producing a broken/unbounded scene
+  // graph (and, since `Node` uses `Rc<RefCell<_>>` parent/child links, a genuine memory
+  // leak from the reference cycle that nothing would ever detect at runtime).
+  // Pitfall: index-based parent links look like plain data until they're wired into
+  // `Rc`/`RefCell` graph pointers -- validating the indices *before* wiring is the only
+  // point where a cycle is cheap to detect and cheap to test (a plain `&[PrimitiveData]`
+  // slice, no GL context or live `Node` graph needed); once wired, finding the same cycle
+  // requires walking live `Rc` pointers instead.
+  #[ must_use = "ignoring a cyclic parent graph error leaves callers wiring a `Node` graph with a leaked `Rc` reference cycle" ]
+  pub fn primitives_parent_graph_validate( primitives_data : &[ PrimitiveData ] ) -> Result< (), String >
+  {
+    for start in 0..primitives_data.len()
+    {
+      let mut visited = std::collections::HashSet::new();
+      visited.insert( start );
+      let mut current = start;
+
+      while let Some( parent_index ) = primitives_data[ current ].parent
+      {
+        if parent_index >= primitives_data.len()
+        {
+          // Out-of-bounds parent index is treated as "no parent", matching
+          // `primitives_data_to_gltf`'s own wiring fallback.
+          break;
+        }
+
+        if !visited.insert( parent_index )
+        {
+          return Err( format!(
+            "primitive {start} has a cyclic parent chain that revisits primitive {parent_index}"
+          ) );
+        }
+
+        current = parent_index;
+      }
+    }
+
+    Ok( () )
+  }
+
   /// Converts a collection of primitive data into a GLTF scene for WebGL rendering.
   ///
   /// # Panics
   ///
-  /// Panics if the WebGL context fails to create a buffer ( e.g. a lost context ).
+  /// Panics if the WebGL context fails to create a buffer ( e.g. a lost context ), or if
+  /// `primitives_data`'s `parent` links form a cycle or self-reference ( see
+  /// [`primitives_parent_graph_validate`] ).
   #[ expect( clippy::too_many_lines, reason = "GLTF assembly is inherently a flat sequence of buffer/mesh/node/scene construction steps; splitting it would scatter tightly-coupled local state ( buffers, meshes, nodes ) across artificial helper functions" ) ]
   #[ must_use ]
   pub fn primitives_data_to_gltf
@@ -144,6 +212,11 @@ mod private
     primitives_data : &[ PrimitiveData ]
   ) -> GLTF
   {
+    if let Err( cycle ) = primitives_parent_graph_validate( primitives_data )
+    {
+      panic!( "primitives_data_to_gltf: {cycle}" );
+    }
+
     let mut scenes = vec![];
     let mut nodes = vec![];
     let mut gl_buffers = vec![];
@@ -155,21 +228,32 @@ mod private
     scenes.push( Rc::new( RefCell::new( Scene::new() ) ) );
 
     let position_buffer = gl.create_buffer().unwrap();
+    let normal_buffer = gl.create_buffer().unwrap();
 
     gl_buffers.push( position_buffer.clone() );
+    gl_buffers.push( normal_buffer.clone() );
 
+    // Fix(BUG-217): wire a "normal" attribute at slot 1, matching
+    // `main.vert`'s `layout( location = 1 ) in vec3 normal;` -- see
+    // `AttributesData::normals`'s own doc comment for the full root cause.
     let attribute_infos =
     [
       (
         "positions",
         buffer_attribute_info_make(
           &position_buffer,
-          BufferDescriptor::new::< [ f32; 3 ] >(),
-          0,
+          mingl::VertexAttribute::new( 0, VectorDataType::new( mingl::DataType::F32, 3, 1 ), 0 ),
           3,
-          0,
-          false,
-          VectorDataType::new( mingl::DataType::F32, 3, 1 )
+          false
+        )
+      ),
+      (
+        "normal",
+        buffer_attribute_info_make(
+          &normal_buffer,
+          mingl::VertexAttribute::new( 1, VectorDataType::new( mingl::DataType::F32, 3, 1 ), 0 ),
+          3,
+          false
         )
       ),
     ];
@@ -187,6 +271,7 @@ mod private
 
     let mut positions = vec![];
     let mut indices = vec![];
+    let mut normals = vec![];
 
     // Create nodes for all primitives, even those without attributes (parent nodes)
     for primitive in primitives_data
@@ -204,6 +289,7 @@ mod private
       {
         let last_positions_count = positions.len() as u32;
         positions.extend( attributes.borrow().positions.clone() );
+        normals.extend( attributes.borrow().normals.clone() );
         let primitive_indices = attributes.borrow().indices.iter()
         .map( | i | i + last_positions_count )
         .collect::< Vec< _ > >();
@@ -272,6 +358,7 @@ mod private
     }
 
     gl::buffer::upload( gl, &position_buffer, &positions, GL::STATIC_DRAW );
+    gl::buffer::upload( gl, &normal_buffer, &normals, GL::STATIC_DRAW );
     gl::index::upload( gl, &index_buffer, &indices, GL::STATIC_DRAW );
 
     GLTF
@@ -297,6 +384,7 @@ crate::mod_interface!
     PrimitiveData,
     AttributesData,
     primitives_data_to_gltf,
+    primitives_parent_graph_validate,
     buffer_attribute_info_make
   };
 }

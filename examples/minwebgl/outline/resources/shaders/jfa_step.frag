@@ -32,7 +32,7 @@ void main()
       // and then divided by the resolution to convert from pixel space to normalized ( 0-1 ) texture space.
       // `ceil` is used to ensure step sizes are rounded up to the nearest pixel distance,
       // as the step size might not be a perfect integer during intermediate steps.
-      vec2 offset = ceil( vec2( float( x ), float( y ) ) * u_step_size.x ) / u_resolution;
+      vec2 offset = ceil( vec2( float( x ), float( y ) ) * u_step_size ) / u_resolution;
 
       // Calculate the sample coordinate in the input JFA texture.
       vec2 sample_coord = v_tex_coord + offset;

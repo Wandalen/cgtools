@@ -10,7 +10,7 @@
 | `data_structure/` | Core storage containers: `Grid2D`, `Quadtree` | [data_structure/readme.md](../data_structure/readme.md) | 2 |
 | `invariant/` | Correctness properties that must always hold: triangular coordinate sum constraint, lattice address primacy | [invariant/readme.md](../invariant/readme.md) | 2 |
 | `persistence/` | On-disk save-file formats: storage model, data layout, durability | [persistence/readme.md](../persistence/readme.md) | 1 |
-| `pitfall/` | Known traps in the current implementation, their failure modes, and mitigations | [pitfall/readme.md](../pitfall/readme.md) | 4 |
+| `pitfall/` | Known traps in the current implementation, their failure modes, and mitigations | [pitfall/readme.md](../pitfall/readme.md) | 3 |
 | `type/` | Core generic type contracts: coordinate system model, ECS component vocabulary | [type/readme.md](../type/readme.md) | 2 |
 
 ## Master Doc Instances Table

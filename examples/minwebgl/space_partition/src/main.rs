@@ -96,8 +96,10 @@ fn app_run() -> Result< (), gl::WebglError >
 
   let points_vao = gl::vao::create( &gl )?;
   gl.bind_vertex_array( Some( &points_vao ) );
-  gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 0 ).stride( 2 ).divisor( 0 ).attribute_pointer( &gl, 0, &positions_buffer )?;
-  gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 0 ).stride( 3 ).divisor( 0 ).attribute_pointer( &gl, 1, &colors_buffer )?;
+  let position_attr = mingl::VertexAttribute::new( 0, mingl::VectorDataType::new( mingl::DataType::F32, 2, 1 ), 0 );
+  gl::BufferDescriptor::from_vector( position_attr.vector ).offset( position_attr.offset ).stride( 2 ).divisor( 0 ).attribute_pointer( &gl, position_attr.location, &positions_buffer )?;
+  let color_attr = mingl::VertexAttribute::new( 1, mingl::VectorDataType::new( mingl::DataType::F32, 3, 1 ), 0 );
+  gl::BufferDescriptor::from_vector( color_attr.vector ).offset( color_attr.offset ).stride( 3 ).divisor( 0 ).attribute_pointer( &gl, color_attr.location, &colors_buffer )?;
 
   gl.use_program( Some( &point_program ) );
   gl::uniform::matrix_upload( &gl, gl.get_uniform_location( &point_program, "projectionMatrix" ), &projection_matrix.to_array(), true )?;

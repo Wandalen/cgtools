@@ -45,7 +45,11 @@ mod private
   use mingl::{ F64x3, QuatF64 };
   use minwebgl::GL;
 
-  fn channel_decode< 'a >
+  /// Decodes an animation channel's raw sampler input/output arrays -- pure data extraction,
+  /// no `gl`/`GL`/`WebGl` calls anywhere in its body. Returns the per-keyframe component count
+  /// (`3` for `CubicSpline`'s in-tangent/value/out-tangent triples, `1` otherwise), the decoded
+  /// keyframe times, and the still-untyped sampler output values.
+  pub fn channel_decode< 'a >
   (
     channel : &Channel< '_ >,
     buffers : &'a [ Vec< u8 > ],
@@ -80,7 +84,17 @@ mod private
     )
   }
 
-  fn quat_sequence
+  /// Builds a rotation [`Sequence`] of [`Tween< QuatF64 >`]s from a glTF animation channel --
+  /// pure data transform, no `gl`/`GL`/`WebGl` calls anywhere in its body. Mirrors
+  /// `vec3_sequence`'s single-keyframe handling (see the BUG-188 guard below).
+  ///
+  /// # Panics
+  ///
+  /// Does not panic under normal control flow: the two preceding `Interpolation::CubicSpline`
+  /// checks always populate `in_tangent`/`out_tangent` before the `match`'s own `CubicSpline`
+  /// arm runs its `.unwrap()` calls on them.
+  #[ must_use ]
+  pub fn quat_sequence
   (
     channel : &Channel< '_ >,
     buffers : &[ Vec< u8 > ],
@@ -161,10 +175,80 @@ mod private
       tweens.push( tween );
     }
 
+    // Fix(BUG-188): a channel with exactly one keyframe produces exactly one tween here
+    // ( r1 == r2, duration == 0.0, since there's no prior keyframe to interpolate from ) --
+    // `Sequence::new` rejects fewer than 2 players, silently dropping the whole channel via
+    // the `.ok()` below with no diagnostic anywhere. Duplicating the lone tween satisfies the
+    // minimum-2 requirement while preserving the exact intended meaning: hold that one value.
+    if tweens.len() == 1
+    {
+      tweens.push( tweens[ 0 ].clone() );
+    }
+
     Sequence::new( tweens ).ok()
   }
 
-  fn vec3_sequence
+  /// Builds one [`Tween< F64x3 >`] from a single keyframe's raw output chunk, threading the
+  /// previous keyframe's time/value forward as the new tween's start ( or the keyframe's own
+  /// value, for the first keyframe ). Returns `None` when the chunk is short a component,
+  /// mirroring `vec3_sequence`'s original inlined `continue` -- on `None` the caller must skip
+  /// the keyframe without advancing its own `last_time`/`last_value`.
+  fn vec3_tween_from_keyframe
+  (
+    interpolation : Interpolation,
+    t2 : f64,
+    v : &[ [ f32; 3 ] ],
+    last_time : Option< f64 >,
+    last_value : Option< F64x3 >,
+  ) -> Option< ( f64, F64x3, Tween< F64x3 > ) >
+  {
+    let mut items_iter = v.iter();
+
+    let mut m1 = None;
+    if interpolation == Interpolation::CubicSpline
+    {
+      let m1_raw = items_iter.next().copied()?;
+      m1 = Some( m1_raw.map( f64::from ) );
+    }
+
+    let v2 = items_iter.next().copied()?;
+
+    let mut m2 = None;
+    if interpolation == Interpolation::CubicSpline
+    {
+      let m2_raw = items_iter.next().copied()?;
+      m2 = Some( m2_raw.map( f64::from ) );
+    }
+
+    let v2 = F64x3::from_array( v2.map( f64::from ) );
+    let t1 = last_time.unwrap_or( t2 );
+    let v1 = last_value.unwrap_or( v2 );
+
+    let easing : Box< dyn EasingFunction< AnimatableType = F64x3 > > = match interpolation
+    {
+      Interpolation::Linear => Linear::build(),
+      Interpolation::Step => Box::new( Step::new( 1.0 ) ),
+      Interpolation::CubicSpline =>
+      {
+        let m1 = F64x3::from_array( m1.unwrap() );
+        let m2 = F64x3::from_array( m2.unwrap() );
+        Box::new( CubicHermite::< F64x3 >::new( m1, m2 ) )
+      },
+    };
+    let duration = t2 - t1;
+    let delay = t1;
+    let tween = Tween::new( v1, v2, duration, easing )
+    .with_delay( delay );
+
+    Some( ( t2, v2, tween ) )
+  }
+
+  /// Builds a translation/scale [`Sequence`] of [`Tween< F64x3 >`]s from a glTF animation
+  /// channel -- pure data transform, no `gl`/`GL`/`WebGl` calls anywhere in its body. A
+  /// channel with exactly one keyframe still yields a 2-tween sequence ( see the BUG-188 guard
+  /// below ), since [`Sequence::new`] rejects fewer than 2 players.
+  #[ must_use ]
+  pub fn vec3_sequence
   (
     channel : &Channel< '_ >,
     buffers : &[ Vec< u8 > ],
@@ -191,66 +275,51 @@ mod private
 
     for ( t2, v ) in iter
     {
-      let mut items_iter = v.iter();
-
-      let mut m1 = None;
-      if channel.sampler().interpolation() == Interpolation::CubicSpline
-      {
-        let Some( m1_raw ) = items_iter.next().copied()
-        else
-        {
-          continue;
-        };
-        m1 = Some( m1_raw.map( f64::from ) );
-      }
-
-      let Some( v2 ) = items_iter.next().copied()
+      let interpolation = channel.sampler().interpolation();
+      let Some( ( new_time, new_value, tween ) ) = vec3_tween_from_keyframe( interpolation, t2, v, last_time, last_value )
       else
       {
         continue;
       };
 
-      let mut m2 = None;
-      if channel.sampler().interpolation() == Interpolation::CubicSpline
-      {
-        let Some( m2_raw ) = items_iter.next().copied()
-        else
-        {
-          continue;
-        };
-        m2 = Some( m2_raw.map( f64::from ) );
-      }
-
-      let v2 = F64x3::from_array( v2.map( f64::from ) );
-      let t1 = last_time.unwrap_or( t2 );
-      let v1 = last_value
-      .unwrap_or( v2 );
-
-      let easing : Box< dyn EasingFunction< AnimatableType = F64x3 > > = match channel.sampler().interpolation()
-      {
-        Interpolation::Linear => Linear::build(),
-        Interpolation::Step => Box::new( Step::new( 1.0 ) ),
-        Interpolation::CubicSpline =>
-        {
-          let m1 = F64x3::from_array( m1.unwrap() );
-          let m2 = F64x3::from_array( m2.unwrap() );
-          Box::new( CubicHermite::< F64x3 >::new( m1, m2 ) )
-        },
-      };
-
-      last_time = Some( t2 );
-      last_value = Some( v2 );
-      let duration = t2 - t1;
-      let delay = t1;
-      let tween = Tween::new( v1, v2, duration, easing )
-      .with_delay( delay );
+      last_time = Some( new_time );
+      last_value = Some( new_value );
       tweens.push( tween );
+    }
+
+    // Fix(BUG-188): see the identical guard in `quat_sequence` -- a single-keyframe channel
+    // must not be silently dropped by `Sequence::new`'s minimum-2 requirement.
+    if tweens.len() == 1
+    {
+      tweens.push( tweens[ 0 ].clone() );
     }
 
     Sequence::new( tweens ).ok()
   }
 
-  fn weights_sequence
+  // Fix(BUG-262): `targets == 0` reached `weights.chunks( components * targets )` below with a
+  // chunk size of `0`, which `[T]::chunks` panics on unconditionally. A glTF mesh can
+  // legitimately carry morph-target animation channels while omitting the optional
+  // `mesh.weights` default array; in that case `DisplacementsData::morph_weights_get()` stays
+  // empty and `load()`'s `Property::MorphTargetWeights` arm passes `targets == 0` here.
+  // Root cause: no guard existed for the zero case before it reached `.chunks( 0 )`.
+  // Pitfall: a chunk-size parameter derived from optional external input must be checked for
+  // zero before use, even when the call site "usually" supplies a nonzero value -- returning
+  // `None` here is handled gracefully by every call site via `let Some( sequence ) = .. else
+  // { continue; }`.
+  /// Builds a keyframe tween sequence for a morph-target-weights animation channel.
+  ///
+  /// Returns `None` when `targets` is `0`, when `channel` doesn't decode to
+  /// `ReadOutputs::MorphTargetWeights`, or when `channel_decode` fails to decode the channel's
+  /// accessor data.
+  ///
+  /// # Panics
+  ///
+  /// Does not panic under normal control flow: the two `Interpolation::CubicSpline` checks
+  /// preceding the `match` below always populate `m1`/`m2` (or `continue` past the match)
+  /// before the match's own `CubicSpline` arm runs its `.unwrap()` calls.
+  #[ must_use ]
+  pub fn weights_sequence
   (
     channel : &Channel< '_ >,
     buffers : &[ Vec< u8 > ],
@@ -258,6 +327,11 @@ mod private
   )
   -> Option< Sequence< Tween< Vec< f64 > > > >
   {
+    if targets == 0
+    {
+      return None;
+    }
+
     let ( components, times, values ) = channel_decode( channel, buffers )?;
 
     let ReadOutputs::MorphTargetWeights( weights ) = values
@@ -330,6 +404,13 @@ mod private
       let tween = Tween::new( v1, v2, duration, easing )
       .with_delay( delay );
       tweens.push( tween );
+    }
+
+    // Fix(BUG-188): see the identical guard in `quat_sequence` -- a single-keyframe channel
+    // must not be silently dropped by `Sequence::new`'s minimum-2 requirement.
+    if tweens.len() == 1
+    {
+      tweens.push( tweens[ 0 ].clone() );
     }
 
     Sequence::new( tweens ).ok()
@@ -448,6 +529,10 @@ crate::mod_interface!
 {
   own use
   {
-    load
+    load,
+    channel_decode,
+    vec3_sequence,
+    weights_sequence,
+    quat_sequence
   };
 }

@@ -77,12 +77,22 @@ impl< E, const N : usize > VectorIter< E, N > for [ E ]
 
 impl< E, const N : usize > VectorIterMut< E, N > for [ E ]
 {
+  // Fix(BUG-123): added `.take( N )`, matching the `VectorIter::vector_iter` impl above.
+  // Root cause: both methods assert `self.len() >= N` (not `== N`), establishing a "treat the
+  // first N elements of a possibly-longer slice as the logical vector" contract — the same
+  // contract `array_ref`/`vector_mut` enforce via their `[E;N]` pointer casts. `vector_iter`
+  // upholds it with `.take(N)`; `vector_iter_mut` returned the full `IterMut` unbounded,
+  // silently letting a mutation through this trait touch elements at index >= N whenever the
+  // backing slice is longer than N.
+  // Pitfall: an `>=`-style length assertion documents "first N of possibly more" — every
+  // accessor built on it must independently bound its own traversal to N; matching one
+  // sibling method's `.take(N)` is not evidence the other methods also apply it.
   #[ inline ]
   fn vector_iter_mut< 'data >( &'data mut self ) -> impl VectorIterator< 'data, &'data mut E >
   where
     E : 'data,
   {
     assert!( self.len() >= N, "Slice must have at least {N} elements" );
-    <[ E ]>::iter_mut( self )
+    <[ E ]>::iter_mut( self ).take( N )
   }
 }

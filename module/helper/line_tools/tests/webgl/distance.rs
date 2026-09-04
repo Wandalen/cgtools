@@ -1113,3 +1113,68 @@ fn test_distances_update_multi_point()
   assert_eq!( [ 0.0, 1.0, 2.0, 3.0 ], line.distances_get() );
   assert_eq!( 3.0, line.total_distance_get() );
 }
+
+// === BUG-238: near-duplicate points wrongly dropped ===
+
+/// ## Root Cause
+/// `point_add_back`/`point_add_front` gated the "skip near-duplicate point" check on
+/// `( last - point ).mag2() <= f32::EPSILON` -- but `mag2()` returns a *squared* distance,
+/// while `f32::EPSILON` (~1.19e-7) is a linear-scale tolerance. Comparing a squared
+/// quantity against an unsquared threshold makes the effective dedup radius
+/// `sqrt( f32::EPSILON )` (~3.45e-4), roughly 2900x larger than intended.
+///
+/// ## Why Not Caught
+/// Existing tests (`test_distance_add_back_duplicate_ignored`,
+/// `test_distance_add_at_the_same_position`) only ever add EXACT duplicate points
+/// (distance 0.0), which correctly dedup under both the buggy and fixed comparison --
+/// no test exercised a point that is close-but-genuinely-distinct in the gap between
+/// the intended threshold and the accidentally-inflated one.
+///
+/// ## Fix Applied
+/// Compare against `f32::EPSILON * f32::EPSILON` instead, so the linear-distance dedup
+/// radius stays `f32::EPSILON` as intended.
+///
+/// ## Prevention
+/// This test adds two points 1e-4 apart (well inside the old buggy radius, ~3.45e-4)
+/// and asserts both survive -- would fail against the pre-fix comparison, which
+/// silently drops the second point.
+///
+/// ## Pitfall
+/// Any `mag2()`/`distance_squared()` comparison must square its threshold to match --
+/// `d² <= t` means `d <= sqrt(t)`, not `d <= t`.
+// test_kind: bug_reproducer(BUG-238)
+#[ test ]
+fn test_distance_add_back_near_duplicate_not_dropped_bug_238()
+{
+  let mut line = d3::Line::default();
+  line.point_add_back( &[ 0.0, 0.0, 0.0 ] );
+  line.point_add_back( &[ 0.0001, 0.0, 0.0 ] );
+
+  assert_eq!( 2, line.distances_get().len(), "a point 1e-4 away is genuinely distinct and must not be dropped as a near-duplicate" );
+  assert_eq!( 0.0001_f32, line.total_distance_get() );
+}
+
+// Same defect, `point_add_front` code path.
+// test_kind: bug_reproducer(BUG-238)
+#[ test ]
+fn test_distance_add_front_near_duplicate_not_dropped_bug_238()
+{
+  let mut line = d3::Line::default();
+  line.point_add_front( &[ 0.0, 0.0, 0.0 ] );
+  line.point_add_front( &[ 0.0001, 0.0, 0.0 ] );
+
+  assert_eq!( 2, line.distances_get().len(), "a point 1e-4 away is genuinely distinct and must not be dropped as a near-duplicate" );
+  assert_eq!( 0.0001_f32, line.total_distance_get() );
+}
+
+// Confirms the fix doesn't perturb genuinely-near-zero-distance dedup: a point 1e-10 away
+// (well under the fixed radius of ~1.19e-7) must still be treated as a duplicate and dropped.
+#[ test ]
+fn test_distance_add_back_true_near_zero_still_deduped()
+{
+  let mut line = d3::Line::default();
+  line.point_add_back( &[ 0.0, 0.0, 0.0 ] );
+  line.point_add_back( &[ 1e-10, 0.0, 0.0 ] );
+
+  assert_eq!( 1, line.distances_get().len(), "a point 1e-10 away is within the intended dedup tolerance and should still be dropped" );
+}

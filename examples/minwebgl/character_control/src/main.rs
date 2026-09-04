@@ -108,7 +108,7 @@ fn camera_setup( width : f32, height : f32 ) -> Camera
   let up = F32x3::from( [ 0.0, 1.0, 0.0 ] );
   let center = F32x3::from( [ 0.0, 1.0, 0.0 ] );
 
-  let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
+  let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far ).expect( "camera parameters are valid" );
   camera.window_size_set( [ width, height ].into() );
 
   camera
@@ -363,8 +363,18 @@ async fn app_run() -> Result< (), gl::WebglError >
   let canvas = gl::canvas::make()?;
   let gl = gl::context::from_canvas_with( &canvas, options )?;
 
-  let _ = gl.get_extension( "EXT_color_buffer_float" ).expect( "Failed to enable EXT_color_buffer_float extension" );
-  let _ = gl.get_extension( "EXT_shader_image_load_store" ).expect( "Failed to enable EXT_shader_image_load_store  extension" );
+  // Fix(BUG-453): chained a second `.expect()` onto the inner `Option`, matching
+  // `area_light/src/main.rs`'s existing 2-layer pattern.
+  // Root cause: `get_extension` returns `Ok( None )` (not a JS exception) for an
+  // unsupported extension; a single `.expect()` only covers the outer `Result`.
+  // Pitfall: `Result< Option< T >, JsValue >` has two independent failure layers --
+  // unwrapping only the outer one silently passes through the inner `None`.
+  let _ = gl.get_extension( "EXT_color_buffer_float" )
+  .expect( "Failed to query EXT_color_buffer_float extension" )
+  .expect( "EXT_color_buffer_float extension is not supported" );
+  let _ = gl.get_extension( "EXT_shader_image_load_store" )
+  .expect( "Failed to query EXT_shader_image_load_store extension" )
+  .expect( "EXT_shader_image_load_store extension is not supported" );
 
   let width = canvas.width() as f32;
   let height = canvas.height() as f32;
@@ -434,7 +444,13 @@ async fn app_run() -> Result< (), gl::WebglError >
       input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyA ) ||
       input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyD )
       {
-        character.borrow_mut().rotation_set( Quat::from_angle_y( character_controls.borrow().yaw() as f32 / 2.0 ) );
+        // BUG-312 task/bug/312_character_control_visible_mesh_yaw_halved_at_call_site.md --
+        // Fix(BUG-312): removed the stray `/ 2.0` on the yaw passed to `Quat::from_angle_y`.
+        // Root cause: no basis in `CharacterControls` for halving `yaw` here -- all 4 of the
+        // struct's own internal call sites pass `self.yaw` to `from_angle_y` unmodified.
+        // Pitfall: `from_angle_y`'s internal half-angle formula is already applied inside the
+        // function; a caller passing an already-correct radians value straight through is right.
+        character.borrow_mut().rotation_set( Quat::from_angle_y( character_controls.borrow().yaw() as f32 ) );
       }
 
       let forward = F32x3::from_array( character_controls.borrow().forward().map( | v | v as f32 ) );

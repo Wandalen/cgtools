@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Shader Chunks Preview (WebGPU)</title>
+    <link data-trunk rel="css" href="style.css" />
+    <link data-trunk rel="copy-file" href="-preview.json" />
+    <script data-trunk type="module" src="controls.js"></script>
+  </head>
+  <body>
+    <div id="controls-container" class="controls-container">
+      <div id="chunk-title" class="chunk-title"></div>
+      <div class="controls-hint">Sliders below are this preview's tunable parameters. For anything not listed here, edit the shader source on the left — it recompiles live.</div>
+    </div>
+    <div class="editor-container">
+      <div class="editor-heading">Shader source — live-edit to recompile</div>
+      <div class="editor-toggles">
+        <label><input type="checkbox" id="toggle-deps" /> Show dependencies</label>
+        <label><input type="checkbox" id="toggle-harness" /> Show generated harness</label>
+      </div>
+      <textarea id="shader-deps" class="shader-editor shader-editor-readonly" spellcheck="false" readonly hidden></textarea>
+      <textarea id="shader-source" class="shader-editor" spellcheck="false"></textarea>
+      <textarea id="shader-harness" class="shader-editor shader-editor-readonly" spellcheck="false" readonly hidden></textarea>
+      <div id="shader-diagnostics" class="shader-diagnostics" hidden></div>
+    </div>
+  </body>
+</html>

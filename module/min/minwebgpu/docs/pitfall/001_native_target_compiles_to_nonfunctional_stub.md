@@ -19,17 +19,23 @@ Assuming that because `minwebgpu` is a WebGPU/WASM-only library, building it for
 
 Always build and exercise `minwebgpu`-dependent code against `wasm32-unknown-unknown` (e.g. `wasm-pack build --target web`, per the crate readme's Build Commands) rather than the host target; a native `cargo check` is a fine quick syntax pass, but its success says nothing about WebGPU functionality.
 
+### Features
+
+| File | Relationship |
+|------|--------------|
+| [feature/001_context_device_and_shader_setup.md](../feature/001_context_device_and_shader_setup.md) | Device/adapter acquisition is the first call that would surface `WebGPUNotAvailableError` on a native build |
+
 ### Patterns
 
 | File | Relationship |
 |------|--------------|
 | [pattern/001_facade_over_descriptor_builders.md](../pattern/001_facade_over_descriptor_builders.md) | The stub fallback sits behind the same module layering this pattern describes |
 
-### Features
+### Pitfalls
 
 | File | Relationship |
 |------|--------------|
-| [feature/001_context_device_and_shader_setup.md](../feature/001_context_device_and_shader_setup.md) | Device/adapter acquisition is the first call that would surface `WebGPUNotAvailableError` on a native build |
+| [../../../../helper/gpu_hal/docs/pitfall/001_backend_availability_compile_time_not_runtime.md](../../../../helper/gpu_hal/docs/pitfall/001_backend_availability_compile_time_not_runtime.md) | The same family of trap (wrong target/feature), with the opposite compile-time/runtime shape — `gpu_hal` fails to compile the call site; this crate compiles cleanly but the call fails at runtime |
 
 ### Sources
 

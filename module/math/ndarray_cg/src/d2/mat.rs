@@ -1,6 +1,6 @@
 mod private
 {
-  use crate::{AbsDiffEq, RelativeEq, UlpsEq, MatWithShape, MatWithShapeMut, RawSlice, Collection, Indexable, mat, Ix2};
+  use crate::{AbsDiffEq, RelativeEq, UlpsEq, MatWithShape, MatWithShapeMut, RawSlice, Collection, Indexable, mat, Ix2, Add, IndexingRef, Zero};
   use std::panic::UnwindSafe;
   use core::marker::PhantomData;
 
@@ -225,6 +225,25 @@ mod private
     fn default() -> Self
     {
       Mat( [ [ E::default() ; COLS ]; ROWS ], PhantomData )
+    }
+  }
+
+  impl< E, const ROWS : usize, const COLS : usize, Descriptor > Zero for Mat< ROWS, COLS, E, Descriptor >
+  where
+    E : MatNum,
+    Descriptor : mat::Descriptor,
+    Self : Add< Output = Self > + IndexingRef< Scalar = E >,
+  {
+    #[ inline( always ) ]
+    fn zero() -> Self
+    {
+      Self::default()
+    }
+
+    #[ inline( always ) ]
+    fn is_zero( &self ) -> bool
+    {
+      self.iter_lsfirst().all( E::is_zero )
     }
   }
 

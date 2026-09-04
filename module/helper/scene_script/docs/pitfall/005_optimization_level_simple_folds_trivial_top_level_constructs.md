@@ -25,6 +25,12 @@ When writing a new test against `check_top_level_is_declarative()` for any const
 |------|--------------|
 | [../algorithm/001_top_level_statement_classification.md](../algorithm/001_top_level_statement_classification.md) | The classification this pitfall's folding can prevent from ever running on a given statement |
 
+### Features
+
+| File | Relationship |
+|------|--------------|
+| [../feature/001_rhai_scene_scripting.md](../feature/001_rhai_scene_scripting.md) | Navigational hub this pitfall's warning serves |
+
 ### Sources
 
 | File | Relationship |

@@ -1408,3 +1408,16 @@ dispatched agent's original citations** — extends the first-round spot-check (
 completed earlier. Every item confirmed genuine except C10's citation, which went stale from
 unrelated concurrent activity after the walk completed (see L1 Issues) — not a finding against this
 task's own work or acceptance record.
+
+**[2026-08-17]** `NOTE` — routine `task/verified/` cleanup has since removed the raw logs cited above
+(`-0064`/`-0065`/`-0066`/`-0071`/`-0072`/`-0075`/`-0293`/`-0295`/`-0297`/`-0313`/`-0314_longrun.log`;
+hyphen-prefixed, gitignored, freely-deletable per this project's storage-tier convention). No effect on
+this task's verified record: every cited result's substance (exit codes, pass/fail counts, timing) is
+already transcribed in prose alongside each citation, and the MAAV addendum's own L1-L4 rows above
+independently re-confirm the underlying claims (fresh `grep`/source reads, not citation trust) rather
+than resting on log authenticity alone. (`-0074_longrun.log` is excluded from this list — its own
+citation was already retracted in-place by the file's pre-existing 2026-08-12 correction above, not a
+live evidentiary reference. `-0010`/`-0011` bare-shorthand tokens elsewhere in this file — e.g.
+`renderer/-0010`, `module/helper/animation/-0010`, `module/-0011` — are per-crate-local log numbers
+from unrelated work sessions, never `task/verified/` citations, and were wrongly included in an earlier
+version of this note; removed after directly checking every occurrence.)

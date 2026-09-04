@@ -72,7 +72,11 @@ mod private
     /// Bloom radius
     bloom_radius : f32,
     /// Bloom strength
-    bloom_strength : f32
+    bloom_strength : f32,
+    /// The GL context this pass's owned textures/programs were allocated from -- retained so
+    /// `impl Drop` can free them without requiring the caller to remember to call
+    /// `gl_resources_free` first.
+    gl : gl::GL,
   }
 
   impl UnrealBloomPass
@@ -207,7 +211,8 @@ mod private
           width,
           height,
           bloom_radius,
-          bloom_strength
+          bloom_strength,
+          gl : gl.clone(),
         }
       )
     }
@@ -258,6 +263,73 @@ mod private
       }
 
       gl.delete_program( Some( &self.composite_material.0.program ) );
+    }
+  }
+
+  /// The GL handles `gl_resources_free` — and so `Drop` — is responsible for,
+  /// reachable from `tests/` under `test_internals`, plus the mip-chain length
+  /// they are counted against.
+  ///
+  /// Each returns clones rather than borrows because the only useful thing to do
+  /// with them is outlive the pass: a teardown test holds them across the drop
+  /// and asks the context whether they are still live afterwards. The programs
+  /// are returned already unwrapped out of their shader wrappers, so a test
+  /// never has to reach through `GaussianFilterShader`'s own internals to get at
+  /// what it is actually asserting on.
+  #[ cfg( feature = "test_internals" ) ]
+  impl UnrealBloomPass
+  {
+    /// One horizontal and one vertical blur target per mip level, so every
+    /// `_for_test` collection below is expected to be this long.
+    #[ doc( hidden ) ]
+    pub const MIPS_FOR_TEST : usize = MIPS;
+
+    #[ doc( hidden ) ]
+    #[ must_use ]
+    pub fn horizontal_targets_for_test( &self ) -> Vec< gl::web_sys::WebGlTexture >
+    {
+      self.horizontal_targets.iter().flatten().cloned().collect()
+    }
+
+    #[ doc( hidden ) ]
+    #[ must_use ]
+    pub fn vertical_targets_for_test( &self ) -> Vec< gl::web_sys::WebGlTexture >
+    {
+      self.vertical_targets.iter().flatten().cloned().collect()
+    }
+
+    #[ doc( hidden ) ]
+    #[ must_use ]
+    pub fn blur_programs_for_test( &self ) -> Vec< WebGlProgram >
+    {
+      self.blur_materials.iter().map( | material | material.0.program.clone() ).collect()
+    }
+
+    #[ doc( hidden ) ]
+    #[ must_use ]
+    pub fn composite_program_for_test( &self ) -> WebGlProgram
+    {
+      self.composite_material.0.program.clone()
+    }
+  }
+
+  // Fix(BUG-438): `UnrealBloomPass` already had a manual `gl_resources_free` method ( deleting
+  // its 10 mip textures and all blur/composite shader programs ) but no `impl Drop` backstop --
+  // any caller that dropped the pass without first remembering to call `gl_resources_free`
+  // ( e.g. on an error path, or simply forgetting -- nothing in the type system enforces it )
+  // leaked every one of those GPU resources silently.
+  // Root cause: the struct had no persistent `gl` field to call `gl.delete*` from inside
+  // `Drop::drop`, since every other method already received `gl` as an explicit parameter --
+  // so a `Drop` impl was never added when `gl_resources_free` was.
+  // Pitfall: a manual `gl_resources_free`-only cleanup method is opt-in -- it only helps callers
+  // who remember to call it, and does nothing on a panic-unwind or an early `?`-return before
+  // the call site is reached. A stored `gl` field plus `impl Drop` makes cleanup unconditional.
+  impl Drop for UnrealBloomPass
+  {
+    fn drop( &mut self )
+    {
+      let gl = self.gl.clone();
+      self.gl_resources_free( &gl );
     }
   }
 

@@ -189,6 +189,84 @@ mod private
     .context_finish()
   }
 
+  /// Creates a `Context` and a configured presentation surface for `window`, on the
+  /// primary backends.
+  ///
+  /// Window sibling of [`headless`] : where that one deliberately has no surface, this one
+  /// is the path for rendering into a window that is presented to the screen. `window` is
+  /// anything `wgpu` accepts as a surface target — notably an `Arc< winit::window::Window >`,
+  /// via the blanket `From< T : HasWindowHandle + HasDisplayHandle >` impl — so this crate
+  /// stays independent of any particular windowing library.
+  ///
+  /// # Errors
+  ///
+  /// Returns an error when `size` is zero in either dimension, surface creation fails, no
+  /// adapter compatible with the surface is found, or the device request fails.
+  #[ inline ]
+  pub fn windowed< 'w >
+  (
+    window : impl Into< wgpu::SurfaceTarget< 'w > >,
+    size : ( u32, u32 ),
+  )
+  -> Result< ( Context, wgpu::Surface< 'w >, wgpu::SurfaceConfiguration ), crate::Error >
+  {
+    windowed_with( wgpu::Backends::PRIMARY, window, size )
+  }
+
+  /// Creates a `Context` and a configured presentation surface for `window`, on the given
+  /// backends.
+  ///
+  /// Assembles the one ordering that windowed setup requires and that the builder cannot
+  /// express on its own : build the instance, create the surface from it, select an adapter
+  /// that is *compatible with that surface*, request the device, and only then configure the
+  /// surface. Skipping the `compatible_surface` step is the classic cause of picking an
+  /// adapter that cannot present to the window it was chosen for.
+  ///
+  /// # Errors
+  ///
+  /// Returns an error when `size` is zero in either dimension, surface creation fails, no
+  /// adapter compatible with the surface is found on `backends`, or the device request fails.
+  ///
+  /// # Panics
+  ///
+  /// Panics if the instance is absent immediately after `instance_make`, which that method
+  /// unconditionally populates.
+  pub fn windowed_with< 'w >
+  (
+    backends : wgpu::Backends,
+    window : impl Into< wgpu::SurfaceTarget< 'w > >,
+    size : ( u32, u32 ),
+  )
+  -> Result< ( Context, wgpu::Surface< 'w >, wgpu::SurfaceConfiguration ), crate::Error >
+  {
+    // Validated up front so a zero size fails before an adapter and device are requested,
+    // rather than after -- `surface_configure` would reject it anyway, much later.
+    crate::surface::validate_size( size )?;
+
+    let builder = Context::builder().backends( backends ).instance_make();
+    let surface =
+    {
+      let instance = builder.instance_get().expect( "instance_make always populates the instance" );
+      crate::surface::from_window( instance, window )?
+    };
+
+    let context = builder
+    .power_preference( wgpu::PowerPreference::HighPerformance )
+    .compatible_surface( &surface )
+    .adapter_request()?
+    .context_finish()?;
+
+    let config = crate::surface::surface_configure
+    (
+      context.device_get(),
+      context.adapter_get(),
+      &surface,
+      size,
+    )?;
+
+    Ok( ( context, surface, config ) )
+  }
+
   pub type AdapterSelector< 's > = Box< dyn FnMut( &wgpu::Instance ) -> Result< wgpu::Adapter, crate::Error > + 's >;
 
   /// Type-state marker: the builder is configuring the `wgpu::Instance` ( the state
@@ -253,6 +331,20 @@ mod private
     pub fn has_adapter_selector( &self ) -> bool
     {
       self.adapter_selector.is_some()
+    }
+
+    /// Returns the built `wgpu::Instance`, or `None` while the builder is still in the
+    /// `InstanceBuilder` state.
+    ///
+    /// Needed to break the ordering cycle in windowed setup : selecting an adapter with
+    /// [`ContextBuilder::compatible_surface`] requires a surface, creating a surface requires
+    /// an instance, and the instance is otherwise not reachable until the whole `Context` is
+    /// finished. See [`windowed_with`] for the assembled sequence.
+    #[ inline ]
+    #[ must_use ]
+    pub fn instance_get( &self ) -> Option< &wgpu::Instance >
+    {
+      self.instance.as_ref()
     }
   }
 
@@ -537,4 +629,6 @@ mod_interface!
   own use DeviceBuilder;
   own use headless;
   own use headless_with;
+  own use windowed;
+  own use windowed_with;
 }

@@ -50,7 +50,7 @@ complexity into every layer.
 
    | Layer | Role | Today | Target |
    |-------|------|-------|--------|
-   | L5 | Scene script + runners (parsable, interpretable, interactive and off-screen) | `tilemap_scene` (tile stack) | per stack |
+   | L5 | Scene script + runners (parsable, interpretable, interactive and off-screen) | `tilemap_scene` (tile stack), `scene_script` (d2 stack) | per stack |
    | L4 | Scene model | `tilemap_scene` data model; glTF via `renderer` loaders | per stack |
    | L3 | Stack engine (commands / passes) | `tilemap_renderer` (d2), `renderer` (d3) | per stack |
    | L2 | Frame orchestration (pass scheduling, render targets) | embedded inside L3 crates | shared where invariants allow |

@@ -47,17 +47,17 @@ Optional compression (`with_compression(true)`) wraps the chosen format's bytes 
 - `flush()` ensures bytes reach the OS's own buffers before `game_state_save` returns, but without an `fsync`-equivalent call, a hard crash or power loss immediately after return can still lose the write — durable against ordinary process behavior, not against a hard crash.
 - Because the two files are written as separate operations with no atomic swap, a process interrupted between them can leave a `.save` file with no matching `.meta` (or a partially-written `.save`/`.meta` file on its own, since neither uses an atomic rename into place).
 
-### Types
-
-| File | Relationship |
-|------|--------------|
-| [type/002_ecs_component_vocabulary.md](../type/002_ecs_component_vocabulary.md) | The eventual (currently unbuilt) bridge target for `world_data` — the live component data this format has no path to persist yet |
-
 ### Pitfalls
 
 | File | Relationship |
 |------|--------------|
 | [pitfall/003_savefile_compression_is_a_fake_wrapper.md](../pitfall/003_savefile_compression_is_a_fake_wrapper.md) | Full detail on the non-functional compression option |
+
+### Types
+
+| File | Relationship |
+|------|--------------|
+| [type/002_ecs_component_vocabulary.md](../type/002_ecs_component_vocabulary.md) | The eventual (currently unbuilt) bridge target for `world_data` — the live component data this format has no path to persist yet |
 
 ### Sources
 

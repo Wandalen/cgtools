@@ -76,7 +76,57 @@ mod private
     mag2( a ).sqrt()
   }
 
+  /// Returns `true` when every component of `a` is finite -- neither infinite nor `NaN`.
+  ///
+  /// This is a component-wise predicate, deliberately not a test of the magnitude. The two
+  /// are not equivalent in either direction: every component can be finite while `mag( a )`
+  /// is not (the sum of their squares overflows `E`), and every component can be finite and
+  /// nonzero while `mag( a )` is exactly zero (the sum of their squares underflows). Use this
+  /// to validate incoming data; use [`try_normalized`] to guard a division by the magnitude.
+  ///
+  /// # Example
+  /// ```rust
+  /// use mdmath_core::vector;
+  /// let finite = [ 1.0, 2.0, 3.0 ];
+  /// let with_nan = [ 1.0, f64::NAN, 3.0 ];
+  /// let with_inf = [ 1.0, f64::INFINITY, 3.0 ];
+  /// assert!( vector::is_finite( &finite ) );
+  /// assert!( !vector::is_finite( &with_nan ) );
+  /// assert!( !vector::is_finite( &with_inf ) );
+  /// ```
+  #[ inline ]
+  pub fn is_finite< E, A, const SIZE : usize >( a : &A ) -> bool
+  where
+    A : VectorIter< E, SIZE >,
+    E : NdFloat,
+  {
+    a.vector_iter().all( | elem | elem.is_finite() )
+  }
+
   /// Normalizes a vector to unit length.
+  ///
+  /// # Panics
+  /// Panics if `a`'s iterator yields fewer than `SIZE` elements.
+  ///
+  /// # Zero-magnitude input
+  /// If `a` has zero magnitude (e.g. the zero vector), every written component is `0.0 / 0.0`,
+  /// i.e. `NaN` -- this is intentional, not an oversight: a zero-length vector has no defined
+  /// direction, so `NaN` is the honest IEEE-754 encoding of "undefined" rather than an arbitrary
+  /// fallback (e.g. silently returning the zero vector, which would falsely claim the zero
+  /// vector's direction *is* the zero vector). Callers that need a defined fallback for
+  /// degenerate input must check magnitude before calling. See BUG-448.
+  // Fix(BUG-124): the write loop now reads `a`'s own elements (`*aiter.next().unwrap() / mag`)
+  // instead of dividing whatever `r` already held.
+  // Root cause: the loop only ever touched `r.vector_iter_mut()`, never `a`'s iterator beyond
+  // the single aggregate `mag(a)` call — so this computed `r / |a|`, not `a / |a|`, silently
+  // correct only when the caller had pre-set `r` equal to `a` (as the sole in-crate caller
+  // `normalized()` does via `r = a.clone()`), despite `R`/`A` being independent, unconstrained
+  // generic parameters with no `r == a` precondition documented anywhere in the signature.
+  // Pitfall: when a "write into `r`, derived from `a`" function's loop body only reads `r`,
+  // check whether it was ever meant to read `a` too — the sibling `project_on(r,b)` a few
+  // lines below shows the correct pattern (`*elem = *biter.next().unwrap() * scalar`); a
+  // same-crate sibling function is often the cheapest oracle for "should this dereference the
+  // *other* argument."
   #[ inline ]
   pub fn normalize< E, R, A, const SIZE : usize >( r : &mut R, a : &A )
   where
@@ -85,13 +135,18 @@ mod private
     E : NdFloat,
   {
     let mag = mag( a );
+    let mut aiter = a.vector_iter();
     for elem in r.vector_iter_mut()
     {
-      *elem /= mag;
+      *elem = *aiter.next().unwrap() / mag;
     }
   }
 
   /// Normalizes a vector to unit length.
+  ///
+  /// # Zero-magnitude input
+  /// Returns a vector of all `NaN` components if `a` has zero magnitude -- see
+  /// [`normalize`]'s "Zero-magnitude input" doc note (BUG-448).
   #[ inline ]
   pub fn normalized< E, A, const SIZE : usize >( a : &A ) -> A
   where
@@ -103,7 +158,71 @@ mod private
     r
   }
 
+  /// Normalizes a vector to unit length, or returns `None` when it has no defined direction.
+  ///
+  /// The checked counterpart to [`normalized`]. For every input that *has* a unit direction
+  /// the two agree bit for bit -- this divides by the same magnitude through the same
+  /// [`normalize`] call. They differ only in how an input without one is reported.
+  ///
+  /// # Why this exists beside `normalized` rather than replacing it
+  ///
+  /// [`normalized`]'s `NaN` for a zero-magnitude input is the honest IEEE-754 encoding of an
+  /// undefined direction, and it stays exactly as it is: this function does not change it,
+  /// wrap it, or deprecate it (BUG-448 established that contract deliberately, and rejected
+  /// *restructuring* the existing functions to return `Option` because their call sites would
+  /// all have to change -- a reason that does not apply to an additive sibling).
+  ///
+  /// What `NaN` cannot do is stop. It is an ordinary float, so an unchecked direction keeps
+  /// flowing -- through arithmetic, comparisons, and storage -- and surfaces somewhere far
+  /// from the vector that produced it, by which point the zero-length input is no longer in
+  /// view. `Option` moves that same information into the type, where the call site has to
+  /// answer for it. Neither is more correct; they suit different callers, and this is the
+  /// "check the magnitude before calling" that [`normalize`]'s own doc recommends, written
+  /// once here instead of at each call site.
+  ///
+  /// # Returns
+  /// - `Some( unit )` when `mag( a )` is finite and nonzero.
+  /// - `None` when `mag( a )` is zero -- the zero vector, or components small enough that the
+  ///   sum of their squares underflows even though the components themselves are nonzero.
+  /// - `None` when `mag( a )` is not finite -- a `NaN` or infinite component, or components
+  ///   large enough that the sum of their squares overflows.
+  ///
+  /// The last two cases are why this checks the magnitude rather than the components: the
+  /// magnitude is what the division actually uses, and [`is_finite`] on the components alone
+  /// would accept both of them.
+  ///
+  /// # Example
+  /// ```rust
+  /// use mdmath_core::vector;
+  /// let v : [ f64 ; 3 ] = [ 3.0, 0.0, 4.0 ];
+  /// let unit = vector::try_normalized( &v ).unwrap();
+  /// assert!( ( vector::mag( &unit ) - 1.0 ).abs() < 1e-15 );
+  ///
+  /// // No direction to report, so none is returned -- rather than three `NaN`s.
+  /// let zero : [ f64 ; 3 ] = [ 0.0, 0.0, 0.0 ];
+  /// assert!( vector::try_normalized( &zero ).is_none() );
+  /// ```
+  #[ inline ]
+  pub fn try_normalized< E, A, const SIZE : usize >( a : &A ) -> Option< A >
+  where
+    A : VectorIter< E, SIZE > + VectorIterMut< E, SIZE > + Clone,
+    E : NdFloat,
+  {
+    let magnitude = mag( a );
+    if magnitude.is_zero() || !magnitude.is_finite()
+    {
+      return None;
+    }
+    let mut r : A = a.clone();
+    normalize( &mut r, a );
+    Some( r )
+  }
+
   /// Normalizes a vector to a specified magnitude.
+  ///
+  /// # Zero-magnitude input
+  /// Writes `NaN` to every component if `r` has zero magnitude -- see [`normalize`]'s
+  /// "Zero-magnitude input" doc note (BUG-448).
   #[ inline ]
   pub fn normalize_to< E, R, const SIZE : usize >( r : &mut R, mag : E )
   where
@@ -118,6 +237,10 @@ mod private
   }
 
   /// Normalizes a vector to a specified magnitude.
+  ///
+  /// # Zero-magnitude input
+  /// Returns a vector of all `NaN` components if `a` has zero magnitude -- see
+  /// [`normalize`]'s "Zero-magnitude input" doc note (BUG-448).
   #[ inline ]
   pub fn normalized_to< E, A, const SIZE : usize >( a : &A, mag : E ) -> A
   where
@@ -133,6 +256,13 @@ mod private
   ///
   /// # Panics
   /// Panics if `r` or `b`'s iterator yields fewer than `SIZE` elements.
+  ///
+  /// # Zero-magnitude `b`
+  /// If `b` has zero magnitude, every written component is `NaN` (`scalar = dot(r,b) / mag2(b)`
+  /// is `0.0 / 0.0`) -- this is intentional: projection onto a degenerate (zero-length) axis is
+  /// mathematically undefined, so `NaN` is the honest result rather than an arbitrary fallback
+  /// (e.g. silently returning the zero vector). Callers that need a defined fallback for
+  /// degenerate `b` must check its magnitude before calling. See BUG-448.
   #[ inline ]
   pub fn project_on< E, R, B, const SIZE : usize >( r : &mut R, b : &B )
   where
@@ -150,6 +280,10 @@ mod private
   }
 
   /// Projects vector `a` onto vector `b`.
+  ///
+  /// # Zero-magnitude `b`
+  /// Returns a vector of all `NaN` components if `b` has zero magnitude -- see [`project_on`]'s
+  /// "Zero-magnitude `b`" doc note (BUG-448).
   #[ inline ]
   pub fn projected_on< E, A, B, const SIZE : usize >( a : &A, b : &B ) -> A
   where
@@ -163,6 +297,16 @@ mod private
   }
 
   /// Computes the angle between two vectors.
+  // Fix(BUG-446): clamp `cos_theta` to `[ -1, 1 ]` before calling `.acos()`.
+  // Root cause: `dot(a,b) / (mag(a)*mag(b))` is the mathematically-correct cosine formula, but
+  // ordinary floating-point rounding in the dot-product and magnitude computations routinely
+  // pushes the result marginally outside `[ -1, 1 ]` for near-identical/parallel vectors (e.g.
+  // `angle(&v,&v)` for almost any nontrivial `v`) -- `.acos()` of an out-of-domain input silently
+  // returns `NaN` for any such input, not just contrived edge cases.
+  // Pitfall: any `.acos()`/`.asin()` call fed a value derived from a `dot`/magnitude ratio needs
+  // an explicit clamp to its `[ -1, 1 ]` domain -- the ratio is only guaranteed to be in range
+  // algebraically, not in finite-precision floating point; see the identical pattern already
+  // fixed at BUG-272 (`Quat::to_euler_xyz`'s `asin` argument).
   #[ inline ]
   pub fn angle< E, A, B, const SIZE : usize >( a : &A, b : &B ) -> E
   where
@@ -171,6 +315,23 @@ mod private
     E : NdFloat,
   {
     let cos_theta = dot( a, b ) / ( mag( a ) * mag( b ) );
+    // Fix(BUG-446): use `clamp` (NaN-preserving), not a `max`/`min` chain (NaN-clearing).
+    // Root cause: `mag(a)*mag(b)` rounds, so a mathematically in-range ratio can land
+    // fractionally outside `[-1,1]` -- but `dot/( mag(a)*mag(b) )` is also genuinely `NaN`
+    // when either vector has zero magnitude (`0.0/0.0`), which is a real, pre-existing,
+    // tested contract (`test_angle`'s zero-vector case expects `NaN`, not a fabricated
+    // angle). `f32::max`/`f32::min` follow IEEE `maxNum`/`minNum` semantics: "if one operand
+    // is NaN, return the other" -- so `NaN.max(-1.0).min(1.0)` silently produces `-1.0`
+    // (`.acos()` -> `PI`), laundering an undefined zero-vector angle into a bogus finite
+    // one. `clamp` instead returns `self` unchanged in its `else` branch whenever
+    // `self < min` and `self > max` are both false -- true for any `self` compared against
+    // NaN operands, so a NaN `self` passes through unclamped while genuinely out-of-range
+    // finite values are still rescued.
+    // Pitfall: `x.max(lo).min(hi)` and `x.clamp(lo,hi)` are NOT interchangeable when `x` may
+    // be NaN -- `max`/`min` silently discard NaN, `clamp` preserves it. Prefer `clamp` for
+    // any defensive pre-`acos`/`asin`/`sqrt` rescue where the input could legitimately be
+    // NaN from an upstream 0/0 or negative-sqrt case that must stay NaN.
+    let cos_theta = cos_theta.clamp( -E::one(), E::one() );
     cos_theta.acos()
   }
 
@@ -246,6 +407,35 @@ mod private
     let mut r = a.clone();
     cross_mut( &mut r, b );
     r
+  }
+
+  /// Returns a unit vector along whichever world axis (X, Y, or Z) is furthest from `v`'s own
+  /// dominant direction, so it is guaranteed not to be (numerically) parallel to `v`.
+  ///
+  /// Used to build a well-defined fallback perpendicular basis when the natural reference
+  /// vector for that basis is itself degenerate (parallel or antiparallel to `v`) -- e.g.
+  /// picking a fallback "up" hint for a camera basis whose real `up` is parallel to its view
+  /// direction, or a fallback rotation axis when aligning two antiparallel vectors. See
+  /// BUG-445.
+  #[ inline ]
+  pub fn non_parallel_hint< E >( v : &[ E; 3 ] ) -> [ E; 3 ]
+  where
+    E : NdFloat,
+  {
+    let one = E::one();
+    let zero = E::zero();
+    if v[ 0 ].abs() <= v[ 1 ].abs() && v[ 0 ].abs() <= v[ 2 ].abs()
+    {
+      [ one, zero, zero ]
+    }
+    else if v[ 1 ].abs() <= v[ 2 ].abs()
+    {
+      [ zero, one, zero ]
+    }
+    else
+    {
+      [ zero, zero, one ]
+    }
   }
 
   /// Performs element-wise addition operation on vectors.
@@ -626,8 +816,10 @@ crate::mod_interface!
     dot,
     mag2,
     mag,
+    is_finite,
     normalize,
     normalized,
+    try_normalized,
     normalize_to,
     normalized_to,
     project_on,
@@ -636,6 +828,7 @@ crate::mod_interface!
     is_orthogonal,
     cross_mut,
     cross,
+    non_parallel_hint,
     sum,
     sum_mut,
     sub,

@@ -449,7 +449,7 @@ mod private
       gl : gl::GL,
       /// Per-instance mesh data (transform / depth).
       instances : ArrayBuffer< MeshInstanceData >,
-      /// VAO holding geometry attribs (0–1) and instance attribs (2–5).
+      /// VAO holding geometry attribs (0–1) and instance attribs (2–6).
       vao : web_sys::WebGlVertexArrayObject,
       /// Batch-wide parameters (geometry / texture / blend).
       params : MeshBatchParams,
@@ -675,7 +675,7 @@ mod private
   {
     match blend
     {
-      // Color: src + dst. Alpha: standard over.
+      // Color: src*src_a + dst. Alpha: standard over.
       BlendMode::Add => gl.blend_func_separate( gl::SRC_ALPHA, gl::ONE, gl::ONE, gl::ONE_MINUS_SRC_ALPHA ),
       // Approximation: diverges from Photoshop Multiply when src_alpha < 1 — the
       // DST_COLOR factor multiplies dst by raw src.rgb (not src.rgb*src_a), so

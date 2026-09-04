@@ -265,6 +265,38 @@ pub fn video_update( gl : &GL, texture : &web_sys::WebGlTexture, video_element :
   ).expect( "Failed to upload data to texture" );
 }
 
+/// Computes the WebGL2 mip level count for a `texStorage3D` allocation from a texture array's
+/// per-layer dimensions, per the spec constraint `levels <= floor(log2(max(width,height))) + 1`.
+#[ must_use ]
+pub fn mip_levels_for_dimensions( width : u32, height : u32 ) -> u32
+{
+  width.max( height ).max( 1 ).ilog2() + 1
+}
+
+/// Computes a sprite's pixel column/row offset within its sheet.
+///
+/// # Errors
+/// Returns `WebglError::NotSupportedForType` if `sprites_in_row` is `0` ( a degenerate sheet:
+/// zero columns can hold no sprites ).
+// Fix(BUG-161)
+// Root cause: the row/column computation divided and modulo'd by the caller-supplied
+// `sprites_in_row` field with no zero-guard; `SpriteSheet` has no constructor and is
+// deliberately kept exhaustive for external struct-literal construction (see its own doc
+// comment above), so a caller-computed `sprites_in_row: 0` (e.g. derived from a sprite wider
+// than the source image) panicked via integer division-by-zero instead of a clear message.
+// Pitfall: a fully-public, constructor-less struct has no single choke point to validate at
+// construction time -- every consumer of its fields must guard independently.
+pub fn sprite_position( index : u32, sprites_in_row : u32, sprite_width : u32, sprite_height : u32 ) -> Result< ( u32, u32 ), WebglError >
+{
+  if sprites_in_row == 0
+  {
+    return Err( WebglError::NotSupportedForType( "SpriteSheet::sprites_in_row must be > 0" ) );
+  }
+  let col = index % sprites_in_row * sprite_width;
+  let row = index / sprites_in_row * sprite_height;
+  Ok( ( col, row ) )
+}
+
 /// Creates a 2D texture from HtmlImageElement.
 /// Get pixel data from the HtmlImageElement using the 2d context of temporary canvas and load it into the texture array element by element.
 ///
@@ -287,12 +319,13 @@ pub fn video_update( gl : &GL, texture : &web_sys::WebGlTexture, video_element :
 ///
 /// # Errors
 /// Returns `WebglError::FailedToAllocateResource` if the WebGL context fails to allocate the
-/// texture, and propagates any `WebglError` from creating the temporary canvas or its 2D context.
+/// texture, `WebglError::Other` if the image element's load fails ( its `error` event fires
+/// before `load` ), and propagates any `WebglError` from creating the temporary canvas or its
+/// 2D context.
 ///
 /// # Panics
-/// Panics if the image fails to load, if the temporary canvas's style properties can't be
-/// removed, if drawing the image to the temporary canvas fails, or if reading back its pixel
-/// data fails.
+/// Panics if the temporary canvas's style properties can't be removed, if drawing the image to
+/// the temporary canvas fails, or if reading back its pixel data fails.
 // `get_image_data` below is `#[cfg(web_sys_unstable_apis)]`-gated at two argument-type
 // signatures inside web-sys itself (see BUG-053); `web_sys_unstable_apis` is a raw `--cfg`
 // flag, not a Cargo feature, declared via `check-cfg` in the root manifest's
@@ -319,7 +352,18 @@ pub async fn sprite_upload( gl : &GL, image_element : &web_sys::HtmlImageElement
     }
   );
 
-  JsFuture::from( load_promise ).await.unwrap();
+  // Fix(BUG-425): `.unwrap()` -> `.map_err(..)?` -- this fn's own signature is
+  // `-> Result< WebGlTexture, WebglError >`, and `on_error` above already wires the image
+  // element's `error` event to reject this promise, but the `.unwrap()` here discarded that
+  // rejection and panicked instead of returning it through the `Result` the caller is holding.
+  // Root cause: the Promise/JsFuture bridge was written correctly ( reject really does carry
+  // the failure ), but the bridge's own await was never connected to the function's `?`-based
+  // error path -- a caller passing a broken image URL got a panic instead of a normal `Err`.
+  // Pitfall: wiring a rejection handler is not the same as propagating the rejection --
+  // `JsFuture::from( promise ).await` still returns `Result< JsValue, JsValue >`, and that
+  // `Result` needs its own `?`/`.map_err()`, not a Promise-level reject callback, to reach the
+  // caller.
+  JsFuture::from( load_promise ).await.map_err( | _ | WebglError::Other( "image failed to load" ) )?;
 
   let texture = gl.create_texture().ok_or( WebglError::FailedToAllocateResource( "Sprite texture" ) )?;
   gl.bind_texture( GL::TEXTURE_2D_ARRAY, Some( &texture ) );
@@ -367,11 +411,23 @@ pub async fn sprite_upload( gl : &GL, image_element : &web_sys::HtmlImageElement
     data
   };
 
+  // Fix(BUG-160)
+  // Root cause: `levels` was hardcoded to 8, but WebGL2/GLES3.0's texStorage3D requires
+  // `levels <= floor(log2(max(width,height))) + 1` -- only valid when max(sprite_width,
+  // sprite_height) >= 128; for smaller sprites the call raises INVALID_OPERATION (never checked
+  // anywhere in this function -- WebGL errors are not surfaced as JS exceptions/Result::Err by
+  // wasm-bindgen) and allocates no storage, so every subsequent tex_sub_image_3d call silently
+  // no-ops against a texture that was never actually created.
+  // Pitfall: the sole real caller's exact sprite size (128x128, the precise boundary value
+  // where 8 levels is still valid) kept this dormant -- never trust a caller's dimensions to
+  // coincidentally clear a hardcoded mip-level count; compute it from the real dimensions.
+  let levels = dim_as_i32( mip_levels_for_dimensions( sprite_sheet.sprite_width, sprite_sheet.sprite_height ) );
+
   // Allocate memory for the 3D texture.
   gl.tex_storage_3d
   (
     GL::TEXTURE_2D_ARRAY,
-    8,
+    levels,
     GL::RGBA8,
     dim_as_i32( sprite_sheet.sprite_width ),
     dim_as_i32( sprite_sheet.sprite_height ),
@@ -395,8 +451,7 @@ pub async fn sprite_upload( gl : &GL, image_element : &web_sys::HtmlImageElement
   for i in 0..sprite_sheet.amount
   {
     // Calculate the row and column coordinates for the current sprite based on the total number of sprites and their size.
-    let col = i % sprite_sheet.sprites_in_row * sprite_sheet.sprite_width;
-    let row = i / sprite_sheet.sprites_in_row * sprite_sheet.sprite_height;
+    let ( col, row ) = sprite_position( i, sprite_sheet.sprites_in_row, sprite_sheet.sprite_width, sprite_sheet.sprite_height )?;
 
     // Set the correct position of the sprite in the PBO.
     gl.pixel_storei( GL::UNPACK_SKIP_PIXELS, dim_as_i32( col ) );

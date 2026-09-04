@@ -8,10 +8,23 @@
 //! catches that whole defect class on the native target, in an ordinary test
 //! run, with no browser involved.
 //!
-//! Scope: the WGSL sources only. Their GLSL ES 3.00 twins
-//! (`*.vert.glsl` / `*.frag.glsl`) are outside naga's reach — its `glsl-in`
-//! front end parses desktop GLSL, not ES profiles — and need the Khronos
-//! reference validator (`glslangValidator`) instead.
+//! Scope: the WGSL sources only. Their GLSL ES 3.00 twins (`*.vert` /
+//! `*.frag` under `src/webgl/shaders/`) are outside naga's reach. naga does
+//! ship a GLSL front end (`naga::front::glsl`, feature `glsl-in`, available
+//! in the `naga = "30.0"` pin used here), but its own support table scopes
+//! it to "GLSL 440+ and Vulkan semantics only" — confirmed by feeding these
+//! exact shader sources through `front::glsl::Frontend::parse`: it rejects
+//! the `#version 300 es` pragma outright (`InvalidVersion(300)`,
+//! `InvalidProfile("es")`), doesn't recognize GLSL-ES-only builtins such as
+//! `gl_VertexID` (Vulkan GLSL spells it `gl_VertexIndex`), and requires
+//! explicit `layout(binding = N)` on every uniform block — none of which
+//! this OpenGL-ES-idiom codebase declares. Papering over that would mean
+//! validating a rewritten shader that no longer matches what actually
+//! ships, so naga is not the right tool for this half of the surface.
+//! `legacy_glsl_shader_compile_test.rs` covers it instead, compiling all 28
+//! shipped `.vert`/`.frag` files through a real headless WebGL2 context —
+//! the actual GLSL ES 3.00 compiler these sources target, not a native
+//! offline stand-in.
 #![ cfg( not( target_arch = "wasm32" ) ) ]
 
 /// Parses `source` as WGSL and runs naga's full IR validation over it,

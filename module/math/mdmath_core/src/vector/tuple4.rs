@@ -1,7 +1,19 @@
-#[ cfg( debug_assertions ) ]
-use core::mem::{ align_of_val, size_of_val };
+use core::mem::{ size_of, align_of };
 
 use super::{Collection, ConstLength, IntoArray, ArrayRef, ArrayMut, VectorIter, VectorIteratorRef, VectorIterMut, VectorIterator};
+
+// Fix(BUG-449): compile-time layout proof shared by `ArrayRef::array_ref`/`ArrayMut::vector_mut`
+// below -- see `tuple2.rs`'s `assert_tuple2_array_layout` for the full root-cause/pitfall
+// writeup (identical mechanism, generalized to 4 fields).
+const fn assert_tuple4_array_layout< E >()
+{
+  assert!( size_of::< ( E, E, E, E ) >() == size_of::< [ E ; 4 ] >(), "(E,E,E,E) and [E;4] must have the same size" );
+  assert!( align_of::< ( E, E, E, E ) >() == align_of::< [ E ; 4 ] >(), "(E,E,E,E) and [E;4] must have the same alignment" );
+  assert!( core::mem::offset_of!( ( E, E, E, E ), 0 ) == 0, "field 0 must be at byte offset 0" );
+  assert!( core::mem::offset_of!( ( E, E, E, E ), 1 ) == size_of::< E >(), "field 1 must immediately follow field 0 with no padding" );
+  assert!( core::mem::offset_of!( ( E, E, E, E ), 2 ) == 2 * size_of::< E >(), "field 2 must immediately follow field 1 with no padding" );
+  assert!( core::mem::offset_of!( ( E, E, E, E ), 3 ) == 3 * size_of::< E >(), "field 3 must immediately follow field 2 with no padding" );
+}
 
 // = 4
 
@@ -26,79 +38,54 @@ impl< E > IntoArray< E, 4 > for ( E, E, E, E )
 
 impl< E > ArrayRef< E, 4 > for ( E, E, E, E )
 {
+  // Fix(BUG-449): replaced the runtime-only, debug-only `debug_assert_eq!` of *total* size/align
+  // with an unconditional, compile-time proof (`assert_tuple4_array_layout`) that also checks
+  // per-field byte offsets -- see `tuple2.rs`'s identical BUG-449 fix for the full writeup.
   #[ inline( always ) ]
   fn array_ref( &self ) -> &[ E ; 4 ]
   {
-    // SAFETY: We are using a raw-pointer cast to convert a reference to a tuple `(E, E, E, E)`
-    // into a reference to an array `[E; 4]`. This is safe because:
-    // 1. The tuple `(E, E, E, E)` and the array `[E; 4]` have the same memory layout.
-    //    - Both contain 4 elements of type `E`.
-    // 2. We ensure that the size and alignment of the tuple and the array are the same
-    //    using `debug_assert_eq!`. This guarantees that they are layout-compatible.
-    // 3. The lifetime of the resulting reference is tied to the lifetime of `self`,
-    //    ensuring that the reference does not outlive the data it points to.
+    const { assert_tuple4_array_layout::< E >() };
+
+    // SAFETY: the compile-time check above proves, for this concrete `E`, that `(E,E,E,E)` and
+    // `[E;4]` share total size, alignment, and per-field byte offsets -- the exact and complete
+    // set of properties this reinterpret-cast depends on. The resulting reference's lifetime is
+    // tied to `self`'s via the raw-pointer-cast-then-reborrow pattern, so it cannot outlive the
+    // data it points to.
     #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
-    let result : &[ E; 4 ] = unsafe { &*( std::ptr::from_ref::< ( E, E, E, E ) >( self ).cast::< [ E; 4 ] >() ) };
-
-    // Check size and alignment of the whole collection
-    debug_assert_eq!( size_of_val( self ), size_of_val( result ), "Size should be the same" );
-    debug_assert_eq!( align_of_val( self ), align_of_val( result ), "Alignment should be the same" );
-
-    // Check size and alignment of the first component
-    debug_assert_eq!( size_of_val( &self.1 ), size_of_val( &result[ 1 ] ), "Component size should be the same" );
-    debug_assert_eq!( align_of_val( &self.1 ), align_of_val( &result[ 1 ] ), "Component alignment should be the same" );
-
-    // Return the result
-    result
+    unsafe { &*( std::ptr::from_ref::< ( E, E, E, E ) >( self ).cast::< [ E ; 4 ] >() ) }
   }
 }
 
 impl< E > ArrayMut< E, 4 > for ( E, E, E, E )
 {
+  // Fix(BUG-449): see `ArrayRef::array_ref`'s own BUG-449 comment above (same root cause and
+  // fix, mirrored here for the mutable accessor).
   #[ inline( always ) ]
   fn vector_mut( &mut self ) -> &mut [ E ; 4 ]
   {
-    // Store layout information in temporary variables
-    #[ cfg( debug_assertions ) ]
-    let size_self = size_of_val( self );
-    #[ cfg( debug_assertions ) ]
-    let align_self = align_of_val( self );
-    #[ cfg( debug_assertions ) ]
-    let size_component = size_of_val( &self.1 );
-    #[ cfg( debug_assertions ) ]
-    let align_component = align_of_val( &self.1 );
+    const { assert_tuple4_array_layout::< E >() };
 
-    // SAFETY: We are using a raw-pointer cast to convert a reference to a tuple `(E, E, E, E)`
-    // into a reference to an array `[E; 4]`. This is safe because:
-    // 1. The tuple `(E, E, E, E)` and the array `[E; 4]` have the same memory layout.
-    //    - Both contain 4 elements of type `E`.
-    // 2. We ensure that the size and alignment of the tuple and the array are the same
-    //    using `debug_assert_eq!`. This guarantees that they are layout-compatible.
-    // 3. The lifetime of the resulting reference is tied to the lifetime of `self`,
-    //    ensuring that the reference does not outlive the data it points to.
+    // SAFETY: see `ArrayRef::array_ref` above -- same compile-time proof, mutable variant.
     #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
-    let result : &mut [ E; 4 ] = unsafe { &mut *( std::ptr::from_mut::< ( E, E, E, E ) >( self ).cast::< [ E; 4 ] >() ) };
-
-    // Perform checks under debug conditions
-    #[ cfg( debug_assertions ) ]
-    debug_assert_eq!( size_self, size_of_val( result ), "Size should be the same" );
-    #[ cfg( debug_assertions ) ]
-    debug_assert_eq!( align_self, align_of_val( result ), "Alignment should be the same" );
-    #[ cfg( debug_assertions ) ]
-    debug_assert_eq!( size_component, size_of_val( &result[ 1 ] ), "Component size should be the same" );
-    #[ cfg( debug_assertions ) ]
-    debug_assert_eq!( align_component, align_of_val( &result[ 1 ] ), "Component alignment should be the same" );
-
-    // Return the result
-    result
+    unsafe { &mut *( std::ptr::from_mut::< ( E, E, E, E ) >( self ).cast::< [ E ; 4 ] >() ) }
   }
 }
 
+// Fix(BUG-122): `index : usize` was shared between `next()` and `next_back()`, whose match
+// arms were hardcoded per-direction — after a `next()` call, `next_back()` reinterpreted the
+// resulting `index` as if counted from the back, yielding the wrong field instead of the true
+// back of the remaining range.
+// Root cause: same shared-single-cursor shape as the already-fixed `Tuple4IterMut` (BUG-050),
+// just never itself updated when that fix landed.
+// Pitfall: a hand-rolled `DoubleEndedIterator` needs independent front/back cursors even when
+// the yielded references are shared and aliasing-safe — a single shared counter is a
+// correctness bug, not just a soundness one, under mixed `.next()`/`.next_back()` sequences.
 #[ derive( Clone ) ]
 struct Tuple4Iter< 'tuple_ref, E >
 {
   tuple : &'tuple_ref ( E, E, E, E ),
-  index : usize,
+  front : usize,
+  back : usize,
 }
 
 impl< 'tuple_ref, E > Iterator for Tuple4Iter< 'tuple_ref, E >
@@ -107,31 +94,26 @@ impl< 'tuple_ref, E > Iterator for Tuple4Iter< 'tuple_ref, E >
 
   fn next( &mut self ) -> Option< Self::Item >
   {
-    match self.index
+    if self.front >= self.back
     {
-      0 => {
-        self.index += 1;
-        Some( &self.tuple.0 )
-      },
-      1 => {
-        self.index += 1;
-        Some( &self.tuple.1 )
-      },
-      2 => {
-        self.index += 1;
-        Some( &self.tuple.2 )
-      },
-      3 => {
-        self.index += 1;
-        Some( &self.tuple.3 )
-      },
-      _ => None,
+      return None;
+    }
+
+    let index = self.front;
+    self.front += 1;
+
+    match index {
+      0 => Some( &self.tuple.0 ),
+      1 => Some( &self.tuple.1 ),
+      2 => Some( &self.tuple.2 ),
+      3 => Some( &self.tuple.3 ),
+      _ => unreachable!(),
     }
   }
 
   fn size_hint( &self ) -> ( usize, Option< usize > )
   {
-    let remaining = 4 - self.index;
+    let remaining = self.back - self.front;
     ( remaining, Some( remaining ) )
   }
 }
@@ -142,25 +124,19 @@ impl< E > DoubleEndedIterator for Tuple4Iter< '_, E >
 {
   fn next_back( &mut self ) -> Option< Self::Item >
   {
-    match self.index
+    if self.front >= self.back
     {
-      0 => {
-        self.index += 1;
-        Some( &self.tuple.3 )
-      },
-      1 => {
-        self.index += 1;
-        Some( &self.tuple.2 )
-      },
-      2 => {
-        self.index += 1;
-        Some( &self.tuple.1 )
-      },
-      3 => {
-        self.index += 1;
-        Some( &self.tuple.0 )
-      },
-      _ => None,
+      return None;
+    }
+
+    self.back -= 1;
+
+    match self.back {
+      0 => Some( &self.tuple.0 ),
+      1 => Some( &self.tuple.1 ),
+      2 => Some( &self.tuple.2 ),
+      3 => Some( &self.tuple.3 ),
+      _ => unreachable!(),
     }
   }
 }
@@ -290,7 +266,8 @@ impl< E: Clone > VectorIter< E, 4 > for ( E, E, E, E )
     Tuple4Iter
     {
       tuple : self,
-      index : 0,
+      front : 0,
+      back : 4,
     }
   }
 }

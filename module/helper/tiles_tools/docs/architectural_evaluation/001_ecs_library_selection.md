@@ -19,7 +19,7 @@
 | Dependency Overhead | Size of the dependency tree pulled in |
 | Workspace Compatibility | Alignment with the existing cgtools ecosystem and its stated requirements |
 
-### hecs vs bevy_ecs vs specs Trade-off Matrix
+### Trade-off Matrix
 
 | Concern | Weight | hecs | bevy_ecs | specs |
 |---------|--------|------|----------|-------|

@@ -109,3 +109,216 @@ fn test_quat_from_slice_wrong_length()
 
   let _ = QuatF64::from( [ 1.0, 2.0, 3.0 ].as_slice() );
 }
+
+/// ## Root Cause
+/// `Quat::from(Mat3)`'s final array literal wrote the trace-derived `w` term (`n0`) into the
+/// `x` slot instead of `w`'s own slot -- a cyclic shift of all four components, since this
+/// crate stores quaternion components as `[x,y,z,w]` (confirmed by `from_angle_x`/`from_angle_y`/
+/// `from_angle_z`).
+///
+/// ## Why Not Caught
+/// No test constructed a `Mat3` and converted it to a `Quat` before this task.
+///
+/// ## Fix Applied
+/// BUG-119 reordered the array literal from `[n0,n1,n2,n3]` to `[n1,n2,n3,n0]`, matching
+/// each term to the storage slot its own algebraic identity corresponds to.
+///
+/// ## Prevention
+/// This test hand-derives the expected quaternion for an exact, closed-form 90 degree
+/// rotation about Z and asserts the full quaternion matches -- the pre-fix cyclic shift
+/// fails this immediately (`x` and `w` both nonzero, `z` zero, instead of `z` and `w`
+/// nonzero, `x` zero).
+///
+/// ## Pitfall
+/// A derivation's intermediate-term computation order (trace term first, for algebraic
+/// convenience) can silently diverge from the target type's storage order -- always map each
+/// term back to its named component before assembling the final array.
+#[ test ]
+fn test_from_mat3_recovers_known_axis_angle_rotation()
+{
+  use the_module::{ Mat3, Quat, mat::DescriptorOrderColumnMajor };
+
+  // Exactly 90 deg about Z: r11=cos90=0, r12=-sin90=-1, r21=sin90=1, r22=cos90=0, r33=1.
+  let m = Mat3::< f64, DescriptorOrderColumnMajor >::from_column_major
+  (
+    [
+      0.0, 1.0, 0.0,
+      -1.0, 0.0, 0.0,
+      0.0, 0.0, 1.0,
+    ]
+  );
+
+  let got : Quat< f64 > = m.into();
+  let exp = Quat::< f64 >::from( [ 0.0, 0.0, std::f64::consts::FRAC_1_SQRT_2, std::f64::consts::FRAC_1_SQRT_2 ] );
+  assert_abs_diff_eq!( got, exp );
+}
+
+/// ## Root Cause
+/// See `test_from_mat3_recovers_known_axis_angle_rotation` above (BUG-119).
+///
+/// ## Why Not Caught
+/// No round-trip test existed comparing `Quat::from(Mat3::from_quat(q))` against the
+/// original `q` -- this would have caught any non-identity-preserving defect in either
+/// conversion direction.
+///
+/// ## Fix Applied
+/// See BUG-119's fix in `src/quaternion/from.rs`.
+///
+/// ## Prevention
+/// This test builds a `Mat3` from a generic, non-axis-aligned quaternion via the
+/// already-correct `Mat3::from_quat`, converts it back via `Quat::from(Mat3)`, and asserts
+/// the round trip recovers the original quaternion. A positive-`w` input quaternion is used
+/// so the comparison doesn't need to account for the `q`/`-q` double-cover ambiguity.
+///
+/// ## Pitfall
+/// A round-trip test against an independently-verified reverse conversion is a strong, cheap
+/// regression guard for any bidirectional representation conversion.
+fn test_from_mat3_round_trips_through_from_quat_generic< Descriptor >()
+where
+  Descriptor : the_module::mat::Descriptor,
+  the_module::Mat3< f64, Descriptor > :
+    the_module::RawSliceMut< Scalar = f64 > +
+    the_module::ScalarMut< Scalar = f64, Index = the_module::Ix2 > +
+    the_module::ConstLayout< Index = the_module::Ix2 > +
+    the_module::IndexingMut< Scalar = f64, Index = the_module::Ix2 >
+{
+  use the_module::{ Mat3, Quat, QuatF64 };
+
+  let q = QuatF64::from( [ -5.0, 4.0, 1.0, 10.0 ] ).normalize();
+  let m = Mat3::< f64, Descriptor >::from_quat( q );
+  let got : Quat< f64 > = m.into();
+
+  assert_abs_diff_eq!( got, q );
+}
+
+#[ test ]
+fn test_from_mat3_round_trips_through_from_quat_row_major()
+{
+  test_from_mat3_round_trips_through_from_quat_generic::< the_module::mat::DescriptorOrderRowMajor >();
+}
+
+#[ test ]
+fn test_from_mat3_round_trips_through_from_quat_column_major()
+{
+  test_from_mat3_round_trips_through_from_quat_generic::< the_module::mat::DescriptorOrderColumnMajor >();
+}
+
+// test_kind: bug_reproducer(BUG-447)
+/// ## Root Cause
+/// `Quat::from(Mat3)` (`src/quaternion/from.rs`, Shepperd's method) computes `n0..n3` as
+/// `1 +/- r11 +/- r22 +/- r33` and passed each straight into `.sqrt()`. Each `n*` is
+/// algebraically non-negative only for an *exactly* orthonormal rotation matrix -- for a
+/// matrix built from `angle.sin_cos()` at a very small nonzero angle, `one_minus_c + c`
+/// (computed as `(1.0 - c) + c`, two separate floating-point operations) does not always
+/// round back to exactly `1.0`, and that same rounding error can drive one `n*` term
+/// marginally negative. `.sqrt()` of a negative input silently returns `NaN`, which then
+/// propagates into that quaternion component.
+/// ## Why Not Caught
+/// The pre-existing `Mat3`-to-`Quat` tests (BUG-119's own regression tests, see
+/// `test_from_mat3_recovers_known_axis_angle_rotation` /
+/// `test_from_mat3_round_trips_through_from_quat_generic` above) only used exact 90-degree
+/// rotations and `f64`-precision round trips through the already-correct `Mat3::from_quat` --
+/// neither exercises the specific `one_minus_c + c` catastrophic-cancellation path that only
+/// shows up for a very small nonzero `f32` angle built directly from `sin_cos`.
+/// ## Fix Applied
+/// BUG-447 added `.max( E::zero() )` to each of `n0..n3` before `.sqrt()` in
+/// `src/quaternion/from.rs` -- the same defensive-clamp pattern as BUG-272 (`to_euler_xyz`'s
+/// `asin`) and BUG-446 (`vector::angle`'s `acos`).
+/// ## Prevention
+/// This test uses a `Mat3<f32, _>` built from the exact row-major values a tiny (`0.0006`
+/// radian) Y-axis `sin_cos`-based rotation produces -- empirically confirmed (`rustc`, both
+/// debug and release profiles) to round `n1` to `-5.960464e-8`, strictly negative. Pre-fix,
+/// `n1.sqrt()` is `NaN`, which propagates into the resulting quaternion's `x` component;
+/// post-fix, the clamp recovers the mathematically correct `x = 0.0` (exactly, since a pure
+/// Y-axis rotation has no X component).
+/// ## Pitfall
+/// `(1.0 - c) + c` does not always round back to exactly `1.0` in floating point -- any
+/// formula relying on such an algebraic identity to guarantee non-negativity before a
+/// `.sqrt()`/`.acos()`/`.asin()` call must clamp defensively, especially for the *small*-angle
+/// case, not just extreme/adversarial inputs; small angles are exactly where `1 - cos(angle)`
+/// loses the most relative precision to catastrophic cancellation.
+#[ test ]
+fn test_from_mat3_tiny_rotation_no_nan()
+{
+  use the_module::{ Mat3, Quat, mat::DescriptorOrderColumnMajor };
+
+  // Row-major values for a 0.0006 rad rotation about the Y axis, built via the same
+  // `angle.sin_cos()` formula `mat3x3::from_axis_angle` uses -- empirically confirmed to
+  // round `n1 = 1 + r11 - r22 - r33` to a strictly negative `f32` value.
+  let m = Mat3::< f32, DescriptorOrderColumnMajor >::from_row_major
+  (
+    [
+      0.999_999_8,        0.0, 0.000_599_999_97,
+      0.0,                1.0, 0.0,
+      -0.000_599_999_97,  0.0, 0.999_999_8,
+    ]
+  );
+
+  let got : Quat< f32 > = m.into();
+  assert!( !got.x().is_nan(), "x component must not be NaN, got {}", got.x() );
+  assert!( !got.y().is_nan(), "y component must not be NaN, got {}", got.y() );
+  assert!( !got.z().is_nan(), "z component must not be NaN, got {}", got.z() );
+  assert!( !got.w().is_nan(), "w component must not be NaN, got {}", got.w() );
+  // `n1` (proportional to x^2) clamps to exactly 0.0, and a pure Y-axis rotation has no X
+  // component either way -- so `x` is exactly 0.0, not just "close to it".
+  #[ expect( clippy::float_cmp, reason = "x is exactly 0.0 by construction: n1 clamps to 0.0, sqrt(0.0) is exactly 0.0, and 0.0 times any finite signum is exactly 0.0 -- no rounding drift is possible" ) ]
+  { assert_eq!( got.x(), 0.0, "x should be exactly 0.0 (n1 clamped) for a pure Y-axis rotation" ); }
+}
+
+/// ## Root Cause
+/// `Quat::slerp` computed a hemisphere-corrected copy `q2` of `other` whenever
+/// `cos_half_theta` ( `self.dot(other)` ) was negative -- `self` and `other` are more than 90
+/// degrees apart as 4D vectors even though `q` and `-q` represent the identical rotation, so a
+/// short-path blend requires interpolating towards `-other`, not `other`. Both return branches
+/// kept blending against the original, un-flipped `*other` instead of the corrected `q2` --
+/// pairing the short-path angle ( derived from the now-positive `cos_half_theta` ) with the
+/// long-path quaternion value produced a non-unit-length result rotated the wrong way.
+///
+/// ## Why Not Caught
+/// The existing `test_slerp` above only exercises quaternion pairs with a strictly positive
+/// dot product ( both hand-picked pairs happen to start under 90 degrees apart ), so the
+/// `cos_half_theta < 0` branch -- and therefore `q2` -- was never exercised by any test.
+///
+/// ## Fix Applied
+/// BUG-194 replaced every use of `*other` after the hemisphere-correction block with `q2`
+/// (`src/quaternion/arithmetics.rs`'s `slerp`), so the short-path angle is now always paired
+/// with the correspondingly-corrected quaternion value.
+///
+/// ## Prevention
+/// `q1` is the identity rotation and `q2_long` is a 270 degree rotation about Z -- the physical
+/// rotation this represents is equivalent to a -90 degree rotation about Z, so the correct
+/// halfway ( `s = 0.5` ) point is a -45 degree rotation about Z, not the +135 degree point a
+/// naive long-path blend would produce. This test asserts the exact expected quaternion
+/// (hand-derived via the corrected algorithm, confirmed unit-length) and, separately, that the
+/// result is unit-length at all -- the pre-fix defect produced a magnitude around 0.41 for this
+/// exact input, not 1.0.
+///
+/// ## Pitfall
+/// A hemisphere-correction block that computes a corrected value into a new binding but never
+/// routes that binding into the function's actual return expressions is a silent no-op --
+/// nothing type-checks or panics, the corrected value is simply discarded. Any test suite
+/// exercising only same-hemisphere inputs cannot detect this, since the correction path is
+/// never taken at all in that regime.
+// test_kind: bug_reproducer(BUG-194)
+#[ test ]
+fn test_slerp_negative_dot_product_takes_short_path()
+{
+  use the_module::QuatF64;
+
+  // Identity rotation.
+  let q1 = QuatF64::from( [ 0.0, 0.0, 0.0, 1.0 ] );
+  // 270 degree rotation about Z -- physically equivalent to -90 degrees about Z.
+  let half = 270.0_f64.to_radians() / 2.0;
+  let q2_long = QuatF64::from( [ 0.0, 0.0, half.sin(), half.cos() ] );
+  assert!( q1.dot( &q2_long ) < 0.0, "fixture must exercise the negative-dot-product branch" );
+
+  let got = q1.slerp( &q2_long, 0.5 );
+
+  // Halfway along the short path ( 0 deg -> -90 deg ) is -45 degrees about Z.
+  let neg45_half = -45.0_f64.to_radians() / 2.0;
+  let exp = QuatF64::from( [ 0.0, 0.0, neg45_half.sin(), neg45_half.cos() ] );
+  assert_abs_diff_eq!( got, exp, epsilon = 1e-9 );
+
+  let len_sq = got.dot( &got );
+  assert!( ( len_sq - 1.0 ).abs() < 1e-9, "slerp result must be unit-length, got squared length {len_sq}" );
+}

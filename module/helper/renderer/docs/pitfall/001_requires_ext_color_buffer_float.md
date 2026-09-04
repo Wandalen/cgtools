@@ -46,6 +46,13 @@ gl.get_extension( "EXT_color_buffer_float" )
 Treat a `None`/`Err` return as "this device cannot run the HDR pipeline" and
 fail with a clear message — do not proceed to renderer construction.
 
+### Features
+
+| File | Relationship |
+|------|--------------|
+| [../feature/001_pbr_rendering_core.md](../feature/001_pbr_rendering_core.md) | Environment requirement every consumer of this pipeline inherits |
+| [../feature/002_image_based_lighting.md](../feature/002_image_based_lighting.md) | PMREM renders into float targets — unavailable without the extension |
+
 ### Invariants
 
 | File | Relationship |

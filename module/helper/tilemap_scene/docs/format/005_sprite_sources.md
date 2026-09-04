@@ -46,7 +46,7 @@ A `SpriteSource` is a rule that, given a layer's render-time context, produces a
 
 ### Version Compatibility
 
-New leaf or composite variants are expected to be additive. The leaf/composite nesting restriction ("composite sources cannot nest inside composite sources") is stated as a format rule but is **not yet enforced by `validate.rs`** — see `pitfall/001` and `invariant/001`; a spec author who nests a composite inside another composite's per-mask slot today gets no load-time diagnostic. `format/003`'s anchor↔source applicability table (`NeighborBitmask`/`NeighborCondition`/`VertexCorners` restricted to `Hex`/`Vertex`, `EdgeConnectedBitmask` to `Edge`, all neighbour-dependent sources excluded from `Multihex`/`FreePos`/`Viewport`) is likewise declared but not yet checked at load time.
+New leaf or composite variants are expected to be additive. The leaf/composite nesting restriction ("composite sources cannot nest inside composite sources") is enforced by `validate.rs`'s composite-nesting check — a spec author who nests a composite inside another composite's per-mask slot gets a `ValidationError::IllegalSourceNesting` at `load()` time. `format/003`'s anchor↔source applicability table (`NeighborBitmask`/`NeighborCondition`/`VertexCorners` restricted to `Hex`/`Vertex`, `EdgeConnectedBitmask` to `Edge`, all neighbour-dependent sources excluded from `Multihex`/`FreePos`/`Viewport`, `External` claimed valid on every anchor) is, by contrast, still declared but not yet checked at load time — see `pitfall/001` and `invariant/001`.
 
 ### Algorithms
 
@@ -74,8 +74,14 @@ New leaf or composite variants are expected to be additive. The leaf/composite n
 
 | File | Relationship |
 |------|--------------|
-| [invariant/001_renderspec_referential_integrity.md](../invariant/001_renderspec_referential_integrity.md) | Asset/animation reference resolution and composite-nesting enforcement gap |
+| [invariant/001_renderspec_referential_integrity.md](../invariant/001_renderspec_referential_integrity.md) | Asset/animation reference resolution and composite-nesting enforcement, both now checked at `load()` time |
 | [invariant/002_edge_and_vertex_canonical_uniqueness.md](../invariant/002_edge_and_vertex_canonical_uniqueness.md) | `EdgeConnectedBitmask`/`VertexCorners` read neighbour state through the canonical edge/vertex form |
+
+### Pitfalls
+
+| File | Relationship |
+|------|--------------|
+| [pitfall/001_load_time_validation_partially_enforced.md](../pitfall/001_load_time_validation_partially_enforced.md) | `External`'s "Applicable to all anchors" claim (Data Model table above) is contradicted by `edge_sprite_source_resolve`, which has no match arm for it — the worked example of this pitfall |
 
 ### Sources
 

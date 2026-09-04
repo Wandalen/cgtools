@@ -7,7 +7,7 @@ set -e
 
 echo "=== Testing CGTools Workspace Cargo Commands ==="
 
-cd /home/user1/pro/lib/cgtools
+cd "$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )"
 
 echo "1. Testing workspace check..."
 if cargo check --workspace --quiet; then

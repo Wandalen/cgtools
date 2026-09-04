@@ -1,8 +1,5 @@
-#[ cfg( debug_assertions ) ]
-use core::mem::{ align_of_val, size_of_val };
-
 use crate::{ Collection, ConstLength, IntoArray, ArrayRef, ArrayMut, Ix };
-use ::ndarray::{ Ix0, Ix1, Ix2, Ix3, Ix4 };
+use ::ndarray::{ Ix0, Ix1, Ix2, Ix3, Ix4, Dimension };
 
 // = 0
 
@@ -66,63 +63,37 @@ impl IntoArray< usize, 1 > for Ix1
 
 impl ArrayRef< usize, 1 > for Ix1
 {
+  // Fix(BUG-449): replaced an unsafe raw-pointer cast with `ndarray::Dimension::slice()` (a
+  // safe, public trait method returning `&[Ix]`) plus std's checked
+  // `TryFrom<&[T]> for &[T;N]`.
+  // Root cause: the previous unsafe cast from `&Ix1` (`ndarray::Dim<[usize;1]>`) to
+  // `&[usize;1]` was justified only by a `debug_assert_eq!` of `size_of_val`/`align_of_val` --
+  // that proves the two types share total size and alignment, but proves nothing about field
+  // order or padding, which is the actual property a same-layout cast depends on (mismatched
+  // field order is instant undefined behavior, not merely a wrong value). The assertion is
+  // also compiled out entirely in release builds, so a future `ndarray` version changing
+  // `Dim`'s internal layout would silently produce UB with zero runtime signal in exactly the
+  // build profile most likely to ship.
+  // Pitfall: `size_of`/`align_of` equality is necessary but nowhere near sufficient to justify
+  // an unsafe same-layout pointer-cast between two independently-defined types -- when the
+  // source type already exposes a safe accessor to its own fields (here: `Dimension::slice()`),
+  // prefer a safe conversion built on that accessor over an unsafe cast, even one guarded by a
+  // runtime assertion.
   #[ inline( always ) ]
   fn array_ref( &self ) -> &[ usize ; 1 ]
   {
-    // SAFETY: We are using a raw-pointer cast to convert a reference to a tuple `([ usize; N ])`
-    // into a reference to an array `[usize; N]`. This is safe because:
-    // 1. The tuple `([usize; N])` and the array `[ usize; N ]` have the same memory layout.
-    //    - Both contain N elements of type `E`.
-    // 2. We ensure that the size and alignment of the tuple and the array are the same
-    //    using `debug_assert_eq!`. This guarantees that they are layout-compatible.
-    // 3. The lifetime of the resulting reference is tied to the lifetime of `self`,
-    //    ensuring that the reference does not outlive the data it points to.
-    #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
-    let result : &[ Ix ; 1 ] = unsafe { &*( std::ptr::from_ref::< Ix1 >( self ).cast::< [ Ix ; 1 ] >() ) };
-
-    // Check size and alignment of the whole collection
-    debug_assert_eq!( size_of_val( self ), size_of_val( result ), "Size should be the same" );
-    debug_assert_eq!( align_of_val( self ), align_of_val( result ), "Alignment should be the same" );
-
-    // // Check size and alignment of the first component
-    // debug_assert_eq!( size_of_val( &self.0 ), size_of_val( &result[ 0 ] ), "Component size should be the same" );
-    // debug_assert_eq!( align_of_val( &self.0 ), align_of_val( &result[ 0 ] ), "Component alignment should be the same" );
-
-    // Return the result
-    result
+    < &[ usize ; 1 ] >::try_from( self.slice() ).expect( "Ix1::slice() always returns exactly 1 element" )
   }
 }
 
 impl ArrayMut< usize, 1 > for Ix1
 {
+  // Fix(BUG-449): see `ArrayRef::array_ref`'s own BUG-449 comment above (same root cause and
+  // fix, mirrored here via `Dimension::slice_mut()` + `TryFrom<&mut [T]> for &mut [T;N]`).
   #[ inline( always ) ]
   fn vector_mut( &mut self ) -> &mut [ usize ; 1 ]
   {
-    // Store layout information in temporary variables
-    #[ cfg( debug_assertions ) ]
-    let size_self = size_of_val( self );
-    #[ cfg( debug_assertions ) ]
-    let align_self = align_of_val( self );
-
-    // SAFETY: We are using a raw-pointer cast to convert a reference to a tuple `([ usize; N ])`
-    // into a reference to an array `[usize; N]`. This is safe because:
-    // 1. The tuple `([usize; N])` and the array `[ usize; N ]` have the same memory layout.
-    //    - Both contain N elements of type `E`.
-    // 2. We ensure that the size and alignment of the tuple and the array are the same
-    //    using `debug_assert_eq!`. This guarantees that they are layout-compatible.
-    // 3. The lifetime of the resulting reference is tied to the lifetime of `self`,
-    //    ensuring that the reference does not outlive the data it points to.
-    #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
-    let result : &mut [ Ix ; 1 ] = unsafe { &mut *( std::ptr::from_mut::< Ix1 >( self ).cast::< [ Ix ; 1 ] >() ) };
-
-    // Perform checks under debug conditions
-    #[ cfg( debug_assertions ) ]
-    debug_assert_eq!( size_self, size_of_val( result ), "Size should be the same" );
-    #[ cfg( debug_assertions ) ]
-    debug_assert_eq!( align_self, align_of_val( result ), "Alignment should be the same" );
-
-    // Return the result
-    result
+    < &mut [ usize ; 1 ] >::try_from( self.slice_mut() ).expect( "Ix1::slice_mut() always returns exactly 1 element" )
   }
 }
 
@@ -149,63 +120,23 @@ impl IntoArray< usize, 2 > for Ix2
 
 impl ArrayRef< usize, 2 > for Ix2
 {
+  // Fix(BUG-449): see `Ix1`'s `ArrayRef::array_ref` BUG-449 comment above (same root cause and
+  // fix, generalized to `N = 2`).
   #[ inline( always ) ]
   fn array_ref( &self ) -> &[ usize ; 2 ]
   {
-    // SAFETY: We are using a raw-pointer cast to convert a reference to a tuple `([ usize; N ])`
-    // into a reference to an array `[usize; N]`. This is safe because:
-    // 1. The tuple `([usize; N])` and the array `[ usize; N ]` have the same memory layout.
-    //    - Both contain N elements of type `E`.
-    // 2. We ensure that the size and alignment of the tuple and the array are the same
-    //    using `debug_assert_eq!`. This guarantees that they are layout-compatible.
-    // 3. The lifetime of the resulting reference is tied to the lifetime of `self`,
-    //    ensuring that the reference does not outlive the data it points to.
-    #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
-    let result : &[ Ix ; 2 ] = unsafe { &*( std::ptr::from_ref::< Ix2 >( self ).cast::< [ Ix ; 2 ] >() ) };
-
-    // Check size and alignment of the whole collection
-    debug_assert_eq!( size_of_val( self ), size_of_val( result ), "Size should be the same" );
-    debug_assert_eq!( align_of_val( self ), align_of_val( result ), "Alignment should be the same" );
-
-    // // Check size and alignment of the first component
-    // debug_assert_eq!( size_of_val( &self.0 ), size_of_val( &result[ 0 ] ), "Component size should be the same" );
-    // debug_assert_eq!( align_of_val( &self.0 ), align_of_val( &result[ 0 ] ), "Component alignment should be the same" );
-
-    // Return the result
-    result
+    < &[ usize ; 2 ] >::try_from( self.slice() ).expect( "Ix2::slice() always returns exactly 2 elements" )
   }
 }
 
 impl ArrayMut< usize, 2 > for Ix2
 {
+  // Fix(BUG-449): see `Ix1`'s `ArrayRef::array_ref` BUG-449 comment above (same root cause and
+  // fix, generalized to `N = 2`).
   #[ inline( always ) ]
   fn vector_mut( &mut self ) -> &mut [ usize ; 2 ]
   {
-    // Store layout information in temporary variables
-    #[ cfg( debug_assertions ) ]
-    let size_self = size_of_val( self );
-    #[ cfg( debug_assertions ) ]
-    let align_self = align_of_val( self );
-
-    // SAFETY: We are using a raw-pointer cast to convert a reference to a tuple `([ usize; N ])`
-    // into a reference to an array `[usize; N]`. This is safe because:
-    // 1. The tuple `([usize; N])` and the array `[ usize; N ]` have the same memory layout.
-    //    - Both contain N elements of type `E`.
-    // 2. We ensure that the size and alignment of the tuple and the array are the same
-    //    using `debug_assert_eq!`. This guarantees that they are layout-compatible.
-    // 3. The lifetime of the resulting reference is tied to the lifetime of `self`,
-    //    ensuring that the reference does not outlive the data it points to.
-    #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
-    let result : &mut [ Ix ; 2 ] = unsafe { &mut *( std::ptr::from_mut::< Ix2 >( self ).cast::< [ Ix ; 2 ] >() ) };
-
-    // Perform checks under debug conditions
-    #[ cfg( debug_assertions ) ]
-    debug_assert_eq!( size_self, size_of_val( result ), "Size should be the same" );
-    #[ cfg( debug_assertions ) ]
-    debug_assert_eq!( align_self, align_of_val( result ), "Alignment should be the same" );
-
-    // Return the result
-    result
+    < &mut [ usize ; 2 ] >::try_from( self.slice_mut() ).expect( "Ix2::slice_mut() always returns exactly 2 elements" )
   }
 }
 
@@ -232,63 +163,23 @@ impl IntoArray< usize, 3 > for Ix3
 
 impl ArrayRef< usize, 3 > for Ix3
 {
+  // Fix(BUG-449): see `Ix1`'s `ArrayRef::array_ref` BUG-449 comment above (same root cause and
+  // fix, generalized to `N = 3`).
   #[ inline( always ) ]
   fn array_ref( &self ) -> &[ usize ; 3 ]
   {
-    // SAFETY: We are using a raw-pointer cast to convert a reference to a tuple `([ usize; N ])`
-    // into a reference to an array `[usize; N]`. This is safe because:
-    // 1. The tuple `([usize; N])` and the array `[ usize; N ]` have the same memory layout.
-    //    - Both contain N elements of type `E`.
-    // 2. We ensure that the size and alignment of the tuple and the array are the same
-    //    using `debug_assert_eq!`. This guarantees that they are layout-compatible.
-    // 3. The lifetime of the resulting reference is tied to the lifetime of `self`,
-    //    ensuring that the reference does not outlive the data it points to.
-    #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
-    let result : &[ Ix ; 3 ] = unsafe { &*( std::ptr::from_ref::< Ix3 >( self ).cast::< [ Ix ; 3 ] >() ) };
-
-    // Check size and alignment of the whole collection
-    debug_assert_eq!( size_of_val( self ), size_of_val( result ), "Size should be the same" );
-    debug_assert_eq!( align_of_val( self ), align_of_val( result ), "Alignment should be the same" );
-
-    // // Check size and alignment of the first component
-    // debug_assert_eq!( size_of_val( &self.0 ), size_of_val( &result[ 0 ] ), "Component size should be the same" );
-    // debug_assert_eq!( align_of_val( &self.0 ), align_of_val( &result[ 0 ] ), "Component alignment should be the same" );
-
-    // Return the result
-    result
+    < &[ usize ; 3 ] >::try_from( self.slice() ).expect( "Ix3::slice() always returns exactly 3 elements" )
   }
 }
 
 impl ArrayMut< usize, 3 > for Ix3
 {
+  // Fix(BUG-449): see `Ix1`'s `ArrayRef::array_ref` BUG-449 comment above (same root cause and
+  // fix, generalized to `N = 3`).
   #[ inline( always ) ]
   fn vector_mut( &mut self ) -> &mut [ usize ; 3 ]
   {
-    // Store layout information in temporary variables
-    #[ cfg( debug_assertions ) ]
-    let size_self = size_of_val( self );
-    #[ cfg( debug_assertions ) ]
-    let align_self = align_of_val( self );
-
-    // SAFETY: We are using a raw-pointer cast to convert a reference to a tuple `([ usize; N ])`
-    // into a reference to an array `[usize; N]`. This is safe because:
-    // 1. The tuple `([usize; N])` and the array `[ usize; N ]` have the same memory layout.
-    //    - Both contain N elements of type `E`.
-    // 2. We ensure that the size and alignment of the tuple and the array are the same
-    //    using `debug_assert_eq!`. This guarantees that they are layout-compatible.
-    // 3. The lifetime of the resulting reference is tied to the lifetime of `self`,
-    //    ensuring that the reference does not outlive the data it points to.
-    #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
-    let result : &mut [ Ix ; 3 ] = unsafe { &mut *( std::ptr::from_mut::< Ix3 >( self ).cast::< [ Ix ; 3 ] >() ) };
-
-    // Perform checks under debug conditions
-    #[ cfg( debug_assertions ) ]
-    debug_assert_eq!( size_self, size_of_val( result ), "Size should be the same" );
-    #[ cfg( debug_assertions ) ]
-    debug_assert_eq!( align_self, align_of_val( result ), "Alignment should be the same" );
-
-    // Return the result
-    result
+    < &mut [ usize ; 3 ] >::try_from( self.slice_mut() ).expect( "Ix3::slice_mut() always returns exactly 3 elements" )
   }
 }
 
@@ -315,58 +206,22 @@ impl IntoArray< usize, 4 > for Ix4
 
 impl ArrayRef< usize, 4 > for Ix4
 {
+  // Fix(BUG-449): see `Ix1`'s `ArrayRef::array_ref` BUG-449 comment above (same root cause and
+  // fix, generalized to `N = 4`).
   #[ inline( always ) ]
   fn array_ref( &self ) -> &[ usize ; 4 ]
   {
-    // SAFETY: We are using a raw-pointer cast to convert a reference to a tuple `([ usize; N ])`
-    // into a reference to an array `[usize; N]`. This is safe because:
-    // 1. The tuple `([usize; N])` and the array `[ usize; N ]` have the same memory layout.
-    //    - Both contain N elements of type `E`.
-    // 2. We ensure that the size and alignment of the tuple and the array are the same
-    //    using `debug_assert_eq!`. This guarantees that they are layout-compatible.
-    // 3. The lifetime of the resulting reference is tied to the lifetime of `self`,
-    //    ensuring that the reference does not outlive the data it points to.
-    #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
-    let result : &[ Ix ; 4 ] = unsafe { &*( std::ptr::from_ref::< Ix4 >( self ).cast::< [ Ix ; 4 ] >() ) };
-
-    // Check size and alignment of the whole collection
-    debug_assert_eq!( size_of_val( self ), size_of_val( result ), "Size should be the same" );
-    debug_assert_eq!( align_of_val( self ), align_of_val( result ), "Alignment should be the same" );
-
-    // Return the result
-    result
+    < &[ usize ; 4 ] >::try_from( self.slice() ).expect( "Ix4::slice() always returns exactly 4 elements" )
   }
 }
 
 impl ArrayMut< usize, 4 > for Ix4
 {
+  // Fix(BUG-449): see `Ix1`'s `ArrayRef::array_ref` BUG-449 comment above (same root cause and
+  // fix, generalized to `N = 4`).
   #[ inline( always ) ]
   fn vector_mut( &mut self ) -> &mut [ usize ; 4 ]
   {
-    // Store layout information in temporary variables
-    #[ cfg( debug_assertions ) ]
-    let size_self = size_of_val( self );
-    #[ cfg( debug_assertions ) ]
-    let align_self = align_of_val( self );
-
-    // SAFETY: We are using a raw-pointer cast to convert a reference to a tuple `([ usize; N ])`
-    // into a reference to an array `[usize; N]`. This is safe because:
-    // 1. The tuple `([usize; N])` and the array `[ usize; N ]` have the same memory layout.
-    //    - Both contain N elements of type `E`.
-    // 2. We ensure that the size and alignment of the tuple and the array are the same
-    //    using `debug_assert_eq!`. This guarantees that they are layout-compatible.
-    // 3. The lifetime of the resulting reference is tied to the lifetime of `self`,
-    //    ensuring that the reference does not outlive the data it points to.
-    #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
-    let result : &mut [ Ix ; 4 ] = unsafe { &mut *( std::ptr::from_mut::< Ix4 >( self ).cast::< [ Ix ; 4 ] >() ) };
-
-    // Perform checks under debug conditions
-    #[ cfg( debug_assertions ) ]
-    debug_assert_eq!( size_self, size_of_val( result ), "Size should be the same" );
-    #[ cfg( debug_assertions ) ]
-    debug_assert_eq!( align_self, align_of_val( result ), "Alignment should be the same" );
-
-    // Return the result
-    result
+    < &mut [ usize ; 4 ] >::try_from( self.slice_mut() ).expect( "Ix4::slice_mut() always returns exactly 4 elements" )
   }
 }

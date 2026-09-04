@@ -343,6 +343,13 @@ mod private
         let old = self.current.as_ref().unwrap().clone();
         let next = self.current.as_ref().unwrap().borrow().in_process.as_ref().unwrap().borrow().next_get();
         let time = old.borrow().in_process.as_ref().unwrap().borrow().transition_as_ref().end_ref().time();
+        // Fix(BUG-187): reset before syncing -- `next.animation` is the node's own persistent
+        // Sequencer, which keeps whatever elapsed time it was left at from any previous
+        // activation ( nothing resets it when a node is exited ). Without this reset,
+        // re-entering a node played earlier in the graph's lifetime added the transition's end
+        // time on top of that stale leftover elapsed time instead of starting the new
+        // activation cleanly.
+        next.borrow_mut().animation.reset();
         next.borrow_mut().animation.update( time );
         self.current = Some( next );
         old.borrow().in_process.as_ref().unwrap().borrow_mut().transition_as_mut().reset();

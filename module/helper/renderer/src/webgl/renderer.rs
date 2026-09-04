@@ -342,12 +342,9 @@ mod private
     /// # Arguments
     ///
     /// * `gl` - A reference to the WebGl2RenderingContext.
-    #[ expect( clippy::unused_self, reason = "the commented-out detach calls in the body are the intended full implementation and need `self`" ) ]
+    #[ expect( clippy::unused_self, reason = "kept as a method, not an associated fn, for API symmetry with `multisample_bind` -- which does need `self` -- not because this body needs it" ) ]
     pub fn multisample_unbind( &self, gl : &gl::WebGl2RenderingContext )
     {
-      // gl.bind_framebuffer( gl::FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
-      // gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::RENDERBUFFER, None );
-      // gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::RENDERBUFFER, None );
       gl.bind_framebuffer( gl::FRAMEBUFFER, None );
     }
 
@@ -361,12 +358,9 @@ mod private
     /// # Arguments
     ///
     /// * `gl` - A reference to the WebGl2RenderingContext.
-    #[ expect( clippy::unused_self, reason = "the commented-out detach calls in the body are the intended full implementation and need `self`" ) ]
+    #[ expect( clippy::unused_self, reason = "kept as a method, not an associated fn, for API symmetry with `resolved_bind` -- which does need `self` -- not because this body needs it" ) ]
     pub fn resolved_unbind( &self, gl : &gl::WebGl2RenderingContext )
     {
-      //  gl.bind_framebuffer( gl::FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
-      // gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, None, 0 );
-      // gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::TEXTURE_2D, None, 0 );
       gl.bind_framebuffer( gl::FRAMEBUFFER, None );
     }
 
@@ -405,8 +399,11 @@ mod private
     shader_source_registry : FxHashMap< ( std::any::TypeId, String ), uuid::Uuid >,
     /// Program UUID → compiled ShaderProgram
     compiled_programs : FxHashMap< uuid::Uuid, Box< dyn ShaderProgram > >,
-    /// Material UUID → program UUID
-    material_program_map : FxHashMap< uuid::Uuid, uuid::Uuid >,
+    /// Material UUID → ( program UUID, `use_ibl` the program was compiled with ).
+    /// The `bool` lets a cached mapping be invalidated when the renderer's IBL
+    /// availability changes after the material was first registered — see
+    /// `program_needs_recompile`.
+    material_program_map : FxHashMap< uuid::Uuid, ( uuid::Uuid, bool ) >,
     /// (node, primitive, primitive_index, program_uuid)
     transparent_nodes : Vec< TransparentNodeEntry >,
     /// (node, primitive, primitive_index, program_uuid, has_emission)
@@ -495,12 +492,11 @@ mod private
       )
     }
 
-    /// Resize [`Renderer`]
-    ///
-    /// # Errors
-    ///
-    /// Returns `WebglError` if recreating the framebuffers at the new size fails.
-    pub fn resize( &mut self, gl : &gl::GL, width : u32, height : u32, samples : i32 ) -> Result< (), gl::WebglError >
+    /// Frees the GL resources that `resize()` is about to recreate : the framebuffer
+    /// context and the optional bloom/swap post-processing passes. Factored out so
+    /// `resize()` and [`Renderer::gl_resources_free`] share one list of fields instead
+    /// of two copies that could silently drift apart as fields are added.
+    fn resizable_resources_free( &mut self, gl : &GL )
     {
       self.framebuffer_ctx.gl_resources_free( gl );
       if let Some( ref mut bloom ) = self.bloom_effect
@@ -511,17 +507,38 @@ mod private
       {
         swap.gl_resources_free( gl );
       }
+    }
+
+    /// Resize [`Renderer`]
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if recreating the framebuffers at the new size fails.
+    pub fn resize( &mut self, gl : &gl::GL, width : u32, height : u32, samples : i32 ) -> Result< (), gl::WebglError >
+    {
+      self.resizable_resources_free( gl );
+
+      // Fix(BUG-435): `bloom_effect`/`swap_buffer` are cleared to `None` unconditionally,
+      // *before* the fallible `UnrealBloomPass::new(...)?` below runs, rather than only in
+      // the `else` ( `!use_emission` ) branch.
+      // Root cause: the previous code only assigned `self.bloom_effect`/`self.swap_buffer`
+      // fresh values inside the `if self.use_emission` / `else` branches. When
+      // `use_emission` was true and `UnrealBloomPass::new` returned `Err`, the `?` early-
+      // returned from `resize` *before* either assignment ran — but `resizable_resources_free`
+      // above had already deleted both structs' underlying GL textures/programs. `self`
+      // was left holding `Some( .. )` values whose handles were already GPU-deleted, which
+      // `render()`'s `composite()` step would then bind/draw with on the next frame.
+      // Pitfall: freeing a resource and clearing the handle that refers to it must happen
+      // atomically from the caller's point of view — never split across a fallible
+      // recreation step, or an error path can leave a dangling handle mistaken for a live one.
+      self.bloom_effect = None;
+      self.swap_buffer = None;
 
       self.framebuffer_ctx = FramebufferContext::new( gl, width, height, samples );
       if self.use_emission
       {
         self.bloom_effect = Some( UnrealBloomPass::new( gl, width, height, gl::RGBA16F )? );
         self.swap_buffer = Some( SwapFramebuffer::new( gl, width, height ) );
-      }
-      else
-      {
-        self.bloom_effect = None;
-        self.swap_buffer = None;
       }
       Ok( () )
     }
@@ -691,22 +708,7 @@ mod private
       // drawbuffers state that is immediately overwritten before any draw uses it.
       self.framebuffer_ctx.multisample_bind( gl );
 
-      if has_transparent && has_emissive
-      {
-        gl::drawbuffers::drawbuffers( gl, &[ 0, 1, 2, 3 ] );
-      }
-      else if has_transparent
-      {
-        gl::drawbuffers::drawbuffers( gl, &[ 0, 2, 3 ] );
-      }
-      else if has_emissive
-      {
-        gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] );
-      }
-      else
-      {
-        gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
-      }
+      gl::drawbuffers::drawbuffers( gl, frame_attachments( has_transparent, has_emissive ) );
 
       let [ r, g, b ] = self.clear_color.0;
       // Alpha = 0 marks background pixels; geometry overwrites it with 1. The tone
@@ -795,14 +797,25 @@ mod private
 
       let material_id = material.id();
       let use_ibl = self.ibl.is_some() && material.ibl_base_texture_unit().is_some();
+      let cached_use_ibl = self.material_program_map.get( &material_id ).map( | &( _, cached ) | cached );
 
-      // If material's defines changed, drop the old mapping and clean up orphaned programs
-      if material.needs_recompile()
+      // Fix(BUG-258): also invalidate the cached mapping when the program's baked-in IBL
+      // state no longer matches the freshly computed `use_ibl` — previously only
+      // `material.needs_recompile()` (a material-intrinsic "my own defines changed" flag)
+      // could trigger a recompile, so a material registered before `Renderer::ibl_set` was
+      // ever called ( or before it went from `Some` back to being replaced ) kept reusing its
+      // stale program forever, even after IBL availability changed.
+      // Root cause: `material_program_map` short-circuited on `material_id` alone once a
+      // mapping existed; `use_ibl` was only ever consulted on a cache miss, never compared
+      // against the IBL state the cached program was actually compiled with.
+      // Pitfall: any renderer-level (not material-level) input baked into a shader's defines
+      // must be part of the cache invalidation check, not just the material's own dirty flag.
+      if program_needs_recompile( material.needs_recompile(), cached_use_ibl, use_ibl )
       {
-        if let Some( old_prog_id ) = self.material_program_map.remove( &material_id )
+        if let Some( ( old_prog_id, _ ) ) = self.material_program_map.remove( &material_id )
         {
           // Check if any other material still references this program
-          let still_used = self.material_program_map.values().any( | id | *id == old_prog_id );
+          let still_used = self.material_program_map.values().any( | &( id, _ ) | id == old_prog_id );
           if !still_used
           {
             self.compiled_programs.remove( &old_prog_id );
@@ -811,7 +824,7 @@ mod private
         }
       }
 
-      let program_uuid = if let Some( &prog_id ) = self.material_program_map.get( &material_id )
+      let program_uuid = if let Some( &( prog_id, _ ) ) = self.material_program_map.get( &material_id )
       {
         prog_id
       }
@@ -877,7 +890,7 @@ mod private
           new_id
         };
 
-        self.material_program_map.insert( material_id, prog_id );
+        self.material_program_map.insert( material_id, ( prog_id, use_ibl ) );
         material.recompile_flag_clear();
         prog_id
       };
@@ -1169,6 +1182,122 @@ mod private
 
       Ok( () )
     }
+
+    /// Frees every WebGL resource this `Renderer` owns : the framebuffer context, the
+    /// optional bloom/swap post-processing passes, the blend pass's shader program, every
+    /// dynamically-compiled material program, and the composite/skybox shader programs.
+    ///
+    /// Call this before dropping the `Renderer` ( or before discarding it in favor of a
+    /// fresh instance ) to avoid leaking GPU resources. `Renderer` does not implement
+    /// `Drop` itself : like [`FramebufferContext`] above, it never stores its own `GL`
+    /// context handle, taking `gl` as an explicit parameter on every method instead, so
+    /// there is no context to delete resources with inside an automatic `drop`.
+    ///
+    /// # Fix(BUG-434)
+    /// `Renderer` previously had no teardown API at all — dropping a `Renderer` silently
+    /// leaked the framebuffer context's textures/renderbuffers, the bloom/swap passes'
+    /// textures, every compiled material program, and the blend/composite/skybox programs,
+    /// since none of these were freed anywhere outside of `resize()`'s narrower cleanup
+    /// ( which only frees the three fields it is about to recreate — see
+    /// `resizable_resources_free` — never `blend_effect`, `compiled_programs`,
+    /// `composite_shader`, or `skybox_shader` ).
+    /// Root cause: no method covered the *complete* set of GPU resources `Renderer`
+    /// accumulates over its lifetime.
+    /// Pitfall: when adding a new field that owns a GPU resource ( a texture, a compiled
+    /// program, a nested pass ), it must be added here too — nothing enforces that
+    /// automatically since `Renderer` has no `Drop` backstop.
+    pub fn gl_resources_free( &mut self, gl : &GL )
+    {
+      self.resizable_resources_free( gl );
+      self.blend_effect.gl_resources_free( gl );
+      for program in self.compiled_programs.values()
+      {
+        gl.delete_program( Some( program.program() ) );
+      }
+      gl.delete_program( Some( self.composite_shader.program() ) );
+      gl.delete_program( Some( self.skybox_shader.program() ) );
+    }
+  }
+
+  /// The two programs `gl_resources_free` deletes directly, plus whether the
+  /// resize-owned passes are currently populated — reachable from `tests/` under
+  /// `test_internals`.
+  ///
+  /// The programs come back as clones, since a teardown test has to hold them
+  /// across the free call to ask the context whether they are still live
+  /// afterwards. `bloom_effect`/`swap_buffer` are reported only as booleans: a
+  /// resize test asks whether they were repopulated, never what is inside them,
+  /// and handing out the passes themselves would let a caller keep one alive
+  /// past the resize that was supposed to replace it.
+  #[ cfg( feature = "test_internals" ) ]
+  impl Renderer
+  {
+    #[ doc( hidden ) ]
+    #[ must_use ]
+    pub fn composite_program_for_test( &self ) -> gl::web_sys::WebGlProgram
+    {
+      self.composite_shader.program().clone()
+    }
+
+    #[ doc( hidden ) ]
+    #[ must_use ]
+    pub fn skybox_program_for_test( &self ) -> gl::web_sys::WebGlProgram
+    {
+      self.skybox_shader.program().clone()
+    }
+
+    #[ doc( hidden ) ]
+    #[ must_use ]
+    pub fn has_bloom_effect_for_test( &self ) -> bool
+    {
+      self.bloom_effect.is_some()
+    }
+
+    #[ doc( hidden ) ]
+    #[ must_use ]
+    pub fn has_swap_buffer_for_test( &self ) -> bool
+    {
+      self.swap_buffer.is_some()
+    }
+  }
+
+  /// Selects the color attachment indices to enable via `drawbuffers` for a
+  /// frame, given which optional passes are active.
+  ///
+  /// Attachment `0` (main color) is always enabled. `1` (emission) is added
+  /// when `has_emissive`; `2`/`3` (transparent accumulate/revealage) are
+  /// added when `has_transparent`.
+  #[ must_use ]
+  pub fn frame_attachments( has_transparent : bool, has_emissive : bool ) -> &'static [ u32 ]
+  {
+    match ( has_transparent, has_emissive )
+    {
+      ( true, true ) => &[ 0, 1, 2, 3 ],
+      ( true, false ) => &[ 0, 2, 3 ],
+      ( false, true ) => &[ 0, 1 ],
+      ( false, false ) => &[ 0 ],
+    }
+  }
+
+  /// Decides whether a material's cached shader program must be dropped and
+  /// recompiled on its next registration.
+  ///
+  /// Two independent reasons force a recompile : the material's own defines changed
+  /// (`material_needs_recompile`), or the program in the cache was compiled against a
+  /// different Image-Based Lighting availability state than is currently in effect
+  /// (`cached_use_ibl` vs `current_use_ibl`). `cached_use_ibl` is `None` when there is no
+  /// cached program yet ( first-time registration ), in which case this always returns
+  /// `false` — there is nothing to invalidate, the material simply takes the normal
+  /// "compile a fresh program" path.
+  ///
+  /// # Fix(BUG-258)
+  /// Extracted so a `Renderer::ibl_set` call made after a material has already been
+  /// registered is honored on that material's next registration, instead of the material
+  /// silently keeping its stale ( IBL-less, or stale-IBL ) program forever.
+  #[ must_use ]
+  pub fn program_needs_recompile( material_needs_recompile : bool, cached_use_ibl : Option< bool >, current_use_ibl : bool ) -> bool
+  {
+    material_needs_recompile || cached_use_ibl.is_some_and( | cached | cached != current_use_ibl )
   }
 
   /// Configures face culling and front face order from material.
@@ -1358,6 +1487,8 @@ crate::mod_interface!
 {
   orphan use
   {
-    Renderer
+    Renderer,
+    frame_attachments,
+    program_needs_recompile
   };
 }

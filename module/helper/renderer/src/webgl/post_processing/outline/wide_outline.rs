@@ -72,7 +72,8 @@ mod private
     "sourceTexture",
     "objectColorTexture",
     "jfaTexture",
-    "resolution"
+    "resolution",
+    "outlineThickness"
   );
 
   /// Binds a texture to a texture unit and uploads its location to a uniform.
@@ -238,7 +239,11 @@ mod private
     height : u32,
     /// The number of rendering passes required for the algorithm. This is typically
     /// related to the outline thickness and the power-of-two size of the textures.
-    num_passes : u32
+    num_passes : u32,
+    /// The GL context this pass's owned framebuffers/textures were allocated from --
+    /// retained so `impl Drop` can free them without requiring the caller to remember to
+    /// call a manual cleanup method first.
+    gl : GL,
   }
 
   impl WideOutlinePass
@@ -298,10 +303,41 @@ mod private
         outline_thickness,
         width,
         height,
-        num_passes
+        num_passes,
+        gl : gl.clone(),
       };
 
       Ok( pass )
+    }
+
+    // Fix(BUG-436): `WideOutlinePass` created 4 framebuffers and 4 owned textures ( a 5th,
+    // `object_color`, is supplied by and belongs to the caller ) but never deleted any of them --
+    // every construct/drop cycle ( e.g. a canvas resize that rebuilds the outline pipeline at a
+    // new resolution ) permanently leaked 4 framebuffers and 4 textures.
+    // Root cause: no cleanup path existed at all for this struct's owned GL resources -- neither
+    // a manual `gl_resources_free` nor an `impl Drop` backstop, unlike sibling passes in this
+    // same module ( `SwapFramebuffer`, `UnrealBloomPass` ) that already have one or both.
+    // Pitfall: `object_color`'s presence in the same `textures` map as the 4 owned intermediate
+    // textures makes "delete everything in `textures`" the wrong rule -- that texture is supplied
+    // by the caller via the `object_color_texture` constructor parameter and remains the
+    // caller's to free; deleting it here would be a use-after-free the moment the caller's own
+    // copy of the handle is next used.
+    /// Frees this pass's own framebuffers and intermediate textures. Does **not** delete
+    /// `object_color` -- that texture is supplied by and remains owned by the caller.
+    /// Safe to call multiple times; also invoked automatically via `impl Drop`.
+    pub fn gl_resources_free( &mut self, gl : &GL )
+    {
+      for framebuffer in self.framebuffers.values()
+      {
+        gl.delete_framebuffer( Some( framebuffer ) );
+      }
+      for ( name, texture ) in &self.textures
+      {
+        if name != "object_color"
+        {
+          gl.delete_texture( Some( texture ) );
+        }
+      }
     }
 
     /// Sets the thickness of the outline.
@@ -314,6 +350,21 @@ mod private
     pub fn num_passes_set( &mut self, new_value : u32 )
     {
       self.num_passes = new_value;
+    }
+
+    /// Whether JFA step `i` ( see `jfa_step_pass` ) renders into `jfa_step_fb_0`
+    /// ( `false` means `jfa_step_fb_1` ).
+    // Fix(BUG-243): `jfa_step_pass`'s own ping-pong target selection and `outline_pass`'s choice
+    // of which buffer holds the final, fully-converged result used to be two independently
+    // hand-derived parity checks that had to agree but didn't -- `outline_pass` selected the
+    // OPPOSITE buffer from the one the last step ( `i = num_passes - 1` ) actually wrote,
+    // reading a one-step-stale JFA result on every real invocation ( `num_passes` is hardcoded
+    // to `4` in `new` ). Both call sites now defer to this single function so they can't
+    // independently drift out of sync again.
+    #[ must_use ]
+    pub fn jfa_step_targets_fb0( i : u32 ) -> bool
+    {
+      i % 2 == 0
     }
 
     /// Performs the JFA initialization pass.
@@ -365,29 +416,45 @@ mod private
 
       jfa_step.bind( gl );
 
-      // Ping-pong rendering: Determine input texture and output framebuffer based on step index `i`
-      if i == 0 // First step uses the initialization result
+      // Ping-pong rendering: this step's render target and the *next* step's read source are the
+      // same parity decision ( BUG-243 ) -- both derive from `jfa_step_targets_fb0` so they can't
+      // drift out of sync with each other or with `outline_pass`'s final-buffer selection.
+      if Self::jfa_step_targets_fb0( i )
       {
         framebuffer_upload( gl, jfa_step_fb_0, self.width as i32, self.height as i32 ); // Render to FB 0
-        texture_upload( gl, jfa_init_fb_color, &jfa_init_loc, GL::TEXTURE0 ); // Input is JFA init texture
       }
-      else if i % 2 == 0 // Even steps ( 2, 4, ... ) read from FB 1, render to FB 0
-      {
-        framebuffer_upload( gl, jfa_step_fb_0, self.width as i32, self.height as i32 ); // Render to FB 0
-        texture_upload( gl, jfa_step_fb_color_1, &jfa_init_loc, GL::TEXTURE0 ); // Input is texture from FB 1
-      }
-      else // Odd steps ( 1, 3, ... ) read from FB 0, render to FB 1
+      else
       {
         framebuffer_upload( gl, jfa_step_fb_1, self.width as i32, self.height as i32 ); // Render to FB 1
+      }
+
+      if i == 0 // First step uses the initialization result
+      {
+        texture_upload( gl, jfa_init_fb_color, &jfa_init_loc, GL::TEXTURE0 ); // Input is JFA init texture
+      }
+      else if Self::jfa_step_targets_fb0( i - 1 ) // Previous step wrote to FB 0
+      {
         texture_upload( gl, jfa_step_fb_color_0, &jfa_init_loc, GL::TEXTURE0 ); // Input is texture from FB 0
+      }
+      else // Previous step wrote to FB 1
+      {
+        texture_upload( gl, jfa_step_fb_color_1, &jfa_init_loc, GL::TEXTURE0 ); // Input is texture from FB 1
       }
 
       // Upload resolution uniform ( needed for distance calculations in the shader )
       gl::uniform::upload( gl, Some( resolution.clone() ), &[ self.width as f32, self.height as f32 ] ).unwrap();
 
-      let aspect_ratio = self.width as f32 / self.height as f32;
-      let step_size =  self.outline_thickness / ( 2.0_f32 ).powf( i as f32 );
-      let step_size = [ step_size * aspect_ratio, step_size ];
+      // Fix(BUG-180): `stepSize` is a *pixel* distance -- `jfa_step.frag` already converts it to
+      // normalized UV space per-axis via `ceil( vec2( x, y ) * stepSize ) / resolution`, which on
+      // its own correctly compensates for a non-square canvas ( each axis divides by its own
+      // resolution component ). Previously this scaled `step_size.x` by `width / height` *before*
+      // that division, double-applying the aspect-ratio correction: the real per-axis pixel jump
+      // ( `offset * resolution` ) worked out to `step_size * aspect_ratio` horizontally vs. just
+      // `step_size` vertically, so the JFA search radius -- and therefore the rendered outline --
+      // was stretched wider than tall on any non-square canvas instead of uniform in all
+      // directions. Both components must carry the same pixel distance.
+      let step_size = self.outline_thickness / ( 2.0_f32 ).powf( i as f32 );
+      let step_size = [ step_size, step_size ];
 
       gl::uniform::upload( gl, Some( u_step_size.clone() ), &step_size ).unwrap();
 
@@ -425,6 +492,10 @@ mod private
       let object_color_loc = outline_locs.get( "objectColorTexture" ).unwrap().clone().unwrap();
       let jfa_step_loc = outline_locs.get( "jfaTexture" ).unwrap().clone().unwrap();
       let resolution = outline_locs.get( "resolution" ).unwrap().clone().unwrap();
+      // Fix(BUG-179): see the matching comment in outline.frag -- this uniform didn't exist
+      // before, so `outline_thickness` never reached the pass that actually decides whether a
+      // background pixel is close enough to draw the outline color.
+      let outline_thickness_loc = outline_locs.get( "outlineThickness" ).unwrap().clone().unwrap();
 
       framebuffer_color_set( gl, outline_fb, output_texture );
 
@@ -434,11 +505,14 @@ mod private
       gl.bind_framebuffer( GL::FRAMEBUFFER, Some( outline_fb ) );
 
       gl::uniform::upload( gl, Some( resolution.clone() ), &[ self.width as f32, self.height as f32 ] ).unwrap();
+      gl::uniform::upload( gl, Some( outline_thickness_loc.clone() ), &self.outline_thickness ).unwrap();
 
       texture_upload( gl, &source, &source_loc, GL::TEXTURE0 );
       texture_upload( gl, object_color, &object_color_loc, GL::TEXTURE1 );
-      // The final JFA result is in jfa_step_fb_color_0 if num_passes is even, otherwise in jfa_step_fb_color_1
-      if self.num_passes % 2 == 0
+      // Fix(BUG-243): the final JFA result lives wherever the *last* step actually rendered to --
+      // step `num_passes - 1`, not a hand-rederived parity check on `num_passes` itself ( which
+      // previously picked the OPPOSITE buffer from the one `jfa_step_pass` last wrote ).
+      if Self::jfa_step_targets_fb0( self.num_passes.saturating_sub( 1 ) )
       {
         texture_upload( gl, jfa_step_fb_color_0, &jfa_step_loc, GL::TEXTURE2 );
       }
@@ -448,6 +522,41 @@ mod private
       }
 
       gl.draw_arrays( GL::TRIANGLES, 0, 3 );
+    }
+  }
+
+  /// The GL handles `gl_resources_free` is responsible for, reachable from
+  /// `tests/` under `test_internals`.
+  ///
+  /// Textures come back paired with their names rather than pre-filtered: which
+  /// of them this pass owns and which it merely borrows from the caller
+  /// ( `object_color` ) is exactly what a teardown test is asserting, so the
+  /// test does that split itself instead of being handed the answer. Clones,
+  /// because the handles have to outlive the free call to be checked after it.
+  #[ cfg( feature = "test_internals" ) ]
+  impl WideOutlinePass
+  {
+    #[ doc( hidden ) ]
+    #[ must_use ]
+    pub fn framebuffers_for_test( &self ) -> Vec< WebGlFramebuffer >
+    {
+      self.framebuffers.values().cloned().collect()
+    }
+
+    #[ doc( hidden ) ]
+    #[ must_use ]
+    pub fn textures_for_test( &self ) -> Vec< ( String, WebGlTexture ) >
+    {
+      self.textures.iter().map( | ( name, texture ) | ( name.clone(), texture.clone() ) ).collect()
+    }
+  }
+
+  impl Drop for WideOutlinePass
+  {
+    fn drop( &mut self )
+    {
+      let gl = self.gl.clone();
+      self.gl_resources_free( &gl );
     }
   }
 

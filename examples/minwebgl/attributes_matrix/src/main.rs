@@ -107,12 +107,15 @@ fn app_run() -> Result< (), gl::WebglError >
 
   let vao = gl::vao::create( &gl )?;
   gl.bind_vertex_array( Some( &vao ) );
-  gl::BufferDescriptor::new::< [ f32 ; 2 ] >().stride( 2 ).offset( 0 ).divisor( 0 )
-  .attribute_pointer( &gl, position_slot, &position_buffer )?;
-  gl::BufferDescriptor::new::< [ f32 ; 3 ] >().stride( 3 ).offset( 0 ).divisor( 2 )
-  .attribute_pointer( &gl, color_slot, &color_buffer )?;
-  gl::BufferDescriptor::new::< [ [ f32 ; 2 ] ; 3 ] >().stride( 3*2 ).offset( 0 ).divisor( 1 )
-  .attribute_pointer( &gl, trans_slot, &trans_buffer )?;
+  let position_attr = mingl::VertexAttribute::new( position_slot, mingl::VectorDataType::new( mingl::DataType::F32, 2, 1 ), 0 );
+  let color_attr = mingl::VertexAttribute::new( color_slot, mingl::VectorDataType::new( mingl::DataType::F32, 3, 1 ), 0 );
+  let trans_attr = mingl::VertexAttribute::new( trans_slot, mingl::VectorDataType::new( mingl::DataType::F32, 6, 2 ), 0 );
+  gl::BufferDescriptor::from_vector( position_attr.vector ).stride( 2 ).offset( position_attr.offset ).divisor( 0 )
+  .attribute_pointer( &gl, position_attr.location, &position_buffer )?;
+  gl::BufferDescriptor::from_vector( color_attr.vector ).stride( 3 ).offset( color_attr.offset ).divisor( 2 )
+  .attribute_pointer( &gl, color_attr.location, &color_buffer )?;
+  gl::BufferDescriptor::from_vector( trans_attr.vector ).stride( 3*2 ).offset( trans_attr.offset ).divisor( 1 )
+  .attribute_pointer( &gl, trans_attr.location, &trans_buffer )?;
   gl.bind_vertex_array( None );
 
   // Prepare to change transformation every frame
@@ -131,7 +134,7 @@ fn app_run() -> Result< (), gl::WebglError >
   gl.uniform_block_binding( &program, trans_block_index, trans_block_point );
 
   // Retrieve UBO information for diagnostic purposes only; these lines should be removed in production builds.
-  gl::ubo::diagnostic_info( &gl, &program, trans_block_index ).debug_info();
+  gl::ubo::diagnostic_info( &gl, &program, trans_block_index ).debug_info( module_path!() );
 
   // Define the update and draw logic
   let update_and_draw =

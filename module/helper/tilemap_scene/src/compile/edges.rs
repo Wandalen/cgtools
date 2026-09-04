@@ -181,7 +181,7 @@ mod private
   // makes the pairing legible, so splitting the names further apart would hide
   // the relationship rather than clarify it.
   #[ allow( clippy::similar_names, reason = "ccw_idx/cw_idx and ccw_dir/cw_dir are the CCW/CW halves of the same SPEC-defined pair; the shared prefix makes the pairing legible" ) ]
-  pub fn compute_edge_connected_bitmask
+  pub fn edge_connected_bitmask_compute
   (
     canon : CanonicalEdge,
     connects_with : &[ String ],
@@ -292,6 +292,6 @@ mod_interface::mod_interface!
   exposed use edge_world_pixel;
   exposed use edge_rotation;
   exposed use edge_lookup;
-  exposed use compute_edge_connected_bitmask;
+  exposed use edge_connected_bitmask_compute;
   exposed use index_to_dir;
 }

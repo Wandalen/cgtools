@@ -112,11 +112,22 @@ impl BehaviorContext
   }
 
   /// Updates the context with new timing information.
+  // Fix(BUG-144)
+  // Root cause: `current_time` was resampled from `Instant::now()` on every call, discarding
+  // the caller-supplied `delta_time` entirely -- `WaitAction`/`CooldownNode` both derive their
+  // Running/Success decisions purely from `context.current_time.duration_since(...)`, so a
+  // caller driving the tree with synthetic `delta_time` (fixed-timestep simulation, deterministic
+  // tests, fast-forward, replay, or a paused game passing `delta_time = 0`) had zero effect --
+  // only real wall-clock elapsing ever advanced a wait/cooldown, contradicting the field's own
+  // "Current game time" doc comment.
+  // Pitfall: `Instant` has no "construct at an arbitrary point" API -- the only way to derive a
+  // caller-controlled game clock from it is to accumulate `Duration`s onto an `Instant` captured
+  // once (`Instant + Duration`), never to re-sample `Instant::now()` on every tick.
   #[ inline ]
   pub fn update( &mut self, delta_time : Duration )
   {
     self.delta_time = delta_time;
-    self.current_time = Instant::now();
+    self.current_time += delta_time;
   }
 
   /// Sets a value in the blackboard.
@@ -472,6 +483,10 @@ impl BehaviorNode for SelectorNode
 pub struct ParallelNode
 {
   children : Vec< Box< dyn BehaviorNode > >,
+  /// Per-child "already reached `Success` earlier in this still-`Running` activation" flag --
+  /// prevents re-invoking an already-succeeded child on a later tick (see `Fix(BUG-228)` on
+  /// `execute` below). Cleared alongside every child on `reset()`.
+  succeeded : Vec< bool >,
   name : String,
 }
 
@@ -482,9 +497,11 @@ impl ParallelNode
   #[ must_use ]
   pub fn new( children : Vec< Box< dyn BehaviorNode > > ) -> Self
   {
+    let succeeded = vec![ false; children.len() ];
     Self
     {
       children,
+      succeeded,
       name : "Parallel".to_string(),
     }
   }
@@ -494,24 +511,65 @@ impl ParallelNode
   #[ must_use ]
   pub fn named( children : Vec< Box< dyn BehaviorNode > >, name : String ) -> Self
   {
-    Self { children, name }
+    let succeeded = vec![ false; children.len() ];
+    Self { children, succeeded, name }
   }
 }
 
 impl BehaviorNode for ParallelNode
 {
+  // Fix(BUG-145)
+  // Root cause: unlike `SequenceNode`/`SelectorNode`, which both call `self.reset()` on every
+  // terminal `Success`/`Failure` transition, `execute` never reset any child on any terminal
+  // path -- a sibling child still `Running` when another child fails (or when not every child
+  // reaches `Success`) was abandoned with stale internal state (e.g. a `WaitAction`'s
+  // `start_time`, a `CooldownNode`'s pending state), corrupting that child's next independent
+  // activation of this same node.
+  // Pitfall: switched `for child in &mut self.children` to index-based iteration (matching
+  // `SequenceNode`/`SelectorNode`'s own established idiom in this file) because `self.reset()`
+  // needs `&mut self`, which conflicts with an outstanding `IterMut` borrow held for the whole
+  // loop -- indexing via `self.children[ i ]` re-borrows only per-statement, leaving `self.reset()`
+  // free to borrow `self` again in a later statement.
+  // Fix(BUG-228)
+  // Root cause: every tick re-invoked EVERY child via `self.children[ i ].execute( context )`,
+  // with no memory of which children had already reached `Success` in an earlier tick of the
+  // same still-`Running` activation -- unlike `SequenceNode`/`SelectorNode`, whose
+  // `current_child` cursor naturally skips already-resolved children. A child that resets its
+  // own internal state on success (e.g. `WaitAction`, which calls `self.reset()` right before
+  // returning `Success`) got silently restarted the next time it was polled, so two children
+  // completing at different tick counts could prevent the whole node from ever converging on
+  // `Success`; a `CooldownNode` child re-polled after its own success (while still inside its
+  // own cooldown window) returned `Failure`, wrongly short-circuiting the entire composite even
+  // though that child had already legitimately succeeded.
+  // Pitfall: a composite that keeps polling every child every tick must track which children
+  // already reached a terminal status and stop re-invoking them -- terminal, in a Parallel
+  // composite, is sticky for the rest of the activation, not re-derived from scratch every tick.
   #[ inline ]
   fn execute( &mut self, context : &mut BehaviorContext ) -> BehaviorStatus
   {
     let mut running_count = 0;
     let mut success_count = 0;
 
-    for child in &mut self.children
+    for i in 0 .. self.children.len()
     {
-      match child.execute( context )
+      if self.succeeded[ i ]
       {
-        BehaviorStatus::Success => success_count += 1,
-        BehaviorStatus::Failure => return BehaviorStatus::Failure,
+        success_count += 1;
+        continue;
+      }
+
+      match self.children[ i ].execute( context )
+      {
+        BehaviorStatus::Success =>
+        {
+          self.succeeded[ i ] = true;
+          success_count += 1;
+        }
+        BehaviorStatus::Failure =>
+        {
+          self.reset();
+          return BehaviorStatus::Failure;
+        }
         BehaviorStatus::Running => running_count += 1,
       }
     }
@@ -522,10 +580,12 @@ impl BehaviorNode for ParallelNode
     }
     else if success_count == self.children.len()
     {
+      self.reset();
       BehaviorStatus::Success
     }
     else
     {
+      self.reset();
       BehaviorStatus::Failure
     }
   }
@@ -536,6 +596,10 @@ impl BehaviorNode for ParallelNode
     for child in &mut self.children
     {
       child.reset();
+    }
+    for succeeded in &mut self.succeeded
+    {
+      *succeeded = false;
     }
   }
 
@@ -612,11 +676,25 @@ impl BehaviorNode for RepeatNode
   // re-invocations independently of any user-supplied repeat count --
   // "infinite repeat" must mean "unbounded across ticks", never
   // "unbounded within a single tick".
+  // Fix(BUG-146)
+  // Root cause: the completion check (`current_repeats >= max`) ran only AFTER executing the
+  // child, so `RepeatNode::times( child, 0 )` (`max_repeats == Some( 0 )`) still executed its
+  // child once on the loop's first iteration before the check could ever fire -- a node
+  // explicitly configured to run "0 times" ran its child exactly once.
+  // Pitfall: a decorator whose completion condition can already be satisfied BEFORE any work is
+  // done (a repeat count of zero) must check-then-act, not act-then-check -- checking only after
+  // acting is correct for every count >= 1 but silently wrong at the zero boundary.
   #[ inline ]
   fn execute( &mut self, context : &mut BehaviorContext ) -> BehaviorStatus
   {
     for _ in 0 .. Self::MAX_SYNC_ITERATIONS
     {
+      if let Some( max ) = self.max_repeats && self.current_repeats >= max
+      {
+        self.reset();
+        return BehaviorStatus::Success;
+      }
+
       match self.child.execute( context )
       {
         BehaviorStatus::Running => return BehaviorStatus::Running,
@@ -624,12 +702,6 @@ impl BehaviorNode for RepeatNode
         {
           self.current_repeats += 1;
           self.child.reset();
-
-          if let Some( max ) = self.max_repeats && self.current_repeats >= max
-          {
-            self.reset();
-            return BehaviorStatus::Success;
-          }
           // Continue looping for infinite repeat or more iterations
         }
       }

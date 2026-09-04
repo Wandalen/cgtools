@@ -20,6 +20,7 @@
 
 use crate::ecs::components::{Position, Movable, Health, AI, Animation, Team};
 use crate::coordinates::{Distance, Neighbors};
+use crate::coordinates::square::Coordinate as SquareCoordinate;
 use crate::pathfind::astar;
 use std::collections::HashMap;
 
@@ -94,17 +95,25 @@ impl MovementSystem
     Fa : FnMut( &C ) -> bool,
     Fc : FnMut( &C ) -> u32,
   {
-    // Check if target is within movement range
-    let distance = current.distance( target );
-    if distance > movable.range
-    {
-      return MovementResult::OutOfRange
-      {
-        requested_distance : distance,
-        maximum_range : movable.range,
-      };
-    }
-
+    // Fix(BUG-343): removed the raw-grid-distance pre-check that used to run
+    // before pathfinding -- it rejected purely on `current.distance(target)`
+    // exceeding `movable.range`, a completely different metric from the
+    // weighted path `cost` this function actually gates reachability on
+    // below (`cost <= movable.range`). A caller-supplied `cost` policy
+    // cheaper than the raw-distance heuristic (e.g. free/low-cost terrain)
+    // was rejected before pathfinding ever ran, even though the real
+    // weighted cost was well within range.
+    // Root cause: two different metrics -- raw grid distance vs. weighted
+    // path cost -- were both used to gate the same `range` budget, and the
+    // cheaper (raw-distance) one ran first and could reject a target the
+    // more expensive, authoritative (weighted-cost) check would have
+    // accepted.
+    // Pitfall: `range` is a *cost* budget (compared against `astar`'s
+    // returned path cost just below), not a *distance* bound -- do not
+    // reintroduce a raw-distance short-circuit ahead of the pathfind unless
+    // it is proven to never reject a target the cost-based check would
+    // accept (it cannot be, in general, since `cost` is caller-defined and
+    // may return values below 1 per step).
     // Use pathfinding to find valid path
     let path_result = astar( current, target, is_accessible, cost );
 
@@ -143,13 +152,6 @@ pub enum MovementResult<C> {
     path: Vec<C>,
     /// The final position after movement
     new_position: C,
-  },
-  /// Target is out of movement range
-  OutOfRange {
-    /// The distance to the requested target
-    requested_distance: u32,
-    /// The maximum movement range for this entity
-    maximum_range: u32,
   },
   /// Path exists but is too long
   PathTooLong {
@@ -542,22 +544,38 @@ impl SpatialQuerySystem {
   }
 
   /// Finds all entities within a rectangular area.
-  pub fn rectangle_query<C>(
+  ///
+  /// The rectangle is axis-aligned and centered on `center`, spanning `width` total
+  /// units along x and `height` total units along y.
+  pub fn rectangle_query<Connectivity>(
     world: &hecs::World,
-    center: &Position<C>,
+    center: &Position<SquareCoordinate<Connectivity>>,
     width: u32,
     height: u32,
-  ) -> Vec<(hecs::Entity, Position<C>)>
+  ) -> Vec<(hecs::Entity, Position<SquareCoordinate<Connectivity>>)>
   where
-    C: Distance + Clone + Send + Sync + 'static,
+    Connectivity: Clone + Send + Sync + 'static,
   {
     let mut entities = Vec::new();
-    let max_distance = ((width * width + height * height) as f32).sqrt() as u32;
+    let half_width = (width / 2) as i32;
+    let half_height = (height / 2) as i32;
 
-    for (entity, pos) in &mut world.query::<(hecs::Entity, &Position<C>)>() {
-      let distance = center.distance_to(pos);
-      if distance <= max_distance {
-        // Additional filtering could be added here for precise rectangular bounds
+    // Fix(BUG-136)
+    // Root cause: filtered by `distance_to <= sqrt(width^2 + height^2)` -- a
+    // circular region of radius equal to the rectangle's FULL diagonal (not
+    // even its own half-diagonal), always a strict superset of the true
+    // axis-aligned rectangle. Copy-pasted from `circle_query`'s
+    // distance-threshold shape without adapting it to a per-axis test.
+    // Pitfall: a rectangle is a per-axis bounds check, not a distance-metric
+    // threshold -- no single scalar "distance" can express it, so this needed
+    // concrete x/y field access instead of the generic `Distance` bound this
+    // file's sibling queries use, narrowing the function to square coordinates
+    // specifically (the only coordinate system here with an unambiguous
+    // Cartesian width/height rectangle concept).
+    for (entity, pos) in &mut world.query::<(hecs::Entity, &Position<SquareCoordinate<Connectivity>>)>() {
+      let dx = (pos.coord.x - center.coord.x).abs();
+      let dy = (pos.coord.y - center.coord.y).abs();
+      if dx <= half_width && dy <= half_height {
         entities.push((entity, pos.clone()));
       }
     }
@@ -597,12 +615,16 @@ impl SpatialQuerySystem {
 
     while current != *end && line_positions.len() < 100 {
       let neighbors = current.neighbors();
+      // UX/DX cleanup: removed a dead `if next == &current { break; }` check
+      // here -- `next` is always drawn from `current.neighbors()`, and no
+      // `Neighbors` implementation in this crate ever yields the coordinate
+      // it was called on (every offset in every coordinate system's
+      // `neighbors()` is non-zero), so the condition could never be true.
+      // The real safety net against an infinite loop is this while loop's
+      // own `line_positions.len() < 100` bound.
       if let Some(next) = neighbors.iter()
         .min_by_key(|neighbor| neighbor.distance(end))
       {
-        if next == &current {
-          break; // Prevent infinite loop
-        }
         current = next.clone();
         line_positions.push(current.clone());
       } else {

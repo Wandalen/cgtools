@@ -16,3 +16,4 @@ An **invariant** is a guarantee this crate enforces and callers may rely on. In 
 | 001 | [Top-Level Bindings Convention](001_top_level_bindings_convention.md) | A script's top level holds only declarative bindings and a single trailing entry-point call | ✅ |
 | 002 | [F32x2/F64x2 Type Distinctness](002_f32x2_f64x2_type_distinctness.md) | No registered vector type ever implicitly converts to or interchanges with another, by precision or arity | ✅ |
 | 003 | [Rhai-Facing Names Mirror Rust Identifiers](003_rhai_facing_names_mirror_rust_identifiers.md) | Every registered name textually matches the Rust identifier it wraps | ✅ |
+| 004 | [Script-As-Data Purity](004_script_as_data_purity.md) | No function or method call anywhere in the AST, top-level or nested | ✅ |

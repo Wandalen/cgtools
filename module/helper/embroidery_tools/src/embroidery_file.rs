@@ -146,6 +146,15 @@ mod private
     /// This function replaces duplicate color changes with `Stop` instruciton.
     /// Should be used when reading specific formats where stop instruction is encoded
     /// with duplicate color change
+    // Fix(BUG-150)
+    // Root cause: the guard compared `self.threads().get( thread_index )` against
+    // `self.threads().get( thread_index - 1 )` with no bounds check -- when there are more
+    // color-change-delimited stitch runs than recorded threads, both `.get()` calls return
+    // `None`, and `None == None` is `true` in Rust, so the guard was satisfied and
+    // `self.threads.remove( thread_index )` ran on an out-of-range index, panicking.
+    // Pitfall: `None == None` silently reads as "these two threads match" instead of "neither
+    // index is valid" -- an equality check against two `Option::get()` results must confirm at
+    // least one side is in-bounds before the comparison can mean anything.
     #[ inline ]
     pub fn duplicate_color_interpolate_as_stop( &mut self )
     {
@@ -165,6 +174,7 @@ mod private
           match last_change
           {
             Some( last_change ) if thread_index != 0
+            && thread_index < self.threads().len()
             && self.threads().get( thread_index ) == self.threads().get( thread_index - 1 ) =>
             {
               let last_change : usize = last_change;
@@ -276,17 +286,28 @@ mod private
 
     /// Minimum and maximum coordinates of stitches.
     /// # Returns
-    /// Pairs of min X min Y and max X max Y
+    /// `None` if there are no stitches. Otherwise `Some` of pairs of min X min Y and max X max Y.
+    // Fix(BUG-497)
+    // Root cause: seeded `min_x`/`min_y` at `i32::MAX` and `max_x`/`max_y` at `i32::MIN`, then
+    // returned them unchanged whenever `self.stitches()` was empty -- an inverted sentinel
+    // (`min > max`) that looks like a valid bounds tuple to any caller, and overflows/panics if
+    // that caller computes a width/height via `max_x - min_x` (`i32::MIN - i32::MAX` underflows).
+    // Pitfall: a min/max-reduction over a possibly-empty collection has no legitimate value to
+    // return for the empty case -- returning the untouched sentinel seeds silently manufactures a
+    // fake "empty design spans everywhere" result instead of surfacing the absence of data.
     #[ must_use ]
     #[ inline ]
-    pub fn bounds( &self ) -> ( i32, i32, i32, i32 )
+    pub fn bounds( &self ) -> Option< ( i32, i32, i32, i32 ) >
     {
-      let mut max_x = i32::MIN;
-      let mut min_x = i32::MAX;
-      let mut max_y = i32::MIN;
-      let mut min_y = i32::MAX;
+      let mut stitches = self.stitches().iter();
+      let first = stitches.next()?;
 
-      for stitch in self.stitches()
+      let mut max_x = first.x;
+      let mut min_x = first.x;
+      let mut max_y = first.y;
+      let mut min_y = first.y;
+
+      for stitch in stitches
       {
         max_x = max_x.max( stitch.x );
         min_x = min_x.min( stitch.x );
@@ -294,7 +315,7 @@ mod private
         min_y = min_y.min( stitch.y );
       }
 
-      ( min_x, min_y, max_x, max_y )
+      Some( ( min_x, min_y, max_x, max_y ) )
     }
 
     /// Returns blocks of stitches splitted at positions where

@@ -207,7 +207,7 @@ fn camera_setup( canvas : &HtmlCanvasElement, width : i32, height : i32 ) -> ren
     45.0_f32.to_radians(),
     0.1,
     100.0
-  );
+  ).expect( "camera parameters are valid" );
   camera.window_size_set( [ width as f32, height as f32 ].into() );
   camera.controls_bind( canvas );
 
@@ -248,7 +248,8 @@ fn light_body_vao( gl : &GL, light : &RectangularLight )
   gl.bind_vertex_array( Some( &light_body_vao ) );
   let vbo = gl::buffer::create( gl )?;
   gl::buffer::upload( gl, &vbo, light.vertices().as_flattened(), gl::DYNAMIC_DRAW );
-  gl::BufferDescriptor::new::< [ f32; 3 ] >().attribute_pointer( gl, 0, &vbo )?;
+  let position_attr = mingl::VertexAttribute::new( 0, mingl::VectorDataType::new( mingl::DataType::F32, 3, 1 ), 0 );
+  gl::BufferDescriptor::from_vector( position_attr.vector ).attribute_pointer( gl, position_attr.location, &vbo )?;
   Ok( ( light_body_vao, vbo ) )
 }
 

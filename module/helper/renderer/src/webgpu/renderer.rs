@@ -188,8 +188,8 @@ mod private
       &ShaderSource
       {
         wgsl : include_str!( "shaders/main.wgsl" ),
-        glsl_vertex : Some( include_str!( "shaders/main.vert.glsl" ) ),
-        glsl_fragment : Some( include_str!( "shaders/main.frag.glsl" ) )
+        glsl_vertex : Some( include_str!( concat!( env!( "OUT_DIR" ), "/main.vert.glsl" ) ) ),
+        glsl_fragment : Some( include_str!( concat!( env!( "OUT_DIR" ), "/main.frag.glsl" ) ) )
       }
     )?;
 
@@ -226,8 +226,8 @@ mod private
       &ShaderSource
       {
         wgsl : include_str!( "shaders/tonemap.wgsl" ),
-        glsl_vertex : Some( include_str!( "shaders/tonemap.vert.glsl" ) ),
-        glsl_fragment : Some( include_str!( "shaders/tonemap.frag.glsl" ) )
+        glsl_vertex : Some( include_str!( concat!( env!( "OUT_DIR" ), "/tonemap.vert.glsl" ) ) ),
+        glsl_fragment : Some( include_str!( concat!( env!( "OUT_DIR" ), "/tonemap.frag.glsl" ) ) )
       }
     )?;
 
@@ -245,6 +245,29 @@ mod private
         cull_back : false
       }
     )
+  }
+
+  /// Derives the world-space normal transform ( inverse-transpose of the
+  /// rotation-scale block ) from a world matrix's linear part.
+  ///
+  /// A singular `rotation_scale` ( e.g. a zero scale on some axis — a common
+  /// glTF "flatten"/hide trick, or an animation channel interpolating scale
+  /// through `0.0` ) falls back to identity, matching `webgl::Node`'s own
+  /// BUG-171 fix.
+  // Fix(BUG-257): previously fell back to the raw, un-inverted `rotation_scale` block itself on a
+  // singular matrix, with a comment claiming this was "the same degenerate result" as the sibling
+  // `webgl::Node::world_matrix_set` path (BUG-171) -- it wasn't: BUG-171 falls back to identity.
+  // Using the raw block directly scales normals by the object's own (possibly axis-collapsing)
+  // scale instead of leaving them unmodified, producing visibly wrong (non-unit-length, direction-
+  // distorted) lighting instead of BUG-171's safe, well-formed identity fallback.
+  // Root cause: BUG-171's fix was applied only to the `webgl` backend's `Node`, never to this
+  // sibling `webgpu` backend's equivalent normal-matrix computation.
+  // Pitfall: a comment asserting parity between two sibling implementations is not itself proof of
+  // parity -- the sibling path must be re-read and compared directly, not assumed from a comment.
+  #[ must_use ]
+  pub fn normal_matrix_compute( rotation_scale : gl::math::F32x3x3 ) -> gl::math::F32x3x3
+  {
+    rotation_scale.inverse().map_or_else( gl::math::mat3x3::identity, | m | m.transpose() )
   }
 
   impl WebGpuRenderer
@@ -434,9 +457,7 @@ mod private
     fn model_raw( world : &gl::math::F32x4x4 ) -> ModelRaw
     {
       let rotation_scale = world.truncate();
-      // Singular world matrices fall back to the untransposed block — same
-      // degenerate result the WebGL node path would produce lighting-wise.
-      let normal = rotation_scale.inverse().map_or( rotation_scale, | m | m.transpose() );
+      let normal = normal_matrix_compute( rotation_scale );
       let n = normal.to_array();
 
       ModelRaw
@@ -547,6 +568,7 @@ crate::mod_interface!
     ModelRaw,
     Frame,
     RenderItem,
-    WebGpuRenderer
+    WebGpuRenderer,
+    normal_matrix_compute
   };
 }

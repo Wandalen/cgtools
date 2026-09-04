@@ -37,15 +37,14 @@ enabled = [
     "dep:hecs",
     "dep:pathfinding",
     "dep:serde",
-    "dep:ndarray_cg",
-    "dep:animation"
+    "dep:ndarray_cg"
 ]
 
 # All features enabled for maximum functionality
 full = [ "enabled", "serialization", "ecs-systems" ]
 
 # Serialization support for coordinates and components
-serialization = [ "enabled", "dep:serde", "dep:serde_json", "dep:bincode", "dep:ron" ]
+serialization = [ "enabled", "dep:serde", "dep:serde_json", "dep:bincode", "dep:ron", "dep:flate2" ]
 
 # Enhanced ECS systems and components
 ecs-systems = [ "enabled", "dep:hecs" ]
@@ -76,9 +75,6 @@ mod_interface = { workspace = true, optional = true }
 # Entity-Component-System architecture
 hecs = { workspace = true, optional = true }
 
-# Animation
-animation = { workspace = true, optional = true }
-
 # Mathematical operations and grid data structures
 ndarray_cg = { workspace = true, optional = true }
 rustc-hash = { workspace = true }
@@ -92,6 +88,12 @@ serde = { workspace = true, features = ["derive"], optional = true }
 serde_json = { version = "1.0", optional = true }
 bincode = { version = "2.0", features = ["serde"], optional = true }
 ron = { version = "0.12", optional = true }
+# Fix(BUG-475): real compression for GameStateSerializer::data_compress --
+# `default-features = false` + explicit `rust_backend` selects the pure-Rust
+# miniz_oxide DEFLATE implementation (no system zlib / C compiler needed),
+# which is what makes this usable on wasm32-unknown-unknown, this crate's
+# stated primary target.
+flate2 = { version = "1", default-features = false, features = ["rust_backend"], optional = true }
 
 [dev-dependencies]
 # Testing framework and utilities

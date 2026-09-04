@@ -21,11 +21,23 @@ This is not something `scene_script` implements directly — it is Rhai's own dy
 
 If this ever stopped holding — for example, through a future accidental cross-registration of an arithmetic operator taking one type and returning another — a script mixing types could silently receive a wrongly-truncated, -widened, or arity-mismatched result instead of a clear error at the call site. That would undermine the Naming Convention's implicit promise (crate [`readme.md`](../../readme.md)) that choosing a type name is the same act as choosing a precision and arity — the two would no longer be reliably linked.
 
+### Features
+
+| File | Relationship |
+|------|--------------|
+| [001_rhai_scene_scripting.md](../feature/001_rhai_scene_scripting.md) | Navigational hub this invariant constrains |
+
 ### Patterns
 
 | File | Relationship |
 |------|--------------|
 | [../pattern/002_dual_precision_side_by_side_registration.md](../pattern/002_dual_precision_side_by_side_registration.md) | The registration shape that produces this distinctness as a side effect of registering each precision/arity combination separately |
+
+### Pitfalls
+
+| File | Relationship |
+|------|--------------|
+| [004_f32_boundary_cast_truncates_precision.md](../pitfall/004_f32_boundary_cast_truncates_precision.md) | The related but distinct within-precision boundary cast this invariant's Out of Scope excludes |
 
 ### Types
 

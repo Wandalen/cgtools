@@ -5,17 +5,17 @@ use std::{ rc::Rc, cell::RefCell };
 use renderer::webgl::
 {
   Node,
-  animation::{ AnimatableComposition, Blender, weights_normalize }
+  animation::
+  {
+    AnimatableComposition, Blender, weights_normalize,
+    base::{ TRANSLATION_PREFIX, ROTATION_PREFIX, SCALE_PREFIX }
+  }
 };
 use animation::{ Tween, Sequence, Sequencer, easing::{ EasingBuilder, Linear } };
-use mingl::{ F64x3, QuatF64 };
+use mingl::{ F32x3, F64x3, QuatF32, QuatF64 };
 use core::f64;
 use std::f64::consts::PI;
 use rustc_hash::FxHashMap;
-
-const TRANSLATION_PREFIX: &str = "_translation";
-const ROTATION_PREFIX: &str = "_rotation";
-const SCALE_PREFIX: &str = "_scale";
 
 /// Helper to create a simple translation tween sequence
 fn translation_sequence_create( start : F64x3, end : F64x3, duration : f64 ) -> Sequence< Tween< F64x3 > >
@@ -518,4 +518,307 @@ fn test_is_completed_after_reset()
 
   // After reset, should not be completed
   assert!( !blender.is_completed(), "Should not be completed after reset" );
+}
+
+/// ## Root Cause
+/// `Blender::rotation_blend` summed each blended clip's current rotation quaternion directly
+/// ( `rotation += r * w` ) with no hemisphere check. A quaternion `q` and its negation `-q`
+/// represent the identical rotation, but naive addition does not respect that equivalence --
+/// blending two clips whose current rotations land in opposite hemispheres ( negative dot
+/// product ) walks the long way around between them instead of the short way, producing a
+/// result up to 180 degrees away from the intended blend.
+///
+/// ## Why Not Caught
+/// Every pre-existing `Blender` test used a single weighted animation, or multiple animations
+/// blending independent transform channels ( translation/scale ) rather than two rotation
+/// clips whose sampled quaternions actually land in opposite hemispheres -- so the
+/// dot-product-negative branch was never exercised.
+///
+/// ## Fix Applied
+/// `rotation_blend`'s accumulation loop now checks `rotation.dot( &r ) < 0.0` before summing
+/// each entry, negating `r` first when the check fires ( BUG-183, `blending.rs` ).
+///
+/// ## Prevention
+/// This test blends two rotation clips whose ( unadvanced, `Pending`-state ) current values
+/// are 0 degrees and 270 degrees about the same axis -- a negative-dot-product pair -- and
+/// asserts the blended result matches the short-path ( -45 degree ) blend rather than the
+/// long-path ( 135 degree ) blend a naive sum would produce.
+///
+/// ## Pitfall
+/// `Blender` stores its clips in an `FxHashMap`, so the order `rotation_blend` visits them is
+/// not guaranteed -- flipping which clip is "first" flips the overall sign of the accumulated
+/// result ( `q` and `-q` are the same rotation, but not the same quaternion components ).
+/// Assertions here compare via `|dot( got, expected )|` rather than direct component equality
+/// so the test passes regardless of iteration order.
+// test_kind: bug_reproducer(BUG-183)
+#[ test ]
+fn test_blender_rotation_blend_aligns_hemisphere_across_clips()
+{
+  let mut blender = Blender::new();
+
+  let q_a = QuatF64::from( [ 0.0, 0.0, 0.0, 1.0 ] );
+  let half_270 = 270.0_f64.to_radians() / 2.0;
+  let q_b = QuatF64::from( [ 0.0, 0.0, half_270.sin(), half_270.cos() ] );
+  assert!( q_a.dot( &q_b ) < 0.0, "fixture must exercise the negative-dot-product branch" );
+
+  let mut seq_a = Sequencer::new();
+  seq_a.insert
+  (
+    format!( "node1{ROTATION_PREFIX}" ).as_str(),
+    rotation_sequence_create( q_a, q_a, 1.0 )
+  );
+  blender.add( "anim_a".into(), seq_a, F64x3::new( 0.0, 0.5, 0.0 ) );
+
+  let mut seq_b = Sequencer::new();
+  seq_b.insert
+  (
+    format!( "node1{ROTATION_PREFIX}" ).as_str(),
+    rotation_sequence_create( q_b, q_b, 1.0 )
+  );
+  blender.add( "anim_b".into(), seq_b, F64x3::new( 0.0, 0.5, 0.0 ) );
+
+  let mut nodes = FxHashMap::default();
+  let node = Rc::new( RefCell::new( Node::new() ) );
+  node.borrow_mut().name_set( "node1" );
+  nodes.insert( "node1".to_string().into_boxed_str(), node.clone() );
+
+  blender.set( &nodes );
+
+  let got = node.borrow().rotation_get();
+
+  let len_sq = got.dot( &got );
+  assert!( ( len_sq - 1.0 ).abs() < 1e-5, "blended rotation must be unit-length, got squared length {len_sq}" );
+
+  let neg45_half = ( -45.0_f64.to_radians() / 2.0 ) as f32;
+  let expected = QuatF32::from( [ 0.0, 0.0, neg45_half.sin(), neg45_half.cos() ] );
+  let dot_expected = ( got.x() * expected.x() + got.y() * expected.y() + got.z() * expected.z() + got.w() * expected.w() ).abs();
+  assert!
+  (
+    dot_expected > 0.999,
+    "blended rotation should match the short-path -45 degree blend up to sign, got {got:?} ( |dot| with expected = {dot_expected} )"
+  );
+
+  let half_135 = ( 135.0_f64.to_radians() / 2.0 ) as f32;
+  let buggy = QuatF32::from( [ 0.0, 0.0, half_135.sin(), half_135.cos() ] );
+  let dot_buggy = ( got.x() * buggy.x() + got.y() * buggy.y() + got.z() * buggy.z() + got.w() * buggy.w() ).abs();
+  assert!
+  (
+    dot_buggy < 0.5,
+    "blended rotation must not match the pre-fix long-path 135 degree blend, got {got:?} ( |dot| with buggy = {dot_buggy} )"
+  );
+}
+
+/// ## Root Cause
+/// `Blender::is_completed()` sorted its animations by `.time()` and, when the top two were tied
+/// ( within an EPSILON ), unconditionally returned `false` regardless of whether every animation
+/// had actually completed. Two animations driven to completion at the same elapsed time are
+/// exactly the tied case -- the branch that always answered `false`.
+///
+/// ## Why Not Caught
+/// Every pre-existing `is_completed` test called `Blender::update()` immediately before checking
+/// `is_completed()`. `Blender::update()` itself auto-resets ( `time` back to `0.0`, state back to
+/// `Running` ) any animation that completes within that same call, so by the time `is_completed()`
+/// ran, no animation could ever still be observed in the `Completed` state -- the buggy tie branch
+/// and a correct "all completed" check produced the identical `false` answer in every existing
+/// test, for unrelated reasons. This test drives each `Sequencer` to completion directly via
+/// `animation_get_mut` instead of `Blender::update()`, bypassing the auto-reset so the genuinely
+/// `Completed` state survives long enough for `is_completed()` to observe it.
+///
+/// ## Fix Applied
+/// `is_completed()` now returns `!weighted_animations.is_empty() && weighted_animations.values().all(|(s,_)| s.is_completed())`
+/// -- a direct implementation of the documented contract, with no timing comparison at all
+/// ( BUG-242, `blending.rs` ).
+///
+/// ## Prevention
+/// This test's two animations reach completion at the same `.time()` ( the exact tied case the
+/// buggy sort/EPSILON logic special-cased to always-`false` ) and asserts `is_completed()` is
+/// `true`, since both genuinely are.
+///
+/// ## Pitfall
+/// Calling `Blender::update()` after driving animations to completion would silently undo the
+/// setup ( auto-reset ) before `is_completed()` runs -- this test must reach completion only via
+/// `animation_get_mut().update(..)` on each `Sequencer` directly, never via `Blender::update()`.
+// test_kind: bug_reproducer(BUG-242)
+#[ test ]
+fn test_is_completed_two_animations_same_time_both_genuinely_completed()
+{
+  let mut blender = Blender::new();
+
+  let mut seq1 = Sequencer::new();
+  seq1.insert
+  (
+    format!( "node1{TRANSLATION_PREFIX}" ).as_str(),
+    translation_sequence_create( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
+  );
+
+  let mut seq2 = Sequencer::new();
+  seq2.insert
+  (
+    format!( "node2{TRANSLATION_PREFIX}" ).as_str(),
+    translation_sequence_create( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 0.0, 1.0, 0.0 ), 1.0 )
+  );
+
+  blender.add( "anim1".into(), seq1, F64x3::new( 0.5, 0.0, 0.0 ) );
+  blender.add( "anim2".into(), seq2, F64x3::new( 0.5, 0.0, 0.0 ) );
+
+  // Drive both directly to completion, bypassing `Blender::update()`'s auto-reset-on-completion.
+  // Two calls are required: the inner `Sequence` player's own state machine only advances
+  // Pending -> Running on the first `update()` call ( regardless of delta size, since `match
+  // self.state { .. }` dispatches to exactly one arm per call ) and can only detect
+  // Running -> Completed on a subsequent call.
+  blender.animation_get_mut( "anim1" ).unwrap().update( 1.5 );
+  blender.animation_get_mut( "anim1" ).unwrap().update( 1.5 );
+  blender.animation_get_mut( "anim2" ).unwrap().update( 1.5 );
+  blender.animation_get_mut( "anim2" ).unwrap().update( 1.5 );
+
+  assert!( blender.animation_get( "anim1" ).unwrap().is_completed(), "setup sanity: anim1 must be genuinely completed" );
+  assert!( blender.animation_get( "anim2" ).unwrap().is_completed(), "setup sanity: anim2 must be genuinely completed" );
+
+  assert!( blender.is_completed(), "two animations completed at the identical time should report the Blender as completed" );
+}
+
+/// ## Root Cause
+/// `Blender::translation_blend`/`rotation_blend`/`scale_blend` applied their accumulated result
+/// to the node unconditionally -- `translation_set`/`scale_set` fell straight through even when
+/// no blended `Sequencer` had that channel for the node ( applying the vacuous
+/// `F32x3::default()` == `(0,0,0)` sum ), and `rotation_blend`'s empty branch explicitly forced
+/// `QuatF32::default()` ( identity ). glTF skeletal rigs commonly animate only a subset of a
+/// joint's TRS channels ( e.g. a rotation-only joint ), so every other channel's untouched value
+/// was silently clobbered on every `Blender::set` call.
+///
+/// ## Why Not Caught
+/// Every pre-existing `Blender` test that called `set()` used a `Sequencer` with a translation
+/// channel present for the node under test ( see every `translation_sequence_create` call
+/// throughout this file ), so the "channel absent for this node" branch of `translation_blend`/
+/// `scale_blend`/`rotation_blend` was never exercised.
+///
+/// ## Fix Applied
+/// All three blend functions now return early -- leaving the node's existing value untouched --
+/// when no blended `Sequencer` contributed a value for that channel, matching the
+/// "skip-if-absent" convention already used by `Sequencer::set`, `Pose::set`,
+/// `Scaler::unscaled_transforms_apply`, and `Transition::set`/`blend` ( BUG-261, `blending.rs` ).
+///
+/// ## Prevention
+/// This test's `Sequencer` carries only a rotation channel for `node1` -- no translation, no
+/// scale. The node's translation/scale are set to non-default sentinel values before
+/// `blender.set` runs; the test asserts they remain exactly the sentinel values afterward, while
+/// rotation is confirmed to have actually changed away from identity ( proving the fix does not
+/// also accidentally suppress the channel that IS present ).
+///
+/// ## Pitfall
+/// A regression test asserting only "rotation changed" would pass even with the bug still
+/// present ( it never touched rotation while a channel was present ) -- the sentinel values on
+/// translation/scale, asserted via exact equality against the pre-`set` values, are what
+/// actually exercises the fix.
+// test_kind: bug_reproducer(BUG-261)
+#[ test ]
+#[ expect( clippy::float_cmp, reason = "sentinel translation/scale values round-trip unchanged through Blender::set when no channel targets them; no arithmetic occurs in between" ) ]
+fn test_blender_leaves_translation_and_scale_untouched_when_only_rotation_channel_present()
+{
+  let mut blender = Blender::new();
+
+  // Constant, non-identity start/end: `current_get()` reflects this value immediately in the
+  // pending ( pre-`update` ) state, matching `test_blender_rotation_blend_aligns_hemisphere_
+  // across_clips`'s identical idiom above -- a start value of identity itself would make the
+  // "changed away from identity" assertion below trivially satisfied for the wrong reason.
+  let q_90_deg_z = QuatF64::from_axis_angle( F64x3::new( 0.0, 0.0, 1.0 ), PI / 2.0 );
+  let mut seq = Sequencer::new();
+  seq.insert
+  (
+    format!( "node1{ROTATION_PREFIX}" ).as_str(),
+    rotation_sequence_create( q_90_deg_z, q_90_deg_z, 1.0 )
+  );
+  blender.add( "anim1".into(), seq, F64x3::splat( 1.0 ) );
+
+  let mut nodes = FxHashMap::default();
+  let node = Rc::new( RefCell::new( Node::new() ) );
+  node.borrow_mut().name_set( "node1" );
+  node.borrow_mut().translation_set( F32x3::new( 3.0, 5.0, 7.0 ) );
+  node.borrow_mut().scale_set( F32x3::new( 2.0, 4.0, 6.0 ) );
+  nodes.insert( "node1".to_string().into_boxed_str(), node.clone() );
+
+  blender.set( &nodes );
+
+  let translation = node.borrow().translation_get();
+  assert_eq!( translation.x(), 3.0, "translation.x must remain untouched -- no translation channel targets this node" );
+  assert_eq!( translation.y(), 5.0, "translation.y must remain untouched -- no translation channel targets this node" );
+  assert_eq!( translation.z(), 7.0, "translation.z must remain untouched -- no translation channel targets this node" );
+
+  let scale = node.borrow().scale_get();
+  assert_eq!( scale.x(), 2.0, "scale.x must remain untouched -- no scale channel targets this node" );
+  assert_eq!( scale.y(), 4.0, "scale.y must remain untouched -- no scale channel targets this node" );
+  assert_eq!( scale.z(), 6.0, "scale.z must remain untouched -- no scale channel targets this node" );
+
+  let rotation = node.borrow().rotation_get();
+  assert!
+  (
+    rotation.w() < 0.9,
+    "rotation must have actually blended away from identity ( w=1.0 ) toward the 90-degree Z rotation, got w={}", rotation.w()
+  );
+}
+
+/// ## Root Cause
+/// See `test_is_completed_two_animations_same_time_both_genuinely_completed` above for the shared
+/// root cause. This test exercises the complementary branch: when the two animations' `.time()`
+/// values were NOT tied, the pre-fix code checked only the single animation with the largest raw
+/// elapsed time and ignored every other one -- a meaningless comparison across animations of
+/// different total durations, since a larger `.time()` does not imply "closer to completion".
+///
+/// ## Why Not Caught
+/// Same masking mechanism as the sibling test above: every pre-existing test checked
+/// `is_completed()` immediately after `Blender::update()`, whose own auto-reset-on-completion
+/// erased any genuine `Completed` state before the buggy largest-time-only check could produce a
+/// false positive. This test reaches completion via `animation_get_mut` directly instead.
+///
+/// ## Fix Applied
+/// Same fix as the sibling test: `is_completed()` folds `is_completed()` across every animation
+/// with `Iterator::all`, independent of each animation's `.time()` ( BUG-242, `blending.rs` ).
+///
+/// ## Prevention
+/// This test's two animations reach completion at deliberately different `.time()` values, with
+/// the animation carrying the LARGER `.time()` completed and the one with the SMALLER `.time()`
+/// still running -- the exact shape the pre-fix code answered `true` for ( checking only the
+/// largest-time entry ) despite not all animations having completed. Asserts `is_completed()` is
+/// `false`.
+///
+/// ## Pitfall
+/// The completed animation must have a strictly larger `.time()` than the incomplete one for this
+/// test to exercise the pre-fix false-positive branch -- swapping which animation gets the larger
+/// update would instead land in the sibling bug's tied-branch or a trivially-correct case.
+// test_kind: bug_reproducer(BUG-242)
+#[ test ]
+fn test_is_completed_larger_time_animation_completed_smaller_time_animation_not()
+{
+  let mut blender = Blender::new();
+
+  // Short duration ( 1.0 ), driven well past completion -- large `.time()`, genuinely completed.
+  let mut seq_done = Sequencer::new();
+  seq_done.insert
+  (
+    format!( "node1{TRANSLATION_PREFIX}" ).as_str(),
+    translation_sequence_create( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
+  );
+
+  // Long duration ( 10.0 ), given only a small update -- small `.time()`, not completed.
+  let mut seq_running = Sequencer::new();
+  seq_running.insert
+  (
+    format!( "node2{TRANSLATION_PREFIX}" ).as_str(),
+    translation_sequence_create( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 0.0, 1.0, 0.0 ), 10.0 )
+  );
+
+  blender.add( "anim_done".into(), seq_done, F64x3::new( 0.5, 0.0, 0.0 ) );
+  blender.add( "anim_running".into(), seq_running, F64x3::new( 0.5, 0.0, 0.0 ) );
+
+  // Two calls needed to reach Completed -- see the sibling test above for why.
+  blender.animation_get_mut( "anim_done" ).unwrap().update( 1.5 );
+  blender.animation_get_mut( "anim_done" ).unwrap().update( 1.5 );
+  blender.animation_get_mut( "anim_running" ).unwrap().update( 0.5 );
+
+  assert!( blender.animation_get( "anim_done" ).unwrap().time() > blender.animation_get( "anim_running" ).unwrap().time(),
+    "setup sanity: the completed animation must have the larger .time() to exercise the false-positive branch" );
+  assert!( blender.animation_get( "anim_done" ).unwrap().is_completed(), "setup sanity: anim_done must be genuinely completed" );
+  assert!( !blender.animation_get( "anim_running" ).unwrap().is_completed(), "setup sanity: anim_running must not be completed" );
+
+  assert!( !blender.is_completed(), "not all animations completed -- Blender must not report completed just because the largest-time one is" );
 }

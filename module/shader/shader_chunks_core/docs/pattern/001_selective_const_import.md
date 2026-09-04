@@ -38,7 +38,7 @@ callable in const context.
 Use whenever the consumer knows its chunk selection at compile time — the
 normal case for an application's shaders. Do not use for dynamic,
 user-driven selection (a CLI, an editor): there the untrusted-input twins
-are the right tool — runtime `chunk_get` plus `try_compose_set`, which
+are the right tool — runtime `chunk_get` plus `set_try_compose`, which
 report bad names as values instead of failing a build.
 
 ### Consequences

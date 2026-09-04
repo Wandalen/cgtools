@@ -2,6 +2,7 @@
 mod private
 {
   use crate::web_sys;
+  use wasm_bindgen_futures::JsFuture;
 
   /// A builder-style struct for creating a `GpuShaderModule`.
   pub struct ShaderModule< 'a >
@@ -57,16 +58,95 @@ mod private
   {
     ShaderModule::new( code ).create( device )
   }
+
+  /// One diagnostic message from `GpuShaderModule.getCompilationInfo()`, decoupled from the
+  /// raw `web_sys::GpuCompilation*` types so callers never touch the `web_sys_unstable_apis`
+  /// cfg or the crate's own compilation-info feature flags directly.
+  #[ derive( Debug, Clone ) ]
+  pub struct CompilationMessage
+  {
+    /// Human-readable diagnostic text.
+    pub text : String,
+    /// Severity of the message.
+    pub kind : CompilationMessageKind,
+    /// 1-based line number the message refers to.
+    pub line : f64,
+    /// 1-based column on that line the message refers to.
+    pub column : f64
+  }
+
+  /// Severity of a `CompilationMessage`, mirroring `web_sys::GpuCompilationMessageType`.
+  #[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
+  pub enum CompilationMessageKind
+  {
+    /// The shader failed to compile.
+    Error,
+    /// The shader compiled, but with a caller-visible caveat.
+    Warning,
+    /// Informational only.
+    Info
+  }
+
+  /// Awaits `GpuShaderModule.getCompilationInfo()` and returns its messages as owned data.
+  ///
+  /// Never fails outright: a rejected promise (the spec allows this only in exceptional host
+  /// conditions) yields an empty `Vec` rather than propagating an error, since a shader that
+  /// compiled far enough to produce a `GpuShaderModule` at all has no caller-actionable failure
+  /// mode here.
+  #[ must_use ]
+  pub async fn compilation_messages_get( module : &web_sys::GpuShaderModule ) -> Vec< CompilationMessage >
+  {
+    let Ok( info ) = JsFuture::from( module.get_compilation_info() ).await else
+    {
+      return Vec::new();
+    };
+
+    info.messages().iter().map( | message |
+    {
+      let kind = match message.type_()
+      {
+        web_sys::GpuCompilationMessageType::Warning => CompilationMessageKind::Warning,
+        web_sys::GpuCompilationMessageType::Info => CompilationMessageKind::Info,
+        // `GpuCompilationMessageType` is `#[non_exhaustive]` (wasm-bindgen JS string enum) --
+        // `Error` and any future/unrecognized severity both fold into this wildcard, treating
+        // unrecognized values as blocking rather than silently benign (clippy::match_same_arms
+        // forbids a separate `Error => ...` arm identical to this one).
+        _ => CompilationMessageKind::Error,
+      };
+
+      CompilationMessage
+      {
+        text : message.message(),
+        kind,
+        line : message.line_num(),
+        column : message.line_pos()
+      }
+    })
+    .collect()
+  }
+
+  /// Whether `messages` contains at least one `CompilationMessageKind::Error` -- the signal
+  /// that a pipeline rebuild from this shader module should not even be attempted.
+  #[ inline ]
+  #[ must_use ]
+  pub fn has_blocking_error( messages : &[ CompilationMessage ] ) -> bool
+  {
+    messages.iter().any( | message | message.kind == CompilationMessageKind::Error )
+  }
 }
 
 crate::mod_interface!
 {
   own use
   {
-    create
+    create,
+    compilation_messages_get,
+    has_blocking_error
   };
   exposed use
   {
-    ShaderModule
+    ShaderModule,
+    CompilationMessage,
+    CompilationMessageKind
   };
 }

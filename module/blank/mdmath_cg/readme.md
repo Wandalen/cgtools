@@ -1,3 +1,3 @@
 # mdmath_cg
 
-Multidimensional math.
+Multidimensional mathematics for computer graphics.

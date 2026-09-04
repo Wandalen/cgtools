@@ -12,6 +12,19 @@ pub struct CharData
   pub size : [ f32; 2 ],
 }
 
+impl mingl::Attribute for CharData
+{
+  fn describe() -> Vec< mingl::VertexAttribute >
+  {
+    vec!
+    [
+      mingl::VertexAttribute::new( 0, mingl::VectorDataType::new( mingl::DataType::F32, 4, 1 ), 0 ),
+      mingl::VertexAttribute::new( 1, mingl::VectorDataType::new( mingl::DataType::F32, 4, 1 ), 4 ),
+      mingl::VertexAttribute::new( 2, mingl::VectorDataType::new( mingl::DataType::F32, 2, 1 ), 8 ),
+    ]
+  }
+}
+
 pub struct FormattedText
 {
   pub bounding_box : gl::F32x4,

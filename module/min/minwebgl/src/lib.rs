@@ -23,8 +23,6 @@ mod_interface!
   own use ::js_sys;
   own use ::wasm_bindgen::JsValue;
 
-  /// Attribute-related.
-  layer attribute;
   /// Derive-related.
   layer derive;
   /// Error-related.

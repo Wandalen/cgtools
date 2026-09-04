@@ -20,8 +20,23 @@ pub const PADDLE_GEOMETRY : ResourceId< asset::Geometry > = ResourceId::new( 1 )
 const BALL_HALF_SIZE : f32 = 10.0;
 const PADDLE_HALF_WIDTH : f32 = 5.0;
 const PADDLE_HALF_HEIGHT : f32 = 30.0;
-const PADDLE_LEFT_X : f32 = -380.0;
-const PADDLE_RIGHT_X : f32 = 380.0;
+// Fix(BUG-309): must match `pingpong_animation.rhai`'s `court = f32x2( 200.0, .. )`
+// and its `ball_pos.x <= 0.0 || ball_pos.x >= court.x` bounce condition -- the ball's
+// simulated x always stays near [0, 200] (`frame.ball.x()` is rendered raw, with no
+// scaling/offset, see `frame_to_commands` below), and `transform_to_svg_static`
+// (`tilemap_renderer/src/adapters/svg.rs`) maps `position.x` directly onto the SVG
+// canvas with no centering -- x=0 is the canvas' left edge. The previous +-380.0
+// values were never checked against either fact: the left paddle rendered entirely
+// off the default 800px-wide canvas (negative x is off-canvas), and the right paddle
+// landed near canvas center, nowhere close to the ball's actual right-side bounce
+// boundary at x~=200. `tests/render_test.rs::t06_..` guards this; keep in lockstep
+// with the `.rhai` script's `court` value if either ever changes.
+// Pitfall: nothing in the type system ties these constants to the simulation's
+// actual coordinate range -- a mismatch compiles cleanly and only shows up as a
+// visibly wrong render, which task 085 explicitly left outside automated pixel
+// testing (`task/completed/085_..md`, Out of Scope).
+const PADDLE_LEFT_X : f32 = 0.0;
+const PADDLE_RIGHT_X : f32 = 200.0;
 
 /// Flattens a centered `[-hw,-hh] .. [hw,hh]` quad (2 triangles, 6 vertices,
 /// no index buffer) into the little-endian byte source `GeometryAsset::positions` expects.

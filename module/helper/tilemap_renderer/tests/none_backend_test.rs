@@ -119,10 +119,7 @@ fn capabilities_equals_default_field_for_field()
   assert_eq!( actual.clip_masks, expected.clip_masks );
   assert_eq!( actual.effects, expected.effects );
   assert_eq!( actual.blend_modes, expected.blend_modes );
-  // `BlendMode` does not derive `PartialEq`, so the slice itself cannot be
-  // compared via `assert_eq!`; `Capabilities::default()` is documented to
-  // always be empty here, matching `backend_test.rs`'s own precedent.
-  assert!( actual.supported_blend_modes.is_empty() );
+  assert_eq!( actual.supported_blend_modes, expected.supported_blend_modes );
   assert_eq!( actual.text_on_path, expected.text_on_path );
   assert_eq!( actual.max_texture_size, expected.max_texture_size );
 }

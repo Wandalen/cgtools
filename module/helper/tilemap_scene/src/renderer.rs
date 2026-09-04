@@ -48,10 +48,10 @@ mod private
     ResourceId,
     Transform,
   };
-  use crate::compile::assets::{ CompiledAssets, compile_assets };
+  use crate::compile::assets::{ CompiledAssets, assets_compile };
   use crate::compile::camera::Camera;
   use crate::compile::error::CompileError;
-  use crate::compile::frame::{ BucketEmits, gather_frame_emits };
+  use crate::compile::frame::{ BucketEmits, frame_emits_gather };
   use crate::compile::resolver::AssetResolver;
   use crate::pipeline::SortMode;
   use crate::scene::Scene;
@@ -259,7 +259,7 @@ mod private
       resolver : &impl AssetResolver,
     ) -> Result< Self, CompileError >
     {
-      let compiled = compile_assets( spec, resolver )?;
+      let compiled = assets_compile( spec, resolver )?;
       let mut sprite_to_sheet : HashMap< ResourceId< asset::Sprite >, ResourceId< asset::Image > > =
         HashMap::default();
       for sprite in &compiled.assets.sprites
@@ -373,7 +373,7 @@ mod private
         return Ok( &self.cmd_buf );
       }
 
-      let emits = gather_frame_emits( &self.compiled, scene, camera )?;
+      let emits = frame_emits_gather( &self.compiled, scene, camera )?;
 
       self.cmd_buf.clear();
       self.cmd_buf.push( RenderCommand::Clear( Clear { color : emits.clear_color } ) );
@@ -390,7 +390,7 @@ mod private
         // the end of each bucket's prep so the cross-bucket draw order
         // (batched vs per-sprite) follows the consumer's declared
         // pipeline.
-        let dispatch = self.classify_bucket( bucket_idx_u32, &bucket );
+        let dispatch = self.bucket_classify( bucket_idx_u32, &bucket );
 
         match dispatch
         {
@@ -400,10 +400,10 @@ mod private
             // within a group is the bucket's pre-sorted order, which for
             // `SortMode::None` is the spawn / iteration order from
             // `Scene` — stable across frames given identical state.
-            let groups = self.group_sprites( bucket_idx_u32, &bucket.sprites );
+            let groups = self.sprites_group( bucket_idx_u32, &bucket.sprites );
             for ( key, sprites_in_group ) in groups
             {
-              self.emit_or_update_batch( key, sprites_in_group );
+              self.batch_emit_or_update( key, sprites_in_group );
               used_keys.push( key );
               let id = self.batches.get( &key ).expect( "just inserted" ).id;
               self.cmd_buf.push( RenderCommand::DrawBatch( DrawBatch { batch : id } ) );
@@ -415,7 +415,7 @@ mod private
             // order matches sort order so a single `DrawBatch`
             // preserves visual correctness without per-sprite
             // emission.
-            self.emit_or_update_batch( key, bucket.sprites );
+            self.batch_emit_or_update( key, bucket.sprites );
             used_keys.push( key );
             let id = self.batches.get( &key ).expect( "just inserted" ).id;
             self.cmd_buf.push( RenderCommand::DrawBatch( DrawBatch { batch : id } ) );
@@ -471,7 +471,7 @@ mod private
     /// back to [`BucketDispatch::PerSprite`]. An empty sorted bucket
     /// returns `PerSprite`; the choice is moot (no commands emit)
     /// but avoids inventing a key from an empty slice.
-    fn classify_bucket
+    fn bucket_classify
     (
       &self,
       bucket_idx : u32,
@@ -518,7 +518,7 @@ mod private
     /// preserving original order. Two non-adjacent runs with the same
     /// key end up in the same returned group (sprites are appended to
     /// the running entry for that key).
-    fn group_sprites
+    fn sprites_group
     (
       &self,
       bucket_idx : u32,
@@ -533,7 +533,7 @@ mod private
         else
         {
           // Sprite id not in the compiled assets — should be impossible
-          // since `gather_frame_emits` only emits sprite ids from the
+          // since `frame_emits_gather` only emits sprite ids from the
           // same `compiled` table. Skip defensively.
           continue;
         };
@@ -560,7 +560,7 @@ mod private
     /// Reuse an existing batch under `key` (emitting `Bind` + the
     /// minimal Set / Remove / Add diff + `Unbind`) or allocate a fresh
     /// one (emitting `CreateSpriteBatch` + `Bind` + N×`Add` + `Unbind`).
-    fn emit_or_update_batch
+    fn batch_emit_or_update
     (
       &mut self,
       key : BatchKey,

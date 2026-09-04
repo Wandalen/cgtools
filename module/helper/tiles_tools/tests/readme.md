@@ -20,11 +20,14 @@ Two layers:
 |---|---|
 | `integration_tests.rs` | Entry point compiling the feature-gated integration suite |
 | `integration/` | Cross-cutting integration scenarios (opt-in `integration` feature) |
+| `collection_test.rs` | `Grid2D` insert/get/remove round-trips and out-of-bounds panic behavior |
+| `coordinates_distance_overflow_test.rs` | `distance()` overflow/saturation across hex, square, isometric, triangular (BUG-350) |
 | `debug_test.rs` | Debugger, inspector, profiler, and formatting utilities behavior |
 | `events_test.rs` | Event bus lifecycle, priorities, consumption, statistics |
 | `field_of_view_test.rs` | Direct `VisibilityMap` construction and mutation API |
 | `flowfield_test.rs` | Flowfield public construction surface |
 | `game_systems_test.rs` | Turn management, state machine, resources, quests, effects |
+| `layout_test.rs` | `RectangularGrid` bounds/center calculation |
 | `serialization_test.rs` | Save/config round-trips, compression, managers, error variants |
 | `spatial_test.rs` | Bounds arithmetic, spatial entities, quadtree operations |
 

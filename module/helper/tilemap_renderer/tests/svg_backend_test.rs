@@ -351,7 +351,7 @@ fn sprite_white_tint_no_filter()
     images : vec![ ImageAsset
     {
       id : ResourceId::new( 0 ),
-      source : ImageSource::Bitmap { bytes : vec![ 0u8; 4 ], width : 16, height : 16, format : PixelFormat::Rgba8 },
+      source : ImageSource::Bitmap { bytes : vec![ 255u8; 16 * 16 * 4 ], width : 16, height : 16, format : PixelFormat::Rgba8 },
       filter : SamplerFilter::Linear,
       mipmap : MipmapMode::Off,
       wrap : WrapMode::Clamp,
@@ -393,7 +393,7 @@ fn screen_space_sprite_renders_through_sprite_path()
     images : vec![ ImageAsset
     {
       id : ResourceId::new( 0 ),
-      source : ImageSource::Bitmap { bytes : vec![ 0u8; 4 ], width : 16, height : 16, format : PixelFormat::Rgba8 },
+      source : ImageSource::Bitmap { bytes : vec![ 255u8; 16 * 16 * 4 ], width : 16, height : 16, format : PixelFormat::Rgba8 },
       filter : SamplerFilter::Linear,
       mipmap : MipmapMode::Off,
       wrap : WrapMode::Clamp,
@@ -435,7 +435,7 @@ fn sprite_colored_tint_creates_filter()
     images : vec![ ImageAsset
     {
       id : ResourceId::new( 0 ),
-      source : ImageSource::Bitmap { bytes : vec![ 0u8; 4 ], width : 16, height : 16, format : PixelFormat::Rgba8 },
+      source : ImageSource::Bitmap { bytes : vec![ 255u8; 16 * 16 * 4 ], width : 16, height : 16, format : PixelFormat::Rgba8 },
       filter : SamplerFilter::Linear,
       mipmap : MipmapMode::Off,
       wrap : WrapMode::Clamp,
@@ -476,7 +476,7 @@ fn two_tinted_sprites_get_distinct_filter_ids()
     images : vec![ ImageAsset
     {
       id : ResourceId::new( 0 ),
-      source : ImageSource::Bitmap { bytes : vec![ 0u8; 4 ], width : 16, height : 16, format : PixelFormat::Rgba8 },
+      source : ImageSource::Bitmap { bytes : vec![ 255u8; 16 * 16 * 4 ], width : 16, height : 16, format : PixelFormat::Rgba8 },
       filter : SamplerFilter::Linear,
       mipmap : MipmapMode::Off,
       wrap : WrapMode::Clamp,
@@ -503,6 +503,308 @@ fn two_tinted_sprites_get_distinct_filter_ids()
   let b = body( &svg );
   assert!( b.contains( "url(#tint_0)" ), "body: {b}" );
   assert!( b.contains( "url(#tint_1)" ), "body: {b}" );
+}
+
+// -- z-layer draw ordering (docs/invariant/003_z_layer_draw_ordering.md) --
+
+/// SVG has no depth buffer, so the invariant states it ignores
+/// `Transform::depth` entirely -- submission order is the *whole* ordering
+/// contract for this backend (unlike WebGL2, where equal-depth draws also
+/// fall back to submission order but differing depths additionally reorder
+/// via the depth buffer). Submits three sprites at deliberately
+/// non-monotonic depths (5.0, 1.0, 3.0, in that exact submission sequence)
+/// and asserts the emitted `<use>` elements appear in submission order
+/// rather than depth-sorted order -- proving depth is not read for
+/// ordering purposes, not merely that it happens not to matter for this
+/// particular input.
+#[ test ]
+fn svg_ignores_depth_preserves_submission_order()
+{
+  let mut svg = svg800x600();
+  let assets = Assets
+  {
+    images : vec![ ImageAsset
+    {
+      id : ResourceId::new( 0 ),
+      source : ImageSource::Bitmap { bytes : vec![ 255u8; 16 * 16 * 4 ], width : 16, height : 16, format : PixelFormat::Rgba8 },
+      filter : SamplerFilter::Linear,
+      mipmap : MipmapMode::Off,
+      wrap : WrapMode::Clamp,
+    }],
+    sprites : vec!
+    [
+      SpriteAsset { id : ResourceId::new( 0 ), sheet : ResourceId::new( 0 ), region : [ 0.0, 0.0, 16.0, 16.0 ] },
+      SpriteAsset { id : ResourceId::new( 1 ), sheet : ResourceId::new( 0 ), region : [ 0.0, 0.0, 16.0, 16.0 ] },
+      SpriteAsset { id : ResourceId::new( 2 ), sheet : ResourceId::new( 0 ), region : [ 0.0, 0.0, 16.0, 16.0 ] },
+    ],
+    ..empty_assets()
+  };
+  svg.assets_load( &assets ).unwrap();
+
+  // Submission order: sprite_0 @ depth 5.0, sprite_1 @ depth 1.0, sprite_2 @ depth 3.0.
+  // Depth-sorted order would read sprite_1, sprite_2, sprite_0 -- the opposite of what
+  // this test asserts below, so a false pass via accidental depth-sorting is ruled out.
+  svg.submit( &[
+    RenderCommand::Sprite( Sprite
+    {
+      transform : Transform { depth : 5.0, ..Default::default() },
+      sprite : ResourceId::new( 0 ),
+      tint : [ 1.0, 1.0, 1.0, 1.0 ],
+      blend : BlendMode::Normal,
+      clip : None,
+    }),
+    RenderCommand::Sprite( Sprite
+    {
+      transform : Transform { depth : 1.0, ..Default::default() },
+      sprite : ResourceId::new( 1 ),
+      tint : [ 1.0, 1.0, 1.0, 1.0 ],
+      blend : BlendMode::Normal,
+      clip : None,
+    }),
+    RenderCommand::Sprite( Sprite
+    {
+      transform : Transform { depth : 3.0, ..Default::default() },
+      sprite : ResourceId::new( 2 ),
+      tint : [ 1.0, 1.0, 1.0, 1.0 ],
+      blend : BlendMode::Normal,
+      clip : None,
+    }),
+  ]).unwrap();
+
+  let b = body( &svg );
+  let pos_0 = b.find( "#sprite_0" ).expect( "sprite_0 <use> missing" );
+  let pos_1 = b.find( "#sprite_1" ).expect( "sprite_1 <use> missing" );
+  let pos_2 = b.find( "#sprite_2" ).expect( "sprite_2 <use> missing" );
+  assert!
+  (
+    pos_0 < pos_1 && pos_1 < pos_2,
+    "SVG must ignore Transform::depth and emit elements in submission order \
+     regardless of the non-monotonic depths (5.0, 1.0, 3.0) submitted; body: {b}",
+  );
+}
+
+// -- sprite <use> sizing and orientation (BUG-374, BUG-373) --
+
+// test_kind: bug_reproducer(BUG-374)
+/// ## Root Cause
+/// The draw-time `<use href="#sprite_N">` emitted by `cmd_sprite` carried no
+/// explicit `width`/`height`. Per SVG 1.1/2, a `<use>` referencing a
+/// `<symbol>` that has a `viewBox` but no explicit size on the `<use>`
+/// itself defaults to 100% of the *containing viewport* -- not the
+/// symbol's own viewBox size. This auto-fit scale compounds
+/// multiplicatively with the `<use>`'s own explicit `transform` (the
+/// world-to-SVG `scale(sx,-sy)`), producing a gross over-scale (100x+ in a
+/// typical 200px-viewport / 2px-sprite case) that renders sprites as a
+/// solid-color blob deep inside a single source pixel.
+/// ## Why Not Caught
+/// Every existing sprite test asserted only on the `<use href="#sprite_N"`
+/// prefix or a match count, never on the presence of an explicit
+/// `width`/`height` attribute -- so the auto-fit fallback was silently
+/// exercised without any test noticing which SVG default it triggered.
+/// Only a real-browser pixel readback (no pixel-render infra exists in
+/// this crate's unit tests) surfaced the effect.
+/// ## Fix Applied
+/// Added `SvgResources::sprite_dims`, populated in `sprites_load` alongside
+/// `sprite_defs`, and emit `width="{w}" height="{h}"` (matching the
+/// sprite's own region pixel size) on the `<use>` in `cmd_sprite`.
+/// See `src/adapters/svg.rs`.
+/// ## Prevention
+/// This test asserts the draw-time `<use>` carries explicit width/height
+/// matching the sprite's region dimensions exactly.
+/// ## Pitfall
+/// The correct value is the region's own *native* pixel size, not the
+/// draw call's target on-screen size -- the outer `transform`'s own scale
+/// is what stretches native size to the final on-screen size; sizing the
+/// `<use>` to anything else double-applies that scale.
+#[ test ]
+fn sprite_use_carries_explicit_dimensions_matching_region()
+{
+  let mut svg = svg800x600();
+  let assets = Assets
+  {
+    images : vec![ ImageAsset
+    {
+      id : ResourceId::new( 0 ),
+      source : ImageSource::Bitmap { bytes : vec![ 255u8; 16 * 16 * 4 ], width : 16, height : 16, format : PixelFormat::Rgba8 },
+      filter : SamplerFilter::Linear,
+      mipmap : MipmapMode::Off,
+      wrap : WrapMode::Clamp,
+    }],
+    sprites : vec![ SpriteAsset
+    {
+      id : ResourceId::new( 0 ),
+      sheet : ResourceId::new( 0 ),
+      region : [ 0.0, 0.0, 16.0, 16.0 ],
+    }],
+    ..empty_assets()
+  };
+  svg.assets_load( &assets ).unwrap();
+  svg.submit( &[
+    RenderCommand::Sprite( Sprite
+    {
+      transform : Transform { position : [ 0.0, 0.0 ], scale : [ 100.0, 100.0 ], ..Default::default() },
+      sprite : ResourceId::new( 0 ),
+      tint : [ 1.0, 1.0, 1.0, 1.0 ],
+      blend : BlendMode::Normal,
+      clip : None,
+    }),
+  ]).unwrap();
+
+  let b = body( &svg );
+  assert!
+  (
+    b.contains( "<use href=\"#sprite_0\" width=\"16\" height=\"16\"" ),
+    "draw-time <use> must carry explicit width/height matching the region size, else SVG auto-fits to 100% of viewport and compounds with the transform's own scale; body: {b}",
+  );
+}
+
+// test_kind: bug_reproducer(BUG-374)
+/// ## Root Cause
+/// Same defect as `sprite_use_carries_explicit_dimensions_matching_region`,
+/// at the distinct `cmd_draw_batch` sprite-instance call site, which builds
+/// its own `<use href="#sprite_N">` string independently of `cmd_sprite`.
+/// ## Why Not Caught
+/// `sprite_batch_create_draw` (the only pre-existing batch sprite test)
+/// asserted only `b.matches("#sprite_0").count() == 2`, never on
+/// width/height presence.
+/// ## Fix Applied
+/// Same `sprite_dims` lookup as `cmd_sprite`, with a `.unwrap_or((1.0,1.0))`
+/// fallback instead of `.expect(...)` since this call site has no
+/// pre-existing existence guard (unlike `cmd_sprite`'s BUG-209 check) --
+/// matching this site's existing dangling-reference behavior for that
+/// already-separate, unrelated gap. See `src/adapters/svg.rs`,
+/// `cmd_draw_batch`.
+/// ## Prevention
+/// This test asserts both batch-instance `<use>` elements carry explicit
+/// width/height matching the sprite's region dimensions.
+/// ## Pitfall
+/// The batch path's `<use>` string is built independently of `cmd_sprite`'s
+/// -- fixing one call site does not fix the other; both need their own
+/// regression coverage. Separately: `sprite_batch_create_draw` (the sibling
+/// test this one's asset setup was copied from) uses a byte-count-mismatched
+/// `ImageSource::Bitmap` (`vec![0u8;4]` claiming 32x32) that `bitmap_to_png`
+/// silently rejects, so that sheet never actually registers and its sprite
+/// symbol never lands in `defs` -- invisible to that test because it only
+/// asserts on `body`. This test uses a correctly-sized buffer so the sprite
+/// genuinely loads and the fix's `sprite_dims` lookup has a real entry to
+/// find, rather than exercising the unrelated missing-entry fallback path.
+#[ test ]
+fn sprite_batch_use_carries_explicit_dimensions_matching_region()
+{
+  let mut svg = svg800x600();
+  let assets = Assets
+  {
+    images : vec![ ImageAsset
+    {
+      id : ResourceId::new( 0 ),
+      source : ImageSource::Bitmap { bytes : vec![ 255u8; 32 * 32 * 4 ], width : 32, height : 32, format : PixelFormat::Rgba8 },
+      filter : SamplerFilter::Linear,
+      mipmap : MipmapMode::Off,
+      wrap : WrapMode::Clamp,
+    }],
+    sprites : vec![ SpriteAsset
+    {
+      id : ResourceId::new( 0 ),
+      sheet : ResourceId::new( 0 ),
+      region : [ 0.0, 0.0, 32.0, 32.0 ],
+    }],
+    ..empty_assets()
+  };
+  svg.assets_load( &assets ).unwrap();
+
+  let batch_id : ResourceId< Batch > = ResourceId::new( 0 );
+  svg.submit( &[
+    RenderCommand::CreateSpriteBatch( CreateSpriteBatch
+    {
+      batch : batch_id,
+      params : SpriteBatchParams { transform : Transform::default(), sheet : ResourceId::new( 0 ), blend : BlendMode::Normal, clip : None },
+    }),
+    RenderCommand::BindBatch( BindBatch { batch : batch_id } ),
+    RenderCommand::AddSpriteInstance( AddSpriteInstance
+    {
+      transform : Transform { position : [ 10.0, 20.0 ], ..Default::default() },
+      sprite : ResourceId::new( 0 ),
+      tint : [ 1.0, 1.0, 1.0, 1.0 ],
+    }),
+    RenderCommand::UnbindBatch( UnbindBatch ),
+    RenderCommand::DrawBatch( DrawBatch { batch : batch_id } ),
+  ]).unwrap();
+
+  let b = body( &svg );
+  assert!
+  (
+    b.contains( "<use href=\"#sprite_0\" width=\"32\" height=\"32\"" ),
+    "batch-instance <use> must carry explicit width/height matching the region size; body: {b}",
+  );
+}
+
+// test_kind: bug_reproducer(BUG-373)
+/// ## Root Cause
+/// `transform_to_svg_static` always emits `scale(sx,-sy)` on the draw-time
+/// `<use href="#sprite_N">` to convert the crate's Y-up world space to
+/// SVG's Y-down space. This is correct for vector content (paths/meshes
+/// authored directly in Y-up coordinates) but also mirrors already-
+/// correctly-oriented raster `<image>` content vertically, since `<image>`
+/// and `region` are both Y-down/top-origin natively (SVG viewBox
+/// convention -- see `SpriteAsset::region`'s doc comment). No compensating
+/// counter-flip existed anywhere in the `images_load`/`sprites_load`/
+/// `cmd_sprite` pipeline.
+/// ## Why Not Caught
+/// No existing test rendered an asymmetric (non-uniform-color) bitmap and
+/// checked pixel orientation -- string-content assertions can't detect a
+/// visual mirror; only a real-browser pixel readback surfaced it, and only
+/// after fixing BUG-374's over-scale (which had been masking every sample
+/// point down to a single source pixel).
+/// ## Fix Applied
+/// `sprites_load` now emits a counter-flip `transform="translate(0,{flip_y})
+/// scale(1,-1)"` on the symbol definition's inner `<use href="#img_N">`,
+/// where `flip_y = 2*region.y + region.h` re-centers the flip on the crop
+/// window's own vertical extent (not the full sheet), so which
+/// sub-rectangle is selected stays unaffected -- verified algebraically and
+/// via real-browser pixel readback (4-quadrant RGBW bitmap, exact
+/// orientation match post-fix). See `src/adapters/svg.rs`.
+/// ## Prevention
+/// This test asserts the `<symbol id="sprite_N">` definition's inner
+/// `<use href="#img_N">` carries the exact counter-flip transform, using a
+/// non-trivial region (`region.y != 0`) so the `2*region.y + region.h`
+/// formula is meaningfully exercised, not just its `region.y == 0` special
+/// case.
+/// ## Pitfall
+/// The counter-flip must be centered on the *crop window's* own extent
+/// (`2*region.y + region.h`), not the full sheet's height -- centering on
+/// the sheet instead would correctly un-mirror a full-sheet sprite but
+/// silently select the wrong sub-rectangle for any sprite whose region
+/// doesn't start at the sheet's own origin.
+#[ test ]
+fn sprite_symbol_use_counter_flips_image_orientation()
+{
+  let mut svg = svg800x600();
+  let assets = Assets
+  {
+    images : vec![ ImageAsset
+    {
+      id : ResourceId::new( 0 ),
+      source : ImageSource::Bitmap { bytes : vec![ 255u8; 32 * 32 * 4 ], width : 32, height : 32, format : PixelFormat::Rgba8 },
+      filter : SamplerFilter::Linear,
+      mipmap : MipmapMode::Off,
+      wrap : WrapMode::Clamp,
+    }],
+    sprites : vec![ SpriteAsset
+    {
+      id : ResourceId::new( 0 ),
+      sheet : ResourceId::new( 0 ),
+      region : [ 4.0, 2.0, 8.0, 6.0 ],
+    }],
+    ..empty_assets()
+  };
+  svg.assets_load( &assets ).unwrap();
+
+  let d = defs( &svg );
+  assert!
+  (
+    d.contains( "<use href=\"#img_0\" width=\"32\" height=\"32\" transform=\"translate(0,10) scale(1,-1)\"" ),
+    "sprite symbol's inner <use> must counter-flip via translate(0, 2*region.y+region.h) scale(1,-1) ( 2*2.0+6.0 = 10 here ) to cancel the outer draw-time Y-flip for raster content; defs: {d}",
+  );
 }
 
 // -- batch lifecycle --
@@ -676,6 +978,146 @@ fn batch_set_and_remove_instance()
   assert_eq!( b.matches( "#sprite_0" ).count(), 1, "body: {b}" );
   assert!( b.contains( "translate(3,4)" ), "body: {b}" );
   assert!( !b.contains( "translate(1,2)" ), "body: {b}" );
+}
+
+// -- BUG-209 / BUG-211 error-path regressions --
+
+/// BUG-209: a `Sprite` command referencing a sprite id `assets_load` was
+/// never given returns `RenderError::MissingAsset` instead of silently
+/// emitting a dangling `<use href="#sprite_N">`.
+#[ test ]
+fn sprite_command_missing_asset_returns_error()
+{
+  let mut svg = svg800x600();
+  svg.assets_load( &empty_assets() ).unwrap();
+  let result = svg.submit( &[
+    RenderCommand::Sprite( Sprite
+    {
+      transform : Transform::default(),
+      sprite : ResourceId::new( 0 ),
+      tint : [ 1.0, 1.0, 1.0, 1.0 ],
+      blend : BlendMode::Normal,
+      clip : None,
+    }),
+  ]);
+  assert!( matches!( result, Err( RenderError::MissingAsset( 0 ) ) ), "result: {result:?}" );
+}
+
+/// BUG-209: a `Mesh` command referencing a geometry id `assets_load` was
+/// never given -- not merely one whose disk source failed to resolve, see
+/// `geometry_on_missing_path_is_skipped_with_comment` -- returns
+/// `RenderError::MissingAsset` instead of silently drawing nothing.
+#[ test ]
+fn mesh_command_missing_asset_returns_error()
+{
+  let mut svg = svg800x600();
+  svg.assets_load( &empty_assets() ).unwrap();
+  let result = svg.submit( &[
+    RenderCommand::Mesh( Mesh
+    {
+      transform : Transform::default(),
+      geometry : ResourceId::new( 0 ),
+      fill : FillRef::Solid( [ 1.0, 0.0, 0.0, 1.0 ] ),
+      texture : None,
+      topology : Topology::TriangleList,
+      blend : BlendMode::Normal,
+      clip : None,
+    }),
+  ]);
+  assert!( matches!( result, Err( RenderError::MissingAsset( 0 ) ) ), "result: {result:?}" );
+}
+
+/// BUG-211: `SetSpriteInstance` with an out-of-bounds `index` returns
+/// `RenderError::BackendError` instead of the previous silent `if`-guarded
+/// no-op that dropped the update without telling the caller.
+#[ test ]
+fn set_sprite_instance_out_of_bounds_returns_error()
+{
+  let mut svg = svg800x600();
+  svg.assets_load( &empty_assets() ).unwrap();
+
+  let batch_id : ResourceId< Batch > = ResourceId::new( 0 );
+  let result = svg.submit( &[
+    RenderCommand::CreateSpriteBatch( CreateSpriteBatch
+    {
+      batch : batch_id,
+      params : SpriteBatchParams
+      {
+        transform : Transform::default(),
+        sheet : ResourceId::new( 0 ),
+        blend : BlendMode::Normal,
+        clip : None,
+      },
+    }),
+    RenderCommand::BindBatch( BindBatch { batch : batch_id } ),
+    RenderCommand::AddSpriteInstance( AddSpriteInstance
+    {
+      transform : Transform::default(),
+      sprite : ResourceId::new( 0 ),
+      tint : [ 1.0, 1.0, 1.0, 1.0 ],
+    }),
+    RenderCommand::SetSpriteInstance( SetSpriteInstance
+    {
+      index : 5,
+      transform : Transform::default(),
+      sprite : ResourceId::new( 0 ),
+      tint : [ 1.0, 1.0, 1.0, 1.0 ],
+    }),
+  ]);
+  assert!( matches!( result, Err( RenderError::BackendError( _ ) ) ), "result: {result:?}" );
+}
+
+/// BUG-211: `SetMeshInstance` with an out-of-bounds `index` returns
+/// `RenderError::BackendError` instead of a silent no-op.
+#[ test ]
+fn set_mesh_instance_out_of_bounds_returns_error()
+{
+  let mut svg = svg800x600();
+  let positions : &[ f32 ] = &[ 0.0, 0.0, 100.0, 0.0, 50.0, 100.0 ];
+  let assets = Assets
+  {
+    geometries : vec![ GeometryAsset
+    {
+      id : ResourceId::new( 0 ),
+      positions : Source::Bytes( bytemuck::cast_slice( positions ).to_vec() ),
+      uvs : None,
+      indices : None,
+      data_type : DataType::U16,
+    }],
+    ..empty_assets()
+  };
+  svg.assets_load( &assets ).unwrap();
+
+  let batch_id : ResourceId< Batch > = ResourceId::new( 0 );
+  let result = svg.submit( &[
+    RenderCommand::CreateMeshBatch( CreateMeshBatch
+    {
+      batch : batch_id,
+      params : MeshBatchParams
+      {
+        transform : Transform::default(),
+        geometry : ResourceId::new( 0 ),
+        fill : FillRef::Solid( [ 0.0, 1.0, 0.0, 1.0 ] ),
+        texture : None,
+        topology : Topology::TriangleList,
+        blend : BlendMode::Normal,
+        clip : None,
+      },
+    }),
+    RenderCommand::BindBatch( BindBatch { batch : batch_id } ),
+    RenderCommand::AddMeshInstance( AddMeshInstance
+    {
+      transform : Transform::default(),
+      tint : [ 1.0, 1.0, 1.0, 1.0 ],
+    }),
+    RenderCommand::SetMeshInstance( SetMeshInstance
+    {
+      index : 5,
+      transform : Transform::default(),
+      tint : [ 1.0, 1.0, 1.0, 1.0 ],
+    }),
+  ]);
+  assert!( matches!( result, Err( RenderError::BackendError( _ ) ) ), "result: {result:?}" );
 }
 
 // -- delete batch --
@@ -952,6 +1394,67 @@ fn geometry_oob_index_no_panic()
 
   let d = defs( &svg );
   // The valid first triangle should still appear
+  assert!( d.contains( "<polygon" ), "valid polygon missing from defs: {d}" );
+}
+
+// test_kind: bug_reproducer(BUG-153)
+/// ## Root Cause
+/// `mesh_def_generate`'s `TriangleList` arm chunks the index buffer by 3
+/// (`( 0..count ).step_by( 3 )`) without first rounding `count` down to a multiple of 3, and
+/// indexed the buffer directly (`v[ i + j ]`) instead of via bounds-checked `.get()`. On a
+/// trailing partial triangle (`count % 3 != 0`), `i + j` reaches `v.len()` and panics.
+/// ## Why Not Caught
+/// The only existing malformed-index test (`geometry_oob_index_no_panic`) used an index
+/// buffer whose *length* was already a multiple of 3 (6 indices, 2 full triangles), with an
+/// out-of-*range* value inside it -- a different failure mode already guarded by the
+/// bounds-checked position lookups two lines below. No existing test used an index buffer
+/// whose *length itself* isn't a multiple of 3.
+/// ## Fix Applied
+/// Changed `v[ i + j ]` to `v.get( i + j )`, mapping a miss to the same `valid = false; break;`
+/// the two position lookups already use. See `src/adapters/svg.rs`, `mesh_def_generate`.
+/// ## Prevention
+/// This test supplies a 4-index buffer (one full triangle plus a trailing single index) and
+/// asserts `submit` does not panic and the valid leading triangle still renders.
+/// ## Pitfall
+/// The position lookups two lines below were already bounds-checked against malformed
+/// *vertex* indices -- but the index-*buffer* lookup that produces those vertex indices in
+/// the first place was not, so a short trailing chunk panicked before those checks ever ran.
+#[ test ]
+fn geometry_index_count_not_multiple_of_three_no_panic()
+{
+  let mut svg = svg800x600();
+  let positions : &[ f32 ] = &[ 0.0, 0.0, 100.0, 0.0, 50.0, 100.0 ]; // 3 vertices
+  // 4 indices: one full triangle (0,1,2) plus a trailing partial triangle (just index 0).
+  let indices : Vec< u32 > = vec![ 0, 1, 2, 0 ];
+  let assets = Assets
+  {
+    geometries : vec![ GeometryAsset
+    {
+      id : ResourceId::new( 0 ),
+      positions : Source::Bytes( bytemuck::cast_slice( positions ).to_vec() ),
+      uvs : None,
+      indices : Some( Source::Bytes( bytemuck::cast_slice( &indices ).to_vec() ) ),
+      data_type : DataType::U32,
+    }],
+    ..empty_assets()
+  };
+  svg.assets_load( &assets ).unwrap();
+  // Must not panic
+  svg.submit( &[
+    RenderCommand::Mesh( Mesh
+    {
+      transform : Transform::default(),
+      geometry : ResourceId::new( 0 ),
+      fill : FillRef::Solid( [ 1.0, 0.0, 0.0, 1.0 ] ),
+      texture : None,
+      topology : Topology::TriangleList,
+      blend : BlendMode::Normal,
+      clip : None,
+    }),
+  ]).unwrap();
+
+  let d = defs( &svg );
+  // The valid leading triangle should still appear
   assert!( d.contains( "<polygon" ), "valid polygon missing from defs: {d}" );
 }
 

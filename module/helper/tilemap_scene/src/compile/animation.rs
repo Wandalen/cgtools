@@ -5,7 +5,7 @@
 //! Time-based animation frame sampling.
 //!
 //! Given an [`Animation`](crate::resource::Animation) resource, the current global time, and the tile
-//! position (for `HashCoord` phase offsets), [`resolve_animation_frame`]
+//! position (for `HashCoord` phase offsets), [`animation_frame_resolve`]
 //! returns the concrete `( asset, frame )` pair to draw this instant.
 //!
 //! See SPEC §7. All timing is deterministic: the same `( animation, time,
@@ -46,7 +46,7 @@ mod private
   /// (degenerate declaration) or when a `FromSheet` variant addresses a
   /// non-existent index (caller is responsible for pre-allocating sprites
   /// in the asset-compile pass; here we just compute which sprite to pick).
-  pub fn resolve_animation_frame
+  pub fn animation_frame_resolve
   (
     anim : &Animation,
     time_seconds : f32,
@@ -80,7 +80,7 @@ mod private
             max : 0,
           });
         }
-        let idx = pick_frame_index( local_t, *fps, frames.len(), anim.mode );
+        let idx = frame_index_pick( local_t, *fps, frames.len(), anim.mode );
         Ok( frames[ idx ].clone() )
       },
       AnimationTiming::FromSheet { asset, start_frame, count, fps } =>
@@ -94,7 +94,7 @@ mod private
             max : 0,
           });
         }
-        let idx = pick_frame_index( local_t, *fps, *count as usize, anim.mode );
+        let idx = frame_index_pick( local_t, *fps, *count as usize, anim.mode );
         let frame_name = ( *start_frame + idx as u32 ).to_string();
         Ok( SpriteRef { asset : asset.clone(), frame : frame_name } )
       },
@@ -151,7 +151,7 @@ mod private
   }
 
   /// Compute `phase_offset` in seconds for a given tile position. Thin
-  /// wrapper retained for [`resolve_animation_frame`]; new callers use
+  /// wrapper retained for [`animation_frame_resolve`]; new callers use
   /// [`declared_phase_seconds`] directly.
   #[ inline ]
   fn phase_offset_seconds
@@ -170,7 +170,7 @@ mod private
   ///
   /// Mirrors the renderer's frame-resolution path so completion-event
   /// detection in `Scene::tick` agrees byte-for-byte with what
-  /// [`resolve_animation_frame`] would show on screen.
+  /// [`animation_frame_resolve`] would show on screen.
   #[ must_use ]
   pub fn declared_phase_seconds
   (
@@ -244,7 +244,7 @@ mod private
   }
 
   /// Pick a regular-timing frame index from local time.
-  fn pick_frame_index
+  fn frame_index_pick
   (
     local_t : f32,
     fps : f32,
@@ -274,7 +274,7 @@ mod private
 
 mod_interface::mod_interface!
 {
-  exposed use resolve_animation_frame;
+  exposed use animation_frame_resolve;
   own use animation_duration_seconds;
   own use declared_phase_seconds;
 }

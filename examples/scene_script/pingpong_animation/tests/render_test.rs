@@ -7,12 +7,12 @@
 #![ expect( clippy::float_cmp, reason = "assertions check exact pass-through of ball coordinates into mesh transforms; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
 
 use ndarray_cg::F32x2;
-use pingpong_animation::{ render::{ frame_to_commands, render_assets }, Frame };
+use pingpong_animation::{ render::{ frame_to_commands, render_assets, BALL_GEOMETRY }, Frame };
 use tilemap_renderer::
 {
   adapters::svg::SvgBackend,
   assets::Assets,
-  backend::Backend,
+  backend::{ Backend, RenderError },
   commands::RenderCommand,
   types::RenderConfig,
 };
@@ -107,35 +107,99 @@ fn t05_adapter_svg_only_build_renders_full_pipeline()
   assert!( matches!( output, tilemap_renderer::backend::Output::String( _ ) ), "SVG backend must return string output" );
 }
 
-/// AF2 — verifies real (not faked) resource threading between `frame_to_commands`'
-/// geometry ids and the backend, using `SvgBackend`'s actual, verified contract:
-/// `grep -rn "RenderError::MissingAsset" src/` across `tilemap_renderer` (both this
-/// crate's git history and the installed source) has zero construction sites — no
-/// shipped backend (`SvgBackend`, `WebGlBackend`, ...) currently returns
-/// `RenderError::MissingAsset` for a command-time unresolved resource. `SvgBackend`
-/// specifically resolves a `Mesh`'s geometry via `Option`, and on `None` its
-/// `cmd_mesh` returns early *before* calling `self.content.body_push`
-/// (`src/adapters/svg.rs` — `cmd_mesh`/`mesh_def_generate`) — i.e. `Ok(())` with the
-/// draw silently skipped, not `Err`. `RenderError::MissingAsset` is a documented but
-/// currently-unreachable variant of this dependency crate, not a bug this task owns
-/// (fixing it would be new cross-crate behavior, out of this task's Cargo-forwarding-
-/// only scope). This test instead proves the same thing AF2 actually cares about —
-/// that `frame_to_commands`' geometry ids are real, correctly-threaded references,
-/// not coincidentally-succeeding garbage — by asserting output *presence* when
-/// assets are loaded (see `t03`/`t05`) versus *absence* when they are not.
+/// Extracts `court`'s x argument from the bundled `.rhai` script's
+/// `let court = f32x2( X, Y );` binding — the ground truth for where the
+/// ball's right-side bounce boundary actually is (`ball_pos.x >= court.x`);
+/// the left boundary is always exactly `0.0` by the same bounce condition's
+/// own structure (`ball_pos.x <= 0.0`), so it needs no extraction.
+fn rhai_court_x() -> f32
+{
+  let script = include_str!( "../src/pingpong_animation.rhai" );
+  let header = "let court = f32x2(";
+  let args_start = script.find( header ).expect( "`let court = f32x2(` not found in the .rhai script" ) + header.len();
+  let args_end = script[ args_start.. ].find( ')' ).expect( "f32x2( .. ) call must close" ) + args_start;
+  let x_text = script[ args_start..args_end ].split( ',' ).next().expect( "f32x2 call must have an x argument" );
+  x_text.trim().parse().expect( "court's x argument must parse as f32" )
+}
+
+// test_kind: bug_reproducer(BUG-309)
+/// T06 — paddles must render exactly at the ball's simulated court
+/// boundaries (`0.0` and `.rhai`'s `court.x`), and within the default SVG
+/// canvas's visible viewport — not at some disconnected, hardcoded position
+/// nobody ever checked against the actual simulation. See `src/render.rs`'s
+/// `Fix(BUG-309)` comment.
+///
+/// RED proof (manually confirmed by transiently restoring the pre-fix
+/// `PADDLE_LEFT_X = -380.0` / `PADDLE_RIGHT_X = 380.0` values before writing
+/// this fix, then reverting): with those values, the left paddle sits at a
+/// negative x (off the default 800px-wide canvas entirely, and far from the
+/// court's real `0.0` left boundary) and the right paddle sits at `380.0`,
+/// ~180 units from the court's real `200.0` right boundary — both existing
+/// tests (T01–T05, AF2) still passed throughout, since none of them ever
+/// inspected a paddle's x position. This test closes that gap.
+///
+/// Deliberately does *not* compare against `simulate()`'s recorded
+/// `frame.ball.x()` range: with only 40 ticks and the ball starting at the
+/// court's horizontal center moving toward the right wall, the recorded
+/// frames never actually reach back to the left wall within this short a
+/// run (first observed `min` was `102.5`, not near `0.0`) — the court's
+/// *declared* boundary, not a short run's incomplete observed traversal, is
+/// the correct ground truth for where a paddle belongs.
 #[ test ]
-fn af2_submit_without_loaded_assets_silently_skips_the_draw()
+fn t06_paddle_x_positions_match_the_courts_bounce_boundaries()
+{
+  let frame = sample_frame( 0.0, 0.0 );
+  let commands = frame_to_commands( &frame );
+  let paddle_x = | index : usize | match &commands[ index ]
+  {
+    RenderCommand::Mesh( mesh ) => mesh.transform.position[ 0 ],
+    other => panic!( "expected a paddle Mesh draw at index {index}, got {other:?}" ),
+  };
+  let ( paddle_left_x, paddle_right_x ) = ( paddle_x( 1 ), paddle_x( 2 ) );
+
+  let court_x = rhai_court_x();
+  assert_eq!
+  (
+    paddle_left_x, 0.0,
+    "left paddle must sit exactly at the court's left bounce boundary (`ball_pos.x <= 0.0` in the .rhai script)"
+  );
+  assert_eq!
+  (
+    paddle_right_x, court_x,
+    "right paddle must sit exactly at the court's right bounce boundary (`court.x` = {court_x} in the .rhai script)"
+  );
+
+  let canvas_width = RenderConfig::default().width as f32;
+  assert!
+  (
+    ( 0.0..=canvas_width ).contains( &paddle_left_x ) && ( 0.0..=canvas_width ).contains( &paddle_right_x ),
+    "both paddles must render within the default {canvas_width}px-wide SVG canvas -- got left={paddle_left_x}, \
+    right={paddle_right_x}; a paddle outside [0,{canvas_width}] renders fully or partially off-canvas"
+  );
+}
+
+/// AF2 — verifies real (not faked) resource threading between `frame_to_commands`'
+/// geometry ids and the backend, using `SvgBackend`'s actual, current contract
+/// (BUG-209, fixed 2026-08-16/17, `task/bug/completed/209_...md`): `cmd_mesh` now
+/// checks the referenced geometry id against `geometries_load`'s own bookkeeping
+/// *before* generating output, returning `RenderError::MissingAsset` for a `Mesh`
+/// whose geometry was never loaded at all (`src/adapters/svg.rs` —
+/// `cmd_mesh`/`geometry_known`), matching `svg_backend_test.rs`'s own
+/// `mesh_command_missing_asset_returns_error`. This proves the same thing AF2 always
+/// cared about — that `frame_to_commands`' geometry ids are real, correctly-threaded
+/// references, not coincidentally-succeeding garbage — even more directly than the
+/// pre-BUG-209 silent-skip contract did: an explicit `Err` naming the exact
+/// unresolved id is harder to satisfy by accident than an absent `<use>` tag. Output
+/// *presence* when assets are loaded is covered separately by `t03`/`t05`.
+#[ test ]
+fn af2_submit_without_loaded_assets_returns_missing_asset_error()
 {
   let mut backend = SvgBackend::new( RenderConfig::default() );
   backend.assets_load( &empty_assets() ).expect( "loading an empty (but real) Assets value must itself succeed" );
 
   let result = backend.submit( &frame_to_commands( &sample_frame( 0.0, 0.0 ) ) );
-  assert!( result.is_ok(), "SvgBackend silently skips unresolved Mesh geometry rather than erroring: {result:?}" );
-
-  let Ok( tilemap_renderer::backend::Output::String( svg ) ) = backend.output()
-  else { panic!( "SvgBackend::output() must return Output::String" ) };
   assert!(
-    !svg.contains( "<use" ),
-    "no mesh <use> tag should appear when its geometry was never loaded: {svg}"
+    matches!( result, Err( RenderError::MissingAsset( id ) ) if id == BALL_GEOMETRY.inner() ),
+    "ball Mesh command references a geometry id `empty_assets()` never loaded, must report it by id: {result:?}"
   );
 }

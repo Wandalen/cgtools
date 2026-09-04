@@ -138,7 +138,7 @@ fn fs_main( in : VertexOutput ) -> @location( 0 ) vec4f
     let falloff = thickness / 3.0;
     let band = smoothstep( band_center - half_thickness, band_center - half_thickness + falloff, uv.y )
       * ( 1.0 - smoothstep( band_center + half_thickness - falloff, band_center + half_thickness, uv.y ) );
-    let fog_n = fbm3( vec2f( uv.x * 3.0 * noise_scale, uv.y * 8.0 * noise_scale ) + uniforms.seed * 0.37 + uniforms.time * drift_speed );
+    let fog_n = fbm3( vec2f( uv.x * 3.0 * noise_scale, uv.y * 8.0 * noise_scale ) + uniforms.seed * 0.37 + uniforms.time * drift_speed, 2.0, 0.5 );
     color = mix( color, band_color, band * fog_n * opacity );
   }
 
@@ -201,11 +201,11 @@ fn fs_main( in : VertexOutput ) -> @location( 0 ) vec4f
     let pulsate = 1.0 + uniforms.disc_params.y * sin( uniforms.time * uniforms.disc_params.z );
     let base_radius = uniforms.disc_params.x * pulsate;
     let angle = atan2( q.y - 0.5, q.x - 0.5 );
-    let rim_noise = fbm3( vec2f( cos( angle ), sin( angle ) ) * 4.0 ) - 0.4375;
+    let rim_noise = fbm3( vec2f( cos( angle ), sin( angle ) ) * 4.0, 2.0, 0.5 ) - 0.4375;
     let radius = base_radius + rim_noise * 0.015;
     let disk = 1.0 - smoothstep( radius - 0.004, radius, d );
 
-    let gran_n = fbm3( q * 40.0 * uniforms.disc_params.w + 3.0 );
+    let gran_n = fbm3( q * 40.0 * uniforms.disc_params.w + 3.0, 2.0, 0.5 );
     let dark = uniforms.disc_dark.xyz;
     let mid = uniforms.disc_mid.xyz;
     let bright = uniforms.disc_bright.xyz;

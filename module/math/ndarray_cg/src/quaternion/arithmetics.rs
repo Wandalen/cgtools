@@ -27,7 +27,20 @@ mod private
     where
       T : VectorIter< E, 3 >
     {
-        let ( s, c ) = angle.sin_cos();
+        // Fix(BUG-120): changed `angle.sin_cos()` to `(angle / two).sin_cos()`.
+        // Root cause: the axis-angle-to-quaternion formula requires the HALF angle
+        // (`q = (axis * sin(angle/2), cos(angle/2))`) — this function used the full angle
+        // directly, unlike its sibling constructors `from_angle_x`/`from_angle_y`/
+        // `from_angle_z` (all three correctly halve via `let two = E::one() + E::one(); (x /
+        // two).sin_cos()`), so a caller requesting a rotation of `angle` radians about a given
+        // axis actually got a rotation of `2 * angle` radians instead.
+        // Pitfall: sibling constructors that should share an invariant (here: "always
+        // half-angle the input") can drift independently when each is implemented as its own
+        // free-standing function instead of being built on one shared half-angle helper —
+        // cross-check new constructors against already-correct siblings for the same class of
+        // input, not just against the formula in isolation.
+        let two = E::one() + E::one();
+        let ( s, c ) = ( angle / two ).sin_cos();
 
         let mut iter = axis.vector_iter();
         let x = *iter.next().unwrap() * s;
@@ -129,18 +142,21 @@ mod private
     }
 
     /// Divides this quaternion by another (equivalent to `self * other.invert()`).
+    // UX/DX: renamed from the misspelled `devide` to `divide` (and `device_mut` to
+    // `divide_mut` below) -- plain authoring typo, never caught since it compiled and worked
+    // correctly under the misspelled name.
     #[ inline ]
     #[ must_use ]
-    pub fn devide( &self, other : &Self ) -> Self
+    pub fn divide( &self, other : &Self ) -> Self
     {
       *self * other.invert()
     }
 
     /// Divides this quaternion by another in-place.
     #[ inline ]
-    pub fn device_mut( &mut self, other : &Self )
+    pub fn divide_mut( &mut self, other : &Self )
     {
-      *self = self.devide( other );
+      *self = self.divide( other );
     }
 
     /// Performs spherical linear interpolation (slerp) between two unit quaternions.
@@ -160,6 +176,14 @@ mod private
 
       let mut cos_half_theta = self.dot( other );
 
+      // Fix(BUG-194): `q2` is the hemisphere-corrected copy of `other` -- when `cos_half_theta`
+      // is negative, `self` and `other` are more than 90 degrees apart as 4D vectors even though
+      // they represent rotations less than 180 degrees apart ( `q` and `-q` encode the identical
+      // rotation ). Both branches below previously kept blending against the original, un-flipped
+      // `*other` instead of this corrected `q2` -- pairing the short-path angle ( derived from
+      // the now-positive `cos_half_theta` ) with the long-path quaternion value produced a
+      // non-unit-length result rotated the wrong way whenever the two inputs started in opposite
+      // hemispheres. Every use of `*other` below is replaced with `q2`.
       if cos_half_theta < E::zero()
       {
         cos_half_theta = -cos_half_theta;
@@ -178,7 +202,7 @@ mod private
       let sqr_sin_half_theta = E::one() - cos_half_theta * cos_half_theta;
       if sqr_sin_half_theta <= E::epsilon()
       {
-        return ( self * ( E::one() - s ) + *other * s ).normalize();
+        return ( self * ( E::one() - s ) + q2 * s ).normalize();
       }
 
       let sin_half_theta = sqr_sin_half_theta.sqrt();
@@ -187,7 +211,7 @@ mod private
       let ratio_a = ( ( E::one() - s ) * half_theta ).sin() / sin_half_theta;
       let ratio_b = ( s * half_theta ).sin() / sin_half_theta;
 
-      self * ratio_a + *other * ratio_b
+      self * ratio_a + q2 * ratio_b
     }
 
     /// Performs spherical linear interpolation (slerp) in-place.
@@ -197,12 +221,22 @@ mod private
       *self = self.slerp( other, s );
     }
 
-    /// Inverts the unit-length quaternion, which is equivalent to its conjugate.
+    /// Inverts the quaternion, producing its multiplicative inverse. Reduces to the conjugate
+    /// for a unit-length quaternion ( `mag2() == 1` ), and is the general formula otherwise.
+    // BUG-298 task/bug/298_quat_invert_wrong_for_non_unit_quaternions.md -- was
+    // unconditionally `self.conjugate()`, wrong for any non-unit-length quaternion.
+    // Fix(BUG-298): was `self.conjugate()`, correct only when `self` is unit-length.
+    // Root cause: the general quaternion inverse is `conjugate(q) / mag2(q)`; the unit-only
+    // shortcut was applied unconditionally, so `divide`/`Div`/`DivAssign` ( all routed through
+    // `invert` ) silently scaled their result by the divisor's squared magnitude instead of
+    // producing a true quotient whenever the divisor was not already unit-length.
+    // Pitfall: a documented precondition ( "unit-length" ) on a function whose signature accepts
+    // any value of the type gives callers no way to know they've violated it.
     #[ inline ]
     #[ must_use ]
     pub fn invert( &self ) -> Self
     {
-      self.conjugate()
+      self.conjugate() / self.mag2()
     }
 
     /// Converts the quaternion into a column-major 3x3 rotation matrix.
@@ -296,8 +330,39 @@ mod private
       let one = E::one();
       let eps = E::from( 1e-6 ).unwrap();
 
+      // Fix(BUG-272): corrected the sign of the cross term in all three trig formulas (`w*y -
+      // z*x` -> `w*y + z*x` for pitch; `w*x + y*z` -> `w*x - y*z` for roll; `w*z + x*y` -> `w*z
+      // - x*y` for yaw), corrected the gimbal-lock branch's yaw denominator (`y*y + z*z` ->
+      // `x*x + z*z`), and parenthesized the gimbal-lock branch's doubled numerator (`two * ( x *
+      // y + w * z ).atan2( .. )` -> `( two * ( x * y + w * z ) ).atan2( .. )`) -- method-call
+      // precedence bound `.atan2` tighter than the leading `two *`, so the whole `atan2` result
+      // was doubled after the call instead of its first argument being doubled before it.
+      // Root cause: the matrix-to-Euler-angle extraction formulas were transcribed with the
+      // wrong sign on each cross term (and the wrong pair of squared components in the gimbal
+      // lock denominator), so the function only happened to look correct for single-axis
+      // rotations (where the mismatched cross term is a product against an always-zero
+      // component) or very small angles (where the loose pre-existing test epsilon of 1e-1
+      // hid the error) -- any genuine multi-axis rotation returned wrong roll/pitch/yaw. The
+      // gimbal-lock branch carried a second, independent defect on top of that: `atan2( 2*n, d
+      // )` (double the numerator, then take the angle) and `2 * atan2( n, d )` (take the angle,
+      // then double it) are different functions whenever `n != 0`, but the unparenthesized `two
+      // * ( .. ).atan2( .. )` computed the latter -- so even a case with the correct sign/
+      // denominator still reported the wrong collapsed angle at true gimbal lock unless roll
+      // and yaw were both zero (the only case where the two placements coincide).
+      // Pitfall: a matrix/quaternion-to-Euler decomposition formula with several structurally
+      // similar terms (here: `w*y +/- z*x`, `w*x +/- y*z`, `w*z +/- x*y`) needs each sign
+      // verified independently against a derivation or ground truth (matrix product, or the
+      // crate's own verified-correct forward conversion) -- copying the "shape" of a sibling
+      // term without re-deriving its specific sign lets a single transcription slip silently
+      // propagate across every term that shares the pattern, and single-axis/small-angle test
+      // inputs cannot detect it because the buggy cross term evaluates to (near) zero either
+      // way. Separately, `scalar * expr.method( .. )` silently binds the method call tighter
+      // than the leading multiplication -- a formula that needs the multiplication applied
+      // *before* the call (doubling a numerator, not a result) must parenthesize the multiplied
+      // expression explicitly, and a test exercising only the degenerate zero-numerator case
+      // cannot tell the two placements apart.
       // Pitch ( Y )
-      let sinp = two * ( w * y - z * x );
+      let sinp = two * ( w * y + z * x );
       let sinp = sinp.max( - one ).min( one );
       let pitch = sinp.asin();
 
@@ -305,15 +370,15 @@ mod private
       if ( sinp.abs() - one ).abs() < eps
       {
         // Collapse roll into yaw
-        let yaw = two * ( x * y + w * z ).atan2( one - two * ( y * y + z * z ) );
+        let yaw = ( two * ( x * y + w * z ) ).atan2( one - two * ( x * x + z * z ) );
         return [ E::zero(), pitch, wrap_pi( yaw ) ].into();
       }
 
       // Roll ( X )
-      let mut roll = ( two * ( w * x + y * z ) ).atan2( one - two * ( x * x + y * y ) );
+      let mut roll = ( two * ( w * x - y * z ) ).atan2( one - two * ( x * x + y * y ) );
 
       // Yaw ( Z )
-      let mut yaw = ( two * ( w * z + x * y ) ).atan2( one - two * ( y * y + z * z ) );
+      let mut yaw = ( two * ( w * z - x * y ) ).atan2( one - two * ( y * y + z * z ) );
 
       roll = wrap_pi( roll );
       yaw  = wrap_pi( yaw );

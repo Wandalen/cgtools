@@ -28,22 +28,17 @@
 //! // Create a game state
 //! let game_state = GameStateSerializer::basic_game_state_create("Test Save".to_string());
 //!
-//! // Serialize the game state
-//! let serialized = GameStateSerializer::new()
-//!     .with_compression(true)
-//!     .game_state_serialize(&game_state)
-//!     .expect("Failed to serialize game state");
-//!
-//! // Save to file
+//! // Save to file, using a serializer configured for compression -- `with_serializer`
+//! // plumbs the same compression setting through both the save and the load below.
 //! # let temp_dir = std::env::temp_dir().join("tiles_tools_doctest");
 //! # std::fs::create_dir_all(&temp_dir).unwrap();
-//! SaveManager::new(&temp_dir)
-//!     .game_state_save("my_save", &game_state)
+//! let save_manager = SaveManager::new(&temp_dir)
+//!     .with_serializer(GameStateSerializer::new().with_compression(true));
+//! save_manager.game_state_save("my_save", &game_state)
 //!     .expect("Failed to save game");
 //!
 //! // Load from file
-//! let _loaded = SaveManager::new(&temp_dir)
-//!     .game_state_load("my_save")
+//! let _loaded = save_manager.game_state_load("my_save")
 //!     .expect("Failed to load game");
 //! # std::fs::remove_dir_all(&temp_dir).ok();
 //! ```
@@ -439,7 +434,7 @@ impl GameStateSerializer {
     };
 
     if self.compress {
-      Ok(Self::data_compress(data))
+      Ok(Self::data_compress(&data))
     } else {
       Ok(data)
     }
@@ -448,7 +443,10 @@ impl GameStateSerializer {
   /// Deserializes a game state from bytes.
   ///
   /// # Errors
-  /// Returns an error when decompression fails or the bytes are not valid for the selected format.
+  /// Returns an error when decompression fails, the bytes are not valid for the
+  /// selected format, or the deserialized state's `metadata.version` is
+  /// incompatible with this serializer's configured version (see
+  /// [`SaveVersion::is_compatible_with`]).
   pub fn game_state_deserialize(&self, data: &[u8]) -> Result<SerializableGameState, SerializationError> {
     let data = if self.compress {
       Self::data_decompress(data)?
@@ -456,7 +454,7 @@ impl GameStateSerializer {
       data.to_vec()
     };
 
-    let state = match self.format {
+    let state: SerializableGameState = match self.format {
       SerializationFormat::Json => serde_json::from_slice(&data)?,
       SerializationFormat::Binary => bincode::serde::decode_from_slice(&data, bincode::config::standard())?.0,
       SerializationFormat::Ron => {
@@ -467,6 +465,29 @@ impl GameStateSerializer {
         })?
       }
     };
+
+    // Fix(BUG-269): `game_state_deserialize` never checked the deserialized
+    // state's `metadata.version` against this serializer's own `version`
+    // (default `SaveVersion::current()`, or a caller-supplied one via
+    // `with_version`), so `with_version` had no observable effect on
+    // anything and `SerializationError::IncompatibleVersion` -- a fully
+    // documented, Display-formatted error variant -- could never actually be
+    // constructed by this crate, despite the module's own doc comment
+    // advertising "Version Management: Backward compatibility for save
+    // files" as a supported feature.
+    // Root cause: `SaveVersion::is_compatible_with` and the
+    // `IncompatibleVersion` error variant were both implemented and tested
+    // in isolation, but never wired into the one call site (deserialize)
+    // that would need to invoke them.
+    // Pitfall: a `with_*` builder setter that stores a value nothing ever
+    // reads back is a silent no-op -- check every configured field is
+    // actually consulted somewhere before trusting a builder API works.
+    if !self.version.is_compatible_with(&state.metadata.version) {
+      return Err(SerializationError::IncompatibleVersion {
+        found: state.metadata.version,
+        expected: self.version.clone(),
+      });
+    }
 
     Ok(state)
   }
@@ -483,16 +504,52 @@ impl GameStateSerializer {
     }
   }
 
-  // Private compression methods (stubbed for now - would use flate2 or similar)
-  fn data_compress(data: Vec<u8>) -> Vec<u8> {
-    // In a real implementation, this would use flate2 or similar
-    // For now, just return the data unchanged with a marker
-    let mut compressed = vec![0xC0, 0x4D, 0x50]; // "CMP" marker
-    compressed.extend_from_slice(&(data.len() as u32).to_le_bytes());
-    compressed.extend(data);
-    compressed
+  // Fix(BUG-475): real DEFLATE compression via flate2, instead of a 7-byte
+  // marker+length header prepended to the unmodified input (which only ever
+  // made the output larger, never actually compressed it).
+  // Root cause: `data_compress` never compressed anything -- it copied
+  // `data` through unchanged after a 7-byte header, so
+  // `GameStateSerializer::with_compression(true)` silently produced BIGGER
+  // output than `with_compression(false)`, the opposite of its documented
+  // purpose.
+  // Pitfall: a builder flag whose name promises a real transformation
+  // (`with_compression`) needs its implementation checked for the actual
+  // transformation, not just checked for "does the round-trip still work" --
+  // `test_compression` passed against the stub because compress/decompress
+  // were still exact mutual inverses, just neither one actually compressed.
+  fn data_compress(data: &[u8]) -> Vec<u8> {
+    let mut encoder = flate2::write::DeflateEncoder::new(Vec::new(), flate2::Compression::default());
+    // Writes to an in-memory `Vec<u8>` target cannot fail (no I/O involved).
+    encoder.write_all(data).expect("in-memory compression write cannot fail");
+    let compressed = encoder.finish().expect("in-memory compression finish cannot fail");
+
+    let mut out = vec![0xC0, 0x4D, 0x50]; // "CMP" marker
+    // Stores the DECOMPRESSED size, for `data_decompress` to validate
+    // against after inflating -- not (as the old format used) the
+    // compressed-payload length, which is no longer deterministic from the
+    // header alone once real compression is involved.
+    out.extend_from_slice(&(data.len() as u32).to_le_bytes());
+    out.extend(compressed);
+    out
   }
 
+  // Fix(BUG-476): eliminates the unchecked `original_size + 7` addition
+  // that could overflow/wrap `usize` on a 32-bit target (wasm32, this
+  // crate's stated primary target) when fed a corrupted or malicious
+  // header -- structurally, as a consequence of BUG-475's redesign, rather
+  // than by adding `checked_add` to the old length-precheck.
+  // Root cause: the old format could validate a compressed payload's exact
+  // length up front (`data.len() != original_size + 7`) because the
+  // "compressed" bytes were literally the uncompressed input -- once real
+  // compression makes the on-disk length independent of the decompressed
+  // size, that precondition check no longer applies at all; validation now
+  // happens by comparing the *inflated* length against the stored original
+  // size, which involves no addition of untrusted values.
+  // Pitfall: a bounds/length check written against one data format can
+  // become not just wrong but unsafe (silent wraparound on 32-bit targets)
+  // if the format changes underneath it without re-deriving the check from
+  // scratch -- "still compiles, still returns a Result" is not evidence a
+  // validation check still means what it used to.
   fn data_decompress(data: &[u8]) -> Result<Vec<u8>, SerializationError> {
     // Check for compression marker
     if data.len() < 7 || data[0..3] != [0xC0, 0x4D, 0x50] {
@@ -500,11 +557,16 @@ impl GameStateSerializer {
     }
 
     let original_size = u32::from_le_bytes([data[3], data[4], data[5], data[6]]) as usize;
-    if data.len() != original_size + 7 {
+
+    let mut decoder = flate2::read::DeflateDecoder::new(&data[7..]);
+    let mut decompressed = Vec::new();
+    decoder.read_to_end(&mut decompressed).map_err(|_| SerializationError::CorruptedData)?;
+
+    if decompressed.len() != original_size {
       return Err(SerializationError::CorruptedData);
     }
 
-    Ok(data[7..].to_vec())
+    Ok(decompressed)
   }
 }
 
@@ -552,6 +614,23 @@ impl SaveManager {
     // Create updated metadata with actual size
     let mut metadata = state.metadata.clone();
     metadata.size_bytes = serialized_data.len() as u64;
+    // BUG-348 task/bug/348_save_manager_meta_compressed_flag_desync.md -- .meta
+    // sidecar's compressed flag never synced with the serializer; fix below.
+    // Fix(BUG-348): synchronize the .meta sidecar's `compressed` flag with
+    // the serializer that actually determines whether the .save file's
+    // bytes are compressed, instead of leaving whatever `compressed` value
+    // the caller's SerializableGameState happened to already carry.
+    // Root cause: `GameStateSerializer.compress` (drives real compression)
+    // and `SaveMetadata.compressed` (an independent field, set only via the
+    // unrelated `SaveMetadata::with_compression` builder) were never
+    // synchronized anywhere -- `game_state_load` still round-trips
+    // correctly because it consults the serializer's own `compress` field,
+    // not the metadata, which is exactly what let this desync go unnoticed.
+    // Pitfall: two fields describing the same underlying fact will drift
+    // apart unless one is derived from the other at the one place both are
+    // written -- verify every field a sidecar/report writes is actually
+    // sourced from the value that controls the real behavior it describes.
+    metadata.compressed = self.serializer.compress;
 
     // Write save file
     let mut save_file = BufWriter::new(File::create(save_path)?);
@@ -570,7 +649,9 @@ impl SaveManager {
   /// Loads a game state from a file.
   ///
   /// # Errors
-  /// Returns an error when the save does not exist, cannot be read, or cannot be deserialized.
+  /// Returns an error when the save does not exist, cannot be read, cannot be
+  /// deserialized, or was written by an incompatible save version (see
+  /// [`GameStateSerializer::game_state_deserialize`]).
   pub fn game_state_load(&self, save_name: &str) -> Result<SerializableGameState, SerializationError> {
     let save_path = self.saves_directory.join(format!("{save_name}.save"));
 

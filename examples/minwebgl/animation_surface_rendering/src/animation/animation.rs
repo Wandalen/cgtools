@@ -94,7 +94,7 @@ mod private
       let contour = path.iter()
       .map( | p | [ p.x as f32, p.y as f32 ] )
       .collect::< Vec< _ > >();
-      Some( crate::primitive::curve_to_geometry( contour.as_slice(), stroke_width ) )
+      crate::primitive::curve_to_geometry( contour.as_slice(), stroke_width )
     }
     else
     {

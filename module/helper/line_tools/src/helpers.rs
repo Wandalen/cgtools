@@ -15,6 +15,14 @@ mod private
   #[must_use]
   pub fn circle_geometry( segments : usize ) -> Vec< [ f32; 2 ] >
   {
+    // Fix(BUG-237): `segments == 0` made the loop below divide by zero (`wedge as f32 / segments as f32`
+    // with `segments = 0`), pushing a NaN vertex into the returned geometry instead of erroring.
+    // Root cause: no floor on `segments` before it's used as a division's divisor -- same shape
+    // as BUG-236's `round_cap_geometry`, found in the same scouting pass.
+    // Pitfall: `f32` division never panics on a zero divisor -- it silently returns NaN -- so this
+    // has to be guarded at the entry point, mirroring `Tween::new`/`Step::new`'s established
+    // `.max( .. )` convention for the identical defect shape (BUG-142/BUG-233).
+    let segments = segments.max( 1 );
     let mut positions = Vec::with_capacity( segments );
     for wedge in 0..=segments
     {

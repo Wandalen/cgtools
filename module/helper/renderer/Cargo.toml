@@ -30,7 +30,6 @@ workspace = true
 
 [features]
 enabled = [
-  "dep:mod_interface",
   "dep:minwebgl",
   "dep:mingl",
   "dep:gltf",
@@ -42,18 +41,27 @@ enabled = [
   "dep:zune-hdr",
   "dep:rustc-hash"
 ]
-default = [ "enabled" ]
+default = [ "enabled", "webgl" ]
 full = [ "enabled", "webgl", "animation", "webgpu", "native" ]
-webgl = []
+# Fix(BUG-241): must pull in `enabled`'s deps ( minwebgl/web-sys/mingl/gltf/... ) —
+# `src/webgl/**` unconditionally needs them the moment `layer webgl;` is compiled.
+webgl = [ "enabled" ]
 webgpu = [ "dep:minwebgpu", "dep:bytemuck", "dep:gpu_hal" ]
 # The canonical gpu_hal renderer on the native wgpu backend — same layer as
 # `webgpu`, materializing off-wasm instead ( terminal pixel tests, no browser ).
 native = [ "dep:minwebgpu", "dep:bytemuck", "dep:gpu_hal", "gpu_hal/native" ]
 animation = [ "dep:animation", "dep:clone_dyn_types" ]
+# Exposes crate-private state to `tests/`, which is a separate crate and so cannot
+# reach it otherwise. Off by default: nothing a dependent builds changes, and every
+# item behind it is `#[ doc( hidden ) ]` and suffixed `_for_test`.
+test_internals = []
 
 [dependencies]
 
-mod_interface = { workspace = true, optional = true }
+# Fix(BUG-241): always required — used unconditionally at the crate root
+# (`lib.rs`) and in both `webgl.rs`'s and `webgpu.rs`'s own module trees,
+# regardless of which top-level feature is active.
+mod_interface = { workspace = true }
 minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ], optional = true }
 minwebgpu = { workspace = true, features = [ "math" ], optional = true }
 gpu_hal = { workspace = true, features = [ "webgpu", "webgl" ], optional = true }
@@ -93,6 +101,7 @@ wasm-bindgen-futures = { workspace = true }
 test_tools = { workspace = true }
 approx = { workspace = true, features = [] }
 naga = { workspace = true }
+rustc-hash = { workspace = true }
 
 # Not a real dependency — a feature shim. `test_tools` drags in
 # rand 0.8 → getrandom 0.2, which refuses to compile for
@@ -102,6 +111,39 @@ naga = { workspace = true }
 # with the `getrandom_backend` cfg from `.cargo/config.toml`.
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 getrandom = { version = "0.2", features = [ "js" ] }
+
+# Exercises the animation-specific glTF loader's pure decode/sequence-building
+# logic, gated behind `animation` -- without `required-features`, this test
+# binary fails to *compile* under a plain `cargo test` ( `animation` is not
+# part of `default` ), since it unconditionally imports the
+# `#[cfg(feature = "animation")]`-gated `renderer::webgl::animation` module.
+[[test]]
+name = "gltf_animation_loader_test"
+required-features = ["animation"]
+
+# The following three exercise pure sub-surfaces of the glTF loader gated
+# behind `native` ( `#![cfg(all(feature = "native", not(target_arch =
+# "wasm32")))]` internally ) -- without `required-features`, a plain
+# `cargo test` silently compiles each to an empty crate and reports
+# "running 0 tests" instead of skipping the binary with a clear reason.
+[[test]]
+name = "gltf_attribute_descriptor_test"
+required-features = ["native"]
+
+[[test]]
+name = "gltf_node_scene_test"
+required-features = ["native"]
+
+[[test]]
+name = "gltf_skeleton_displacements_test"
+required-features = ["native"]
+
+# Build-time-only WGSL→GLSL ES 300 translation for the `webgpu` feature's
+# WebGL override pair ( `build.rs` ) — never becomes part of the compiled
+# artifact, native or wasm32; independent of the runtime `gpu_hal` dependency
+# above ( different Cargo dependency kind, host-only ).
+[build-dependencies]
+gpu_hal = { workspace = true, features = [ "webgl-glsl-build" ] }
 
 # Metadata for crates.io
 [package.metadata.docs.rs]

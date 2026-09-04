@@ -1,11 +1,7 @@
 
 mod private
 {
-  use minwebgl::
-  {
-    self as gl,
-    BufferDescriptor
-  };
+  use minwebgl as gl;
   use gl::
   {
     GL,
@@ -117,12 +113,9 @@ mod private
         buffer_attribute_info_make
         (
           position_buffer,
-          BufferDescriptor::new::< [ f32; 3 ] >(),
-          0,
+          mingl::VertexAttribute::new( 0, VectorDataType::new( mingl::DataType::F32, 3, 1 ), 0 ),
           3,
-          0,
-          false,
-          VectorDataType::new( mingl::DataType::F32, 3, 1 )
+          false
         )
       ),
     ];

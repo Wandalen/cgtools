@@ -52,9 +52,14 @@ a layer above them.
 - Power users never hit a wall; they hit a visible, reviewable staircase.
 - Cost: handle-plumbing boilerplate on every wrapper type, and occasional
   two-step ceremony where a leaky design would be one line.
-- Current known violation to burn down: `renderer` (L3) depends directly on
-  the L0 driver `minwebgl` because L1–L2 do not exist yet; ADR-001 accepts
-  this until the HAL lands.
+- Current known violations to burn down: `renderer`'s legacy `webgl` tree,
+  `tilemap_renderer`'s WebGL2 adapter, and `line_tools` all depend directly
+  on an L0 driver rather than routing through L1. L1 v0 now exists
+  (`gpu_hal`) and both `renderer`'s canonical opaque path and
+  `tilemap_renderer`'s `adapter-webgpu`/`adapter-native` already route
+  through it (see [../layer/002_l1_gpu_hal.md](../layer/002_l1_gpu_hal.md));
+  these three remaining direct-to-L0 paths are accepted until strangled
+  onto the HAL.
 
 ### ADRs
 
@@ -62,12 +67,32 @@ a layer above them.
 |------|--------------|
 | [../adr/001_multi_stack_rendering_architecture.md](../adr/001_multi_stack_rendering_architecture.md) | Adopts this pattern; its layer table defines the *n* levels this pattern chains |
 
+### Features
+
+| File | Relationship |
+|------|--------------|
+| [../../module/helper/gpu_hal/docs/feature/003_shader_modules_and_render_pipelines.md](../../module/helper/gpu_hal/docs/feature/003_shader_modules_and_render_pipelines.md) | Named `ShaderSource` before this pattern doc existed — canonical WGSL plus a per-backend override slot is the shader-access contract's flagship instance |
+
+### Patterns
+
+| File | Relationship |
+|------|--------------|
+| [../../module/helper/gpu_hal/docs/pattern/001_enum_per_backend_dispatch_one_step_drilldown.md](../../module/helper/gpu_hal/docs/pattern/001_enum_per_backend_dispatch_one_step_drilldown.md) | The resource-handle-level instantiation of this pattern within the HAL crate |
+
+### Render Stacks
+
+| File | Relationship |
+|------|--------------|
+| [../render_stack/002_tile.md](../render_stack/002_tile.md) | The conforming one-step dependency chain (`tilemap_scene` → `tilemap_renderer` only) |
+
 ### Sources
 
 | File | Relationship |
 |------|--------------|
 | `module/helper/tilemap_scene/Cargo.toml` | Existing conforming chain: scene (L4/L5) depends on `tilemap_renderer` (L3) only — no driver dependencies |
-| `module/helper/renderer/Cargo.toml` | The accepted violation: L3 engine depending directly on the L0 driver `minwebgl` |
+| `module/helper/renderer/Cargo.toml` | First accepted violation: legacy `webgl` tree depending directly on the L0 driver `minwebgl` |
+| `module/helper/tilemap_renderer/Cargo.toml` | Second accepted violation: WebGL2 adapter depending directly on the L0 driver `minwebgl` |
+| `module/helper/line_tools/Cargo.toml` | Third accepted violation: optional dependency on the L0 driver `minwebgl` |
 
 ### Tests
 

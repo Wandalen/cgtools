@@ -13,10 +13,19 @@ and what the expected outcome is.
 tests/
   helpers/
     mod.rs              — shared fixtures (empty_assets, …)
+  manual/
+    readme.md            — scripted browsee browser pixel-verification procedure (adapter-webgpu, adapter-webgl)
   assets_test.rs        — Assets validation domain
   backend_test.rs       — Backend trait contract, RenderError, Capabilities
   commands_test.rs      — RenderCommand Copy invariant, size, stream construction
   svg_backend_test.rs   — SvgBackend adapter behavior via public surface (feature adapter-svg)
+  none_backend_test.rs  — NoneBackend no-op contract (feature adapter-none)
+  terminal_backend_test.rs — TerminalBackend cell-grid rasterizer contract (feature adapter-terminal)
+  native_backend_test.rs — NativeBackend real-GPU pixel-readback contract (feature adapter-native)
+  webgpu_backend_test.rs — WebGpuBackend compile-and-construct-level contract (feature adapter-webgpu, wasm32)
+  webgl_backend_test.rs — WebGlBackend::declared_capabilities pure-function contract (feature adapter-webgl)
+  webgl_context_loss_test.rs — WebGlBackend context_lost lifecycle against a live context (feature adapter-webgl + test_internals, wasm32)
+  command_consistency_test.rs — cross-backend capabilities-vs-submit() consistency (none/svg/native)
   types_test.rs         — Transform, ResourceId, RenderConfig
 ```
 
@@ -26,9 +35,16 @@ tests/
 |---|---|---|
 | `types_test.rs` | Core value types | `Transform` identity/translation/scale/rotation, `ResourceId` equality, `RenderConfig` defaults |
 | `commands_test.rs` | Command types | `Copy` invariant (compile-time), enum size bound, stream construction, batch params |
-| `assets_test.rs` | Asset validation | Empty set, no-duplicate ok, per-type duplicate errors, cross-type id independence |
+| `assets_test.rs` | Asset validation | Empty set, no-duplicate ok, per-type duplicate errors, cross-type id independence; `to_rgba8` `PixelFormat` conversion (feature `adapter-native`, task 218) |
 | `backend_test.rs` | Backend trait | `assets_load`, `submit`, `output`, `resize`, `Capabilities::default`, all `RenderError` variants |
 | `svg_backend_test.rs` | SvgBackend adapter (relocated from inline by task 071) | Clear/viewport wrapper, paths, gradients, patterns, clip masks, sprite tint/batches, mesh topologies, effects, blend modes, groups, disk/encoded/bitmap image loading, text flow/anchors/on-path, plus the former private helpers ( transforms, anchors, PNG probing, `SvgContentManager` ) now exposed as documented or `doc( hidden )` pub — `src/` carries no inline test modules |
+| `none_backend_test.rs` | NoneBackend adapter | `Capabilities::default` field-by-field pin, unconditional `Ok` on `submit`/`assets_load` regardless of command/asset content |
+| `terminal_backend_test.rs` | TerminalBackend adapter (35 tests) | World-space commands land on the expected cell after `CELL_PX_WIDTH`/`CELL_PX_HEIGHT` downsample and Y-flip, `MissingAsset` contract shared with `SvgBackend`, `output()`'s exact ANSI truecolor byte encoding — assertions reach the grid through `#[doc(hidden)]` test-only accessors (`cols`/`rows`/`cell_bg`/`cell_fg`/`cell_glyph`) |
+| `native_backend_test.rs` | NativeBackend adapter | Real `gpu_hal` device construct/load/submit/output, exact pixel readback, resize |
+| `webgpu_backend_test.rs` | WebGpuBackend adapter | `declared_capabilities` honest subset, `sprite_draw_params` anti-hardcoding, `command_classify` family rejection (wasm32 only) |
+| `webgl_backend_test.rs` | WebGlBackend adapter | `declared_capabilities` honest-subset pin and `max_texture_size` anti-hardcoding pin — no live `WebGl2RenderingContext` |
+| `webgl_context_loss_test.rs` | WebGlBackend context-loss lifecycle (relocated from inline when `rulebook.md § Test placement` moved every test to `tests/`) | A simulated `webglcontextlost` blocks `submit`/`output`, and `assets_load` — not the restored-event listener — is what clears the flag again; reaches the private flag through `test_internals`' `context_lost_for_test`/`context_lost_set_for_test` |
+| `command_consistency_test.rs` | Cross-backend command/capabilities consistency | `none`/`svg`/`native` each accept a `Sprite` (all declare `sprites: true`); `none`/`native` each reject or gracefully skip a `paths`-family command they declare `false` (never panic) |
 
 ## Adding new tests
 

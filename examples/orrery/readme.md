@@ -5,6 +5,7 @@ One scene, many implementations. An **orrery** — a sun with a granulated, coro
 | Directory | Responsibility |
 |-----------|----------------|
 | `webgpu/` | Reference implementation: browser WebGPU via `minwebgpu`, WGSL fullscreen shader |
+| `flexible/` | Backend-selectable implementation: one crate, one of webgl/webgpu/wgpu/vulkan chosen via Cargo feature (task 203) |
 
 ## Family conventions
 
@@ -12,4 +13,5 @@ One scene, many implementations. An **orrery** — a sun with a granulated, coro
 - **Tags:** every member declares `scene:orrery` in `[package.metadata.action]`, alongside its `runtime:`/`api:` tags. `action/run list scene:orrery` lists the whole family.
 - **API-group symlinks:** each member is also reachable from its API group dir via a symlink (`examples/minwebgpu/orrery -> ../orrery/webgpu`), so browsing by API still finds it. Symlinked paths are `exclude`d in the root `Cargo.toml` — the member globs must resolve each package exactly once.
 - **Scene contract:** the scene definition currently lives in `webgpu/scene/scene.rhai`. When a second member lands, it is promoted to this directory so every implementation consumes the identical document — that, not lookalike output, is what makes the family "the same scene". Counts (`NEBULA_BAND_COUNT`, `STAR_LAYER_COUNT`, `ORBIT_RING_COUNT`, `NODE_COUNT`) and field semantics are pinned by `webgpu/src/scene.rs` and its tests.
-- **Planned members** (not yet built): `webgl/` (browser WebGL2 via `minwebgl`, with real multi-pass bloom), `wgpu/` (native via `minwgpu`; forcing a specific backend such as Vulkan is a run mode of this member, not a separate crate), `gpu_hal/` (one body of code targeting all backends through the L1 hardware abstraction layer — see `docs/adr/002_gpu_hal_in_house.md`).
+- **Planned members** (not yet built): `webgl/` (browser WebGL2 via `minwebgl`, with real multi-pass bloom), `wgpu/` (native via `minwgpu`, letting `wgpu` pick its own backend), `gpu_hal/` (one body of code targeting all backends through the L1 hardware abstraction layer — see `docs/adr/002_gpu_hal_in_house.md`).
+- **`flexible/`** (implemented, see the Directory table above): one crate selecting among all four backends — webgl, webgpu, wgpu, vulkan — via Cargo features; only the `wgpu` feature links the `wgpu` crate, the other three do not, even transitively, including `vulkan` via the new `minvulkan` L0 driver — see `docs/adr/004_native_vulkan_hal_backend.md`.

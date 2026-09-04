@@ -23,7 +23,12 @@ extern "C"
   #[ wasm_bindgen( js_name = "onChange" ) ]
   pub fn on_change( gui : &JsValue, callback : &Closure< dyn FnMut( f32 ) > ) -> JsValue;
 
-  #[ wasm_bindgen( js_name = "getTitle" ) ]
+  // Fix(BUG-339): js_name was "getTitle", not exported by this crate's own gui.js (only
+  // set_name is). Root cause: lil_gui.rs copy-pasted from a sibling crate whose gui.js
+  // legitimately exports getTitle, without re-checking against this crate's own gui.js.
+  // Pitfall: wasm_bindgen accepts any js_name at compile time; the mismatch only surfaces
+  // as a runtime error when the binding is actually called from wasm.
+  #[ wasm_bindgen( js_name = "set_name" ) ]
   pub fn name_set( gui : &JsValue, value : &str ) -> JsValue;
 
   #[ wasm_bindgen( js_name = "onChange" ) ]

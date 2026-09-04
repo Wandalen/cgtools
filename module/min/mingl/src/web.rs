@@ -95,11 +95,22 @@ mod private
   }
 }
 
-// Crate-internal re-export so sibling layers ( `dom`, `file` ) can share the
-// URL-resolution logic above regardless of which layers their own feature
-// gates enable — see `resolve_url`'s doc comment for why this can't live
-// solely in `file.rs`.
-pub( crate ) use private::{ resolve_url, is_self_contained_url };
+// Crate-internal re-export so `web::dom` ( ungated — see the `mod_interface!`
+// block below ) can call the join logic regardless of which layers its own
+// feature gates enable — see `resolve_url`'s doc comment for why this can't
+// live solely in `file.rs`.
+pub( crate ) use private::resolve_url;
+
+// `is_self_contained_url` has exactly one crate-internal consumer:
+// `web::file`'s own public wrapper ( `file.rs`'s `is_self_contained_url`,
+// which delegates straight back here ). Gated identically to that consumer
+// ( see the `layer file;` cfg in the `mod_interface!` block below ) rather
+// than re-exported unconditionally like `resolve_url` above — a dependent
+// that enables `web` without `web_file` ( e.g. a WebGPU-only example with no
+// file-loading needs ) compiles `dom` but not `file`, leaving an
+// unconditional re-export genuinely unused and denied under `-D warnings`.
+#[ cfg( all( feature = "web_future", feature = "web_file" ) ) ]
+pub( crate ) use private::is_self_contained_url;
 
 // This macro organizes and exposes the public API of the module.
 crate::mod_interface!

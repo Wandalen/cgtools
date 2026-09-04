@@ -21,11 +21,30 @@ For every type and constructor registered into the engine, the Rhai-visible name
 
 A script author who reads Rust-side documentation (rustdoc, or this doc set) and expects the same name to work from a script would find a mismatch if this rule were ever violated — breaking the "read the Rust type name, use the same name in script" mental model this crate's binding surface is designed around, and undermining discoverability without any compiler or test signal pointing at the cause.
 
+### Features
+
+| File | Relationship |
+|------|--------------|
+| [001_rhai_scene_scripting.md](../feature/001_rhai_scene_scripting.md) | Navigational hub this invariant constrains |
+
 ### Patterns
 
 | File | Relationship |
 |------|--------------|
 | [../pattern/002_dual_precision_side_by_side_registration.md](../pattern/002_dual_precision_side_by_side_registration.md) | The pattern whose extensibility depends on this naming rule holding for every future addition |
+
+### Types
+
+| File | Relationship |
+|------|--------------|
+| [001_f32x2_script_facing_vector_value.md](../type/001_f32x2_script_facing_vector_value.md) | One of the eight values this naming rule pins |
+| [002_f64x2_script_facing_vector_value.md](../type/002_f64x2_script_facing_vector_value.md) | One of the eight values this naming rule pins |
+| [003_f32x1_script_facing_vector_value.md](../type/003_f32x1_script_facing_vector_value.md) | One of the eight values this naming rule pins |
+| [004_f64x1_script_facing_vector_value.md](../type/004_f64x1_script_facing_vector_value.md) | One of the eight values this naming rule pins |
+| [005_f32x3_script_facing_vector_value.md](../type/005_f32x3_script_facing_vector_value.md) | One of the eight values this naming rule pins |
+| [006_f64x3_script_facing_vector_value.md](../type/006_f64x3_script_facing_vector_value.md) | One of the eight values this naming rule pins |
+| [007_f32x4_script_facing_vector_value.md](../type/007_f32x4_script_facing_vector_value.md) | One of the eight values this naming rule pins |
+| [008_f64x4_script_facing_vector_value.md](../type/008_f64x4_script_facing_vector_value.md) | One of the eight values this naming rule pins |
 
 ### Sources
 

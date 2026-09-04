@@ -39,7 +39,7 @@ crosstalk.
 | `src/validate.rs` | `Validate` trait + partial impls for `RenderSpec` and `SceneSnapshot` — see [`docs/invariant/001_renderspec_referential_integrity.md`](docs/invariant/001_renderspec_referential_integrity.md) for exactly which rules are enforced today. |
 | `src/error.rs` | `LoadError`, `ValidationError`, `SnapshotLoadError`. |
 | `src/compile/` | Internal lowering passes called by `Renderer`. See sub-table. |
-| `tests/` | Integration tests — `scene_state_test`, `scene_events_test`, `renderer_test`, `renderer_cache_test`, `scene_model_compile_test`, `scene_model_test`. `tests/common/mod.rs` carries the shared `flatten_to_sprites` / `BatchFlattener` helpers used to project batch streams back to pre-batch `Sprite` commands for assertions. |
+| `tests/` | Integration tests — `scene_state_test`, `scene_events_test`, `renderer_test`, `renderer_cache_test`, `scene_model_compile_test`, `scene_model_test`. `tests/common/mod.rs` carries the shared `commands_to_sprites` / `BatchFlattener` helpers used to project batch streams back to pre-batch `Sprite` commands for assertions. |
 | `docs/` | Design documentation as typed doc definitions — see [docs/definition/readme.md](docs/definition/readme.md) |
 | `roadmap.md` | Open work and design sketches. |
 
@@ -48,8 +48,8 @@ crosstalk.
 | Path | Responsibility |
 |------|----------------|
 | `mod.rs` | Layer entry point; documents the two boundaries the compile layer owns (Y-down → Y-up flip, asset resolution). |
-| `assets.rs` | `compile_assets` + `CompiledAssets` — turns asset declarations into `tilemap_renderer::assets::Assets` and pre-allocates every sprite reachable from any source / animation. Called once by `Renderer::new`. |
-| `frame.rs` | `gather_frame_emits` — per-tick lowering that walks objects × layers × instances and returns structured per-bucket `Sprite` / screen-space lists; consumed by `Renderer::render`. Buckets batch into a single `DrawBatch` when every sprite shares one `(sheet, blend, clip)` key (including single-key sorted buckets, whose instance-buffer order equals the sort order); multi-key sorted buckets keep the per-sprite fallback. `render_into` is a thin compatibility wrapper that flattens emits to the legacy per-sprite stream. |
+| `assets.rs` | `assets_compile` + `CompiledAssets` — turns asset declarations into `tilemap_renderer::assets::Assets` and pre-allocates every sprite reachable from any source / animation. Called once by `Renderer::new`. |
+| `frame.rs` | `frame_emits_gather` — per-tick lowering that walks objects × layers × instances and returns structured per-bucket `Sprite` / screen-space lists; consumed by `Renderer::render`. Buckets batch into a single `DrawBatch` when every sprite shares one `(sheet, blend, clip)` key (including single-key sorted buckets, whose instance-buffer order equals the sort order); multi-key sorted buckets keep the per-sprite fallback. `render_into` is a thin compatibility wrapper that flattens emits to the legacy per-sprite stream. |
 | `camera.rs` | `Camera` — world-pixel → viewport-pixel projection used by the frame pass. |
 | `coords.rs` | Hex-axial → world-pixel (Y-up) helpers; the single Y-axis flip from `tiles_tools` lives here. |
 | `viewport.rs` | `viewport_transform` / `tiled_positions` — screen-space transforms for `ViewportTiled` sources, Y-up convention. |
@@ -57,7 +57,7 @@ crosstalk.
 | `vertex.rs` | Vertex-corner pattern resolution for `VertexCorners` sources. |
 | `neighbors.rs` | Hex-anchor neighbour mask computation feeding `NeighborBitmask` / `NeighborCondition`. |
 | `conditions.rs` | `NeighborCondition` rule evaluation. |
-| `animation.rs` | `resolve_animation_frame` — deterministic per-tile frame pick given timing + phase offset. Also exposes `animation_duration_seconds` / `declared_phase_seconds` consumed by `Scene::tick`. |
+| `animation.rs` | `animation_frame_resolve` — deterministic per-tile frame pick given timing + phase offset. Also exposes `animation_duration_seconds` / `declared_phase_seconds` consumed by `Scene::tick`. |
 | `ids.rs` | `IdMap` — deterministic allocator from string ids to `tilemap_renderer` `ResourceId`s. |
 | `resolver.rs` | `AssetResolver` trait (the "where do bytes come from" boundary) and the default `PathResolver`. |
 | `error.rs` | `CompileError` — every way the per-frame walk can fail. |
@@ -105,10 +105,10 @@ let mut scene = Scene::from_snapshot( &snap, Arc::new( spec ) )?;
 
 ```rust,ignore
 let h = scene.spawn( knight, Placement::Hex { q : 4, r : 2 } );
-scene.set_tint( h, Some( [ 0.8, 0.8, 1.0, 1.0 ] ) );      // moonlight tint
-scene.set_phase_offset( h, Some( -scene.clock() ) );      // play OneShot from frame 0 now
-scene.set_visible( h, false );                            // hide without de-spawn
-scene.set_external_sprite( h, "body", body_sprite );      // populate External source slot
+scene.tint_set( h, Some( [ 0.8, 0.8, 1.0, 1.0 ] ) );      // moonlight tint
+scene.phase_offset_set( h, Some( -scene.clock() ) );      // play OneShot from frame 0 now
+scene.visible_set( h, false );                            // hide without de-spawn
+scene.external_sprite_set( h, "body", body_sprite );      // populate External source slot
 ```
 
 ### Animation completion events

@@ -71,14 +71,47 @@ mod private
       let n2 = E::one() - r11 + r22 - r33;
       let n3 = E::one() - r11 - r22 + r33;
 
+      // Fix(BUG-447): clamp each `n0..n3` to `>= 0` before `.sqrt()`.
+      // Root cause: each `n*` is algebraically `1 +/- r11 +/- r22 +/- r33`, which is only
+      // guaranteed non-negative when `value` is an *exactly* orthonormal rotation matrix.
+      // Floating-point rounding (or an approximately-but-not-exactly orthonormal caller-supplied
+      // matrix, e.g. one accumulated from repeated transform composition) can drive one term
+      // marginally negative, and `.sqrt()` of a negative input silently returns `NaN` -- which
+      // then propagates into every component of the resulting quaternion via the `half * n*.sqrt()`
+      // products below.
+      // Pitfall: an algebraic identity that guarantees non-negativity only for *exact* inputs
+      // (here: an exactly orthonormal matrix) does not carry that guarantee into finite-precision
+      // floating point -- always clamp before `.sqrt()`/`.acos()`/`.asin()` when the domain
+      // constraint is a mathematical property of exact inputs, not a syntactic property of the
+      // formula itself; see the identical pattern at BUG-272 (`Quat::to_euler_xyz`'s `asin`) and
+      // BUG-446 (`vector::angle`'s `acos`).
+      let n0 = n0.max( E::zero() );
+      let n1 = n1.max( E::zero() );
+      let n2 = n2.max( E::zero() );
+      let n3 = n3.max( E::zero() );
+
       let half = E::from( 0.5 ).unwrap();
 
+      // Fix(BUG-119): reordered the array from `[n0,n1,n2,n3]` to `[n1,n2,n3,n0]`-based slots.
+      // Root cause: `n0` is the trace-derived term (proportional to `w²`), while `n1`/`n2`/`n3`
+      // are proportional to `x²`/`y²`/`z²` respectively (standard Shepperd's-method algebra) —
+      // but this crate's `Quat` stores components in `[x,y,z,w]` order (confirmed by
+      // `from_angle_x`/`from_angle_z` and the reverse conversion `Mat3::from_quat`, both of
+      // which put the axis component first and the scalar/cosine term last). Building the
+      // array as `[n0,n1,n2,n3]` and storing it directly therefore wrote `w` into the `x`
+      // slot, `x` into the `y` slot, `y` into the `z` slot, and `z` into the `w` slot — a
+      // cyclic shift, not a random scramble, which made it easy to miss by inspection.
+      // Pitfall: when a derivation names its intermediate terms `n0..n3` in the order they're
+      // *computed* (trace term first, purely for algebraic convenience), that order can
+      // silently diverge from the order the target type actually *stores* its components in
+      // — always map each intermediate back to its named component before assembling the
+      // final array, rather than assuming computation order matches storage order.
       let q =
       [
-        half * n0.sqrt(),
         half * n1.sqrt() * ( r32 - r23 ).signum(),
         half * n2.sqrt() * ( r13 - r31 ).signum(),
-        half * n3.sqrt() * ( r21 - r12 ).signum()
+        half * n3.sqrt() * ( r21 - r12 ).signum(),
+        half * n0.sqrt()
       ];
 
       Self( Vector::< E, 4 >::from( q ) )

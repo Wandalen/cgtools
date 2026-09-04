@@ -1,7 +1,11 @@
-//! Subprocess tests for the `shader_chunks` binary — real process
-//! spawns via `assert_cmd`, exercising the actual argv/exit-code path
-//! `src/cli.rs` implements (`tests/shader_chunks_test.rs` covers the
-//! underlying `src/lib.rs` functions directly, without a subprocess).
+//! Subprocess tests for the `shader_chunks` binary — real process spawns
+//! via `assert_cmd`, exercising the aggregated argv/exit-code path
+//! `src/lib.rs::run` wires up from the six utility crates
+//! (`shader_chunks_query`, `_compose`, `_params`, `_preview`, `_render`,
+//! `_validate`) through `shader_chunks_cli_core`. Each utility's own direct-call tests cover its
+//! command logic without a subprocess; this file covers only what the
+//! aggregation itself adds — argv routing, help groups, and cross-utility
+//! invariants.
 
 use assert_cmd::Command;
 
@@ -25,12 +29,18 @@ fn stdout_of( output : &std::process::Output ) -> String
 }
 
 #[ test ]
-fn list_prints_a_table_with_all_four_bundled_chunks()
+fn list_prints_a_table_with_every_bundled_chunk()
 {
   let output = run( &[ "list" ] );
   assert!( output.status.success(), "stderr: {}", String::from_utf8_lossy( &output.stderr ) );
   let stdout = stdout_of( &output );
-  for name in [ "hash21", "value_noise", "fbm3", "fullscreen_triangle" ]
+  for name in
+  [
+    "hash21", "value_noise", "fbm3", "fullscreen_triangle",
+    "hash22", "hash13", "hash33", "value_noise3", "gradient_noise", "voronoi", "domain_warp",
+    "d2_sdf_circle", "d2_sdf_ring", "d3_sdf_sphere", "sdf_op_union",
+    "glow", "aa_step", "rot2", "palette_cosine", "srgb", "tonemap_aces", "gaussian_weight",
+  ]
   {
     assert!( stdout.contains( name ), "list stdout missing `{name}`:\n{stdout}" );
   }
@@ -67,15 +77,26 @@ fn list_filters_and_formats_via_named_params()
 {
   let output = run( &[ "list", "tag::noise", "format::names" ] );
   assert!( output.status.success(), "stderr: {}", String::from_utf8_lossy( &output.stderr ) );
-  assert_eq!( stdout_of( &output ), "value_noise\nfbm3\n" );
+  assert_eq!( stdout_of( &output ), "value_noise\nfbm3\nvalue_noise3\ngradient_noise\nvoronoi\ndomain_warp\n" );
 
   let output = run( &[ "list", "roots::1", "format::names" ] );
   assert!( output.status.success(), "stderr: {}", String::from_utf8_lossy( &output.stderr ) );
-  assert_eq!( stdout_of( &output ), "fbm3\nfullscreen_triangle\n" );
+  assert_eq!
+  (
+    stdout_of( &output ),
+    "fullscreen_triangle\nhash33\nvalue_noise3\ngradient_noise\nvoronoi\ndomain_warp\n\
+     d2_sdf_ring\nd2_sdf_round_box\nd2_sdf_segment\nd2_sdf_equilateral_triangle\n\
+     d2_sdf_hexagon\nd2_sdf_arc\nd2_sdf_pie\nd2_sdf_vesica\nd2_sdf_star5\nd2_sdf_cross\n\
+     d3_sdf_sphere\nd3_sdf_round_box\nd3_sdf_torus\nd3_sdf_capsule\nd3_sdf_capped_cylinder\n\
+     d3_sdf_capped_cone\nd3_sdf_plane\nd3_sdf_octahedron\nd3_sdf_ellipsoid\nd3_sdf_hex_prism\nd3_sdf_round_cone\n\
+     sdf_op_union\nsdf_op_subtract\nsdf_op_intersect\nsdf_op_union_smooth\n\
+     sdf_op_subtract_smooth\nsdf_op_intersect_smooth\nsdf_op_round\nsdf_op_onion\n\
+     glow\naa_step\nrot2\npalette_cosine\nsrgb\ntonemap_aces\ngaussian_weight\n"
+  );
 
   let output = run( &[ "list", "count::1" ] );
   assert!( output.status.success(), "stderr: {}", String::from_utf8_lossy( &output.stderr ) );
-  assert_eq!( stdout_of( &output ), "4\n" );
+  assert_eq!( stdout_of( &output ), "50\n" );
 }
 
 #[ test ]
@@ -89,6 +110,7 @@ fn invalid_param_values_exit_non_zero_loudly()
     ( &[ "list", "tags_mode::bogus" ][ .. ], "invalid `tags_mode` value" ),
     ( &[ "list", "limit::-1" ][ .. ], "invalid `limit` value" ),
     ( &[ "list", "fields::bogus" ][ .. ], "unknown field" ),
+    ( &[ "tree", "fbm3", "shape::bogus" ][ .. ], "invalid `shape` value" ),
   ]
   {
     let output = run( args );
@@ -132,6 +154,32 @@ fn tree_fbm3_shows_the_dependency_chain()
   let value_noise_pos = stdout.find( "value_noise" ).expect( "value_noise present" );
   let hash21_pos = stdout.find( "hash21" ).expect( "hash21 present" );
   assert!( fbm3_pos < value_noise_pos && value_noise_pos < hash21_pos, "unexpected tree order:\n{stdout}" );
+}
+
+#[ test ]
+fn tree_hash21_reverse_shows_the_dependents_chain()
+{
+  let output = run( &[ "tree", "hash21", "reverse::1" ] );
+  assert!( output.status.success(), "stderr: {}", String::from_utf8_lossy( &output.stderr ) );
+  let stdout = stdout_of( &output );
+  let hash21_pos = stdout.find( "hash21" ).expect( "hash21 present" );
+  let value_noise_pos = stdout.find( "value_noise" ).expect( "value_noise present" );
+  let fbm3_pos = stdout.find( "fbm3" ).expect( "fbm3 present" );
+  assert!( hash21_pos < value_noise_pos && value_noise_pos < fbm3_pos, "unexpected reverse tree order:\n{stdout}" );
+}
+
+#[ test ]
+fn tree_fbm3_shape_dot_and_mermaid_render_the_same_chain_as_edges()
+{
+  let dot = stdout_of( &run( &[ "tree", "fbm3", "shape::dot" ] ) );
+  assert!( dot.starts_with( "digraph chunks" ), "{dot}" );
+  assert!( dot.contains( "\"fbm3\" -> \"value_noise\";" ), "{dot}" );
+  assert!( dot.contains( "\"value_noise\" -> \"hash21\";" ), "{dot}" );
+
+  let mermaid = stdout_of( &run( &[ "tree", "fbm3", "shape::mermaid" ] ) );
+  assert!( mermaid.starts_with( "graph TD" ), "{mermaid}" );
+  assert!( mermaid.contains( "fbm3 --> value_noise" ), "{mermaid}" );
+  assert!( mermaid.contains( "value_noise --> hash21" ), "{mermaid}" );
 }
 
 #[ test ]
@@ -180,12 +228,12 @@ fn tunables_unannotated_real_chunk_prints_explicit_empty_message()
   // Task 106's Test Matrix row "`sch tunables <annotated-name>` → expected
   // parameter rows" is not achievable via subprocess without annotating a
   // real bundled chunk with `//@ param:` lines — explicitly out of scope
-  // (same Q-03 boundary as task 105). `src/cli.rs`'s `tunables` routine has no
-  // branch between the declared-params and zero-params outcomes for a
-  // subprocess test to exercise beyond argv wiring, already covered here;
+  // (same Q-03 boundary as task 105). The `tunables` routine has no branch
+  // between the declared-params and zero-params outcomes for a subprocess
+  // test to exercise beyond argv wiring, already covered here;
   // `tunables_of_chunk_lists_declared_and_inferred_parameters` in
-  // `shader_chunks_test.rs` covers declared-parameter rendering directly
-  // against a `LOCAL_GLOW`-style fixture instead.
+  // `shader_chunks_params/tests/tunables_test.rs` covers declared-parameter
+  // rendering directly against a `LOCAL_GLOW`-style fixture instead.
   let output = run( &[ "tunables", "hash21" ] );
   assert!( output.status.success(), "stderr: {}", String::from_utf8_lossy( &output.stderr ) );
   let stdout = stdout_of( &output );
@@ -234,13 +282,13 @@ fn sch_alias_binary_produces_identical_output_to_shader_chunks()
 ///
 /// ## Why Not Caught
 /// The only help-path test exercised the bare no-argument invocation, which
-/// short-circuits to `print_help()` before the pipeline; every other test
+/// short-circuits to `help_print()` before the pipeline; every other test
 /// ran a real command whose routine printed its own stdout, so the
 /// outputs-dropping dispatch path never produced a visible difference.
 ///
 /// ## Fix Applied
 /// `main` now prints `result.outputs` after a successful dispatch, routes
-/// the top-level spellings (`help`, `.`, `.help`) to `print_help()`, and
+/// the top-level spellings (`help`, `.`, `.help`) to `help_print()`, and
 /// renders `help <command>` / `<command> help` with `cli_fmt` from the
 /// command's registered definition — an unknown target falls through to
 /// the `.{target}.help` rewrite, keeping the loud unknown-command failure.
@@ -327,6 +375,8 @@ fn per_command_help_spells_argument_shapes()
     ( &[ "list", "help" ][ .. ], "Usage: shader_chunks list [names...] [param::value ...]" ),
     ( &[ "tree", "help" ][ .. ], "Usage: shader_chunks tree [name]" ),
     ( &[ "compose", "help" ][ .. ], "Usage: shader_chunks compose <names...> [param::value ...]" ),
+    ( &[ "preview", "help" ][ .. ], "Usage: shader_chunks preview [name] [param::value ...]" ),
+    ( &[ "render", "help" ][ .. ], "Usage: shader_chunks render [name] [param::value ...]" ),
   ]
   {
     let output = run( args );
@@ -339,14 +389,14 @@ fn per_command_help_spells_argument_shapes()
 #[ test ]
 fn per_command_help_lists_named_params_with_per_command_defaults()
 {
-  // The two help screens list the identical 20-parameter surface; only the
+  // The two help screens list the identical 21-parameter surface; only the
   // baked-in defaults differ — that difference must be visible to the user.
   let list_help = stdout_of( &run( &[ "list", "help" ] ) );
   let get_help = stdout_of( &run( &[ "help", "get" ] ) );
   for param in
   [
     "pattern::", "case::", "tag::", "tags_mode::", "stage::", "depends_on::", "transitive::",
-    "exports::", "roots::", "leaves::", "fields::", "count::", "format::", "sort::", "order::",
+    "exports::", "source::", "roots::", "leaves::", "fields::", "count::", "format::", "sort::", "order::",
     "limit::", "offset::", "heading::", "width::",
   ]
   {
@@ -363,23 +413,133 @@ fn per_command_help_lists_named_params_with_per_command_defaults()
 fn top_level_help_groups_commands_by_responsibility()
 {
   // Groups mirror docs/cli/command_group/ — Query, Graph, Compose,
-  // Parameters, in that order, with each command under its own group.
+  // Parameters, Preview, Render, Validate, in that order (the aggregator's
+  // own concatenation order: query, compose, params, preview, render,
+  // validate), with each command under its own group.
   let stdout = stdout_of( &run( &[] ) );
-  let query_pos = stdout.find( "Query" ).expect( "Query group present" );
-  let graph_pos = stdout.find( "Graph" ).expect( "Graph group present" );
-  let compose_pos = stdout.find( "Compose" ).expect( "Compose group present" );
-  let parameters_pos = stdout.find( "Parameters" ).expect( "Parameters group present" );
+  // Anchored on each header's own line (2-space indent, nothing trailing)
+  // — `Compose`'s command description reads "Preview composed WGSL..." and
+  // appears earlier in the text than the real Preview heading, so a bare
+  // `.find("Preview")` would grab that prose instead.
+  let heading_pos = | name : &str | stdout.find( &format!( "  {name}\n" ) ).unwrap_or_else( || panic!( "{name} group heading present" ) );
+  let query_pos = heading_pos( "Query" );
+  let graph_pos = heading_pos( "Graph" );
+  let compose_pos = heading_pos( "Compose" );
+  let parameters_pos = heading_pos( "Parameters" );
+  let preview_pos = heading_pos( "Preview" );
+  let render_pos = heading_pos( "Render" );
+  let validate_pos = heading_pos( "Validate" );
   assert!
   (
-    query_pos < graph_pos && graph_pos < compose_pos && compose_pos < parameters_pos,
+    query_pos < graph_pos && graph_pos < compose_pos && compose_pos < parameters_pos
+    && parameters_pos < preview_pos && preview_pos < render_pos && render_pos < validate_pos,
     "group order wrong:\n{stdout}"
   );
   let list_pos = stdout.find( "list [names...]" ).expect( "list entry present" );
   let tree_pos = stdout.find( "tree [name]" ).expect( "tree entry present" );
   let tunables_pos = stdout.find( "tunables <name>" ).expect( "tunables entry present" );
+  let preview_cmd_pos = stdout.find( "preview [name]" ).expect( "preview entry present" );
+  let render_cmd_pos = stdout.find( "render [name]" ).expect( "render entry present" );
+  // Zero-arg command: no bracket/angle placeholder to anchor on like the
+  // others above, so anchor on the table row's own 4-space indent right
+  // after a newline — distinguishes it from the 2-space `Validate` group
+  // heading and from "validate" inside the top-of-help tagline prose.
+  let validate_cmd_pos = stdout.find( "\n    validate " ).expect( "validate entry present" );
   assert!( query_pos < list_pos && list_pos < graph_pos, "`list` must sit in the Query group:\n{stdout}" );
   assert!( graph_pos < tree_pos && tree_pos < compose_pos, "`tree` must sit in the Graph group:\n{stdout}" );
   assert!( compose_pos < tunables_pos, "`tunables` must sit in the Parameters group:\n{stdout}" );
+  assert!( parameters_pos < preview_cmd_pos, "`preview` must sit in the Preview group:\n{stdout}" );
+  assert!( preview_pos < render_cmd_pos, "`render` must sit in the Render group:\n{stdout}" );
+  assert!( render_pos < validate_cmd_pos, "`validate` must sit in the Validate group:\n{stdout}" );
+}
+
+#[ test ]
+fn aggregator_exposes_every_utility_command_exactly_once()
+{
+  // Cross-cutting invariant the aggregation itself is responsible for:
+  // concatenating six independent `CommandSet`s must not collide or drop
+  // anything. 9 commands (list, get, tags, tree, compose, tunables,
+  // preview, render, validate) across 7 groups (Query, Graph, Compose,
+  // Parameters, Preview, Render, Validate).
+  let stdout = stdout_of( &run( &[] ) );
+  for command in [ "list", "get", "tags", "tree", "compose", "tunables", "preview", "render", "validate" ]
+  {
+    assert!( stdout.contains( command ), "command `{command}` missing from top-level help:\n{stdout}" );
+  }
+  for group in [ "Query", "Graph", "Compose", "Parameters", "Preview", "Render", "Validate" ]
+  {
+    // Anchored on the header's own line (2-space indent, nothing trailing)
+    // — some group names double as prose inside command descriptions
+    // (`Query chunks: filter...`, `Preview composed WGSL...`), so a bare
+    // substring count would over-match those too.
+    let heading = format!( "  {group}\n" );
+    assert_eq!( stdout.matches( &heading ).count(), 1, "group heading `{group}` must appear exactly once:\n{stdout}" );
+  }
+}
+
+#[ test ]
+fn preview_serve0_writes_a_bundle_through_the_aggregated_binary()
+{
+  // Proves the aggregator wires `shader_chunks_preview` correctly end to
+  // end, not just that the standalone crate works in isolation (see
+  // `shader_chunks_preview/tests/preview_cli_test.rs` for the full matrix).
+  let output = run( &[ "preview", "fbm3", "serve::0" ] );
+  assert!( output.status.success(), "stderr: {}", String::from_utf8_lossy( &output.stderr ) );
+  let stdout = stdout_of( &output );
+  assert!( stdout.contains( "target: fbm3" ), "{stdout}" );
+  assert!( stdout.contains( "naga-validated" ), "{stdout}" );
+}
+
+#[ test ]
+fn preview_unknown_chunk_exits_non_zero_without_a_panic_backtrace()
+{
+  let output = run( &[ "preview", "bogus_chunk", "serve::0" ] );
+  assert!( !output.status.success(), "expected non-zero exit for an unknown chunk" );
+  let stderr = String::from_utf8_lossy( &output.stderr );
+  assert!( !stderr.contains( "panicked at" ), "unexpected panic backtrace:\n{stderr}" );
+  assert!( stderr.contains( "bogus_chunk" ), "{stderr}" );
+}
+
+#[ test ]
+fn render_writes_a_png_through_the_aggregated_binary()
+{
+  // Proves the aggregator wires `shader_chunks_render` correctly end to
+  // end, not just that the standalone crate works in isolation (see
+  // `shader_chunks_render/tests/render_cli_test.rs` for the full matrix).
+  let out = std::env::temp_dir().join( format!( "shader_chunks_aggregated_render_{}.png", std::process::id() ) );
+  let out_param = format!( "out::{}", out.display() );
+  let output = run( &[ "render", "fbm3", &out_param, "size::16" ] );
+  assert!( output.status.success(), "stderr: {}", String::from_utf8_lossy( &output.stderr ) );
+  let stdout = stdout_of( &output );
+  assert!( stdout.contains( "target: fbm3" ), "{stdout}" );
+  assert!( stdout.contains( "naga-validated" ), "{stdout}" );
+  let written = std::fs::metadata( &out ).expect( "the PNG must exist at the requested out:: path" );
+  assert!( written.len() > 0, "the written PNG must not be empty" );
+  let _ = std::fs::remove_file( &out );
+}
+
+#[ test ]
+fn render_unknown_chunk_exits_non_zero_without_a_panic_backtrace()
+{
+  let output = run( &[ "render", "bogus_chunk" ] );
+  assert!( !output.status.success(), "expected non-zero exit for an unknown chunk" );
+  let stderr = String::from_utf8_lossy( &output.stderr );
+  assert!( !stderr.contains( "panicked at" ), "unexpected panic backtrace:\n{stderr}" );
+  assert!( stderr.contains( "bogus_chunk" ), "{stderr}" );
+}
+
+#[ test ]
+fn validate_reports_the_bundled_registry_clean_through_the_aggregated_binary()
+{
+  // Proves the aggregator wires `shader_chunks_validate` correctly end to
+  // end, not just that the standalone crate works in isolation (see
+  // `shader_chunks_validate/tests/validate_cli_test.rs` for the fixture-
+  // driven findings-report matrix).
+  let output = run( &[ "validate" ] );
+  assert!( output.status.success(), "stderr: {}", String::from_utf8_lossy( &output.stderr ) );
+  let stdout = stdout_of( &output );
+  assert!( stdout.contains( "clean" ), "{stdout}" );
+  assert!( stdout.contains( "0 findings" ), "{stdout}" );
 }
 
 #[ test ]
@@ -432,10 +592,10 @@ fn command_output_prints_exactly_once()
 /// exits first, which made the panic look intermittent instead of certain.
 ///
 /// ## Fix Applied
-/// `cli.rs` routes all stdout writes through `print_stdout` — `writeln!` to
+/// `cli.rs` routes all stdout writes through `stdout_print` — `writeln!` to
 /// the locked handle, mapping `BrokenPipe` to a quiet `exit( 0 )` (the Unix
 /// convention for a reader that hung up) and any other write error to exit
-/// 2 — and all stderr writes through `print_stderr`, which discards write
+/// 2 — and all stderr writes through `stderr_print`, which discards write
 /// errors so error reporting can never itself become a second failure.
 ///
 /// ## Prevention

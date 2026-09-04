@@ -56,8 +56,8 @@ fn test_quadtree_basic_operations() {
   let entity1 = SpatialEntity::new(1, SquareCoord::<FourConnected>::new(25, 25), 1);
   let entity2 = SpatialEntity::new(2, SquareCoord::<FourConnected>::new(75, 75), 1);
 
-  quadtree.insert(entity1);
-  quadtree.insert(entity2);
+  assert!(quadtree.insert(entity1));
+  assert!(quadtree.insert(entity2));
 
   // Query all entities
   let all_entities = quadtree.all_entities();
@@ -78,7 +78,7 @@ fn test_quadtree_subdivision() {
   // Insert enough entities to trigger subdivision
   for i in 0..10 {
     let entity = SpatialEntity::new(i, SquareCoord::<FourConnected>::new((i * 10) as i32, (i * 10) as i32), 1);
-    quadtree.insert(entity);
+    assert!(quadtree.insert(entity));
   }
 
   let stats = quadtree.stats();
@@ -92,9 +92,9 @@ fn test_quadtree_circular_query() {
   let mut quadtree = Quadtree::new(bounds, 10);
 
   // Insert entities in a pattern
-  quadtree.insert(SpatialEntity::new(1, SquareCoord::<FourConnected>::new(50, 50), 1)); // Center
-  quadtree.insert(SpatialEntity::new(2, SquareCoord::<FourConnected>::new(52, 50), 1)); // Close
-  quadtree.insert(SpatialEntity::new(3, SquareCoord::<FourConnected>::new(80, 80), 1)); // Far
+  assert!(quadtree.insert(SpatialEntity::new(1, SquareCoord::<FourConnected>::new(50, 50), 1))); // Center
+  assert!(quadtree.insert(SpatialEntity::new(2, SquareCoord::<FourConnected>::new(52, 50), 1))); // Close
+  assert!(quadtree.insert(SpatialEntity::new(3, SquareCoord::<FourConnected>::new(80, 80), 1))); // Far
 
   // Query circle around center
   let nearby = quadtree.circle_query(50, 50, 5);
@@ -109,8 +109,8 @@ fn test_quadtree_remove() {
   let entity1 = SpatialEntity::new(1, SquareCoord::<FourConnected>::new(25, 25), 1);
   let entity2 = SpatialEntity::new(2, SquareCoord::<FourConnected>::new(75, 75), 1);
 
-  quadtree.insert(entity1);
-  quadtree.insert(entity2);
+  assert!(quadtree.insert(entity1));
+  assert!(quadtree.insert(entity2));
 
   // Remove entity
   let removed = quadtree.remove(1);
@@ -131,11 +131,109 @@ fn test_quadtree_stats() {
   // Insert entities to create interesting stats
   for i in 0..20 {
     let entity = SpatialEntity::new(i, SquareCoord::<FourConnected>::new((i * 5) as i32, (i * 5) as i32), 1);
-    quadtree.insert(entity);
+    assert!(quadtree.insert(entity));
   }
 
   let stats = quadtree.stats();
   assert_eq!(stats.total_entities, 20);
   assert!(stats.average_entities_per_leaf() > 0.0);
   assert!(stats.fill_ratio() > 0.0);
+}
+
+// test_kind: bug_reproducer(BUG-134)
+/// ## Root Cause
+/// `Quadtree::insert` never validated that an entity's position actually
+/// fell within the tree's own declared bounds before routing it -- the
+/// recursive quadrant split picks a quadrant via unbounded center-point
+/// comparisons, which always succeeds for any position, in or out of
+/// bounds. An out-of-bounds entity got filed into a leaf whose real bounds
+/// don't contain it, and remained structurally present (visible via
+/// `all_entities()`) while every spatially-scoped query for the region it
+/// actually occupies returned nothing, because `region_query`'s pruning
+/// walks from the tree's fixed, never-growing `self.bounds`.
+/// ## Why Not Caught
+/// Every existing test inserted entities well within the declared bounds --
+/// none exercised a position outside them.
+/// ## Fix Applied
+/// `insert` now checks `self.bounds.contains_point` before routing, and
+/// returns `false` (leaving the tree unchanged) for an out-of-bounds
+/// position instead of silently misfiling it.
+/// ## Prevention
+/// n/a -- covered by this test.
+/// ## Pitfall
+/// Invisible under any workload that only ever inserts positions already
+/// known to be within the tree's declared bounds -- the defect only
+/// surfaces once a caller's own bounds-computation and the tree's own
+/// bounds can disagree (e.g. an entity that moved, or a tree sized from a
+/// stale world extent).
+#[test]
+fn test_quadtree_insert_rejects_out_of_bounds_entity()
+{
+  let bounds = SpatialBounds::new(0, 0, 100, 100);
+  let mut quadtree = Quadtree::new(bounds, 1); // Low capacity to force subdivision
+
+  let in_bounds = SpatialEntity::new(1, SquareCoord::<FourConnected>::new(5, 5), 0);
+  let out_of_bounds = SpatialEntity::new(2, SquareCoord::<FourConnected>::new(1000, 1000), 0);
+
+  assert!(quadtree.insert(in_bounds));
+  assert!(
+    !quadtree.insert(out_of_bounds),
+    "insert() must reject a position outside the quadtree's own declared bounds"
+  );
+
+  // The rejected entity must never appear in any view of the tree -- not
+  // structurally present (all_entities), and not reachable by any query for
+  // the region it would have silently occupied pre-fix.
+  let all = quadtree.all_entities();
+  assert_eq!(all.len(), 1);
+  assert_eq!(all[0].id, 1);
+
+  let far_query = SpatialBounds::new(900, 900, 1100, 1100);
+  assert!(quadtree.region_query(&far_query).is_empty());
+}
+
+// test_kind: bug_reproducer(BUG-482)
+/// ## Root Cause
+/// `SpatialEntity::new` stored `radius` unclamped. `bounds()` computes
+/// `SpatialBounds::from_center_size(x, y, radius * 2, radius * 2)` -- a
+/// negative radius silently produces an inverted rectangle (`left > right`).
+/// `intersects_entity` computes `(self.radius + other.radius) as u32` --
+/// casting a negative signed sum to `u32` wraps to a huge positive value
+/// instead of panicking.
+/// ## Why Not Caught
+/// Every existing test constructs `SpatialEntity` with a non-negative
+/// radius (0, 1, or 5) -- none ever passed a negative value, so neither the
+/// inverted-bounds nor the wrapping-cast consequence was ever observed.
+/// ## Fix Applied
+/// `SpatialEntity::new` now clamps `radius` to `.max(0)`, matching this
+/// crate's existing precedent for clamping a value at construction rather
+/// than at every site that later assumes it's non-negative (`Resource::new`,
+/// BUG-349).
+/// ## Prevention
+/// n/a -- covered by this test.
+/// ## Pitfall
+/// Casting a signed integer that can be negative to an unsigned type
+/// (`as u32`) never panics -- it silently wraps, so a missing non-negative
+/// invariant at construction surfaces far away as a bogus huge value, not as
+/// an obvious crash at the cast site.
+#[test]
+fn test_spatial_entity_new_clamps_negative_radius_to_zero()
+{
+  let pos = SquareCoord::<FourConnected>::new(10, 20);
+  let entity = SpatialEntity::new(1, pos, -7);
+
+  assert_eq!(entity.radius, 0, "radius should be clamped to a non-negative value, got {}", entity.radius);
+
+  // Bounds must not be inverted -- a zero-radius entity centered at (10, 20)
+  // should produce a degenerate (but non-inverted) rectangle at that point.
+  let bounds = entity.bounds();
+  assert!(bounds.left <= bounds.right, "bounds must not be inverted: left={} right={}", bounds.left, bounds.right);
+  assert!(bounds.top <= bounds.bottom, "bounds must not be inverted: top={} bottom={}", bounds.top, bounds.bottom);
+
+  // intersects_entity must not wrap to a bogus huge distance threshold.
+  let other = SpatialEntity::new(2, SquareCoord::<FourConnected>::new(1000, 1000), -3);
+  assert!(
+    !entity.intersects_entity(&other),
+    "two clamped-to-zero-radius entities 1400+ units apart must not spuriously intersect"
+  );
 }

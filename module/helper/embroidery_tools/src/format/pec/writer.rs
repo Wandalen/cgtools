@@ -60,7 +60,12 @@ mod private
     emb.color_count_fix();
     emb.stop_interpolate_as_duplicate_color();
 
-    let extends = emb.bounds();
+    // Fix(BUG-497): `bounds()` now returns `None` for a stitch-free file.
+    // `emb.end()` was just called above whenever stitches were empty, so
+    // `bounds()` is guaranteed `Some` here -- but `pec_block_write` also
+    // independently re-checks `emb.stitches().is_empty()` before ever reading
+    // `extends`, so this fallback value is never actually observed either way.
+    let extends = emb.bounds().unwrap_or( ( 0, 0, 0, 0 ) );
     let color_indices = pec_header_write( emb, writer )?;
     pec_block_write( emb, extends, writer )?;
     pec_graphics_write( emb, writer )?;
@@ -80,16 +85,16 @@ mod private
     // Write name
     let name = emb.metadata_get().name_get().unwrap_or( "Untitled" );
     writer.write_all( "LA:".as_bytes() )?;
-    if name.len() >= 16
-    {
-      writer.write_all( &name.as_bytes()[ ..16 ] )?;
-    }
-    else
-    {
-      let spaces = vec![ b' '; 16 - name.len() ];
-      writer.write_all( name.as_bytes() )?;
-      writer.write_all( spaces.as_slice() )?;
-    }
+    // Fix(BUG-498): truncate at a UTF-8 character boundary at or before byte
+    // 16, rather than a raw `[ ..16 ]` byte slice that can split a multi-byte
+    // character in half. `str_truncate_char_boundary` may return fewer than
+    // 16 bytes when the boundary falls short of the limit, so the space
+    // padding below is computed from its actual length, not a fixed count --
+    // this field is a fixed-width 16-byte slot either way.
+    let truncated = format::str_truncate_char_boundary( name, 16 );
+    writer.write_all( truncated.as_bytes() )?;
+    let spaces = vec![ b' '; 16 - truncated.len() ];
+    writer.write_all( spaces.as_slice() )?;
     writer.write_u8( b'\r' )?;
     // unknown
     writer.write_all( b"\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\xFF\x00" )?;
@@ -99,8 +104,20 @@ mod private
     // height goes as is
     writer.write_u8( PEC_ICON_HEIGHT )?;
 
+    // Fix(BUG-152)
+    // Root cause: sliced `emb.threads()[ 1.. ]`, unconditionally excluding the caller's own
+    // first added thread from the written color table -- confused with `pec_threads()[ 0 ]`,
+    // the *default palette's* dedicated "invalid value" sentinel entry (see `pec.rs`'s own
+    // "This one is for indicating invalid value" comment), which is an unrelated concept.
+    // `emb.threads()[ 0 ]` carries no such status; `read_sample_threads_resolve_from_default_palette`
+    // (reading a real reference fixture, not this crate's own writer) confirms the reader
+    // side already treats index 0 as an ordinary, meaningful thread.
+    // Pitfall: a documented sentinel *value* inside a fixed default palette must not be
+    // confused with a structural *position* in a caller-supplied, arbitrary-content list --
+    // the two only appeared related because a prior test happened to use the sentinel value
+    // as its own first thread.
     let thread_palette = pec_threads();
-    let color_indices = unique_palette_build( &thread_palette, &emb.threads()[ 1.. ] );
+    let color_indices = unique_palette_build( &thread_palette, emb.threads() );
     let current_thread_count = color_indices.len();
 
     if current_thread_count != 0

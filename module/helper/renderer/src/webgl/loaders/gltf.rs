@@ -45,8 +45,6 @@ mod private
     gl::F32x4x4
   };
 
-  const DIRECTION_LIGHT_MIN_MAGNITUDE : f32 = 0.01;
-
   #[ cfg( feature = "animation" ) ]
   use crate::webgl::animation::Animation;
 
@@ -87,12 +85,16 @@ mod private
   }
 
   /// A material shared between primitives, mutable behind `Rc< RefCell< _ > >`.
-  type SharedMaterial = Rc< RefCell< Box< dyn Material > > >;
+  pub type SharedMaterial = Rc< RefCell< Box< dyn Material > > >;
 
-  fn skeleton_transforms_data_load
+  /// Reads a skin's inverse bind matrices and resolves each joint to its node by
+  /// [`gltf::Node::index()`] against the flat, index-ordered `nodes` slice -- the same
+  /// resolution convention every other node lookup in this loader uses.
+  #[ must_use ]
+  pub fn skeleton_transforms_data_load
   (
     skin : &gltf::Skin< '_ >,
-    nodes : &FxHashMap< Box< str >, Rc< RefCell< Node > > >,
+    nodes : &[ Rc< RefCell< Node > > ],
     buffers : &[ Vec< u8 > ]
   )
   -> Option< skeleton::TransformsData >
@@ -119,22 +121,39 @@ mod private
     )
     .collect::< Vec< _ > >();
 
-    let mut joints = vec![];
-    for ( joint, matrix ) in skin.joints().zip( matrices )
-    {
-      if let Some( name ) = joint.name()
-      {
-        if let Some( node ) = nodes.get( name )
-        {
-          joints.push( ( node.clone(), matrix ) );
-        }
-      }
-    }
+    // Fix(BUG-173): joints were resolved by matching `joint.name()` against a name-keyed
+    // map, silently dropping any joint whose node had no `name` (optional per glTF spec)
+    // or whose name collided with another node's -- corrupting every subsequent joint's
+    // binding once one was dropped, since `JOINTS_0`/`JOINTS_1` vertex attributes index
+    // this list positionally.
+    // Root cause: `skin.joints()`'s iteration position IS the joint index vertex data
+    // references, but resolution went through a name lookup instead of `joint.index()`
+    // against the flat, index-ordered node list every other lookup in this file already
+    // uses.
+    // Pitfall: an optional, non-unique glTF field (node name) used as a resolution key
+    // for data that is actually positionally/numerically indexed is a silent-drop trap --
+    // it only surfaces once an asset has an unnamed or duplicate-named joint node.
+    let joints = skin.joints()
+    .zip( matrices )
+    .map( | ( joint, matrix ) | ( nodes[ joint.index() ].clone(), matrix ) )
+    .collect::< Vec< _ > >();
 
     Some( skeleton::TransformsData::new( joints ) )
   }
 
-  fn skeleton_displacements_data_load
+  /// Packs a glTF primitive's morph-target position / normal / tangent
+  /// displacements ( plus mesh-level morph weights ) into a
+  /// [`skeleton::DisplacementsData`], or `None` if `primitives_morph_targets`
+  /// is `None`. Pure data transform over the parsed document and raw buffer
+  /// bytes -- no GL calls.
+  ///
+  /// # Panics
+  ///
+  /// Does not panic under normal control flow : `targets_pack`'s two
+  /// `.unwrap()` calls only run once `targets_array.first()` is known to be
+  /// `Some`, guarded immediately above by `targets_array.is_empty()`.
+  #[ must_use ]
+  pub fn skeleton_displacements_data_load
   (
     primitives_morph_targets : Option< &Vec< MorphTargets< '_ > > >,
     primitives_vertices_count : &[ usize ],
@@ -258,7 +277,7 @@ mod private
   fn skeleton_load
   (
     skin : Option< gltf::Skin< '_ > >,
-    nodes : &FxHashMap< Box< str >, Rc< RefCell< Node > > >,
+    nodes : &[ Rc< RefCell< Node > > ],
     primitives_morph_targets : Option< &Vec< MorphTargets< '_ > > >,
     primitives_vertices_count : &[ usize ],
     weights : Option< Vec< f32 > >,
@@ -288,7 +307,9 @@ mod private
     }
   }
 
-  fn light_list_get( gltf : &gltf::Gltf ) -> Option< FxHashMap< usize, Light > >
+  /// Extracts all `KHR_lights_punctual` lights from a parsed glTF document, keyed by their light index.
+  #[ must_use ]
+  pub fn light_list_get( gltf : &gltf::Gltf ) -> Option< FxHashMap< usize, Light > >
   {
     let mut lights = FxHashMap::default();
     for ( i, gltf_light ) in gltf.lights()?.enumerate()
@@ -355,14 +376,30 @@ mod private
     Some( lights )
   }
 
-  fn light_get( gltf_node : &gltf::Node< '_ >, node : &Node, lights : &FxHashMap< usize, Light > ) -> Option< Light >
+  /// Resolves the [`Light`] a glTF node's `KHR_lights_punctual` extension references
+  /// (looked up by index in `lights`, e.g. from [`light_list_get`]), positioned/oriented
+  /// using `node`'s own resolved translation/rotation.
+  #[ must_use ]
+  pub fn light_get< S : std::hash::BuildHasher >( gltf_node : &gltf::Node< '_ >, node : &Node, lights : &std::collections::HashMap< usize, Light, S > ) -> Option< Light >
   {
-    let light_id = gltf_node.extensions()?
-    .get_key_value( "KHR_lights_punctual" )?.1
-    .get( "light" )?
-    .as_u64()?;
+    // Fix(BUG-189): the node-level `KHR_lights_punctual` reference was read via
+    // `gltf_node.extensions()`, the catch-all for extension data *unknown* to this crate
+    // version -- but `KHR_lights_punctual` is a named, typed field this crate's `gltf-json`
+    // deserializes separately (`#[serde(rename = "KHR_lights_punctual")]`), so `#[serde(flatten)]`
+    // never leaves it in that catch-all. `get_key_value` always returned `None`, so this
+    // function never resolved a single node-level light reference, for any glTF asset.
+    // Root cause: this crate exposes a dedicated typed accessor, `gltf::Node::light()`, for
+    // exactly this extension (gated by the same `KHR_lights_punctual` Cargo feature this crate
+    // already enables) -- `light_list_get` two functions up already uses the equivalent
+    // document-level typed accessor (`gltf.lights()`), only this per-node lookup didn't.
+    // Pitfall: a crate offering both a generic "unknown extensions" catch-all and a typed
+    // accessor for a *specific* known extension makes the catch-all silently exclude that
+    // extension the moment its typed-support feature is enabled -- reaching for the generic
+    // path out of habit, instead of the type's own dedicated accessor, fails silently (`None`),
+    // never a compile error.
+    let light_id = gltf_node.light()?.index();
 
-    lights.get( &( light_id as usize ) ).copied()
+    lights.get( &light_id ).copied()
     .map
     (
       | light |
@@ -374,22 +411,30 @@ mod private
             point_light.position = node.translation_get();
             Light::Point( point_light )
           },
+          // Fix(BUG-172): both arms used to derive `direction` from `node.translation_get()` --
+          // a light's world position, not its facing direction. `Direct` only fell back to the
+          // (correct) rotation-based formula when the raw translation's magnitude was below
+          // `DIRECTION_LIGHT_MIN_MAGNITUDE`, i.e. only for a light sitting within 1cm of the
+          // world origin; `Spot` had no rotation-based fallback at all.
+          // Root cause: per glTF's `KHR_lights_punctual`, facing direction comes exclusively
+          // from the node's rotation (local -Z axis) -- never its translation. Both arms now
+          // compute it unconditionally the same way.
+          // Pitfall: a magnitude-gated "fallback" that's actually the only physically correct
+          // formula silently masks the bug for every test fixture that happens to sit near the
+          // origin, while still being wrong for every other placement.
           Light::Direct( mut direct_light ) =>
           {
-            direct_light.direction = node.translation_get();
-            if direct_light.direction.mag() < DIRECTION_LIGHT_MIN_MAGNITUDE
-            {
-              let forward = gl::F32x3::from_array( [ 0.0, 0.0, -1.0 ] );
-              let rot_matrix = gl::math::d2::F32x3x3::from_quat( node.rotation_get() );
-              direct_light.direction = rot_matrix * forward;
-            }
-            direct_light.direction = direct_light.direction.normalize();
+            let forward = gl::F32x3::from_array( [ 0.0, 0.0, -1.0 ] );
+            let rot_matrix = gl::math::d2::F32x3x3::from_quat( node.rotation_get() );
+            direct_light.direction = ( rot_matrix * forward ).normalize();
             Light::Direct( direct_light )
           },
           Light::Spot( mut spot_light ) =>
           {
+            let forward = gl::F32x3::from_array( [ 0.0, 0.0, -1.0 ] );
+            let rot_matrix = gl::math::d2::F32x3x3::from_quat( node.rotation_get() );
             spot_light.position = node.translation_get();
-            spot_light.direction = node.translation_get();
+            spot_light.direction = ( rot_matrix * forward ).normalize();
             Light::Spot( spot_light )
           }
         }
@@ -791,15 +836,19 @@ mod private
     ( materials, material_variation_map )
   }
 
-  /// Describes one vertex attribute over the uploaded GPU buffers from its
-  /// glTF accessor : data type, offset, stride, and dimensionality.
-  fn attribute_info_make
-  (
-    gl_buffers : &[ gl::WebGlBuffer ],
-    acc : &gltf::Accessor< '_ >,
-    slot : u32
-  )
-  -> AttributeInfo
+  /// Computes a vertex attribute's [`gl::BufferDescriptor`] from its glTF
+  /// accessor : data type, offset, stride, and dimensionality. Split out of
+  /// [`attribute_info_make`] -- pure data transform over the accessor's own
+  /// metadata, no GL calls -- so it can be tested without a live
+  /// `WebGl2RenderingContext`.
+  ///
+  /// # Panics
+  ///
+  /// Panics if `acc`'s buffer view is absent -- every accessor this loader
+  /// resolves ( via `gltf_primitive.attributes()` ) is backed by a view
+  /// pointing at real buffer bytes, never a sparse-only accessor.
+  #[ must_use ]
+  pub fn attribute_descriptor_make( acc : &gltf::Accessor< '_ > ) -> gl::BufferDescriptor
   {
     let data_type = match acc.data_type()
     {
@@ -811,17 +860,28 @@ mod private
       gltf::accessor::DataType::F32 => gl::DataType::F32
     };
 
-    let descriptor = gl::BufferDescriptor::new::< [ f32; 1 ] >()
+    gl::BufferDescriptor::new::< [ f32; 1 ] >()
     .offset( acc.offset() as i32 / data_type.byte_size() )
     .normalized( acc.normalized() )
     .stride( acc.view().unwrap().stride().unwrap_or( 0 ) as i32 / data_type.byte_size() )
-    .vector( gl::VectorDataType::new( data_type, acc.dimensions().multiplicity() as i32, 1 ) );
+    .vector( gl::VectorDataType::new( data_type, acc.dimensions().multiplicity() as i32, 1 ) )
+  }
 
+  /// Describes one vertex attribute over the uploaded GPU buffers from its
+  /// glTF accessor : data type, offset, stride, and dimensionality.
+  fn attribute_info_make
+  (
+    gl_buffers : &[ gl::WebGlBuffer ],
+    acc : &gltf::Accessor< '_ >,
+    slot : u32
+  )
+  -> AttributeInfo
+  {
     AttributeInfo
     {
       slot,
       buffer : gl_buffers[ acc.view().unwrap().index() ].clone(),
-      descriptor,
+      descriptor : attribute_descriptor_make( acc ),
       bounding_box : gl::geometry::BoundingBox::default()
     }
   }
@@ -957,14 +1017,58 @@ mod private
     Ok( geometry )
   }
 
+  /// Looks up an existing material variation under `material_id` whose
+  /// `vertex_defines_str()` matches `vertex_defines_str`, returning a shared clone of it;
+  /// if none matches, calls `new_material` to build one, records it under `material_id`
+  /// for future lookups, and returns it.
+  // Fix(BUG-245): this lookup-and-insert pairing used to be split apart inside
+  // `primitive_material_resolve`, with the insert half silently missing -- the map was passed by
+  // shared reference, so it had no way to be written to at all, and every entry
+  // `materials_create` seeded as an empty `Vec::new()` stayed empty forever. Every primitive
+  // sharing a glTF material + vertex-defines combination therefore got its own independent clone
+  // instead of the intended shared instance. Root cause: a cache that is only ever read, never
+  // written, is not a cache. Extracted into its own function, taking `material_variation_map` as
+  // `&mut` and inserting immediately after construction, so the lookup and its matching insert
+  // can no longer drift apart -- and so this pairing is unit-testable on its own, independent of
+  // the glTF-parsing and GPU-material-construction context around it.
+  #[ must_use ]
+  #[ expect( clippy::implicit_hasher, reason = "this loader uses FxHashMap exclusively, everywhere -- \
+    genericizing over BuildHasher here would be speculative, never-exercised generality" ) ]
+  pub fn material_variation_resolve
+  (
+    material_variation_map : &mut FxHashMap< uuid::Uuid, Vec< SharedMaterial > >,
+    material_id : uuid::Uuid,
+    vertex_defines_str : &str,
+    new_material : impl FnOnce() -> SharedMaterial
+  )
+  -> SharedMaterial
+  {
+    // Amongst different materials with the same uuid, find the one that has the same vertex defines
+    let variation = material_variation_map
+    .get( &material_id )
+    .and_then( | m | m.iter().find( | m | m.borrow().vertex_defines_str() == vertex_defines_str ) )
+    .cloned();
+
+    if let Some( existing ) = variation
+    {
+      existing
+    }
+    else
+    {
+      let material = new_material();
+      material_variation_map.entry( material_id ).or_default().push( material.clone() );
+      material
+    }
+  }
+
   /// Picks the material clone for one primitive : reuses a clone whose vertex
   /// defines match `dummy_material`'s, otherwise clones the primitive's glTF
-  /// material, applies the defines, and records it in `used_materials`.
+  /// material, applies the defines, and records it via [`material_variation_resolve`].
   fn primitive_material_resolve
   (
     gltf_primitive : &gltf::Primitive< '_ >,
     materials : &[ SharedMaterial ],
-    material_variation_map : &FxHashMap< uuid::Uuid, Vec< SharedMaterial > >,
+    material_variation_map : &mut FxHashMap< uuid::Uuid, Vec< SharedMaterial > >,
     used_materials : &mut Vec< SharedMaterial >,
     dummy_material : &PbrMaterial
   )
@@ -972,34 +1076,29 @@ mod private
   {
     let material_id = gltf_primitive.material().index().unwrap_or( materials.len() - 1 );
     let gltf_material = materials[ material_id ].clone();
+    let gltf_material_id = gltf_material.borrow().id();
 
-    // Amongst different materials with the same uuid, find the one that has the same vertex defines
-    let variation = material_variation_map
-    .get( &gltf_material.borrow().id() )
-    .and_then(| m |
-      m.iter()
-      .find( | m | m.borrow().vertex_defines_str() == dummy_material.vertex_defines_str() ))
-    .cloned();
-
-    if let Some( material ) = variation
-    {
-      material
-    }
-    else
-    {
-      let material = Rc::new( RefCell::new( gltf_material.borrow().dyn_clone() ) );
-      let mut m = helpers::cast_unchecked_material_to_ref_mut::< PbrMaterial >( material.borrow_mut() );
-
-      for ( name, value ) in dummy_material.vertex_defines()
+    material_variation_resolve
+    (
+      material_variation_map,
+      gltf_material_id,
+      dummy_material.vertex_defines_str(),
+      ||
       {
-        m.vertex_define_add( name.clone(), value );
+        let material = Rc::new( RefCell::new( gltf_material.borrow().dyn_clone() ) );
+        let mut m = helpers::cast_unchecked_material_to_ref_mut::< PbrMaterial >( material.borrow_mut() );
+
+        for ( name, value ) in dummy_material.vertex_defines()
+        {
+          m.vertex_define_add( name.clone(), value );
+        }
+
+        std::mem::drop( m );
+        used_materials.push( material.clone() );
+
+        material
       }
-
-      std::mem::drop( m );
-      used_materials.push( material.clone() );
-
-      material
-    }
+    )
   }
 
   /// Assembles every glTF mesh from its primitives' geometry and resolved
@@ -1010,7 +1109,7 @@ mod private
     gltf_file : &gltf::Gltf,
     gl_buffers : &[ gl::WebGlBuffer ],
     materials : &[ SharedMaterial ],
-    material_variation_map : &FxHashMap< uuid::Uuid, Vec< SharedMaterial > >,
+    material_variation_map : &mut FxHashMap< uuid::Uuid, Vec< SharedMaterial > >,
     used_materials : &mut Vec< SharedMaterial >
   )
   -> Result< Vec< Rc< RefCell< Mesh > > >, gl::WebglError >
@@ -1046,7 +1145,7 @@ mod private
 
   /// A node prepared for skeleton attachment : the node, its glTF skin, its
   /// primitives' morph targets, and its mesh's morph weights.
-  type RiggedNode< 'a > =
+  pub type RiggedNode< 'a > =
   (
     Rc< RefCell< Node > >,
     Option< gltf::Skin< 'a > >,
@@ -1056,17 +1155,22 @@ mod private
 
   /// Product of [`nodes_create`] : the flat node list, per-node
   /// skeleton-attachment data, and the nodes carrying lights.
-  struct NodesCreated< 'a >
+  pub struct NodesCreated< 'a >
   {
-    nodes : Vec< Rc< RefCell< Node > > >,
+    /// Every node in the glTF document, in document order, with hierarchy
+    /// wired via [`Node::child_add`] and transform/object resolved.
+    pub nodes : Vec< Rc< RefCell< Node > > >,
     rigged_nodes : Vec< RiggedNode< 'a > >,
-    lights : Vec< Rc< RefCell< Node > > >
+    /// The subset of `nodes` whose `object` resolved to [`Object3D::Light`].
+    pub lights : Vec< Rc< RefCell< Node > > >
   }
 
   /// Instantiates every glTF node with its transform and object ( mesh,
   /// light, or plain ), wires the child hierarchy, and returns the flat node
-  /// list, skeleton-attachment data, and the light nodes.
-  fn nodes_create< 'a >
+  /// list, skeleton-attachment data, and the light nodes. Pure data
+  /// transform over the parsed document and pre-built meshes -- no GL calls.
+  #[ must_use ]
+  pub fn nodes_create< 'a >
   (
     gltf_file : &'a gltf::Gltf,
     meshes : &[ Rc< RefCell< Mesh > > ]
@@ -1141,32 +1245,19 @@ mod private
     NodesCreated { nodes, rigged_nodes, lights }
   }
 
-  /// Builds the name-to-node map and attaches a [`Skeleton`] to every rigged
-  /// mesh, switching its materials onto the skinning / morph-target shader
-  /// paths.
-  fn skeletons_attach
+  /// Attaches a [`Skeleton`] to every rigged mesh, switching its materials
+  /// onto the skinning / morph-target shader paths. A rigged node with no
+  /// skin and no morph targets is a no-op : [`skeleton_load`] returns `None`
+  /// and the mesh's `skeleton` field ( and its material's defines ) are left
+  /// untouched -- the only GL call on this path, `PbrMaterial::define_add`,
+  /// is only ever reached once a real [`Skeleton`] comes back.
+  pub fn skeletons_attach
   (
     nodes : &[ Rc< RefCell< Node > > ],
     rigged_nodes : Vec< RiggedNode< '_ > >,
     bin_buffers : &[ Vec< u8 > ]
   )
   {
-    let nodes_map = nodes.iter()
-    .filter_map
-    (
-      | n |
-      {
-        n.borrow()
-        .name_get()
-        .map
-        (
-          | name |
-          ( name, n.clone() )
-        )
-      }
-    )
-    .collect::< FxHashMap< _, _ > >();
-
     for ( node, skin, primitives_morph_targets, weights ) in rigged_nodes
     {
       if let Object3D::Mesh( mesh ) = &node.borrow().object
@@ -1177,7 +1268,7 @@ mod private
         if let Some( skeleton ) = skeleton_load
         (
           skin,
-          &nodes_map,
+          nodes,
           primitives_morph_targets.as_ref(),
           primitives_vertices_count.as_slice(),
           weights,
@@ -1206,8 +1297,10 @@ mod private
   }
 
   /// Builds every glTF scene from the instantiated nodes and computes the
-  /// initial world matrices.
-  fn scenes_create
+  /// initial world matrices. Pure data transform over already-instantiated
+  /// nodes -- no GL calls.
+  #[ must_use ]
+  pub fn scenes_create
   (
     gltf_file : &gltf::Gltf,
     nodes : &[ Rc< RefCell< Node > > ]
@@ -1230,11 +1323,57 @@ mod private
     scenes
   }
 
+  /// glTF extensions this loader actually implements support for. Kept in sync
+  /// with the `gltf`-crate extension Cargo features this crate enables in
+  /// `Cargo.toml` ( `[dependencies.gltf].features` ) -- an extension whose
+  /// Cargo feature isn't turned on has no typed accessor exposed by the `gltf`
+  /// crate at all, so this loader could not act on it even if it were listed
+  /// here. Cross-checked against this file's own code, not just the feature
+  /// list: `KHR_lights_punctual` is read in [`light_list_get`] / [`light_get`];
+  /// `KHR_materials_specular` is read in `materials_create`'s `gltf_m.specular()`
+  /// branch.
+  const SUPPORTED_EXTENSIONS : &[ &str ] = &[ "KHR_lights_punctual", "KHR_materials_specular" ];
+
+  /// Validates a parsed glTF document's `extensionsRequired` against
+  /// [`SUPPORTED_EXTENSIONS`], per glTF 2.0's "Specifying Extensions" : a
+  /// conformant client MUST refuse to load an asset that requires an extension
+  /// it doesn't support, rather than silently proceeding and producing
+  /// incomplete/incorrect output ( e.g. silently ignoring
+  /// `KHR_materials_transmission` or `KHR_draco_mesh_compression` content ).
+  /// Pure check over the parsed document -- no GL calls -- so it can run
+  /// immediately after parsing, before any buffer/image/GL work begins, and be
+  /// unit-tested without a live `WebGl2RenderingContext`.
+  ///
+  /// # Errors
+  ///
+  /// Returns `WebglError::Other` if any entry in `extensionsRequired` is not in
+  /// [`SUPPORTED_EXTENSIONS`] -- the offending extension name and the full
+  /// supported list are logged via `gl::browser::error!` before returning,
+  /// since `WebglError::Other` itself only carries a static summary.
+  pub fn required_extensions_check( gltf_file : &gltf::Gltf ) -> Result< (), gl::WebglError >
+  {
+    for required in gltf_file.extensions_required()
+    {
+      if !SUPPORTED_EXTENSIONS.contains( &required )
+      {
+        gl::browser::error!
+        (
+          "glTF asset requires unsupported extension '{required}' ( loader supports: {SUPPORTED_EXTENSIONS:?} )"
+        );
+        return Err( gl::WebglError::Other( "glTF asset requires an unsupported extension" ) );
+      }
+    }
+
+    Ok( () )
+  }
+
   /// Asynchronously loads a glTF (GL Transmission Format) file and its associated resources.
   ///
   /// # Errors
   ///
-  /// Returns `WebglError` if fetching or parsing the glTF file or its buffers fails.
+  /// Returns `WebglError` if fetching or parsing the glTF file or its buffers fails, or if the
+  /// glTF asset's `extensionsRequired` lists an extension this loader doesn't support ( see
+  /// [`required_extensions_check`] ).
   ///
   /// # Panics
   ///
@@ -1275,6 +1414,11 @@ mod private
       gl::WebglError::Other( "Failed to parse gltf file" )
     } )?;
 
+    // Per glTF 2.0's "Specifying Extensions", a conformant client MUST refuse to
+    // load an asset whose `extensionsRequired` names an extension it doesn't
+    // support. Checked immediately after parsing, before any buffer/image/GL work.
+    required_extensions_check( &gltf_file )?;
+
     let buffers = buffers_load( &mut gltf_file, folder_path ).await?;
 
     let bin_buffers = buffers.iter()
@@ -1293,13 +1437,13 @@ mod private
 
     let textures = textures_create( &gltf_file, &images );
 
-    let ( materials, material_variation_map ) = materials_create( gl, &gltf_file, &textures );
+    let ( materials, mut material_variation_map ) = materials_create( gl, &gltf_file, &textures );
     let mut used_materials : Vec< SharedMaterial > = Vec::new();
 
     gl::debug!( "PbrMaterials: {}",materials.len() );
     let meshes = meshes_create
     (
-      gl, &gltf_file, &gl_buffers, &materials, &material_variation_map, &mut used_materials
+      gl, &gltf_file, &gl_buffers, &materials, &mut material_variation_map, &mut used_materials
     )?;
 
     gl::debug!( "Meshes: {}",meshes.len() );
@@ -1346,6 +1490,19 @@ crate::mod_interface!
   {
     GLTF,
     load,
-    asset_uri_resolve
+    required_extensions_check,
+    asset_uri_resolve,
+    light_list_get,
+    light_get,
+    skeleton_transforms_data_load,
+    skeleton_displacements_data_load,
+    material_variation_resolve,
+    SharedMaterial,
+    RiggedNode,
+    NodesCreated,
+    nodes_create,
+    skeletons_attach,
+    scenes_create,
+    attribute_descriptor_make
   };
 }

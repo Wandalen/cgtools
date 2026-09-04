@@ -142,7 +142,16 @@ mod private
     #[ must_use ]
     pub fn with_duration( mut self, duration : f64 ) -> Self
     {
-      self.duration = duration.max( 0.0 );
+      // Fix(BUG-142)
+      // Root cause: clamped to `0.0` instead of the same `0.001` floor `new` uses ("Minimum
+      // duration to avoid division by zero", above) -- `with_duration(0.0)` reintroduced exactly
+      // the `self.elapsed / self.duration` == `0.0 / 0.0` == NaN case `new`'s own clamp exists to
+      // prevent, propagating NaN out of `value_get`/`progress` on the very first `update`.
+      // Pitfall: a builder method re-deriving a sibling constructor's own documented invariant
+      // ("avoid division by zero") must copy the sibling's actual clamp value, not just its
+      // clamp's polarity (`.max`) -- `0.0` still satisfies "non-negative" while reintroducing the
+      // exact division-by-zero the invariant was written to prevent.
+      self.duration = duration.max( 0.001 );
       self
     }
 
@@ -273,9 +282,31 @@ mod private
         // Finite repeat
         // See the infinite-repeat branch above for why this narrowing is bounded in practice.
         let repeats : i32 = elapsed_repeats as i32;
-        self.current_repeat += repeats;
-        self.elapsed = ( self.elapsed - ( self.duration * elapsed_repeats ) ).max( 0.0 );
-        self.state = AnimationState::Running;
+        // Fix(BUG-232)
+        // Root cause: a single `update()` call whose `delta_time` spans more than one repeat
+        // boundary (a frame stall, a backgrounded tab, a deliberate fast-forward) crossed
+        // `elapsed_repeats` boundaries in one shot; the old code added all of them to
+        // `current_repeat` unconditionally, letting it overshoot past `repeat_count` while still
+        // leaving `state` at `Running` -- exactly the crossing that should have completed the
+        // Tween instead ran one (or more) extra, unrequested loops.
+        // Pitfall: processing N boundary crossings in one call must behave identically to
+        // processing them one at a time -- the moment a crossing would occur at
+        // `current_repeat == repeat_count`, that crossing completes the Tween immediately and
+        // discards every further crossing in the same batch, rather than letting the batch
+        // silently carry `current_repeat` past `repeat_count`.
+        let remaining = self.repeat_count - self.current_repeat;
+        if repeats > remaining
+        {
+          self.current_repeat = self.repeat_count;
+          self.state = AnimationState::Completed;
+          self.elapsed = self.duration;
+        }
+        else
+        {
+          self.current_repeat += repeats;
+          self.elapsed = ( self.elapsed - ( self.duration * elapsed_repeats ) ).max( 0.0 );
+          self.state = AnimationState::Running;
+        }
       }
       else
       {
@@ -317,19 +348,37 @@ mod private
       self.state == AnimationState::Completed
     }
 
+    // Fix(BUG-352)
+    // Root cause: gated only on `state == Running`, so calling `pause()` while a Tween was still
+    // mid-delay ( `state == Pending`, `with_delay(...)`'s countdown not yet finished ) was a
+    // silent no-op -- `update`'s own match never early-returns for `Pending` ( only for `Paused`/
+    // `Completed`, see above ), so a later `update` kept ticking the delay ( and, once it
+    // expired, the animation itself ) forward exactly as if `pause()` had never been called.
+    // Pitfall: `Completed` is deliberately still excluded here -- pausing an already-finished
+    // Tween must not make `is_completed()` ( `state == Completed` ) start reporting `false`.
     fn pause( &mut self )
     {
-      if self.state == AnimationState::Running
+      if matches!( self.state, AnimationState::Running | AnimationState::Pending )
       {
         self.state = AnimationState::Paused;
       }
     }
 
+    // Fix(BUG-352)
+    // Root cause: widening `pause()` ( above ) to also freeze a mid-delay `Pending` Tween makes
+    // `Paused` reachable while `self.remain` ( the countdown `with_delay` set up, consulted by
+    // `update`'s own `Pending` arm above ) is still > 0.0 -- unconditionally resuming straight to
+    // `Running` skipped that leftover delay entirely, since `update`'s `Running` branch ticks
+    // `self.elapsed` ( the animated value itself ) forward immediately and never re-checks
+    // `remain`.
+    // Pitfall: `self.remain` is already exactly the countdown `update`'s own `Pending` arm
+    // consults -- reuse it here rather than assuming every pause happened only after the delay
+    // had fully elapsed.
     fn resume( &mut self )
     {
       if self.state == AnimationState::Paused
       {
-        self.state = AnimationState::Running;
+        self.state = if self.remain > 0.0 { AnimationState::Pending } else { AnimationState::Running };
       }
     }
 
@@ -366,7 +415,18 @@ mod private
       }
       else
       {
-        ( ( self.elapsed - self.delay ) / self.duration ).clamp( 0.0, 1.0 )
+        // Fix(BUG-140)
+        // Root cause: subtracted `self.delay` from `self.elapsed`, but `update` only ever adds
+        // to `elapsed` AFTER the delay countdown (`remain`) has been fully consumed -- `elapsed`
+        // is already delay-exclusive by construction (mirrors `value_get`'s own
+        // `self.elapsed / self.duration`, which performs no such subtraction). Subtracting
+        // `delay` a second time undercounted progress, and a fully-completed delayed tween
+        // (`elapsed == duration`) never reported `1.0`.
+        // Pitfall: identical-looking `( time - delay_get() ) / duration_get()` formulas exist
+        // elsewhere (e.g. `Sequencer::progress()`) where `time`/`elapsed` DO include the delay by
+        // construction -- the correct formula depends on which "elapsed" convention the specific
+        // type actually uses, not on the formula's shape alone.
+        ( self.elapsed / self.duration ).clamp( 0.0, 1.0 )
       }
     }
 
@@ -420,8 +480,23 @@ mod private
     // Pitfall: a min-reduction seeded at a real domain value like 0.0 silently returns that seed
     // whenever every element is >= it, so arrays containing a zero-delay tween mask the bug —
     // it only surfaces once every element is strictly positive.
+    //
+    // Fix(BUG-501)
+    // Root cause: for `N == 0`, both reduction loops above never execute, so `min_start`
+    // stays at its `f64::MAX` seed and `max_end` stays at its `0.0` seed -- `duration_get`
+    // then returns `0.0 - f64::MAX == -f64::MAX`, a nonsensical negative-infinity-scale
+    // duration for an empty tween group.
+    // Pitfall: a min/max-reduction seeded for the non-empty case has no valid seed relationship
+    // for the empty case -- `max_end - min_start` assumes `min_start <= max_end`, which the
+    // unreached-loop seeds (`f64::MAX`, `0.0`) violate in the opposite direction from what an
+    // "empty" answer should even look like (a huge negative number, not zero).
     fn duration_get( &self ) -> f64
     {
+      if self.is_empty()
+      {
+        return 0.0;
+      }
+
       let mut min_start = f64::MAX;
       for tween in self
       {
@@ -437,8 +512,20 @@ mod private
       max_end - min_start
     }
 
+    // Fix(BUG-501)
+    // Root cause: for `N == 0`, the reduction loop never executes, so `min_delay` stays at
+    // its `f64::MAX` seed and is returned as-is -- a group with zero tweens reports a delay
+    // of `f64::MAX` instead of the "nothing to delay" answer of `0.0`.
+    // Pitfall: same class of defect as `duration_get` above -- a reduction seed chosen to be
+    // "beaten" by any real element is never beaten when there are no elements, and gets
+    // returned unchanged as if it were a legitimate result.
     fn delay_get( &self ) -> f64
     {
+      if self.is_empty()
+      {
+        return 0.0;
+      }
+
       let mut min_delay = f64::MAX;
       for tween in self
       {
@@ -448,15 +535,38 @@ mod private
       min_delay
     }
 
+    // Fix(BUG-143)
+    // Root cause: reconstructed "elapsed since the group's own start" from `self[ 0 ]` alone,
+    // via `self[ 0 ].time() - self.delay_get()` -- two defects in one formula. (1) it omitted
+    // `self[ 0 ].delay` entirely, so whenever element 0's own delay differs from the group's
+    // earliest delay (`delay_get()`), the result is wrong from the very first tick, not just
+    // near completion. (2) `self[ 0 ]` is an arbitrary, possibly non-representative element --
+    // once IT individually completes, its own `time()` (an already delay-exclusive elapsed,
+    // frozen at its own `duration` on completion per `Tween::update`'s early-return for
+    // `Completed`) stops advancing even while OTHER, longer-running array members keep
+    // animating toward the group's real completion (`duration_get()`, correctly the max
+    // `delay + duration` across every element). A fully-completed array (`is_completed()` ==
+    // true for every element) could therefore report `progress() < 1.0` forever, violating the
+    // trait's own "0.0 to 1.0" contract at exactly the boundary condition `Tween::progress()`
+    // itself was required to hit precisely (BUG-140).
+    // Pitfall: `duration_get()`/`delay_get()` already correctly aggregate over every element
+    // (min delay, max end) -- `progress()`'s numerator must reconstruct elapsed time from the
+    // SAME element that determines the group's own end (`max_end`), not an arbitrary fixed
+    // index, or the numerator and denominator describe two different notions of "the group."
     fn progress( &self ) -> f64
     {
-      if self[ 0 ].state == AnimationState::Pending
+      let last = self.iter().max_by
+      (
+        | a, b | ( a.delay + a.duration ).partial_cmp( &( b.delay + b.duration ) ).expect( "Animation keyframes can't be NaN" )
+      ).expect( "N must be greater than 0" );
+
+      if last.state == AnimationState::Pending
       {
         0.0
       }
       else
       {
-        ( ( self[ 0 ].time() - self.delay_get() ) / self.duration_get() ).clamp( 0.0, 1.0 )
+        ( ( last.delay + last.time() - self.delay_get() ) / self.duration_get() ).clamp( 0.0, 1.0 )
       }
     }
 
@@ -552,8 +662,25 @@ mod private
   impl< E > Animatable for Vec< E >
   where E : MatEl + Animatable
   {
+    // Fix(BUG-148)
+    // Root cause: `self.iter().zip( other.iter() )` silently truncates to the shorter of the two
+    // Vecs whenever their lengths differ, instead of surfacing the mismatch -- the exact same
+    // defect shape `CubicHermite::new`/`apply` (`easing/cubic/hermite.rs`) already guard against
+    // via `assert_eq!`, which this sibling `Animatable` impl had never been brought into line
+    // with.
+    // Pitfall: `Animatable::interpolate`'s own boundary contract (every scalar impl computes
+    // `self + ( other - self ) * time`, so `time == 0.0` must equal `self` and `time == 1.0` must
+    // equal `other`) is silently violated for the longer side's trailing elements whenever
+    // lengths differ -- a loud panic on malformed input is correct here, not a recoverable error,
+    // since `Animatable::interpolate` returns `Self` directly with no `Result` in the trait.
     fn interpolate( &self, other : &Self, time : f64 ) -> Self
     {
+      assert_eq!
+      (
+        self.len(), other.len(),
+        "Vec::interpolate: self and other must have the same length ( got {} and {} )", self.len(), other.len()
+      );
+
       self.iter().zip( other.iter() )
       .map
       (

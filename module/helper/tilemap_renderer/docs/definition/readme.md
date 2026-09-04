@@ -4,7 +4,7 @@
 
 | Type | Purpose | Master File | Instances |
 |------|---------|-------------|----------:|
-| `feature/` | Backend adapters (SVG, WebGL2, Terminal) as navigational hubs over source, invariants, patterns, and pitfalls | [feature/readme.md](../feature/readme.md) | 3 |
+| `feature/` | Backend adapters (SVG, WebGL2, Terminal, None, WebGPU, Native) as navigational hubs over source, invariants, patterns, and pitfalls | [feature/readme.md](../feature/readme.md) | 6 |
 | `invariant/` | Cross-backend correctness guarantees (Y-up coordinates, SVG injection safety, draw ordering, vector representability) | [invariant/readme.md](../invariant/readme.md) | 4 |
 | `pattern/` | The core/adapter (Ports and Adapters) architecture shared by all backends | [pattern/readme.md](../pattern/readme.md) | 1 |
 | `pitfall/` | Confirmed GPU-buffer traps, their failure modes, and mitigations | [pitfall/readme.md](../pitfall/readme.md) | 2 |
@@ -16,6 +16,9 @@
 | feature   | 001 | SVG Backend Adapter                       | [feature/001_svg_backend_adapter.md](../feature/001_svg_backend_adapter.md)                                          |
 | feature   | 002 | WebGL2 Backend Adapter                    | [feature/002_webgl2_backend_adapter.md](../feature/002_webgl2_backend_adapter.md)                                    |
 | feature   | 003 | Terminal Backend Adapter                  | [feature/003_terminal_backend_adapter.md](../feature/003_terminal_backend_adapter.md)                                |
+| feature   | 004 | None Backend Adapter                      | [feature/004_none_backend_adapter.md](../feature/004_none_backend_adapter.md)                                        |
+| feature   | 005 | WebGPU Backend Adapter                    | [feature/005_webgpu_backend_adapter.md](../feature/005_webgpu_backend_adapter.md)                                    |
+| feature   | 006 | Native Backend Adapter                    | [feature/006_native_backend_adapter.md](../feature/006_native_backend_adapter.md)                                    |
 | invariant | 001 | Y-Up Coordinate System                    | [invariant/001_y_up_coordinate_system.md](../invariant/001_y_up_coordinate_system.md)                                |
 | invariant | 002 | SVG Injection-Safe Output                 | [invariant/002_svg_injection_safe_output.md](../invariant/002_svg_injection_safe_output.md)                          |
 | invariant | 003 | Z-Layer Draw Ordering                     | [invariant/003_z_layer_draw_ordering.md](../invariant/003_z_layer_draw_ordering.md)                                  |

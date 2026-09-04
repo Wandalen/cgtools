@@ -274,9 +274,19 @@ impl Distance for Coordinate<Diamond> {
   /// let distance = coord1.distance(&coord2);
   /// assert_eq!(distance, 7); // |3-0| + |4-0| = 7
   /// ```
-  fn distance(&self, other: &Self) -> u32 {
-    // Manhattan distance for underlying square grid
-    ((self.x - other.x).abs() + (self.y - other.y).abs()) as u32
+  // Fix(BUG-350): `self.x - other.x` (and `.y`) subtracted raw i32 fields
+  // directly -- coordinates ~2e9 apart (within what `Coordinate::new`'s
+  // fully-public i32 fields accept) overflow that subtraction before
+  // `.abs()`/`as u32` ever run.
+  // Root cause: distance() assumed a "reasonable" input sub-range that the
+  // struct's public fields/constructor never enforce.
+  // Pitfall: widen to i64 BEFORE subtracting, not after; the final
+  // narrowing back to u32 must saturate, not use a bare `as`.
+  fn distance( &self, other : &Self ) -> u32
+  {
+    let dx = ( i64::from( self.x ) - i64::from( other.x ) ).abs();
+    let dy = ( i64::from( self.y ) - i64::from( other.y ) ).abs();
+    ( dx + dy ).clamp( 0, i64::from( u32::MAX ) ) as u32
   }
 }
 

@@ -2,11 +2,19 @@
 name = "shader_chunks_params"
 version = "0.1.0"
 edition = "2024"
-description = "Discovers tunable parameters (argument/define/uniform/attribute/texture) declared in shader-chunk manifest headers, resolving declared or inferred value ranges"
+description = "Terminal CLI for inspecting tunable //@ param: parameters of shader_chunks_core WGSL chunks — the tunables command over the shader_chunks_params_core discovery"
 
 [dependencies]
-mod_interface.workspace = true
 shader_chunks_core.workspace = true
+shader_chunks_params_core.workspace = true
+shader_chunks_cli_core.workspace = true
+unilang.workspace = true
+cli_fmt.workspace = true
+data_fmt.workspace = true
+mod_interface.workspace = true
+
+[dev-dependencies]
+assert_cmd = "2.2"
 
 [lints]
 workspace = true

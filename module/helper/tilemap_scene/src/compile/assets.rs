@@ -1,4 +1,4 @@
-//! `compile_assets` — turn a scene-model `RenderSpec` into backend-ready assets.
+//! `assets_compile` — turn a scene-model `RenderSpec` into backend-ready assets.
 //!
 //! Walks the spec's asset and object trees to produce:
 //!
@@ -23,7 +23,7 @@ mod private
   use tilemap_renderer::types::{ asset, ResourceId };
   use rustc_hash::FxHashMap as HashMap;
 
-  /// Output of [`compile_assets`]: backend-ready assets plus the id map.
+  /// Output of [`assets_compile`]: backend-ready assets plus the id map.
   #[ derive( Debug ) ]
   pub struct CompiledAssets
   {
@@ -50,7 +50,7 @@ mod private
   ///   missing asset id.
   /// - [`CompileError::InvalidFrameName`] / [`CompileError::OutOfRange`] if a
   ///   sprite reference names a frame that can't be resolved to a region.
-  pub fn compile_assets
+  pub fn assets_compile
   (
     spec : &RenderSpec,
     resolver : &impl AssetResolver,
@@ -63,7 +63,7 @@ mod private
     for asset in &spec.assets
     {
       let source = resolver.resolve( &asset.id, &asset.path, &asset.kind )?;
-      let id = ids.alloc_image( &asset.id );
+      let id = ids.image_alloc( &asset.id );
       images.push( ImageAsset
       {
         id,
@@ -78,11 +78,11 @@ mod private
     //
     // Walk every object layer's sprite_source looking for `SpriteRef`s, AND
     // pre-expand every declared animation's frame list. Both paths converge
-    // on `ensure_sprite_allocated`, which deduplicates by `(asset, frame)`.
+    // on `sprite_allocation_ensure`, which deduplicates by `(asset, frame)`.
     let mut sprites = Vec::new();
     for anim in &spec.animations
     {
-      collect_animation_refs( anim, spec, &mut ids, &mut sprites )?;
+      animation_refs_collect( anim, spec, &mut ids, &mut sprites )?;
     }
     for object in &spec.objects
     {
@@ -90,7 +90,7 @@ mod private
       {
         for layer in layers
         {
-          collect_sprite_refs( &layer.sprite_source, spec, &mut ids, &mut sprites )?;
+          sprite_refs_collect( &layer.sprite_source, spec, &mut ids, &mut sprites )?;
         }
       }
     }
@@ -130,7 +130,7 @@ mod private
 
   /// Recursively collect `SpriteRef`s from any sprite source shape, allocating
   /// `SpriteAsset` entries on first encounter and deduplicating thereafter.
-  fn collect_sprite_refs
+  fn sprite_refs_collect
   (
     source : &SpriteSource,
     spec : &RenderSpec,
@@ -142,13 +142,13 @@ mod private
     {
       SpriteSource::Static( sprite_ref ) =>
       {
-        ensure_sprite_allocated( sprite_ref, spec, ids, sprites )
+        sprite_allocation_ensure( sprite_ref, spec, ids, sprites )
       },
       SpriteSource::Variant { variants, .. } =>
       {
         for Variant { sprite, .. } in variants
         {
-          collect_sprite_refs( sprite, spec, ids, sprites )?;
+          sprite_refs_collect( sprite, spec, ids, sprites )?;
         }
         Ok( () )
       },
@@ -160,9 +160,9 @@ mod private
           {
             for value in mapping.values()
             {
-              collect_sprite_refs( value, spec, ids, sprites )?;
+              sprite_refs_collect( value, spec, ids, sprites )?;
             }
-            collect_sprite_refs( fallback, spec, ids, sprites )?;
+            sprite_refs_collect( fallback, spec, ids, sprites )?;
           },
           NeighborBitmaskSource::ByAtlas { asset, layout : _ } =>
           {
@@ -173,7 +173,7 @@ mod private
             {
               let name = mask.to_string();
               let sprite_ref = SpriteRef { asset : asset.clone(), frame : name };
-              ensure_sprite_allocated( &sprite_ref, spec, ids, sprites )?;
+              sprite_allocation_ensure( &sprite_ref, spec, ids, sprites )?;
             }
           },
         }
@@ -186,7 +186,7 @@ mod private
         {
           let frame_name = sprite_pattern.replace( "{dir}", dir_name( *dir ) );
           let sprite_ref = SpriteRef { asset : asset.clone(), frame : frame_name };
-          ensure_sprite_allocated( &sprite_ref, spec, ids, sprites )?;
+          sprite_allocation_ensure( &sprite_ref, spec, ids, sprites )?;
         }
         Ok( () )
       },
@@ -200,7 +200,7 @@ mod private
           {
             let frame_name = pattern.sprite_pattern.replace( "{rot}", &rot.to_string() );
             let sprite_ref = SpriteRef { asset : asset.clone(), frame : frame_name };
-            ensure_sprite_allocated( &sprite_ref, spec, ids, sprites )?;
+            sprite_allocation_ensure( &sprite_ref, spec, ids, sprites )?;
           }
         }
         Ok( () )
@@ -213,9 +213,9 @@ mod private
           {
             for value in mapping.values()
             {
-              collect_sprite_refs( value, spec, ids, sprites )?;
+              sprite_refs_collect( value, spec, ids, sprites )?;
             }
-            collect_sprite_refs( fallback, spec, ids, sprites )?;
+            sprite_refs_collect( fallback, spec, ids, sprites )?;
           },
           NeighborBitmaskSource::ByAtlas { asset, layout : _ } =>
           {
@@ -223,7 +223,7 @@ mod private
             for mask in 0_u32..16
             {
               let sprite_ref = SpriteRef { asset : asset.clone(), frame : mask.to_string() };
-              ensure_sprite_allocated( &sprite_ref, spec, ids, sprites )?;
+              sprite_allocation_ensure( &sprite_ref, spec, ids, sprites )?;
             }
           },
         }
@@ -231,7 +231,7 @@ mod private
       },
       SpriteSource::ViewportTiled { content, .. } =>
       {
-        collect_sprite_refs( content, spec, ids, sprites )
+        sprite_refs_collect( content, spec, ids, sprites )
       },
       // Animation: frames live on `spec.animations`, pre-expanded in pass 2.
       // External: populated at runtime; nothing to pre-allocate here.
@@ -241,7 +241,7 @@ mod private
 
   /// Expand every frame declared inside a top-level [`crate::resource::Animation`]
   /// into `SpriteAsset`s.
-  fn collect_animation_refs
+  fn animation_refs_collect
   (
     anim : &crate::resource::Animation,
     spec : &RenderSpec,
@@ -255,14 +255,14 @@ mod private
       {
         for sprite_ref in frames
         {
-          ensure_sprite_allocated( sprite_ref, spec, ids, sprites )?;
+          sprite_allocation_ensure( sprite_ref, spec, ids, sprites )?;
         }
       },
       AnimationTiming::Irregular { frames } =>
       {
         for frame in frames
         {
-          ensure_sprite_allocated( &frame.sprite, spec, ids, sprites )?;
+          sprite_allocation_ensure( &frame.sprite, spec, ids, sprites )?;
         }
       },
       AnimationTiming::FromSheet { asset, start_frame, count, .. } =>
@@ -271,7 +271,7 @@ mod private
         {
           let frame_name = ( *start_frame + i ).to_string();
           let sprite_ref = SpriteRef { asset : asset.clone(), frame : frame_name };
-          ensure_sprite_allocated( &sprite_ref, spec, ids, sprites )?;
+          sprite_allocation_ensure( &sprite_ref, spec, ids, sprites )?;
         }
       },
     }
@@ -280,7 +280,7 @@ mod private
 
   /// Ensures a `SpriteAsset` exists for this `SpriteRef`, allocating + computing
   /// its region if not already seen.
-  fn ensure_sprite_allocated
+  fn sprite_allocation_ensure
   (
     sprite_ref : &SpriteRef,
     spec : &RenderSpec,
@@ -314,7 +314,7 @@ mod private
     })?;
 
     let region = frame_region( asset_id, frame_name, &asset.kind )?;
-    let sprite_id = ids.alloc_sprite( asset_id, frame_name );
+    let sprite_id = ids.sprite_alloc( asset_id, frame_name );
     sprites.push( SpriteAsset { id : sprite_id, sheet : sheet_id, region } );
     Ok( () )
   }
@@ -343,7 +343,7 @@ mod private
   /// Validate that a resolved frame rect lies fully inside the declared
   /// `image_size`. No-op when `image_size` is `None` — the check is
   /// only as strict as the spec is precise.
-  fn check_rect_bounds
+  fn rect_bounds_check
   (
     asset_id : &str,
     frame_name : &str,
@@ -403,14 +403,14 @@ mod private
         if let Some( frame ) = frame_rects.get( frame_name )
         {
           let [ x, y, w, h ] = frame.rect;
-          check_rect_bounds( asset_id, frame_name, ( 0, 0 ), [ x, y, w, h ], *image_size )?;
+          rect_bounds_check( asset_id, frame_name, ( 0, 0 ), [ x, y, w, h ], *image_size )?;
           return Ok( [ x as f32, y as f32, w as f32, h as f32 ] );
         }
 
         if let Some( &( col, row ) ) = frames.get( frame_name )
         {
           let rect = cell_to_pixel_rect( ( col, row ), *tile_size, *origin, *gap );
-          check_rect_bounds( asset_id, frame_name, ( col, row ), rect, *image_size )?;
+          rect_bounds_check( asset_id, frame_name, ( col, row ), rect, *image_size )?;
           return Ok( [ ox + col as f32 * stride_x, oy + row as f32 * stride_y, tw, th ] );
         }
 
@@ -429,7 +429,7 @@ mod private
           let col = idx % cols;
           let row = idx / cols;
           let rect = cell_to_pixel_rect( ( col, row ), *tile_size, *origin, *gap );
-          check_rect_bounds( asset_id, frame_name, ( col, row ), rect, *image_size )?;
+          rect_bounds_check( asset_id, frame_name, ( col, row ), rect, *image_size )?;
           return Ok( [ ox + col as f32 * stride_x, oy + row as f32 * stride_y, tw, th ] );
         }
 
@@ -459,5 +459,5 @@ mod private
 mod_interface::mod_interface!
 {
   exposed use CompiledAssets;
-  exposed use compile_assets;
+  exposed use assets_compile;
 }

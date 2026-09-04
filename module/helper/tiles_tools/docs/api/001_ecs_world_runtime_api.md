@@ -35,22 +35,17 @@ No custom error type wraps ECS failures — `despawn` propagates `hecs::NoSuchEn
 
 **None at the `hecs` boundary.** `World::hecs_world` is a `pub` field of type `hecs::World` (`src/ecs/world.rs:54`), and every operation above returns or accepts `hecs`-native types (`hecs::Entity`, `hecs::Ref`/`hecs::RefMut`, `hecs::ComponentError`, `hecs::NoSuchEntity`, `hecs::DynamicBundle`, `hecs::Query`) directly rather than through `tiles_tools`-owned wrapper types. A caller that touches `hecs_world` directly, or matches on any of these error/return types by name, is coupled to `hecs`'s own API surface — a `hecs` major-version upgrade is a breaking-change surface for such callers, not something this API insulates against. This is a direct divergence from the architecture originally planned in `architectural_evaluation/001` (`pub struct Entity(hecs::Entity)`, `pub struct World(hecs::World)` as private-field newtypes) — the shipped `World`/`Entity` usage is unwrapped throughout.
 
-### Types
-
-| File | Relationship |
-|------|--------------|
-| [type/002_ecs_component_vocabulary.md](../type/002_ecs_component_vocabulary.md) | The 13 components `World`'s queries and `EntityBuilder`'s archetypes operate on |
-
-### Pitfalls
-
-| File | Relationship |
-|------|--------------|
-
 ### Architectural Evaluations
 
 | File | Relationship |
 |------|--------------|
 | [architectural_evaluation/001_ecs_library_selection.md](../architectural_evaluation/001_ecs_library_selection.md) | The ADR that selected `hecs`; this API's direct exposure of `hecs` types diverges from that ADR's own sketched abstraction-layer plan |
+
+### Types
+
+| File | Relationship |
+|------|--------------|
+| [type/002_ecs_component_vocabulary.md](../type/002_ecs_component_vocabulary.md) | The 13 components `World`'s queries and `EntityBuilder`'s archetypes operate on |
 
 ### Sources
 

@@ -58,6 +58,19 @@ instead of widening a bridge.
 |------|--------------|
 | [../adr/001_multi_stack_rendering_architecture.md](../adr/001_multi_stack_rendering_architecture.md) | Adopts this pattern as the only sanctioned cross-stack composition mechanism |
 
+### Layers
+
+| File | Relationship |
+|------|--------------|
+| [../layer/001_l0_drivers.md](../layer/001_l0_drivers.md) | Foundation resources (textures, buffers) are driver-level handles at their lowest layer |
+| [../layer/002_l1_gpu_hal.md](../layer/002_l1_gpu_hal.md) | The backend-agnostic layer a bridge crate composes foundation resources through |
+
+### Render Stacks
+
+| File | Relationship |
+|------|--------------|
+| [../render_stack/003_d3.md](../render_stack/003_d3.md) | d3 content (e.g. a 3D object in a 2D game) crosses into d2 via this pattern |
+
 ### Sources
 
 | File | Relationship |

@@ -87,11 +87,20 @@ mod private
     }
 
     /// Inserts a [`AnimatablePlayer`] to the Sequencer.
+    // Fix(BUG-147)
+    // Root cause: the revival guard only checked `state == Pending`, so once a Sequencer
+    // finished a prior batch and reached `Completed`, inserting a fresh player left `state`
+    // stuck there -- `update()` early-returns while not `Running`, so the new player never ran.
+    // Pitfall: `Paused` is deliberately NOT included here -- a caller-requested pause must stay
+    // paused across inserts; only `Completed`, which is reached automatically rather than
+    // requested, should be silently superseded by fresh incomplete work.
     pub fn insert< T >( &mut self, name : &str, player : T )
     where T : AnimatablePlayer + 'static
     {
       self.players.insert( name.to_string().into(), Box::new( player ) );
-      if self.state == AnimationState::Pending && !self.players.is_empty()
+      if
+        ( self.state == AnimationState::Pending || self.state == AnimationState::Completed )
+        && !self.players.is_empty()
       {
         self.state = AnimationState::Running;
       }
@@ -209,9 +218,25 @@ mod private
     }
 
     /// Removes an animation from the Sequencer.
+    // Fix(BUG-231)
+    // Root cause: `remove` never touched `self.state`, so removing the last remaining player
+    // left `state` stuck at `Running` -- `update()`'s own completion check requires
+    // `!self.players.is_empty()` before it will transition to `Completed` (deliberately, so a
+    // genuinely-empty Sequencer is never reported as having "completed" work), so an
+    // empty-but-`Running` Sequencer could never leave that state on its own: `is_completed()`
+    // stayed `false` forever and `update()` kept accumulating `self.time` every call despite
+    // having nothing left to animate.
+    // Pitfall: mirrors BUG-147's own asymmetry on `insert` -- only the automatically-reached
+    // `Running` state is superseded here; a caller-requested `Paused` state deliberately
+    // survives losing its last player, exactly as BUG-147 already established for `insert`.
     pub fn remove( &mut self, name : &str ) -> bool
     {
-      self.players.remove( name ).is_some()
+      let removed = self.players.remove( name ).is_some();
+      if removed && self.players.is_empty() && self.state == AnimationState::Running
+      {
+        self.state = AnimationState::Pending;
+      }
+      removed
     }
 
     /// Gets the current  Sequencer time.
@@ -439,9 +464,20 @@ mod private
         }
       );
 
+      // Fix(BUG-138)
+      // Root cause: `Err( id )` from `binary_search_by` is the index of the first player whose
+      // `delay_get()` has NOT yet been reached (the insertion point) -- the player that should
+      // actually be active is the one just before it, `id - 1`, since that's the last player
+      // whose delay has already passed. Using `id` directly selected one player too far ahead,
+      // in the common case (no player's delay exactly equals `elapsed`) skipping the correct
+      // active player entirely.
+      // Pitfall: `Ok( id )` and `Err( id )` are NOT interchangeable here -- `Ok( id )` already
+      // points at the exact match (delay_get() == elapsed, correct as-is), only `Err`'s
+      // insertion-point semantics need the `- 1` adjustment.
       let index = match index
       {
-        Ok( id ) | Err( id ) => id
+        Ok( id ) => id,
+        Err( id ) => id.saturating_sub( 1 ),
       };
 
       let mut current_id = index;
@@ -460,8 +496,20 @@ mod private
           {
             return;
           };
-          let old_elapsed = current.delay_get() + ( current.progress() * current.duration_get() );
-          current.update( old_elapsed + delta_time );
+          // Fix(BUG-139)
+          // Root cause: reconstructed an absolute "elapsed since this player started" value
+          // (`delay_get() + progress() * duration_get()`) and passed `old_elapsed + delta_time`
+          // to `update`, whose contract is a pure incremental delta (`AnimatablePlayer::update`
+          // -- see e.g. `Tween::update`'s `self.elapsed += remaining_time`). Every steady-state
+          // frame, this re-fed the player's own already-accumulated progress back into itself on
+          // top of the real delta, causing the player to complete many times faster than its
+          // declared duration.
+          // Pitfall: this arm runs when the SAME player is still active across frames (unlike
+          // the `Less` arm below, which runs exactly once when switching to a fresh player whose
+          // internal elapsed genuinely starts at 0) -- only a fresh player can correctly be
+          // fast-forwarded with an absolute-time-shaped call; a continuing player must only ever
+          // receive the new frame's own delta.
+          current.update( delta_time );
         },
         core::cmp::Ordering::Less =>
         {
@@ -488,19 +536,28 @@ mod private
         return;
       };
 
-      match self.state
+      // Fix(BUG-353)
+      // Root cause: the Pending->Running and Running->Completed transitions were two mutually
+      // exclusive arms of one `match self.state`, keyed on `self.state` as it stood at the START
+      // of this call -- so at most one of the two could ever fire per `update()`. A call whose
+      // `delta_time` was large enough to leave `Pending` AND immediately finish the ( now-active )
+      // last player in the very same call landed on `Running` without the second check ever
+      // running, leaving `is_completed()` `false` while `progress()` already reported `1.0` -- an
+      // internally inconsistent public API state that only self-corrected on the NEXT `update()`.
+      // Pitfall: re-check the Running->Completed condition again after a same-call
+      // Pending->Running transition, using the ( possibly just-updated ) `self.state` -- do not
+      // gate both transitions on one snapshot of the entry-state, or a call spanning both
+      // boundaries at once silently drops the second one.
+      if self.state == AnimationState::Pending && self.elapsed - current.delay_get() > 0.0
       {
-        AnimationState::Pending if self.elapsed - current.delay_get() > 0.0 =>
-        {
-          self.state = AnimationState::Running;
-        },
-        AnimationState::Running
-        if self.current >= self.players.len() - 1 &&
-        self.players.get( self.current ).map_or( true, AnimatablePlayer::is_completed ) =>
-        {
-          self.state = AnimationState::Completed;
-        },
-        _ => {}
+        self.state = AnimationState::Running;
+      }
+
+      if self.state == AnimationState::Running
+      && self.current >= self.players.len() - 1
+      && self.players.get( self.current ).map_or( true, AnimatablePlayer::is_completed )
+      {
+        self.state = AnimationState::Completed;
       }
     }
 
@@ -509,9 +566,17 @@ mod private
       self.state == AnimationState::Completed
     }
 
+    // Fix(BUG-352)
+    // Root cause: gated only on `state == Running`, the identical defect shape to `Tween::pause`
+    // ( see interpolation.rs ) -- calling `pause()` while the Sequence itself was still `Pending`
+    // ( `elapsed` hasn't yet reached the active player's own `delay_get()`, see `update`'s
+    // `Pending` check above ) was a silent no-op, so a later `update()` kept advancing `elapsed`
+    // and driving the active player forward exactly as if `pause()` had never been called.
+    // Pitfall: `Completed` is deliberately still excluded -- pausing an already-finished Sequence
+    // must not make `is_completed()` start reporting `false`.
     fn pause( &mut self )
     {
-      if self.state == AnimationState::Running
+      if matches!( self.state, AnimationState::Running | AnimationState::Pending )
       {
         self.state = AnimationState::Paused;
       }

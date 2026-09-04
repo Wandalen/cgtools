@@ -1,53 +1,77 @@
-//! Just draw a large point in the middle of the screen.
+//! Loads a diamond glTF model, renders it into a freshly generated 6-face cube map texture
+//! (one framebuffer pass per face), then displays a textured cube that orbits while sampling
+//! the generated cube map -- demonstrates dynamic cube map generation in WebGL2.
 
 use minwebgl as gl;
 use gl::GL;
 
-fn cube_data_get() -> &'static [ f32 ]
+/// One cube corner's position/uv record — `stride( 5 )` below covers all 5 `f32` fields,
+/// matching this struct's own ( `repr( C )`, no padding ) byte layout.
+#[ repr( C ) ]
+#[ derive( Debug, Default, Clone, Copy, gl::mem::Pod, gl::mem::Zeroable ) ]
+struct Vertex
+{
+  position : [ f32 ; 3 ],
+  uv : [ f32 ; 2 ],
+}
+
+impl mingl::Attribute for Vertex
+{
+  fn describe() -> Vec< mingl::VertexAttribute >
+  {
+    vec!
+    [
+      mingl::VertexAttribute::new( 0, mingl::VectorDataType::new( mingl::DataType::F32, 3, 1 ), 0 ),
+      mingl::VertexAttribute::new( 1, mingl::VectorDataType::new( mingl::DataType::F32, 2, 1 ), 3 ),
+    ]
+  }
+}
+
+fn cube_data_get() -> &'static [ Vertex ]
 {
   &[
-  //  X     Y     Z     U    V
-    -0.5, -0.5, -0.5,  0.0, 0.0,
-    0.5, -0.5, -0.5,  1.0, 0.0,
-    0.5,  0.5, -0.5,  1.0, 1.0,
-    0.5,  0.5, -0.5,  1.0, 1.0,
-    -0.5,  0.5, -0.5,  0.0, 1.0,
-    -0.5, -0.5, -0.5,  0.0, 0.0,
+  //             position                uv
+    Vertex { position : [ -0.5, -0.5, -0.5 ], uv : [ 0.0, 0.0 ] },
+    Vertex { position : [ 0.5, -0.5, -0.5 ], uv : [ 1.0, 0.0 ] },
+    Vertex { position : [ 0.5,  0.5, -0.5 ], uv : [ 1.0, 1.0 ] },
+    Vertex { position : [ 0.5,  0.5, -0.5 ], uv : [ 1.0, 1.0 ] },
+    Vertex { position : [ -0.5,  0.5, -0.5 ], uv : [ 0.0, 1.0 ] },
+    Vertex { position : [ -0.5, -0.5, -0.5 ], uv : [ 0.0, 0.0 ] },
 
-    -0.5, -0.5,  0.5,  0.0, 0.0,
-    0.5, -0.5,  0.5,  1.0, 0.0,
-    0.5,  0.5,  0.5,  1.0, 1.0,
-    0.5,  0.5,  0.5,  1.0, 1.0,
-    -0.5,  0.5,  0.5,  0.0, 1.0,
-    -0.5, -0.5,  0.5,  0.0, 0.0,
+    Vertex { position : [ -0.5, -0.5,  0.5 ], uv : [ 0.0, 0.0 ] },
+    Vertex { position : [ 0.5, -0.5,  0.5 ], uv : [ 1.0, 0.0 ] },
+    Vertex { position : [ 0.5,  0.5,  0.5 ], uv : [ 1.0, 1.0 ] },
+    Vertex { position : [ 0.5,  0.5,  0.5 ], uv : [ 1.0, 1.0 ] },
+    Vertex { position : [ -0.5,  0.5,  0.5 ], uv : [ 0.0, 1.0 ] },
+    Vertex { position : [ -0.5, -0.5,  0.5 ], uv : [ 0.0, 0.0 ] },
 
-    -0.5,  0.5,  0.5,  1.0, 0.0,
-    -0.5,  0.5, -0.5,  1.0, 1.0,
-    -0.5, -0.5, -0.5,  0.0, 1.0,
-    -0.5, -0.5, -0.5,  0.0, 1.0,
-    -0.5, -0.5,  0.5,  0.0, 0.0,
-    -0.5,  0.5,  0.5,  1.0, 0.0,
+    Vertex { position : [ -0.5,  0.5,  0.5 ], uv : [ 1.0, 0.0 ] },
+    Vertex { position : [ -0.5,  0.5, -0.5 ], uv : [ 1.0, 1.0 ] },
+    Vertex { position : [ -0.5, -0.5, -0.5 ], uv : [ 0.0, 1.0 ] },
+    Vertex { position : [ -0.5, -0.5, -0.5 ], uv : [ 0.0, 1.0 ] },
+    Vertex { position : [ -0.5, -0.5,  0.5 ], uv : [ 0.0, 0.0 ] },
+    Vertex { position : [ -0.5,  0.5,  0.5 ], uv : [ 1.0, 0.0 ] },
 
-    0.5,  0.5,  0.5,  1.0, 0.0,
-    0.5,  0.5, -0.5,  1.0, 1.0,
-    0.5, -0.5, -0.5,  0.0, 1.0,
-    0.5, -0.5, -0.5,  0.0, 1.0,
-    0.5, -0.5,  0.5,  0.0, 0.0,
-    0.5,  0.5,  0.5,  1.0, 0.0,
+    Vertex { position : [ 0.5,  0.5,  0.5 ], uv : [ 1.0, 0.0 ] },
+    Vertex { position : [ 0.5,  0.5, -0.5 ], uv : [ 1.0, 1.0 ] },
+    Vertex { position : [ 0.5, -0.5, -0.5 ], uv : [ 0.0, 1.0 ] },
+    Vertex { position : [ 0.5, -0.5, -0.5 ], uv : [ 0.0, 1.0 ] },
+    Vertex { position : [ 0.5, -0.5,  0.5 ], uv : [ 0.0, 0.0 ] },
+    Vertex { position : [ 0.5,  0.5,  0.5 ], uv : [ 1.0, 0.0 ] },
 
-    -0.5, -0.5, -0.5,  0.0, 1.0,
-    0.5, -0.5, -0.5,  1.0, 1.0,
-    0.5, -0.5,  0.5,  1.0, 0.0,
-    0.5, -0.5,  0.5,  1.0, 0.0,
-    -0.5, -0.5,  0.5,  0.0, 0.0,
-    -0.5, -0.5, -0.5,  0.0, 1.0,
+    Vertex { position : [ -0.5, -0.5, -0.5 ], uv : [ 0.0, 1.0 ] },
+    Vertex { position : [ 0.5, -0.5, -0.5 ], uv : [ 1.0, 1.0 ] },
+    Vertex { position : [ 0.5, -0.5,  0.5 ], uv : [ 1.0, 0.0 ] },
+    Vertex { position : [ 0.5, -0.5,  0.5 ], uv : [ 1.0, 0.0 ] },
+    Vertex { position : [ -0.5, -0.5,  0.5 ], uv : [ 0.0, 0.0 ] },
+    Vertex { position : [ -0.5, -0.5, -0.5 ], uv : [ 0.0, 1.0 ] },
 
-    -0.5,  0.5, -0.5,  0.0, 1.0,
-    0.5,  0.5, -0.5,  1.0, 1.0,
-    0.5,  0.5,  0.5,  1.0, 0.0,
-    0.5,  0.5,  0.5,  1.0, 0.0,
-    -0.5,  0.5,  0.5,  0.0, 0.0,
-    -0.5,  0.5, -0.5,  0.0, 1.0
+    Vertex { position : [ -0.5,  0.5, -0.5 ], uv : [ 0.0, 1.0 ] },
+    Vertex { position : [ 0.5,  0.5, -0.5 ], uv : [ 1.0, 1.0 ] },
+    Vertex { position : [ 0.5,  0.5,  0.5 ], uv : [ 1.0, 0.0 ] },
+    Vertex { position : [ 0.5,  0.5,  0.5 ], uv : [ 1.0, 0.0 ] },
+    Vertex { position : [ -0.5,  0.5,  0.5 ], uv : [ 0.0, 0.0 ] },
+    Vertex { position : [ -0.5,  0.5, -0.5 ], uv : [ 0.0, 1.0 ] },
   ]
 }
 
@@ -149,8 +173,10 @@ fn cube_map_generate
 
   let vao = gl::vao::create( gl )?;
   gl.bind_vertex_array( Some( &vao ) );
-  gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 0 ).attribute_pointer( gl, 0, &pos_buffer )?;
-  gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 0 ).attribute_pointer( gl, 1, &normal_buffer )?;
+  let position_attr = mingl::VertexAttribute::new( 0, mingl::VectorDataType::new( mingl::DataType::F32, 3, 1 ), 0 );
+  let normal_attr = mingl::VertexAttribute::new( 1, mingl::VectorDataType::new( mingl::DataType::F32, 3, 1 ), 0 );
+  gl::BufferDescriptor::from_vector( position_attr.vector ).stride( 3 ).offset( position_attr.offset ).attribute_pointer( gl, position_attr.location, &pos_buffer )?;
+  gl::BufferDescriptor::from_vector( normal_attr.vector ).stride( 3 ).offset( normal_attr.offset ).attribute_pointer( gl, normal_attr.location, &normal_buffer )?;
 
   let index_buffer = gl::buffer::create( gl )?;
   gl::index::upload( gl, &index_buffer, &indices, GL::STATIC_DRAW );
@@ -229,7 +255,8 @@ async fn app_run() -> Result< (), gl::WebglError >
   let gl = gl::context::retrieve_or_make()?;
 
   // Load model
-  let obj_buffer = gl::file::load( "static/diamond.glb" ).await.expect( "Failed to load the model" );
+  let obj_buffer = gl::file::load( "static/diamond.glb" ).await
+  .map_err( | e | gl::dom::Error::BindgenError( "Failed to load static/diamond.glb", format!( "{e:?}" ) ) )?;
   let ( document, buffers, _ ) = gltf::import_slice( &obj_buffer[ .. ] ).expect( "Failed to parse the glb file" );
 
   let ( cube_texture, max_distance ) = cube_map_generate( &gl, &document, &buffers )?;
@@ -251,14 +278,14 @@ async fn app_run() -> Result< (), gl::WebglError >
   // Prepare attributes
   // We don't really need uvs, but they came with a model, so I decided to leave them be
   let cube_attr = cube_data_get();
-  let vertex_count = cube_attr.len() / 5;
+  let vertex_count = cube_attr.len();
   let cube_attr_buffer = gl::buffer::create( &gl )?;
   gl::buffer::upload( &gl, &cube_attr_buffer, cube_attr, gl::STATIC_DRAW );
 
   let vao = gl::vao::create( &gl )?;
   gl.bind_vertex_array( Some( &vao ) );
-  gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 0 ).stride( 5 ).attribute_pointer( &gl, 0, &cube_attr_buffer )?;
-  gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 3 ).stride( 5 ).attribute_pointer( &gl, 1, &cube_attr_buffer )?;
+  let cube_attr_layout = mingl::VertexBufferLayout::from_attribute::< Vertex >( 5 );
+  gl::vertex_buffer_layout_bind( &gl, &cube_attr_buffer, &cube_attr_layout )?;
 
   let width = gl.drawing_buffer_width() as f32;
   let height = gl.drawing_buffer_height() as f32;

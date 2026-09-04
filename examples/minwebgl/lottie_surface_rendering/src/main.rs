@@ -4,16 +4,14 @@ use std::cell::RefCell;
 use minwebgl as gl;
 use gl::
 {
-  texture::d2::image_upload_from_path,
   F32x4,
   math::mat4x4::identity,
-  GL,
   WebGl2RenderingContext,
   web_sys::HtmlCanvasElement
 };
 use renderer::webgl::
 {
-  Camera, MagFilterMode, Material, MinFilterMode, Node, Object3D, Renderer, Sampler, Scene, Texture, TextureInfo, WrappingMode, cast_unchecked_material_to_ref_mut, loaders::gltf::GLTF, material::PbrMaterial, post_processing::
+  Camera, Material, Node, Object3D, Renderer, Scene, Texture, TextureInfo, cast_unchecked_material_to_ref_mut, loaders::gltf::GLTF, material::PbrMaterial, post_processing::
   {
     self, Pass, SwapFramebuffer
   }
@@ -33,20 +31,7 @@ fn texture_create
 ) -> TextureInfo
 {
   let image_path = format!( "static/{image_path}" );
-  let texture_id = image_upload_from_path( gl, &image_path, false );
-
-  let sampler = Sampler::former()
-  .min_filter( MinFilterMode::Linear )
-  .mag_filter( MagFilterMode::Linear )
-  .wrap_s( WrappingMode::Repeat )
-  .wrap_t( WrappingMode::Repeat )
-  .end();
-
-  let texture = Texture::former()
-  .target( GL::TEXTURE_2D )
-  .source( texture_id )
-  .sampler( sampler )
-  .end();
+  let texture = Texture::load_from_path( gl, &image_path, false );
 
   TextureInfo
   {
@@ -90,7 +75,7 @@ fn camera_init( canvas : &HtmlCanvasElement, scenes : &[ Rc< RefCell< Scene > > 
   let near = 0.1;
   let far = 1000.0;
 
-  let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
+  let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far ).expect( "camera parameters are valid" );
 
   camera.window_size_set( [ width, height ].into() );
 
@@ -189,7 +174,13 @@ async fn scene_setup( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
   let scale = 1.005;
   clouds.borrow_mut().translation_set( [ 0.0, 1.0 - scale, 0.0 ] );
   clouds.borrow_mut().scale_set( [ scale; 3 ] );
-  clouds.borrow_mut().rotation_set( gl::Quat::from_angle_y( 90.0 ) );
+  // BUG-311 task/bug/311_from_angle_y_called_with_raw_degrees_not_radians.md -- was `90.0`
+  // (radians, ~5_157 degrees), not a 90-degree rotation.
+  // Fix(BUG-311): `from_angle_y( 90.0 )` -> `from_angle_y( 90.0_f32.to_radians() )`.
+  // Root cause: `Quat::from_angle_y` takes radians; `90.0` was passed as if it were degrees.
+  // Pitfall: a radians-only rotation constructor gives no signal when a degrees-shaped literal
+  // is passed instead -- always convert explicitly at the call site.
+  clouds.borrow_mut().rotation_set( gl::Quat::from_angle_y( 90.0_f32.to_radians() ) );
   clouds.borrow_mut().local_matrix_update();
 
   let moon = clone( &mut gltf, &earth );
@@ -220,7 +211,7 @@ async fn app_run() -> Result< (), gl::WebglError >
   let mut gltf = scene_setup( &gl ).await?;
 
   let lottie_path = "static/lottie/google.json";
-  let animation = animation_load( &gl, lottie_path ).await;
+  let animation = animation_load( &gl, lottie_path ).await?;
   animation.world_matrix_set( identity() );
 
   let ( s, _ ) = animation.frame( 0.0 ).expect( "Can't get scene at start frame" );

@@ -3,7 +3,7 @@ mod private
   use std::{ cell::RefCell, rc::Rc };
   use rustc_hash::{ FxHashMap, FxHashSet };
   use minwebgl as gl;
-  use web_sys::{ WebGlTexture, WebGlBuffer, WebGlFramebuffer, WebGlUniformLocation, WebGlVertexArrayObject, WebGlProgram };
+  use web_sys::{ WebGlTexture, WebGlBuffer, WebGlFramebuffer, WebGlRenderbuffer, WebGlUniformLocation, WebGlVertexArrayObject, WebGlProgram };
   use gl::{ F32x4, GL, VectorDataType, drawbuffers::drawbuffers };
   use crate::webgl::
   {
@@ -72,60 +72,50 @@ mod private
 
   impl GBufferAttachment
   {
-    fn attribute_info( self, buffers : &[ web_sys::WebGlBuffer ] ) -> Vec< AttributeInfo >
+    /// Builds the vertex-attribute descriptor(s) this attachment needs, pairing each with a
+    /// buffer from `buffers` in slot order. Returns an empty `Vec` if `buffers` is empty or if
+    /// this attachment ( e.g. [`GBufferAttachment::Albedo`] ) has no dedicated vertex attribute.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `buffers` is non-empty but has fewer entries than this attachment needs.
+    #[ must_use ]
+    pub fn attribute_info( self, buffers : &[ web_sys::WebGlBuffer ] ) -> Vec< AttributeInfo >
     {
       if buffers.is_empty()
       {
         return vec![];
       }
 
-      let mut descriptors = match self
+      // Each attachment's vertex attribute is described once via the cross-backend
+      // `mingl::VertexAttribute` ( location + vector shape + offset ), paired with the
+      // WebGL-only `normalized` flag that type doesn't model. Bridged down to
+      // `BufferDescriptor` below since `AttributeInfo.descriptor` is WebGL-specific.
+      let descriptors : Vec< ( mingl::VertexAttribute, bool ) > = match self
       {
         GBufferAttachment::Position =>
-        {
-          let d0 = gl::BufferDescriptor::new::< [ f32; 3 ] >()
-          .normalized( false )
-          .vector( VectorDataType::new( mingl::DataType::F32, 3, 1 ) );
-          vec![ ( 0, d0 ) ]
-        },
+        vec![ ( mingl::VertexAttribute::new( 0, VectorDataType::new( mingl::DataType::F32, 3, 1 ), 0 ), false ) ],
         GBufferAttachment::Color =>
-        {
-          let d1 = gl::BufferDescriptor::new::< [ f32; 4 ] >()
-          .normalized( true )
-          .vector( VectorDataType::new( mingl::DataType::F32, 4, 1 ) );
-          vec![ ( 1, d1 ) ]
-        },
+        vec![ ( mingl::VertexAttribute::new( 1, VectorDataType::new( mingl::DataType::F32, 4, 1 ), 0 ), true ) ],
         GBufferAttachment::Normal =>
-        {
-          let d2 = gl::BufferDescriptor::new::< [ f32; 3 ] >()
-          .normalized( true )
-          .vector( VectorDataType::new( mingl::DataType::F32, 3, 1 ) );
-          vec![ ( 2, d2 ) ]
-        },
+        vec![ ( mingl::VertexAttribute::new( 2, VectorDataType::new( mingl::DataType::F32, 3, 1 ), 0 ), true ) ],
         GBufferAttachment::Uv1 =>
-        {
-          let d3 = gl::BufferDescriptor::new::< [ f32; 2 ] >()
-          .normalized( true )
-          .vector( VectorDataType::new( mingl::DataType::F32, 2, 1 ) );
-          vec![ ( 3, d3 ) ]
-        },
+        vec![ ( mingl::VertexAttribute::new( 3, VectorDataType::new( mingl::DataType::F32, 2, 1 ), 0 ), true ) ],
         _ => vec![]
       };
 
-      for ( _, d ) in &mut descriptors
-      {
-        *d = d
-        .offset( 0 )
-        .stride( 0 );
-      }
-
       let mut attribute_infos = vec![];
 
-      for ( i, ( slot, descriptor ) ) in descriptors.into_iter().enumerate()
+      for ( i, ( attr, normalized ) ) in descriptors.into_iter().enumerate()
       {
+        let descriptor = gl::BufferDescriptor::from_vector( attr.vector )
+        .offset( attr.offset )
+        .stride( 0 )
+        .normalized( normalized );
+
         let a = AttributeInfo
         {
-          slot,
+          slot : attr.location,
           buffer : buffers.get( i ).expect( "Some GbufferAttachment hasn't enough buffers" ).clone(),
           descriptor,
           bounding_box : gl::geometry::BoundingBox::default()
@@ -137,7 +127,9 @@ mod private
       attribute_infos
     }
 
-    fn define_const( self ) -> String
+    /// The fragment-shader `#define` name identifying this attachment ( see [`into_defines`] ).
+    #[ must_use ]
+    pub fn define_const( self ) -> String
     {
       match self
       {
@@ -215,8 +207,10 @@ mod private
     width : u32,
     height : u32,
     framebuffer : WebGlFramebuffer,
+    depthbuffer : WebGlRenderbuffer,
     textures: FxHashMap< String, WebGlTexture >,
-    color_attachments : Vec< u32 >
+    color_attachments : Vec< u32 >,
+    gl : GL,
   }
 
   impl GBuffer
@@ -309,8 +303,10 @@ mod private
         width,
         height,
         framebuffer,
+        depthbuffer,
         textures,
-        color_attachments
+        color_attachments,
+        gl : gl.clone(),
       };
 
       Ok( gbuffer )
@@ -455,6 +451,71 @@ mod private
       scene.traverse( &mut draw_node )?;
 
       Ok( () )
+    }
+  }
+
+  /// The GL handles `Drop` is responsible for, reachable from `tests/` under
+  /// `test_internals`.
+  ///
+  /// Each returns a clone rather than a borrow because the only useful thing to
+  /// do with them is outlive the `GBuffer` — a teardown test holds them across
+  /// the drop and asks the context whether they are still live afterwards.
+  #[ cfg( feature = "test_internals" ) ]
+  impl GBuffer
+  {
+    #[ doc( hidden ) ]
+    #[ must_use ]
+    pub fn vao_for_test( &self ) -> WebGlVertexArrayObject
+    {
+      self.vao.clone()
+    }
+
+    #[ doc( hidden ) ]
+    #[ must_use ]
+    pub fn framebuffer_for_test( &self ) -> WebGlFramebuffer
+    {
+      self.framebuffer.clone()
+    }
+
+    #[ doc( hidden ) ]
+    #[ must_use ]
+    pub fn depthbuffer_for_test( &self ) -> WebGlRenderbuffer
+    {
+      self.depthbuffer.clone()
+    }
+
+    #[ doc( hidden ) ]
+    #[ must_use ]
+    pub fn textures_for_test( &self ) -> Vec< WebGlTexture >
+    {
+      self.textures.values().cloned().collect()
+    }
+  }
+
+  // Fix(BUG-433): `GBuffer::new` created a depth `WebGlRenderbuffer` ( local `depthbuffer`
+  // binding ) but never stored it on the struct, so nothing could ever delete it -- every
+  // `GBuffer` construct/drop cycle ( e.g. a canvas resize that rebuilds the geometry pass at a
+  // new resolution ) permanently leaked one renderbuffer, plus the VAO, the color framebuffer,
+  // and every attachment texture, none of which had a matching `gl.delete*` call either.
+  // Root cause: `GBuffer` never had an `impl Drop` at all -- the local `depthbuffer` variable
+  // was dropped as a plain Rust value at the end of `new`'s scope save for the one field it got
+  // assigned to, and the struct itself carried no cleanup path for any of its five owned GL
+  // object families.
+  // Pitfall: a GPU handle wrapper ( `Option< WebGlTexture >`, `WebGlFramebuffer`,
+  // `WebGlRenderbuffer`, `WebGlVertexArrayObject` ) is just a JS-object reference -- letting the
+  // Rust value go out of scope does not call `gl.delete*` for you; only an explicit delete call
+  // (here, via `impl Drop`) reclaims the actual GPU-side allocation.
+  impl Drop for GBuffer
+  {
+    fn drop( &mut self )
+    {
+      self.gl.delete_vertex_array( Some( &self.vao ) );
+      self.gl.delete_framebuffer( Some( &self.framebuffer ) );
+      self.gl.delete_renderbuffer( Some( &self.depthbuffer ) );
+      for texture in self.textures.values()
+      {
+        self.gl.delete_texture( Some( texture ) );
+      }
     }
   }
 }

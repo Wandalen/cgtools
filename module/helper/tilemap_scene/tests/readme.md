@@ -7,8 +7,8 @@ crate's `mod_interface` root re-exports).
 Two levels coexist:
 
 - **Unit level** — `compile_units_test.rs` and `hash_test.rs` call individual exposed functions
-  directly (`evaluate_condition`, `canonical_edge`, `resolve_animation_frame`, `coord_hash`, …).
-- **Integration level** — the remaining files drive whole subsystems (`compile_assets` /
+  directly (`condition_evaluate`, `canonical_edge`, `animation_frame_resolve`, `coord_hash`, …).
+- **Integration level** — the remaining files drive whole subsystems (`assets_compile` /
   `compile_frame`, `Scene::tick`, `Renderer`, `Catalog`) and assert on emitted command streams or
   event streams. `edge_rotation`, for example, is covered at BOTH levels on purpose: the unit table
   pins the rotation formula, while `scene_model_compile_test.rs` pins that compiled edge sprites
@@ -26,7 +26,7 @@ Two levels coexist:
 | renderer_cache_test.rs | Renderer per-frame idle-replay cache acceptance |
 | renderer_test.rs | Renderer asset-compile-once and per-instance override contract |
 | scene_events_test.rs | Scene::tick event-stream semantics |
-| scene_model_compile_test.rs | Compile pipeline integration (compile_assets + compile_frame) |
+| scene_model_compile_test.rs | Compile pipeline integration (assets_compile + compile_frame) |
 | scene_model_test.rs | scene-model parsing, serde round-trip, loader API |
 | scene_state_test.rs | Retained-mode Scene mutation API |
 | sorted_batching_test.rs | Sorted-bucket DrawBatch collapsing |

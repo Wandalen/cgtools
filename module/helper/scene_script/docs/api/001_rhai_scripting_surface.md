@@ -57,6 +57,31 @@ Every operation above is a strongly-typed Rhai function registration — calling
 
 Every constructor and type name mirrors its Rust identifier exactly (see [`invariant/003`](../invariant/003_rhai_facing_names_mirror_rust_identifiers.md)) — a naming convention enforced by manual review only, not tooling. The crate is pre-1.0 (`0.1.0` in `Cargo.toml`); no formal deprecation policy or versioning strategy for this scripting surface exists yet, and none is asserted here beyond the crate's own Cargo semver.
 
+### Data Structures
+
+| File | Relationship |
+|------|--------------|
+| [001_tween_script_facing_type.md](../data_structure/001_tween_script_facing_type.md) | The shape `tween` constructs and `.update`/`.value`/`.is_completed` operate on |
+
+### Features
+
+| File | Relationship |
+|------|--------------|
+| [001_rhai_scene_scripting.md](../feature/001_rhai_scene_scripting.md) | Navigational hub this surface implements |
+
+### Integrations
+
+| File | Relationship |
+|------|--------------|
+| [001_rhai_engine_boundary.md](../integration/001_rhai_engine_boundary.md) | The runtime boundary this surface is registered across |
+
+### Patterns
+
+| File | Relationship |
+|------|--------------|
+| [001_manual_customtype_registration_for_foreign_types.md](../pattern/001_manual_customtype_registration_for_foreign_types.md) | How the foreign vector/tween types this surface exposes get registered with Rhai at all |
+| [002_dual_precision_side_by_side_registration.md](../pattern/002_dual_precision_side_by_side_registration.md) | Why `f32x2`/`f64x2` and their operators exist as separate, non-interchangeable registrations |
+
 ### Types
 
 | File | Relationship |
@@ -69,18 +94,6 @@ Every constructor and type name mirrors its Rust identifier exactly (see [`invar
 | [006_f64x3_script_facing_vector_value.md](../type/006_f64x3_script_facing_vector_value.md) | The value `f64x3` constructs and `+`/`-`/`*` operate on |
 | [007_f32x4_script_facing_vector_value.md](../type/007_f32x4_script_facing_vector_value.md) | The value `f32x4` constructs and `+`/`-`/`*` operate on |
 | [008_f64x4_script_facing_vector_value.md](../type/008_f64x4_script_facing_vector_value.md) | The value `f64x4` constructs and `+`/`-`/`*` operate on |
-
-### Data Structures
-
-| File | Relationship |
-|------|--------------|
-| [001_tween_script_facing_type.md](../data_structure/001_tween_script_facing_type.md) | The shape `tween` constructs and `.update`/`.value`/`.is_completed` operate on |
-
-### Patterns
-
-| File | Relationship |
-|------|--------------|
-| [002_dual_precision_side_by_side_registration.md](../pattern/002_dual_precision_side_by_side_registration.md) | Why `f32x2`/`f64x2` and their operators exist as separate, non-interchangeable registrations |
 
 ### Sources
 

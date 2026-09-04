@@ -21,23 +21,23 @@ A build with none of the three backend features enabled for the current target s
 
 Gate calling code with the same `#[cfg(...)]` combination as the constructor being called, or feature-detect via `cfg!(...)` before referencing a backend-specific item — never assume a constructor exists and try to handle its `Result` as the availability check.
 
-### Patterns
-
-| File | Relationship |
-|------|--------------|
-| [pattern/001_enum_per_backend_dispatch_one_step_drilldown.md](../pattern/001_enum_per_backend_dispatch_one_step_drilldown.md) | The `#[cfg]`-gated variant mechanism this trap is a direct consequence of |
-
 ### Features
 
 | File | Relationship |
 |------|--------------|
 | [feature/001_backend_construction_and_device_acquisition.md](../feature/001_backend_construction_and_device_acquisition.md) | The constructors this pitfall is about |
 
-### Cross-References
+### Patterns
 
 | File | Relationship |
 |------|--------------|
-| `module/min/minwebgpu/docs/pitfall/001_native_target_compiles_to_nonfunctional_stub.md` | The same family of trap (wrong target/feature), with the opposite compile-time/runtime shape |
+| [pattern/001_enum_per_backend_dispatch_one_step_drilldown.md](../pattern/001_enum_per_backend_dispatch_one_step_drilldown.md) | The `#[cfg]`-gated variant mechanism this trap is a direct consequence of |
+
+### Pitfalls
+
+| File | Relationship |
+|------|--------------|
+| [../../../../min/minwebgpu/docs/pitfall/001_native_target_compiles_to_nonfunctional_stub.md](../../../../min/minwebgpu/docs/pitfall/001_native_target_compiles_to_nonfunctional_stub.md) | The same family of trap (wrong target/feature), with the opposite compile-time/runtime shape |
 
 ### Sources
 

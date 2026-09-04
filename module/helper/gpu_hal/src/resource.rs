@@ -26,6 +26,17 @@ mod private
     BindGroupWebGl,
     RenderPipelineWebGl
   };
+  #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+  use crate::
+  {
+    BufferVulkan,
+    TextureVulkan,
+    TextureViewVulkan,
+    BindGroupLayoutVulkan,
+    BindGroupVulkan,
+    RenderPipelineVulkan,
+    vulkan::texture_view_create
+  };
 
   /// A GPU buffer of the active backend.
   #[ derive( Debug ) ]
@@ -39,7 +50,10 @@ mod private
     WebGl( BufferWebGl ),
     /// Native backend buffer.
     #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-    Native( wgpu::Buffer )
+    Native( wgpu::Buffer ),
+    /// Native Vulkan backend buffer.
+    #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+    Vulkan( BufferVulkan )
   }
 
   impl Buffer
@@ -99,7 +113,9 @@ mod private
     {
       match self
       {
-        Self::Native( raw ) => Some( raw )
+        Self::Native( raw ) => Some( raw ),
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( _ ) => None
       }
     }
 
@@ -108,7 +124,33 @@ mod private
     {
       match self
       {
-        Self::Native( raw ) => raw
+        Self::Native( raw ) => raw,
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( _ ) => panic!( "backend mismatch : expected a native buffer" )
+      }
+    }
+
+    /// The raw Vulkan object, when the handle belongs to the Vulkan backend.
+    #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+    #[must_use]
+    pub fn as_vulkan( &self ) -> Option< &BufferVulkan >
+    {
+      match self
+      {
+        Self::Vulkan( raw ) => Some( raw ),
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( _ ) => None
+      }
+    }
+
+    #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+    pub( crate ) fn expect_vulkan( &self ) -> &BufferVulkan
+    {
+      match self
+      {
+        Self::Vulkan( raw ) => raw,
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( _ ) => panic!( "backend mismatch : expected a Vulkan buffer" )
       }
     }
   }
@@ -125,7 +167,14 @@ mod private
     WebGl( TextureWebGl ),
     /// Native backend texture.
     #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-    Native( wgpu::Texture )
+    Native( wgpu::Texture ),
+    /// Native Vulkan backend texture. Boxed : `TextureVulkan` embeds an
+    /// `ash::Device` clone plus image/memory/format state, dwarfing every
+    /// other variant ( `large_enum_variant` ) -- unboxed, every WebGPU/
+    /// WebGL/native `Texture` would pay that size in padding regardless of
+    /// which backend is active.
+    #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+    Vulkan( Box< TextureVulkan > )
   }
 
   impl Texture
@@ -154,6 +203,8 @@ mod private
         {
           Ok( TextureView::Native( raw.create_view( &wgpu::TextureViewDescriptor::default() ) ) )
         }
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( raw ) => Ok( TextureView::Vulkan( texture_view_create( raw )? ) )
       }
     }
 
@@ -212,7 +263,9 @@ mod private
     {
       match self
       {
-        Self::Native( raw ) => Some( raw )
+        Self::Native( raw ) => Some( raw ),
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( _ ) => None
       }
     }
 
@@ -221,7 +274,33 @@ mod private
     {
       match self
       {
-        Self::Native( raw ) => raw
+        Self::Native( raw ) => raw,
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( _ ) => panic!( "backend mismatch : expected a native texture" )
+      }
+    }
+
+    /// The raw Vulkan object, when the handle belongs to the Vulkan backend.
+    #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+    #[must_use]
+    pub fn as_vulkan( &self ) -> Option< &TextureVulkan >
+    {
+      match self
+      {
+        Self::Vulkan( raw ) => Some( raw ),
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( _ ) => None
+      }
+    }
+
+    #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+    pub( crate ) fn expect_vulkan( &self ) -> &TextureVulkan
+    {
+      match self
+      {
+        Self::Vulkan( raw ) => raw,
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( _ ) => panic!( "backend mismatch : expected a Vulkan texture" )
       }
     }
   }
@@ -240,7 +319,10 @@ mod private
     WebGl( TextureViewWebGl ),
     /// Native backend texture view.
     #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-    Native( wgpu::TextureView )
+    Native( wgpu::TextureView ),
+    /// Native Vulkan backend texture view.
+    #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+    Vulkan( TextureViewVulkan )
   }
 
   impl TextureView
@@ -300,7 +382,9 @@ mod private
     {
       match self
       {
-        Self::Native( raw ) => Some( raw )
+        Self::Native( raw ) => Some( raw ),
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( _ ) => None
       }
     }
 
@@ -309,7 +393,33 @@ mod private
     {
       match self
       {
-        Self::Native( raw ) => raw
+        Self::Native( raw ) => raw,
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( _ ) => panic!( "backend mismatch : expected a native texture view" )
+      }
+    }
+
+    /// The raw Vulkan object, when the handle belongs to the Vulkan backend.
+    #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+    #[must_use]
+    pub fn as_vulkan( &self ) -> Option< &TextureViewVulkan >
+    {
+      match self
+      {
+        Self::Vulkan( raw ) => Some( raw ),
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( _ ) => None
+      }
+    }
+
+    #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+    pub( crate ) fn expect_vulkan( &self ) -> &TextureViewVulkan
+    {
+      match self
+      {
+        Self::Vulkan( raw ) => raw,
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( _ ) => panic!( "backend mismatch : expected a Vulkan texture view" )
       }
     }
   }
@@ -326,7 +436,12 @@ mod private
     WebGl( web_sys::WebGlSampler ),
     /// Native backend sampler.
     #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-    Native( wgpu::Sampler )
+    Native( wgpu::Sampler ),
+    /// Native Vulkan backend sampler — the raw handle directly, unlike most
+    /// other Vulkan resources, since a `VkSampler` carries no companion
+    /// memory allocation or extra bookkeeping worth wrapping.
+    #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+    Vulkan( ash::vk::Sampler )
   }
 
   impl Sampler
@@ -386,7 +501,9 @@ mod private
     {
       match self
       {
-        Self::Native( raw ) => Some( raw )
+        Self::Native( raw ) => Some( raw ),
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( _ ) => None
       }
     }
 
@@ -395,7 +512,33 @@ mod private
     {
       match self
       {
-        Self::Native( raw ) => raw
+        Self::Native( raw ) => raw,
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( _ ) => panic!( "backend mismatch : expected a native sampler" )
+      }
+    }
+
+    /// The raw Vulkan object, when the handle belongs to the Vulkan backend.
+    #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+    #[must_use]
+    pub fn as_vulkan( &self ) -> Option< &ash::vk::Sampler >
+    {
+      match self
+      {
+        Self::Vulkan( raw ) => Some( raw ),
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( _ ) => None
+      }
+    }
+
+    #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+    pub( crate ) fn expect_vulkan( &self ) -> &ash::vk::Sampler
+    {
+      match self
+      {
+        Self::Vulkan( raw ) => raw,
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( _ ) => panic!( "backend mismatch : expected a Vulkan sampler" )
       }
     }
   }
@@ -412,7 +555,12 @@ mod private
     WebGl( ShaderModuleWebGl ),
     /// Native backend shader module.
     #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-    Native( wgpu::ShaderModule )
+    Native( wgpu::ShaderModule ),
+    /// Native Vulkan backend shader module — the raw handle directly; naga's
+    /// WGSL -> SPIR-V translation happens once at creation time, leaving
+    /// nothing else worth wrapping.
+    #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+    Vulkan( ash::vk::ShaderModule )
   }
 
   impl ShaderModule
@@ -472,7 +620,9 @@ mod private
     {
       match self
       {
-        Self::Native( raw ) => Some( raw )
+        Self::Native( raw ) => Some( raw ),
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( _ ) => None
       }
     }
 
@@ -481,7 +631,33 @@ mod private
     {
       match self
       {
-        Self::Native( raw ) => raw
+        Self::Native( raw ) => raw,
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( _ ) => panic!( "backend mismatch : expected a native shader module" )
+      }
+    }
+
+    /// The raw Vulkan object, when the handle belongs to the Vulkan backend.
+    #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+    #[must_use]
+    pub fn as_vulkan( &self ) -> Option< &ash::vk::ShaderModule >
+    {
+      match self
+      {
+        Self::Vulkan( raw ) => Some( raw ),
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( _ ) => None
+      }
+    }
+
+    #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+    pub( crate ) fn expect_vulkan( &self ) -> &ash::vk::ShaderModule
+    {
+      match self
+      {
+        Self::Vulkan( raw ) => raw,
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( _ ) => panic!( "backend mismatch : expected a Vulkan shader module" )
       }
     }
   }
@@ -498,7 +674,10 @@ mod private
     WebGl( BindGroupLayoutWebGl ),
     /// Native backend bind group layout.
     #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-    Native( wgpu::BindGroupLayout )
+    Native( wgpu::BindGroupLayout ),
+    /// Native Vulkan backend bind group layout.
+    #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+    Vulkan( BindGroupLayoutVulkan )
   }
 
   impl BindGroupLayout
@@ -558,7 +737,9 @@ mod private
     {
       match self
       {
-        Self::Native( raw ) => Some( raw )
+        Self::Native( raw ) => Some( raw ),
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( _ ) => None
       }
     }
 
@@ -567,7 +748,33 @@ mod private
     {
       match self
       {
-        Self::Native( raw ) => raw
+        Self::Native( raw ) => raw,
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( _ ) => panic!( "backend mismatch : expected a native bind group layout" )
+      }
+    }
+
+    /// The raw Vulkan object, when the handle belongs to the Vulkan backend.
+    #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+    #[must_use]
+    pub fn as_vulkan( &self ) -> Option< &BindGroupLayoutVulkan >
+    {
+      match self
+      {
+        Self::Vulkan( raw ) => Some( raw ),
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( _ ) => None
+      }
+    }
+
+    #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+    pub( crate ) fn expect_vulkan( &self ) -> &BindGroupLayoutVulkan
+    {
+      match self
+      {
+        Self::Vulkan( raw ) => raw,
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( _ ) => panic!( "backend mismatch : expected a Vulkan bind group layout" )
       }
     }
   }
@@ -584,7 +791,10 @@ mod private
     WebGl( BindGroupWebGl ),
     /// Native backend bind group.
     #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-    Native( wgpu::BindGroup )
+    Native( wgpu::BindGroup ),
+    /// Native Vulkan backend bind group.
+    #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+    Vulkan( BindGroupVulkan )
   }
 
   impl BindGroup
@@ -644,7 +854,9 @@ mod private
     {
       match self
       {
-        Self::Native( raw ) => Some( raw )
+        Self::Native( raw ) => Some( raw ),
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( _ ) => None
       }
     }
 
@@ -653,7 +865,33 @@ mod private
     {
       match self
       {
-        Self::Native( raw ) => raw
+        Self::Native( raw ) => raw,
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( _ ) => panic!( "backend mismatch : expected a native bind group" )
+      }
+    }
+
+    /// The raw Vulkan object, when the handle belongs to the Vulkan backend.
+    #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+    #[must_use]
+    pub fn as_vulkan( &self ) -> Option< &BindGroupVulkan >
+    {
+      match self
+      {
+        Self::Vulkan( raw ) => Some( raw ),
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( _ ) => None
+      }
+    }
+
+    #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+    pub( crate ) fn expect_vulkan( &self ) -> &BindGroupVulkan
+    {
+      match self
+      {
+        Self::Vulkan( raw ) => raw,
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( _ ) => panic!( "backend mismatch : expected a Vulkan bind group" )
       }
     }
   }
@@ -671,7 +909,10 @@ mod private
     WebGl( Rc< RenderPipelineWebGl > ),
     /// Native backend render pipeline.
     #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-    Native( wgpu::RenderPipeline )
+    Native( wgpu::RenderPipeline ),
+    /// Native Vulkan backend render pipeline.
+    #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+    Vulkan( RenderPipelineVulkan )
   }
 
   impl RenderPipeline
@@ -731,7 +972,9 @@ mod private
     {
       match self
       {
-        Self::Native( raw ) => Some( raw )
+        Self::Native( raw ) => Some( raw ),
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( _ ) => None
       }
     }
 
@@ -740,7 +983,33 @@ mod private
     {
       match self
       {
-        Self::Native( raw ) => raw
+        Self::Native( raw ) => raw,
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( _ ) => panic!( "backend mismatch : expected a native render pipeline" )
+      }
+    }
+
+    /// The raw Vulkan object, when the handle belongs to the Vulkan backend.
+    #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+    #[must_use]
+    pub fn as_vulkan( &self ) -> Option< &RenderPipelineVulkan >
+    {
+      match self
+      {
+        Self::Vulkan( raw ) => Some( raw ),
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( _ ) => None
+      }
+    }
+
+    #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+    pub( crate ) fn expect_vulkan( &self ) -> &RenderPipelineVulkan
+    {
+      match self
+      {
+        Self::Vulkan( raw ) => raw,
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( _ ) => panic!( "backend mismatch : expected a Vulkan render pipeline" )
       }
     }
   }

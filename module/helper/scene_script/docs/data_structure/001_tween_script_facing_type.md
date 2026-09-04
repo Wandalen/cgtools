@@ -28,23 +28,30 @@ Full call signatures and error behavior live in [`api/001`](../api/001_rhai_scri
 - **Read-only access**: `.value()`, `.is_completed()`, `.progress()`, `.duration()`, `.delay()`, `.time()`, `.current_repeat()`, and `.state()` observe current state without changing it — the last returns the lifecycle stage (`"Pending"`/`"Running"`/`"Paused"`/`"Completed"`) as a string.
 - **Builder-style reconfiguration**: `.with_delay(value)`, `.with_duration(value)`, `.with_repeat(count)`, and `.with_yoyo(enabled)` each consume the `Tween` by value and return a modified copy for chaining (`t.with_delay(0.5).with_duration(2.0)`) — same non-mutating-receiver shape as the vector types' own operations, not the `.update()`/`.pause()`/`.resume()`/`.reset()` in-place style.
 
-### Pitfalls
-
-| File | Relationship |
-|------|--------------|
-| [006_parameterized_easing_curves_are_unreachable_by_name.md](../pitfall/006_parameterized_easing_curves_are_unreachable_by_name.md) | The named-easing-curve subset this shape's constructor can select, and which curves remain unreachable |
-
-### Patterns
-
-| File | Relationship |
-|------|--------------|
-| [002_dual_precision_side_by_side_registration.md](../pattern/002_dual_precision_side_by_side_registration.md) | How this shape stays a single script-visible name across two distinct Rust-generic instantiations |
-
 ### APIs
 
 | File | Relationship |
 |------|--------------|
 | [001_rhai_scripting_surface.md](../api/001_rhai_scripting_surface.md) | Full operational contract (signatures, error handling) for the operations summarized above |
+
+### Features
+
+| File | Relationship |
+|------|--------------|
+| [001_rhai_scene_scripting.md](../feature/001_rhai_scene_scripting.md) | Navigational hub this shape is registered under |
+
+### Patterns
+
+| File | Relationship |
+|------|--------------|
+| [001_manual_customtype_registration_for_foreign_types.md](../pattern/001_manual_customtype_registration_for_foreign_types.md) | How this foreign type gets exposed to Rhai at all |
+| [002_dual_precision_side_by_side_registration.md](../pattern/002_dual_precision_side_by_side_registration.md) | How this shape stays a single script-visible name across two distinct Rust-generic instantiations |
+
+### Pitfalls
+
+| File | Relationship |
+|------|--------------|
+| [006_parameterized_easing_curves_are_unreachable_by_name.md](../pitfall/006_parameterized_easing_curves_are_unreachable_by_name.md) | The named-easing-curve subset this shape's constructor can select, and which curves remain unreachable |
 
 ### Sources
 

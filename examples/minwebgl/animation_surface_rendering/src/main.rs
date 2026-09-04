@@ -4,7 +4,6 @@ use core::cell::RefCell;
 use minwebgl as gl;
 use gl::
 {
-  texture::d2::image_upload_from_path,
   F32x4,
   math::mat4x4::identity,
   GL,
@@ -18,16 +17,12 @@ use renderer::webgl::
   {
     self, Pass, SwapFramebuffer
   },
-  MinFilterMode,
-  MagFilterMode,
-  WrappingMode,
   Camera,
   Object3D,
   Renderer,
   Scene,
   Texture,
   TextureInfo,
-  Sampler,
   material::PbrMaterial,
   Node
 };
@@ -44,10 +39,6 @@ use crate::animation::{ model, Model, Shape, Layer, Transform, Color, fixed, eas
 
 /// Creates a new `TextureInfo` struct with a texture loaded from a file.
 ///
-/// This function calls `upload_texture` to load an image, sets up a default `Sampler`
-/// with linear filtering and repeat wrapping, and then combines them into a `TextureInfo`
-/// struct.
-///
 /// # Arguments
 ///
 /// * `gl` - The WebGl2RenderingContext.
@@ -63,20 +54,7 @@ fn texture_create
 ) -> TextureInfo
 {
   let image_path = format!( "static/{image_path}" );
-  let texture_id = image_upload_from_path( gl, &image_path, false );
-
-  let sampler = Sampler::former()
-  .min_filter( MinFilterMode::Linear )
-  .mag_filter( MagFilterMode::Linear )
-  .wrap_s( WrappingMode::Repeat )
-  .wrap_t( WrappingMode::Repeat )
-  .end();
-
-  let texture = Texture::former()
-  .target( GL::TEXTURE_2D )
-  .source( texture_id )
-  .sampler( sampler )
-  .end();
+  let texture = Texture::load_from_path( gl, &image_path, false );
 
   TextureInfo
   {
@@ -103,8 +81,15 @@ fn context_init() -> ( WebGl2RenderingContext, HtmlCanvasElement )
   let gl = gl::context::from_canvas_with( &canvas, options )
   .expect( "Can't create WebGL context" );
 
+  // Fix(BUG-453): chained a second `.expect()` onto the inner `Option`, matching
+  // `area_light/src/main.rs`'s existing 2-layer pattern.
+  // Root cause: `get_extension` returns `Ok( None )` (not a JS exception) for an
+  // unsupported extension; a single `.expect()` only covers the outer `Result`.
+  // Pitfall: `Result< Option< T >, JsValue >` has two independent failure layers --
+  // unwrapping only the outer one silently passes through the inner `None`.
   let _ = gl.get_extension( "EXT_color_buffer_float" )
-  .expect( "Failed to enable EXT_color_buffer_float extension" );
+  .expect( "Failed to query EXT_color_buffer_float extension" )
+  .expect( "EXT_color_buffer_float extension is not supported" );
 
   ( gl, canvas )
 }
@@ -143,7 +128,7 @@ fn camera_init( canvas : &HtmlCanvasElement, scenes : &[ Rc< RefCell< Scene > > 
   let near = 0.1;
   let far = 10_000_000.0;
 
-  let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
+  let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far ).expect( "camera parameters are valid" );
 
   camera.window_size_set( [ width, height ].into() );
 
@@ -253,7 +238,13 @@ async fn scene_setup( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
   let scale = 1.005;
   clouds.borrow_mut().translation_set( [ 0.0, 1.0 - scale, 0.0 ] );
   clouds.borrow_mut().scale_set( [ scale; 3 ] );
-  clouds.borrow_mut().rotation_set( gl::Quat::from_angle_y( 90.0 ) );
+  // BUG-311 task/bug/311_from_angle_y_called_with_raw_degrees_not_radians.md -- was `90.0`
+  // (radians, ~5_157 degrees), not a 90-degree rotation.
+  // Fix(BUG-311): `from_angle_y( 90.0 )` -> `from_angle_y( 90.0_f32.to_radians() )`.
+  // Root cause: `Quat::from_angle_y` takes radians; `90.0` was passed as if it were degrees.
+  // Pitfall: a radians-only rotation constructor gives no signal when a degrees-shaped literal
+  // is passed instead -- always convert explicitly at the call site.
+  clouds.borrow_mut().rotation_set( gl::Quat::from_angle_y( 90.0_f32.to_radians() ) );
   clouds.borrow_mut().local_matrix_update();
 
   let moon = clone( &mut gltf, &earth );
@@ -573,7 +564,14 @@ async fn app_run() -> Result< (), gl::WebglError >
 
   let ( canvas_gltf, _ ) = canvas_scene_setup( &gl ).await;
   canvas_gltf.scenes[ 0 ].borrow_mut().world_matrix_update();
-  let animation = animation_setup( &gl, canvas.height() as usize, canvas.width() as usize );
+  // Fix(BUG-455): swapped call-site argument order back to match
+  // `animation_setup`'s own `( width, height )` parameter order.
+  // Root cause: the call passed `( canvas.height(), canvas.width() )` --
+  // width and height transposed at the call site.
+  // Pitfall: two same-typed positional parameters (`width`/`height`, both
+  // `usize`) compile fine in either order -- nothing catches a transposition
+  // until a consumer actually reads the wrong one.
+  let animation = animation_setup( &gl, canvas.width() as usize, canvas.height() as usize );
   animation.world_matrix_set( identity() );
 
   let canvas_camera = camera_init( &canvas, &canvas_gltf.scenes );

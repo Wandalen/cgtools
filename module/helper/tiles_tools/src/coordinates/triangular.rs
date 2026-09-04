@@ -210,14 +210,27 @@ impl< Orientation > Neighbors for Coordinate< Orientation >
 
 impl< Orientation > Distance for Coordinate< Orientation >
 {
+  // Fix(BUG-350): the three-way sum was already computed entirely in i64
+  // (so it never panics), but the FINAL `as u32` cast silently wrapped
+  // instead of saturating once that i64 sum exceeded u32::MAX (reachable at
+  // ~2e9-magnitude coordinates) -- e.g. a true distance of 8_000_000_000
+  // silently became 3_705_032_704 (`8e9 mod 2^32`), not a crash but
+  // silently wrong data.
+  // Root cause: same unchecked-input-domain issue as the other coordinate
+  // types' distance() impls, manifesting as truncation instead of a panic
+  // only because this impl already widened before subtracting.
+  // Pitfall: `as` casts never panic regardless of overflow-checks -- a
+  // narrowing cast on a value that can legitimately exceed the target
+  // type's range must saturate explicitly (`.clamp(..)` here), never rely
+  // on `as` alone to signal something went wrong.
   #[ inline ]
   fn distance( &self, other : &Self ) -> u32
   {
-    (
-      ( i64::from(self.a) - i64::from(other.a) ).abs()
-      + ( i64::from(self.b) - i64::from(other.b) ).abs()
-      + ( i64::from(self.c) - i64::from(other.c) ).abs()
-    ) as u32
+    let total =
+      ( i64::from( self.a ) - i64::from( other.a ) ).abs()
+      + ( i64::from( self.b ) - i64::from( other.b ) ).abs()
+      + ( i64::from( self.c ) - i64::from( other.c ) ).abs();
+    total.clamp( 0, i64::from( u32::MAX ) ) as u32
   }
 }
 

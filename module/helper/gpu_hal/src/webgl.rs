@@ -42,9 +42,9 @@ mod private
       {
         Self::Rgba8Unorm => Ok( gl::GL::RGBA8 ),
         Self::Rgba8UnormSrgb => Ok( gl::GL::SRGB8_ALPHA8 ),
-        Self::Bgra8Unorm =>
+        Self::Bgra8Unorm | Self::Bgra8UnormSrgb =>
         {
-          Err( Error::Unsupported( "bgra8unorm has no WebGL2 internal format".to_string() ) )
+          Err( Error::Unsupported( "bgra8 has no WebGL2 internal format".to_string() ) )
         }
         Self::Rgba16Float => Ok( gl::GL::RGBA16F ),
         Self::Depth24Plus => Ok( gl::GL::DEPTH_COMPONENT24 )
@@ -58,9 +58,9 @@ mod private
       match self
       {
         Self::Rgba8Unorm | Self::Rgba8UnormSrgb => Ok( ( gl::GL::RGBA, gl::GL::UNSIGNED_BYTE ) ),
-        Self::Bgra8Unorm =>
+        Self::Bgra8Unorm | Self::Bgra8UnormSrgb =>
         {
-          Err( Error::Unsupported( "bgra8unorm has no WebGL2 internal format".to_string() ) )
+          Err( Error::Unsupported( "bgra8 has no WebGL2 internal format".to_string() ) )
         }
         Self::Rgba16Float => Ok( ( gl::GL::RGBA, gl::GL::HALF_FLOAT ) ),
         Self::Depth24Plus =>
@@ -92,7 +92,11 @@ mod private
     /// Raw GL buffer object.
     pub buffer : web_sys::WebGlBuffer,
     /// GL bind target the buffer was created for.
-    pub target : u32
+    pub target : u32,
+    /// Size in bytes the buffer was allocated with ( `Fix(BUG-200)` : needed
+    /// to validate a write against the buffer's actual capacity before
+    /// calling `bufferSubData`, which silently no-ops past this size ).
+    pub size : u64
   }
 
   /// WebGL backend data of a texture handle.

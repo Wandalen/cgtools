@@ -16,6 +16,7 @@
 
 use tiles_tools::field_of_view::{FieldOfView, FOVAlgorithm, VisibilityState, LightSource, LightingCalculator};
 use tiles_tools::coordinates::{
+  Neighbors,
   square::{Coordinate as SquareCoord, EightConnected},
   hexagonal::{Coordinate as HexCoord, Axial, Pointy},
 };
@@ -552,4 +553,143 @@ fn test_lighting_performance()
 
   // Multiple light sources should still calculate quickly
   assert!(calculation_time.as_millis() < 1500);
+}
+
+// test_kind: bug_reproducer(BUG-135)
+/// ## Root Cause
+/// `octant_shadows_cast` computed each neighbor's direction index from
+/// `neighbors.iter().filter(...).enumerate()` -- filtering already-visited
+/// neighbors *before* enumerating desyncs the loop index `i` from the fixed
+/// direction slot each neighbor actually occupies in `pos.neighbors()`,
+/// once any neighbor has been visited (true for every position beyond the
+/// first ring). The octant-membership test then checks the wrong slot.
+/// ## Why Not Caught
+/// Every existing FOV test used open terrain or a straight multi-tile wall,
+/// both of which the algorithm's own 8-fold redundant octant sweep happens
+/// to compensate for symmetrically -- divergence only appears for specific
+/// single-obstacle placements found by adversarial simulation, not the
+/// straight walls/open-field cases hand-written tests reached for.
+/// ## Fix Applied
+/// Swapped to `neighbors.iter().enumerate().filter(...)` so `i` is captured
+/// from the unfiltered array position before any visited neighbor is
+/// dropped.
+/// ## Prevention
+/// n/a -- covered by this test.
+/// ## Pitfall
+/// A single-tile obstacle can still be routed around diagonally by this
+/// flood-fill-style algorithm (by design, not a defect) -- the point of
+/// this test is the shape of visible tiles differing between the buggy and
+/// fixed index computation for the *same* obstacle, not blocking sight
+/// entirely.
+#[ test ]
+fn test_shadowcasting_single_obstacle_does_not_falsely_shadow_diagonal_tile()
+{
+  let fov = FieldOfView::with_algorithm(FOVAlgorithm::Shadowcasting);
+  let viewer = SquareCoord::<EightConnected>::new(0, 0);
+
+  // Single blocking tile -- does not form a continuous wall.
+  let blocker = SquareCoord::<EightConnected>::new(-3, -1);
+
+  let visibility = fov.fov_calculate(&viewer, 4, |coord| *coord == blocker);
+
+  // Reachable by flood-fill around the single blocker (e.g. via (-3,-2) then
+  // (-4,-1), neither of which is the blocked tile) -- must not be shadowed.
+  let target = SquareCoord::<EightConnected>::new(-4, -1);
+  assert!(
+    visibility.is_visible(&target),
+    "target at distance 4 was falsely shadowed by a single non-blocking-path obstacle"
+  );
+}
+
+// test_kind: bug_reproducer(BUG-267)
+/// ## Root Cause
+/// `direction_alignment_calculate`'s guard clause returned an alignment of
+/// `0.0` whenever `current_distance == 0.0` -- true on the very first hop of
+/// every ray, since `directional_ray_cast` always starts with
+/// `current = viewer.clone()`. With every candidate neighbor tied at `0.0`
+/// on the first hop, the caller's strict `>` comparison always kept the
+/// first-iterated neighbor, so every ray took its first step toward that
+/// same fixed neighbor regardless of its own `direction_target`.
+/// ## Why Not Caught
+/// `test_ray_casting_fov` and `test_fov_algorithm_comparison` both only
+/// assert `!visible_coordinates().is_empty()` -- a single visible neighbor
+/// (the bug's actual output) still satisfies that assertion, so neither test
+/// distinguished "only one neighbor reached" from "every neighbor reached".
+/// ## Fix Applied
+/// Removed `current_distance == 0.0` from the guard in
+/// `direction_alignment_calculate`, keeping only the `target_distance == 0.0`
+/// check -- the one guard that actually protects a division in this
+/// function.
+/// ## Prevention
+/// Assert the full expected coverage set ( every immediate neighbor ), not
+/// merely "some coordinates are visible", when testing a per-direction ray
+/// caster -- an emptiness check cannot catch a directional collapse.
+/// ## Pitfall
+/// A guard clause naming a variable that also appears elsewhere in the
+/// function is not proof the guard protects a division by that variable --
+/// verify which variable is actually the divisor before trusting the guard.
+#[ test ]
+fn test_ray_casting_reaches_every_immediate_neighbor_at_range_one() {
+  let fov = FieldOfView::with_algorithm(FOVAlgorithm::RayCasting);
+  let viewer = SquareCoord::<EightConnected>::new(10, 10);
+
+  let visibility = fov.fov_calculate(&viewer, 1, |_| false);
+  let visible: std::collections::HashSet<_> = visibility.visible_coordinates().into_iter().collect();
+
+  for neighbor in viewer.neighbors() {
+    assert!(
+      visible.contains(&neighbor),
+      "expected immediate neighbor {neighbor:?} to be visible at range 1"
+    );
+  }
+}
+
+// BUG-346 task/bug/346_bresenham_line_of_sight_asymmetric.md -- reproducer for
+// line_of_sight's direction-dependent asymmetry around a wall cluster.
+// test_kind: bug_reproducer(BUG-346)
+/// ## Root Cause
+/// `bresenham_line_trace` greedily walks from `from` toward `to`, picking
+/// whichever neighbor is closest (by `distance()`) to the fixed target at
+/// each step. This greedy nearest-to-target walk is not path-reversible --
+/// tracing `A -> B` and `B -> A` can visit different intermediate cells, so
+/// one direction can route around a wall the other direction runs straight
+/// through.
+/// ## Why Not Caught
+/// No existing `Bresenham`-algorithm test called `line_of_sight` in both
+/// directions between the same pair of endpoints -- every existing case
+/// checked only one direction, which cannot distinguish a symmetric result
+/// from a direction-dependent one.
+/// ## Fix Applied
+/// `bresenham_line_trace` now traces from the lexicographically-smaller
+/// endpoint regardless of which endpoint the caller passed as `from`, so the
+/// traced path -- and therefore the line-of-sight result -- no longer depends
+/// on call direction.
+/// ## Prevention
+/// n/a -- covered by this test.
+/// ## Pitfall
+/// A greedy "move to whichever neighbor is closest to the target" line
+/// tracer looks like an ordinary Bresenham approximation but is not
+/// guaranteed to retrace the same cells in reverse -- symmetry must be
+/// verified explicitly, not assumed from the algorithm's name.
+#[ test ]
+fn test_bresenham_line_of_sight_is_symmetric_around_wall() {
+  let fov = FieldOfView::with_algorithm(FOVAlgorithm::Bresenham);
+
+  let a = SquareCoord::<EightConnected>::new(0, 0);
+  let b = SquareCoord::<EightConnected>::new(5, 3);
+
+  let walls = [
+    SquareCoord::<EightConnected>::new(2, 1),
+    SquareCoord::<EightConnected>::new(2, 2),
+    SquareCoord::<EightConnected>::new(3, 2),
+  ];
+  let blocks = |coord: &SquareCoord<EightConnected>| walls.contains(coord);
+
+  let a_to_b = fov.line_of_sight(&a, &b, blocks);
+  let b_to_a = fov.line_of_sight(&b, &a, blocks);
+
+  assert_eq!(
+    a_to_b, b_to_a,
+    "line_of_sight must not depend on call direction: A->B = {a_to_b}, B->A = {b_to_a}"
+  );
 }

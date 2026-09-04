@@ -457,8 +457,11 @@ mod private
   ///
   /// If `index >= batch.len()`, `submit` returns `RenderError::BackendError`.
   /// See `SetSpriteInstance` for notes on stale indices after swap-remove.
+  // Constructed via full struct-literal syntax from outside this crate, e.g.
+  // `tilemap_renderer/tests/svg_backend_test.rs`'s
+  // `set_mesh_instance_out_of_bounds_returns_error`, so `#[non_exhaustive]`
+  // would break that call site -- same reasoning as `SetSpriteInstance`.
   #[ derive( Debug, Clone, Copy ) ]
-  #[ non_exhaustive ]
   pub struct SetMeshInstance
   {
     /// Instance index.

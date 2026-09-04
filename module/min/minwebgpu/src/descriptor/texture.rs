@@ -11,7 +11,7 @@ mod private
     usage : u32,
     /// Size of the texture in the form [ width, height, depth_or_array_layers ]
     size : [ u32; 3 ],
-    /// Texture's format. Default: Rgba8unormSrgb
+    /// Texture's format. Default: Rgba8unorm
     format : GpuTextureFormat,
     /// Label for the texture. Used when an error occurs.
     label : Option< &'a str >,
@@ -39,9 +39,22 @@ mod private
     /// Creates a new `TextureDescriptor` with default values.
     #[ inline ]
     #[ must_use ]
+    // BUG-300 task/bug/300_texture_descriptor_default_format_not_storage_capable.md -- was
+    // `Rgba8unormSrgb`, incompatible with `.storage_binding()` usage.
+    // Fix(BUG-300): default `format` changed from `web_sys::GpuTextureFormat::Rgba8unormSrgb` to
+    // `web_sys::GpuTextureFormat::Rgba8unorm`.
+    // Root cause: this builder's `format` default must stay valid across every usage flag it can
+    // produce -- including `.storage_binding()` -- but per the WebGPU spec's texture format
+    // capability table, no `-srgb` format supports `STORAGE_BINDING` usage. A caller chaining
+    // `.storage_binding()` without an explicit `.format(..)` override got a format/usage
+    // combination `GPUDevice.createTexture` rejects only via an async device error-scope event,
+    // never a synchronous throw, so `texture::create`'s `.map_err(..)` (which only catches
+    // synchronous throws) silently returned `Ok` for an unusable texture.
+    // Pitfall: a single default shared across every usage flag a builder can produce must be
+    // valid for the narrowest usage class among them, not just the most common one.
     pub fn new() -> Self
     {
-      let format = web_sys::GpuTextureFormat::Rgba8unormSrgb;
+      let format = web_sys::GpuTextureFormat::Rgba8unorm;
       let usage = 0;
       let mip_level = None;
       let sample_count = None;

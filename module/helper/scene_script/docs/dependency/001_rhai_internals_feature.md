@@ -34,6 +34,12 @@ No recorded comparison against alternative embeddable scripting languages (e.g. 
 |------|--------------|
 | [001_top_level_statement_classification.md](../algorithm/001_top_level_statement_classification.md) | The consumer of the `AST`/`Stmt` surface this feature exposes |
 
+### Features
+
+| File | Relationship |
+|------|--------------|
+| [001_rhai_scene_scripting.md](../feature/001_rhai_scene_scripting.md) | Navigational hub this dependency is selected for |
+
 ### Integrations
 
 | File | Relationship |

@@ -25,12 +25,6 @@ A type mismatch — a script constructs or returns a value that does not match t
 
 This boundary is tied entirely to the workspace-pinned `rhai` version. The `internals`-feature surface this crate depends on (`AST::statements()`, `Stmt`) is not guaranteed stable across `rhai` versions by `rhai`'s own design intent (see [`dependency/001`](../dependency/001_rhai_internals_feature.md)'s Known Issues) — there is no version-detection, negotiation, or compatibility shim on `scene_script`'s side; an incompatible `rhai` upgrade would surface as a compile error against `top_level_lint.rs`, not a runtime failure.
 
-### Dependencies
-
-| File | Relationship |
-|------|--------------|
-| [001_rhai_internals_feature.md](../dependency/001_rhai_internals_feature.md) | Why `rhai` and its `internals` feature were selected, as distinct from this document's operational-boundary framing |
-
 ### Algorithms
 
 | File | Relationship |
@@ -42,6 +36,18 @@ This boundary is tied entirely to the workspace-pinned `rhai` version. The `inte
 | File | Relationship |
 |------|--------------|
 | [001_rhai_scripting_surface.md](../api/001_rhai_scripting_surface.md) | What becomes callable through the registration integration point |
+
+### Dependencies
+
+| File | Relationship |
+|------|--------------|
+| [001_rhai_internals_feature.md](../dependency/001_rhai_internals_feature.md) | Why `rhai` and its `internals` feature were selected, as distinct from this document's operational-boundary framing |
+
+### Features
+
+| File | Relationship |
+|------|--------------|
+| [001_rhai_scene_scripting.md](../feature/001_rhai_scene_scripting.md) | Navigational hub this runtime boundary supports |
 
 ### Sources
 

@@ -96,7 +96,7 @@ fn setup_and_render( gl : &gl::GL ) -> Result< (), gl::WebglError >
   let far = 10000000.0;
 
   // Set up the main camera and render the final scene.
-  let canvas_camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
+  let canvas_camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far )?;
 
   let colors = &[]; // Colors for the 2D elements.
 
@@ -142,7 +142,7 @@ fn setup_and_render( gl : &gl::GL ) -> Result< (), gl::WebglError >
   );
 
   // Set up the main camera and render the final scene.
-  let main_camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
+  let main_camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far )?;
 
   main_renderer.render( &gl, &mut main_scene, &main_camera )?;
 

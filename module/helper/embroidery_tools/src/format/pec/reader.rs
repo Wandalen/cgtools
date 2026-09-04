@@ -119,7 +119,16 @@ mod private
 
     reader.seek( SeekFrom::Current( i64::from( 0x1D0 - u16::from( color_changes ) ) ) )?;
     let stitch_block_len = u64::from( reader.read_u24::< LE >()? );
-    let stitch_block_end = stitch_block_len - 5 + reader.stream_position()?;
+    // BUG-314 task/bug/314_pec_stitch_block_len_underflow.md --
+    // Fix(BUG-314): `stitch_block_len` is untrusted file data; a raw `- 5` underflows
+    // (panics in debug, wraps near `u64::MAX` in release) whenever it is less than 5.
+    // Root cause: no validation that the on-disk length is large enough to hold the
+    // 5-byte trailer this subtraction accounts for.
+    // Pitfall: any arithmetic on a length read from untrusted input must use `checked_*`
+    // and return a decode error, never a raw operator that can panic or wrap.
+    let stitch_block_len = stitch_block_len.checked_sub( 5 )
+    .ok_or_else( || EmbroideryError::DecodingError( "PEC stitch block length is too small (must be at least 5 bytes)".into() ) )?;
+    let stitch_block_end = stitch_block_len + reader.stream_position()?;
 
     reader.seek( SeekFrom::Current( 0x0B ) )?;
     pec_instructions_read( emb, reader )?;
@@ -183,6 +192,17 @@ mod private
   }
 
   /// Merges default PEC threads and chart from PES together
+  // Fix(BUG-151)
+  // Root cause: the `else` branch (first sighting of a given `color_index`) computed
+  // `thread` and inserted it into `thread_map` but never called `emb.thread_add`/
+  // `values.push` -- only the `if let Some(thread)` branch (a repeat sighting) did. Every
+  // first occurrence of each color was silently dropped, misaligning `emb.threads()`
+  // against `color_bytes` instead of keeping the 1-entry-per-byte invariant every
+  // downstream consumer (e.g. `duplicate_color_interpolate_as_stop`) relies on.
+  // Pitfall: `thread_map` exists only to pick *which* `Thread` value to reuse for a
+  // repeated `color_index` -- it must never gate *whether* a push happens; every byte in
+  // `color_bytes` needs exactly one `thread_add`/`values.push`, matching the sibling
+  // `pec_colors_process`'s unconditional per-byte push.
   fn pec_table_process
   (
     emb : &mut EmbroideryFile,
@@ -218,6 +238,8 @@ mod private
         {
           chart.remove( 0 )
         };
+        emb.thread_add( thread.clone() );
+        values.push( thread.clone() );
         thread_map.insert( color_index, thread );
       }
     }
@@ -252,7 +274,12 @@ mod private
 
     loop
     {
-      let val1 : u8 = reader.read_u8()?;
+      // UX/DX fix: `val1` previously read via a raw `reader.read_u8()?`, a hard `Err` on
+      // truncation, while `val2`/`val3` below already used `read_val!()`'s graceful `break`
+      // (ending parsing successfully on truncation instead of erroring). Reading all three
+      // through the same macro makes truncation-tolerance consistent across the whole triplet
+      // regardless of which of the three bytes a truncated file happens to be missing.
+      let val1 : u8 = read_val!();
       let mut val2 : u8 = read_val!();
 
       // This means end of Instruction section

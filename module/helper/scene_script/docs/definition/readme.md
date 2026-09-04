@@ -10,7 +10,7 @@
 | `dependency/` | Crate selection rationale and configuration for direct dependencies | [dependency/readme.md](../dependency/readme.md) | 1 |
 | `feature/` | Navigational hub tying every doc instance to the one end-to-end capability | [feature/readme.md](../feature/readme.md) | 1 |
 | `integration/` | The runtime boundary between this crate and the embedded Rhai interpreter | [integration/readme.md](../integration/readme.md) | 1 |
-| `invariant/` | Correctness properties that must always hold, and their enforcement mechanisms | [invariant/readme.md](../invariant/readme.md) | 3 |
+| `invariant/` | Correctness properties that must always hold, and their enforcement mechanisms | [invariant/readme.md](../invariant/readme.md) | 4 |
 | `pattern/` | Recurring crate-local solution shapes — problem, solution, applicability, consequences | [pattern/readme.md](../pattern/readme.md) | 2 |
 | `pitfall/` | Known traps in Rhai scoping, checker enforcement, precision, and easing scope, their failure modes, and mitigations | [pitfall/readme.md](../pitfall/readme.md) | 6 |
 | `type/` | Script-visible Domain Types — domain meaning, ddd classification, construction/validation rules | [type/readme.md](../type/readme.md) | 8 |
@@ -28,6 +28,7 @@
 | invariant | 001 | Top-Level Bindings Convention | [invariant/001_top_level_bindings_convention.md](../invariant/001_top_level_bindings_convention.md) |
 | invariant | 002 | F32x2/F64x2 Type Distinctness | [invariant/002_f32x2_f64x2_type_distinctness.md](../invariant/002_f32x2_f64x2_type_distinctness.md) |
 | invariant | 003 | Rhai-Facing Names Mirror Rust Identifiers | [invariant/003_rhai_facing_names_mirror_rust_identifiers.md](../invariant/003_rhai_facing_names_mirror_rust_identifiers.md) |
+| invariant | 004 | Script-As-Data Purity | [invariant/004_script_as_data_purity.md](../invariant/004_script_as_data_purity.md) |
 | pattern | 001 | Manual CustomType Registration for Foreign Types | [pattern/001_manual_customtype_registration_for_foreign_types.md](../pattern/001_manual_customtype_registration_for_foreign_types.md) |
 | pattern | 002 | Dual-Precision Side-by-Side Registration | [pattern/002_dual_precision_side_by_side_registration.md](../pattern/002_dual_precision_side_by_side_registration.md) |
 | pitfall | 001 | Script Functions Can't See Outer-Scope Bindings | [pitfall/001_functions_cannot_see_outer_scope_bindings.md](../pitfall/001_functions_cannot_see_outer_scope_bindings.md) |

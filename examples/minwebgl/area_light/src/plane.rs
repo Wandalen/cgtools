@@ -57,15 +57,47 @@ pub fn plane_material
   ( base_color_tex, arm_tex )
 }
 
+#[ repr( C ) ]
+#[ derive( Debug, Default, Clone, Copy, gl::mem::Pod, gl::mem::Zeroable ) ]
+struct Vertex
+{
+  position : [ f32; 3 ],
+  normal : [ f32; 3 ],
+  texcoord : [ f32; 2 ],
+}
+
+impl mingl::Attribute for Vertex
+{
+  fn describe() -> Vec< mingl::VertexAttribute >
+  {
+    vec!
+    [
+      mingl::VertexAttribute::new( 0, mingl::VectorDataType::new( mingl::DataType::F32, 3, 1 ), 0 ),
+      mingl::VertexAttribute::new( 1, mingl::VectorDataType::new( mingl::DataType::F32, 3, 1 ), 3 ),
+      mingl::VertexAttribute::new( 2, mingl::VectorDataType::new( mingl::DataType::F32, 2, 1 ), 6 ),
+    ]
+  }
+}
+
 pub fn plane_vao( gl : &GL ) -> Result< WebGlVertexArrayObject, gl::WebglError >
 {
-  let plane_vertices : &[ f32 ] =
+  // Fix(BUG-321): vertex 3's texcoord was `( 1.0, 0.0 )`, a duplicate of vertex 2's —
+  // breaking the bilinear UV grid the other 3 vertices establish ( uv.x tracks -z,
+  // uv.y tracks x ), which requires vertex 3 ( x=1, z=-1, the corner diagonal from
+  // vertex 0 ) to be `( 1.0, 1.0 )`. Invisible today only because `plane_material`
+  // currently fills both textures with a single constant 1x1 texel ( any UV samples the
+  // same color under `wrap_clamp`/`filter_nearest` ), but wrong the moment a real
+  // ( non-1x1 ) texture is bound here.
+  // Root cause: vertex 3's texcoord row was copy-pasted from vertex 2's instead of being
+  // computed for its own corner.
+  // Pitfall: don't "fix" this by touching vertices 0/1/2 — they already form a correct,
+  // consistent grid; only vertex 3's row was wrong.
+  let plane_vertices : &[ Vertex ] =
   &[
-    // position         // normal         // texcoord
-    -1.0, 0.0,  1.0,    0.0, 1.0, 0.0,    0.0, 0.0,
-     1.0, 0.0,  1.0,    0.0, 1.0, 0.0,    0.0, 1.0,
-    -1.0, 0.0, -1.0,    0.0, 1.0, 0.0,    1.0, 0.0,
-     1.0, 0.0, -1.0,    0.0, 1.0, 0.0,    1.0, 0.0,
+    Vertex { position : [ -1.0, 0.0,  1.0 ], normal : [ 0.0, 1.0, 0.0 ], texcoord : [ 0.0, 0.0 ] },
+    Vertex { position : [  1.0, 0.0,  1.0 ], normal : [ 0.0, 1.0, 0.0 ], texcoord : [ 0.0, 1.0 ] },
+    Vertex { position : [ -1.0, 0.0, -1.0 ], normal : [ 0.0, 1.0, 0.0 ], texcoord : [ 1.0, 0.0 ] },
+    Vertex { position : [  1.0, 0.0, -1.0 ], normal : [ 0.0, 1.0, 0.0 ], texcoord : [ 1.0, 1.0 ] },
   ];
 
   let vao = gl::vao::create( gl )?;
@@ -74,20 +106,8 @@ pub fn plane_vao( gl : &GL ) -> Result< WebGlVertexArrayObject, gl::WebglError >
   let vbo = gl::buffer::create( gl )?;
   gl::buffer::upload( gl, &vbo, plane_vertices, gl::STATIC_DRAW );
 
-  gl::BufferDescriptor::new::< [ f32; 3 ] >()
-  .offset( 0 )
-  .stride( 8 )
-  .attribute_pointer( gl, 0, &vbo )?;
-
-  gl::BufferDescriptor::new::< [ f32; 3 ] >()
-  .offset( 3 )
-  .stride( 8 )
-  .attribute_pointer( gl, 1, &vbo )?;
-
-  gl::BufferDescriptor::new::< [ f32; 2 ] >()
-  .offset( 6 )
-  .stride( 8 )
-  .attribute_pointer( gl, 2, &vbo )?;
+  let plane_layout = mingl::VertexBufferLayout::from_attribute::< Vertex >( 8 );
+  gl::vertex_buffer_layout_bind( gl, &vbo, &plane_layout )?;
 
   Ok( vao )
 }

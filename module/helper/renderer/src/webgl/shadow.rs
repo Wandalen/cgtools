@@ -149,6 +149,23 @@ mod private
         }
       )?;
 
+      // Fix(BUG-439): restore `cull_face` to the renderer-wide default ( BACK ) before
+      // returning, so code drawing anything immediately after this shadow pass -- without
+      // going through `Renderer::render()`'s own per-material `material_face_properties_enable`,
+      // which always re-sets `cull_face` explicitly before every draw -- doesn't silently
+      // inherit `bind()`'s FRONT-face culling.
+      // Root cause: `bind()` sets `cull_face( FRONT )` ( a standard peter-panning mitigation
+      // for depth-only passes ); `render()` already restored the framebuffer binding at its
+      // end but left this piece of state untouched.
+      // Pitfall: `CULL_FACE` enable/disable is deliberately left as `bind()` set it ( enabled )
+      // -- restoring face *mode* to a sane default is enough to prevent silently-wrong culling;
+      // whether culling is enabled at all is the next draw call's own responsibility, same as
+      // for every material-driven draw in `Renderer::opaque_draw`. The viewport `bind()` sets
+      // ( `resolution x resolution` ) is deliberately left unrestored too -- there is no single
+      // correct default to restore it to from this scope ( the real render target's size isn't
+      // known here ); callers relying on a specific viewport must set it themselves before
+      // their next draw, same as any other GL viewport consumer.
+      self.gl.cull_face( gl::BACK );
       self.gl.bind_framebuffer( gl::FRAMEBUFFER, None );
 
       Ok( () )
@@ -306,6 +323,40 @@ mod private
     }
   }
 
+  /// The framebuffer `Drop` is responsible for, reachable from `tests/` under
+  /// `test_internals`. A clone, because a teardown test has to hold it across
+  /// the drop to ask the context whether it is still live afterwards.
+  #[ cfg( feature = "test_internals" ) ]
+  impl ShadowBaker
+  {
+    #[ doc( hidden ) ]
+    #[ must_use ]
+    pub fn framebuffer_for_test( &self ) -> Option< WebGlFramebuffer >
+    {
+      self.framebuffer.clone()
+    }
+  }
+
+  // Fix(BUG-432): `ShadowBaker` created a `WebGlFramebuffer` in `new` but never deleted it --
+  // every `ShadowBaker` construct/drop cycle (e.g. a scene reload that rebuilds the lightmap
+  // baking pipeline) permanently leaked one framebuffer object for the lifetime of the GL
+  // context, with no way for a caller to reclaim it short of losing the whole context.
+  // Root cause: unlike `ShadowMap` right above (which already has `impl Drop` deleting both
+  // its `framebuffer` and `depth_texture`), `ShadowBaker` was never given a matching `Drop`
+  // impl when it was added -- the GPU handle wrapper types (`Option< WebGlTexture >` etc.) are
+  // just JS-object handles; dropping the Rust value does not call `gl.delete*` for you.
+  // Pitfall: adding a new GL-resource-owning struct next to an existing one that already has
+  // `impl Drop` is easy to do without copying that pattern over -- the struct compiles and
+  // runs identically either way, so nothing short of a GPU-memory audit surfaces the leak.
+  impl Drop for ShadowBaker
+  {
+    fn drop( &mut self )
+    {
+      self.gl.delete_framebuffer( self.framebuffer.as_ref() );
+      _ = self.framebuffer.take();
+    }
+  }
+
   /// Light source for shadow casting
   #[ derive( Debug, Clone, Copy ) ]
   pub struct Light
@@ -442,7 +493,16 @@ mod private
       let radius = spot.outer_cone_angle * 2.0;
       let max_radius = 135.0_f32.to_radians();
 
-      let light_size = ( ( radius / max_radius ).min( 1.0 ) * 1.7 ).min( 0.01 );
+      // Fix(BUG-175): `.min( 0.01 )` on the last line made this a ceiling, not a floor -- since
+      // the preceding `( radius / max_radius ).min( 1.0 ) * 1.7` term is >= 0.01 for every
+      // `outer_cone_angle` above ~0.4 degrees ( i.e. every realistic spot light ), `.min` always
+      // picked the constant 0.01 and the entire angle-dependent scaling above it was dead code --
+      // every spot light baked identically soft shadows regardless of cone angle.
+      // Root cause: `.min` used where a lower-bound floor ( `.max` ) was intended.
+      // Pitfall: a `.min( FLOOR )`/`.max( FLOOR )` mixup silently reads as a working line -- it
+      // still compiles and always returns *a* value in range, it just discards a preceding
+      // computation. Check which direction the clamp actually needs before trusting it compiled.
+      let light_size = ( ( radius / max_radius ).min( 1.0 ) * 1.7 ).max( 0.01 );
 
       let projection = gl::math::mat3x3h::perspective_rh_gl( fov, 1.0, near, far );
 

@@ -54,29 +54,16 @@ fn camera_setup( canvas : &gl::web_sys::HtmlCanvasElement, scene : &Rc< RefCell<
 
   let scene_bounding_box = scene.borrow().bounding_box();
   gl::info!( "Scene boudnig box: {scene_bounding_box:?}" );
-  let diagonal = ( scene_bounding_box.max - scene_bounding_box.min ).mag();
-  let dist = scene_bounding_box.max.mag();
-  let exponent =
-  {
-    let bits = diagonal.to_bits();
-    let exponent_field = ( ( bits >> 23 ) & 0xFF ) as i32;
-    exponent_field - 127
-  };
-  gl::info!( "Exponent: {exponent:?}" );
 
-  // Camera setup
-  let mut eye = gl::math::F32x3::from( [ 0.0, 0.1, 1.0 ] );
-  eye *= dist / 50.0;
+  // Camera setup: frames the scene's bounding sphere from the (0,0.1,1) direction, deriving
+  // distance/near/far from the box itself and the camera's own fov/aspect_ratio.
+  let direction = gl::math::F32x3::from( [ 0.0, 0.1, 1.0 ] );
   let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
-
-  let center = scene_bounding_box.center();
 
   let aspect_ratio = width / height;
   let fov = 40.0f32.to_radians();
-  let near = 0.1 * 10.0f32.powi( exponent ).min( 1.0 );
-  let far = near * 100.0f32.powi( exponent.abs() );
 
-  let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
+  let mut camera = Camera::from_bounding_box( &scene_bounding_box, direction, up, aspect_ratio, fov, 0.1 ).expect( "camera parameters are valid" );
   camera.window_size_set( [ width, height ].into() );
   camera.controls_bind( canvas );
 
@@ -160,13 +147,20 @@ async fn app_run() -> Result< (), gl::WebglError >
 
   normal_displacements_reset( &gltf.meshes );
 
-  let gui_weights = Rc::new( RefCell::new( vec![ 0.0; 60 ] ) );
+  // Fix(BUG-330): filled with 0.0, matching a slider the user has actively dragged down to its
+  // minimum — `gui_weights[i] > 0.0` then treats "untouched" and "explicitly zeroed" identically,
+  // so once a slider is raised above 0 it can never be reset back to 0 via that same slider.
+  // Root cause: used the current value's sign as a proxy for "has this slider been touched",
+  // conflating a real, meaningful value (0.0) with the sentinel for "no GUI override yet".
+  // Pitfall: a min-of-range value (here, a slider's own minimum, 0.0) makes a poor "untouched"
+  // sentinel whenever that same value is also a legitimate, settable state.
+  let gui_weights = Rc::new( RefCell::new( vec![ f32::NAN; 60 ] ) );
 
   let last_time = Rc::new( RefCell::new( 0.0 ) );
 
   let current_animation = Rc::new( RefCell::new( Some( gltf.animations[ 0 ].clone() ) ) );
 
-  gui_setup::setup( gltf.animations.clone(), &current_animation, &gui_weights );
+  gui_setup::setup( gltf.animations.clone(), &current_animation, &weights.borrow(), &gui_weights );
 
   // Define the update and draw logic
   let update_and_draw =
@@ -203,7 +197,7 @@ async fn app_run() -> Result< (), gl::WebglError >
         let gui_weights = gui_weights.borrow().clone();
         for i in 0..weights_mut.len().min( gui_weights.len() )
         {
-          if gui_weights[ i ] > 0.0
+          if !gui_weights[ i ].is_nan()
           {
             weights_mut[ i ] = gui_weights[ i ];
           }

@@ -176,15 +176,33 @@ impl< System, Orientation > Coordinate< System, Orientation >
 impl< Orientation > Coordinate< Axial, Orientation >
 {
   /// Calculates the grid distance between two `Axial` coordinates.
+  // Fix(BUG-350): every operation here (2 negations, 3 subtractions, 3 abs)
+  // ran on raw i32 fields and could overflow for coordinates well within
+  // what `Coordinate::new`/`new_uncheked` accept unchecked -- `-self.q`
+  // alone panics ( attempt to negate with overflow ) when self.q == i32::MIN,
+  // and `self.q - q` panics ( attempt to subtract with overflow ) once the
+  // two coordinates are ~2^31 apart.
+  // Root cause: distance() assumed inputs stay within a "reasonable"
+  // sub-range of i32 that the struct's fully-public fields and unchecked
+  // constructors never actually enforce.
+  // Pitfall: widen to i64 for the ENTIRE computation, including the
+  // negations that build `s`/`other_s` -- widening only the subtraction (as
+  // the sibling `Distance` trait impl below originally did) just moves the
+  // overflow earlier instead of removing it.
   #[ must_use ]
   pub fn distance( &self, Self { q, r, .. } : Self ) -> i32
   {
-    let s = -self.q - self.r;
+    let self_q = i64::from( self.q );
+    let self_r = i64::from( self.r );
+    let q = i64::from( q );
+    let r = i64::from( r );
+    let s = -self_q - self_r;
     let other_s = -q - r;
-    let q = self.q - q;
-    let r = self.r - r;
-    let s = s - other_s;
-    ( q.abs() + r.abs() + s.abs() ) / 2
+    let dq = self_q - q;
+    let dr = self_r - r;
+    let ds = s - other_s;
+    let total = ( dq.abs() + dr.abs() + ds.abs() ) / 2;
+    total.clamp( 0, i64::from( i32::MAX ) ) as i32
   }
 }
 
@@ -418,14 +436,33 @@ fn axial_round( q : f32, r : f32 ) -> ( i32, i32 )
 impl< Orientation > Distance for Coordinate< Axial, Orientation >
 {
   /// Calculates the grid distance between two `Axial` coordinates.
+  // Fix(BUG-350): two separate problems. (1) `i64::from(-self.q)` still
+  // negated `self.q` in i32 BEFORE the i64 conversion, so it panicked on
+  // self.q == i32::MIN exactly like the inherent method above -- the i64
+  // upgrade never actually covered that step. (2) `q`/`r`/`s` were each
+  // narrowed to u32 with `as u32` BEFORE the final `+ +`, so the sum itself
+  // could still overflow u32 (e.g. two coordinates ~2e9 apart) even though
+  // every individual narrowed term fit on its own.
+  // Root cause: same unchecked-input-domain issue as the inherent impl --
+  // this impl's i64 upgrade only covered the middle subtraction, not the
+  // negation feeding it or the final summation.
+  // Pitfall: narrowing each term to the return type before summing silently
+  // reintroduces the overflow the wider type was meant to prevent -- keep
+  // the ENTIRE computation, including the final sum, in the widened type and
+  // only narrow (saturating, never a bare `as`) once, at the very end.
   fn distance( &self, Self { q, r, .. } : &Self ) -> u32
   {
-    let s = i64::from(-self.q) - i64::from(self.r);
-    let other_s = i64::from(-q) - i64::from(*r);
-    let q = i64::from(self.q) - i64::from(*q);
-    let r = i64::from(self.r) - i64::from(*r);
-    let s = s - other_s;
-    ( q.unsigned_abs() as u32 + r.unsigned_abs() as u32 + s.unsigned_abs() as u32 ) / 2
+    let self_q = i64::from( self.q );
+    let self_r = i64::from( self.r );
+    let q = i64::from( *q );
+    let r = i64::from( *r );
+    let s = -self_q - self_r;
+    let other_s = -q - r;
+    let dq = self_q - q;
+    let dr = self_r - r;
+    let ds = s - other_s;
+    let total = ( dq.abs() + dr.abs() + ds.abs() ) / 2;
+    total.clamp( 0, i64::from( u32::MAX ) ) as u32
   }
 }
 

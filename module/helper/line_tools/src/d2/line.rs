@@ -208,15 +208,20 @@ mod private
     ///
     /// # Errors
     ///
-    /// Returns `WebglError` if re-uploading buffer data, shaders, or uniforms fails.
+    /// Returns `WebglError` if re-uploading buffer data, shaders, or uniforms fails, or if
+    /// called before `mesh_create`.
     ///
     /// # Panics
     ///
-    /// Panics if called before `mesh_create`.
+    /// Panics if a join or cap sub-program's fragment shader has not been set.
     #[ expect( clippy::too_many_lines, reason = "one linear per-flag GL resync ( points, joins, caps, terminals ) over tightly coupled buffer state; splitting would scatter paired steps" ) ]
     pub fn mesh_update( &mut self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
     {
-      let mesh = self.mesh.as_mut().expect( "Mesh has not been created yet" );
+      // Fix(UX/DX #4): `.ok_or( .. )?` instead of `.expect( .. )` -- matches `d3::Line`'s own
+      // established convention (its equivalents already return `Err` instead of panicking) for
+      // this exact "mesh not created yet" condition; see this crate's `d3/line.rs` for the
+      // sibling implementation this now mirrors.
+      let mesh = self.mesh.as_mut().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )?;
 
       if self.points_changed
       {
@@ -287,14 +292,20 @@ mod private
         let join_uv_buffer = mesh.buffer_get( "join_uv" );
         let distance_buffer = mesh.buffer_get( "distance" );
 
-        let ( join_geometry_list, join_indices, join_uvs, join_geometry_count ) = self.join.geometry(); 
+        let ( join_geometry_list, join_indices, join_uvs, join_geometry_count ) = self.join.geometry();
         gl::buffer::upload( gl, join_buffer, &join_geometry_list, gl::STATIC_DRAW );
         gl::buffer::upload( gl, join_uv_buffer, &join_uvs, gl::STATIC_DRAW );
-        gl::index::upload( gl, join_indices_buffer, &join_indices, gl::STATIC_DRAW );
 
         let j_program = mesh.program_get( "join" );
         let vao = gl.create_vertex_array();
-        gl.bind_vertex_array( vao.as_ref() ); 
+        gl.bind_vertex_array( vao.as_ref() );
+
+        // `index::upload` binds to `ELEMENT_ARRAY_BUFFER`, which is part of the
+        // *currently bound VAO's* state in WebGL2 - it must run after the VAO
+        // above is bound, or it silently overwrites whatever VAO was
+        // previously active instead of this one.
+        gl::index::upload( gl, join_indices_buffer, &join_indices, gl::STATIC_DRAW );
+
         match self.join
         {
           Join::Miter( _, _ ) =>
@@ -360,12 +371,18 @@ mod private
 
         let ( cap_geometry_list, cap_indices, cap_geometry_count ) = self.cap.geometry();
         gl::buffer::upload( gl, cap_buffer, &cap_geometry_list, gl::STATIC_DRAW );
-        gl::index::upload( gl, cap_index_buffer, &cap_indices, gl::STATIC_DRAW );
 
         let c_program = mesh.program_get( "cap" );
 
         let vao = gl.create_vertex_array();
         gl.bind_vertex_array( vao.as_ref() );
+
+        // `index::upload` binds to `ELEMENT_ARRAY_BUFFER`, which is part of the
+        // *currently bound VAO's* state in WebGL2 - it must run after the VAO
+        // above is bound, or it silently overwrites whatever VAO was
+        // previously active instead of this one.
+        gl::index::upload( gl, cap_index_buffer, &cap_indices, gl::STATIC_DRAW );
+
         let mut instance_count = None;
         match self.cap
         {
@@ -374,7 +391,6 @@ mod private
             gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 0 ).stride( 2 ).divisor( 0 ).attribute_pointer( gl, 0, cap_buffer )?;
             gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 0 ).stride( 9 ).divisor( 1 ).attribute_pointer( gl, 1, points_terminal_buffer )?;
             gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 3 ).stride( 9 ).divisor( 1 ).attribute_pointer( gl, 2, points_terminal_buffer )?;
-            gl.bind_buffer( gl::ELEMENT_ARRAY_BUFFER, Some( cap_index_buffer ) );
             instance_count = Some( 2 );
           }
           Cap::Butt => {}
@@ -424,17 +440,21 @@ mod private
     ///
     /// # Errors
     ///
-    /// Returns `WebglError` if the mesh update or a uniform upload fails.
+    /// Returns `WebglError` if the mesh update or a uniform upload fails, or if called before
+    /// `mesh_create`.
     ///
     /// # Panics
     ///
-    /// Panics if called before `mesh_create`.
+    /// Panics if a join or cap sub-program's fragment shader has not been set (via
+    /// `mesh_update`).
     pub fn draw( &mut self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
     {
 
       self.mesh_update( gl )?;
 
-      let mesh = self.mesh.as_mut().expect( "Mesh has not been created yet" );
+      // Fix(UX/DX #4): `.ok_or( .. )?` instead of `.expect( .. )` -- see `mesh_update`'s own
+      // identical fix just above for the full rationale; kept consistent within this same impl.
+      let mesh = self.mesh.as_mut().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )?;
 
       mesh.upload_to( gl, "body", "u_total_distance", &self.total_distance )?;
       mesh.upload_to( gl, "body_terminal", "u_total_distance", &self.total_distance )?;

@@ -206,13 +206,17 @@ mod private
   pub trait ScalarRef : Collection + Indexable
   {
 
+    // Fix(BUG-288): doc claimed "A mutable reference" for a `&self`-receiver method returning
+    // `&Self::Scalar`. Root cause: copy-pasted from the adjacent `ScalarMut::scalar_mut` doc
+    // without updating "mutable" to match this trait's own immutable contract.
+    // Pitfall: a caller trusting the doc could wrongly assume `scalar_ref` grants write access.
     /// Get a reference to a scalar at a specified index.
     ///
     /// # Parameters
     /// - `index`: The index of the scalar to access.
     ///
     /// # Returns
-    /// - A mutable reference to the scalar at the specified index.
+    /// - A reference to the scalar at the specified index.
     fn scalar_ref( &self, index : < Self as Indexable >::Index ) -> &Self::Scalar;
 
   }

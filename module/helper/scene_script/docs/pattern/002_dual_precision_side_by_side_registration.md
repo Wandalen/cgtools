@@ -25,12 +25,36 @@ Applies whenever the script-facing surface grows: a new arity (originally antici
 - **Script authors must know their needed precision and arity up front**: there is no automatic promotion, narrowing, or arity conversion between any two registered types (see [`invariant/002`](../invariant/002_f32x2_f64x2_type_distinctness.md)) — choosing the wrong one is a construction-time decision, not something fixable later by a conversion call, because none is registered.
 - **Keeps every registered name traceable 1:1 to a concrete Rust type**, which is what makes the Naming Convention enforceable by inspection even though nothing automated checks it (see [`invariant/003`](../invariant/003_rhai_facing_names_mirror_rust_identifiers.md)).
 
+### APIs
+
+| File | Relationship |
+|------|--------------|
+| [001_rhai_scripting_surface.md](../api/001_rhai_scripting_surface.md) | The operations surface every side-by-side registration this pattern produces exposes |
+
+### Data Structures
+
+| File | Relationship |
+|------|--------------|
+| [001_tween_script_facing_type.md](../data_structure/001_tween_script_facing_type.md) | The shape this pattern keeps as one script-visible name across two Rust-generic instantiations |
+
+### Features
+
+| File | Relationship |
+|------|--------------|
+| [001_rhai_scene_scripting.md](../feature/001_rhai_scene_scripting.md) | Navigational hub this pattern's extension seam serves |
+
 ### Invariants
 
 | File | Relationship |
 |------|--------------|
 | [002_f32x2_f64x2_type_distinctness.md](../invariant/002_f32x2_f64x2_type_distinctness.md) | The non-interchangeability this pattern's side-by-side registrations produce |
 | [003_rhai_facing_names_mirror_rust_identifiers.md](../invariant/003_rhai_facing_names_mirror_rust_identifiers.md) | The naming rule every new registration following this pattern must keep |
+
+### Pitfalls
+
+| File | Relationship |
+|------|--------------|
+| [006_parameterized_easing_curves_are_unreachable_by_name.md](../pitfall/006_parameterized_easing_curves_are_unreachable_by_name.md) | A limitation of the named-curve selector this pattern's own extension seam does not cover |
 
 ### Types
 

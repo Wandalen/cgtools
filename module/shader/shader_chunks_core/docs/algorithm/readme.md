@@ -10,7 +10,7 @@ instance per procedure; the table below is the index into them.
 
 - **Purpose**: Document the two procedures the crate's guarantees flow through — how the registry comes to exist and how a set becomes a shader.
 - **Responsibility**: Describe each procedure's inputs, steps, ordering/failure properties, and a worked example.
-- **In Scope**: Registry generation (`build.rs`) and dependency-ordered composition (`compose*`/`sort_and_join`).
+- **In Scope**: Registry generation (`build.rs`) and dependency-ordered composition (`compose*`/`entries_sort_and_join`).
 - **Out of Scope**: The properties these procedures enforce (see `invariant/`); the consumer-side forms that call them (see `pattern/`).
 
 ### Overview Table

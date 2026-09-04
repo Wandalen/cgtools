@@ -63,6 +63,7 @@ _REPO_ROOT="$( cd "$_SCRIPT_DIR/.." && pwd )"
 # via `[package.metadata.action]` / `tags = [...]` in its own Cargo.toml.
 # Keep sorted within each group.
 _TAGS=(
+  api:vulkan
   api:webgl
   api:webgpu
   api:wgpu

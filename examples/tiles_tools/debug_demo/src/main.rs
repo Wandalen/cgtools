@@ -6,7 +6,7 @@
 //! - Pathfinding debug overlays with cost visualization
 //! - ECS component inspection and entity tracking
 //! - Performance profiling with frame timing and bottleneck detection
-//! - ASCII art rendering and SVG export capabilities
+//! - ASCII art rendering of grid, pathfinding, and profiling state
 //! - Memory usage monitoring and system performance metrics
 
 use tiles_tools::debug::{GridRenderer, GridStyle, DebugColor, HighlightStyle, PathfindingDebugger, ECSInspector, EntityDebugInfo, PerformanceProfiler};

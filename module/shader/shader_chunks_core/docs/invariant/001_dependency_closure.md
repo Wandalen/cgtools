@@ -29,8 +29,8 @@ complete — composition never has to reach outside it.
 - **Runtime backstop**: for sets not checked in `const` position (untrusted
   CLI input), the composition core's `visit` reports the first unresolved
   name as `ComposeError::MissingDependency`, naming both the missing chunk
-  and the chunk that required it; `compose_set` panics with that same
-  message, `try_compose_set` returns it as `Err`.
+  and the chunk that required it; `set_compose` panics with that same
+  message, `set_try_compose` returns it as `Err`.
 
 ### Violation Consequences
 

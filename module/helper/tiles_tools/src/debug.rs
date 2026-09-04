@@ -479,19 +479,7 @@ impl GridRenderer
     
     match self.style {
       GridStyle::Square4 | GridStyle::Square8 => {
-        // Vertical lines
-        for x in 0..=self.width {
-          let x_pos = offset + x * cell_size;
-          writeln!(writer, r#"<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="lightgray" stroke-width="1"/>"#,
-            x_pos, offset, x_pos, offset + self.height * cell_size)?;
-        }
-
-        // Horizontal lines
-        for y in 0..=self.height {
-          let y_pos = offset + y * cell_size;
-          writeln!(writer, r#"<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="lightgray" stroke-width="1"/>"#,
-            offset, y_pos, offset + self.width * cell_size, y_pos)?;
-        }
+        self.square_svg_grid_render(writer, cell_size, offset)?;
       },
       GridStyle::Hexagonal => {
         // Simplified hexagonal grid (would need proper hexagon math for production)
@@ -512,9 +500,40 @@ impl GridRenderer
         }
       },
       _ => {
-        // Default to square grid for other styles
-        self.svg_grid_render(writer, cell_size)?;
+        // Fix(BUG-266): this arm called `self.svg_grid_render(..)` -- itself
+        // -- instead of a square-grid helper. `self.style` never changes
+        // between calls, so every recursive call matched this same arm
+        // again, recursing unconditionally until the stack overflowed.
+        // Root cause: the comment said "Default to square grid for other
+        // styles" but there was no separately-named square-grid helper to
+        // delegate to, so the call was left pointing at the enclosing
+        // function itself instead of the Square4/Square8 arm's logic.
+        // Pitfall: a `match` arm that "falls back to another case" must call
+        // a genuinely different function or change the matched value --
+        // calling the same method on the same `self` from its own wildcard
+        // arm is unconditional infinite recursion, not a fallback.
+        self.square_svg_grid_render(writer, cell_size, offset)?;
       }
+    }
+
+    Ok(())
+  }
+
+  /// Renders axis-aligned grid lines. Shared by the square styles and used
+  /// as the visual fallback for styles without dedicated SVG grid-line art.
+  fn square_svg_grid_render(&self, writer: &mut BufWriter<File>, cell_size: usize, offset: usize) -> Result<(), std::io::Error> {
+    // Vertical lines
+    for x in 0..=self.width {
+      let x_pos = offset + x * cell_size;
+      writeln!(writer, r#"<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="lightgray" stroke-width="1"/>"#,
+        x_pos, offset, x_pos, offset + self.height * cell_size)?;
+    }
+
+    // Horizontal lines
+    for y in 0..=self.height {
+      let y_pos = offset + y * cell_size;
+      writeln!(writer, r#"<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="lightgray" stroke-width="1"/>"#,
+        offset, y_pos, offset + self.width * cell_size, y_pos)?;
     }
 
     Ok(())
@@ -762,6 +781,32 @@ impl ECSInspector {
 
   /// Records entity information.
   pub fn entity_record(&mut self, entity: EntityDebugInfo) {
+    // BUG-347 task/bug/347_ecs_inspector_entity_record_inflates_component_counts.md
+    // -- re-recording an entity inflated component_counts; fix below.
+    // Fix(BUG-347): decrement the previous entry's component counts (if
+    // entity.id was already recorded) before applying the new entity's
+    // counts, so re-recording the same entity_id does not permanently
+    // inflate component_counts.
+    // Root cause: every call incremented component_counts for the new
+    // entity's components, then unconditionally overwrote entity_data via
+    // HashMap::insert -- the prior call's contribution to component_counts
+    // was never removed, and no entity_remove/unrecord method existed to
+    // correct it either.
+    // Pitfall: a counter incremented on every call of a "record" method that
+    // can be called more than once for the same identity needs a matching
+    // decrement for whatever it is replacing -- otherwise re-recording
+    // silently inflates the counter forever, with no panic to surface it.
+    if let Some(previous) = self.entity_data.get(&entity.id) {
+      for component in &previous.components {
+        if let Some(count) = self.component_counts.get_mut(component) {
+          *count = count.saturating_sub(1);
+          if *count == 0 {
+            self.component_counts.remove(component);
+          }
+        }
+      }
+    }
+
     for component in &entity.components {
       *self.component_counts.entry(component.clone()).or_insert(0) += 1;
     }
@@ -844,26 +889,78 @@ impl ECSInspector {
   }
 
   /// Exports entity data as JSON.
+  ///
+  /// Fix(BUG-478): every string value (component names, system-timing
+  /// names, entity data keys/values) is now escaped via
+  /// `utils::json_string_escape`, and the output now includes each entity's
+  /// own record (id, components, position, custom data), aligning its scope
+  /// with `report_generate`.
+  /// Root cause: the original implementation built JSON via bare
+  /// `format!("\"{name}\": {count}")`-style interpolation with no escaping
+  /// at all (a component name or entity data value containing `"` or `\`
+  /// produced invalid JSON), and never iterated `self.entity_data` -- only
+  /// the two aggregate maps, omitting the per-entity detail
+  /// `report_generate` already includes.
+  /// Pitfall: an available `serde_json` dependency is not automatically
+  /// usable from every module that could benefit from it -- `serde_json` is
+  /// only a crate dependency behind this crate's `serialization` feature,
+  /// while `debug` is gated only by `enabled`; wiring `serde_json` in here
+  /// would make `debug` implicitly require `serialization` (or force
+  /// `serde_json` to become a non-optional dependency of the base `enabled`
+  /// feature). Neither felt like the natural fix for this pass, so this
+  /// stays a hand-rolled -- but now correctly escaped and scope-aligned --
+  /// writer; revisit if this crate's dependency structure changes.
   #[must_use]
   pub fn json_export(&self) -> String {
-    // Simplified JSON export (in real implementation would use serde_json)
     let mut json = String::from("{\n");
     let _ = writeln!(json, "  \"total_entities\": {},", self.entity_data.len());
-    
+
     json.push_str("  \"component_counts\": {\n");
-    let component_entries: Vec<String> = self.component_counts.iter()
-      .map(|(name, count)| format!("    \"{name}\": {count}"))
+    let mut components: Vec<_> = self.component_counts.iter().collect();
+    components.sort_by_key(|(name, _)| (*name).clone());
+    let component_entries: Vec<String> = components.iter()
+      .map(|(name, count)| format!("    {}: {count}", utils::json_string_escape(name)))
       .collect();
     json.push_str(&component_entries.join(",\n"));
     json.push_str("\n  },\n");
-    
+
     json.push_str("  \"system_timings\": {\n");
-    let timing_entries: Vec<String> = self.system_timings.iter()
-      .map(|(name, duration)| format!("    \"{}\": {:.2}", name, duration.as_secs_f64() * 1000.0))
+    let mut timings: Vec<_> = self.system_timings.iter().collect();
+    timings.sort_by_key(|(name, _)| (*name).clone());
+    let timing_entries: Vec<String> = timings.iter()
+      .map(|(name, duration)| format!("    {}: {:.2}", utils::json_string_escape(name), duration.as_secs_f64() * 1000.0))
       .collect();
     json.push_str(&timing_entries.join(",\n"));
-    json.push_str("\n  }\n");
-    
+    json.push_str("\n  },\n");
+
+    json.push_str("  \"entities\": [\n");
+    let mut entities: Vec<_> = self.entity_data.values().collect();
+    entities.sort_by_key(|e| e.id);
+    let entity_entries: Vec<String> = entities.iter()
+      .map(|entity| {
+        let components = entity.components.iter()
+          .map(|c| utils::json_string_escape(c))
+          .collect::<Vec<_>>()
+          .join(", ");
+        let position = match entity.position {
+          Some((x, y)) => format!("{{ \"x\": {x}, \"y\": {y} }}"),
+          None => "null".to_string(),
+        };
+        let mut data_entries: Vec<_> = entity.data.iter().collect();
+        data_entries.sort_by_key(|(key, _)| (*key).clone());
+        let data = data_entries.iter()
+          .map(|(key, value)| format!("{}: {}", utils::json_string_escape(key), utils::json_string_escape(value)))
+          .collect::<Vec<_>>()
+          .join(", ");
+        format!(
+          "    {{ \"id\": {}, \"components\": [{components}], \"position\": {position}, \"data\": {{{data}}} }}",
+          entity.id,
+        )
+      })
+      .collect();
+    json.push_str(&entity_entries.join(",\n"));
+    json.push_str("\n  ]\n");
+
     json.push('}');
     json
   }
@@ -1021,19 +1118,34 @@ impl PerformanceProfiler {
     writeln!(writer, "timestamp_ms,frame_time_ms,memory_kb,entity_count")?;
 
     // Data
+    //
+    // Fix(BUG-481): `memory_samples` is populated independently of, and not
+    // necessarily in lockstep with, `frame_times` -- indexing the shorter
+    // deque past its own length used to silently default to a zero-valued
+    // `MemorySample`, which is indistinguishable in the output from a
+    // genuine "0 bytes, 0 entities" sample. A row with no corresponding
+    // memory sample now leaves those two CSV fields blank instead.
+    // Root cause: `.get(i).copied().unwrap_or(MemorySample { .. 0 .. })`
+    // treated "no sample recorded at this index" the same as "a sample of
+    // zero was recorded", collapsing two different facts into one value.
+    // Pitfall: zipping two independently-populated collections by index and
+    // defaulting a missing entry to a real, in-range value (here, zero) is
+    // never actually "safe" -- zero is frequently also a legitimate
+    // observed value, so the default is silently indistinguishable from
+    // real data. Default to `Option`/blank instead, never a same-typed
+    // sentinel value.
     for (i, frame_time) in self.frame_times.iter().enumerate() {
       let timestamp_ms = i as f64 * 16.67; // Approximate 60 FPS timing
-      let memory_sample = self.memory_samples.get(i).copied().unwrap_or(MemorySample {
-        timestamp: Duration::from_millis(timestamp_ms as u64),
-        memory_usage: 0,
-        entity_count: 0,
-      });
-      
-      writeln!(writer, "{:.2},{:.2},{},{}", 
-        timestamp_ms,
-        frame_time.as_secs_f64() * 1000.0,
-        memory_sample.memory_usage / 1024,
-        memory_sample.entity_count)?;
+      let frame_time_ms = frame_time.as_secs_f64() * 1000.0;
+
+      match self.memory_samples.get(i) {
+        Some(memory_sample) => writeln!(writer, "{:.2},{:.2},{},{}",
+          timestamp_ms,
+          frame_time_ms,
+          memory_sample.memory_usage / 1024,
+          memory_sample.entity_count)?,
+        None => writeln!(writer, "{timestamp_ms:.2},{frame_time_ms:.2},,")?,
+      }
     }
 
     writer.flush()?;
@@ -1096,6 +1208,7 @@ impl IntoDebugCoord for (usize, usize) {
 /// Utility functions for debugging.
 pub mod utils {
   use super::Duration;
+  use std::fmt::Write as _;
 
   /// Creates a simple ASCII art representation of a 2D boolean array.
   #[must_use]
@@ -1122,6 +1235,28 @@ pub mod utils {
     } else {
       format!("{:.2}s", duration.as_secs_f64())
     }
+  }
+
+  /// Escapes a string for embedding in a JSON string literal, per the JSON
+  /// spec's required escapes (quote, backslash, and the C0 control
+  /// characters). Returns the value already wrapped in quotes.
+  #[must_use]
+  pub fn json_string_escape(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('"');
+    for c in s.chars() {
+      match c {
+        '"' => out.push_str("\\\""),
+        '\\' => out.push_str("\\\\"),
+        '\n' => out.push_str("\\n"),
+        '\r' => out.push_str("\\r"),
+        '\t' => out.push_str("\\t"),
+        c if (c as u32) < 0x20 => { let _ = write!(out, "\\u{:04x}", c as u32); },
+        c => out.push(c),
+      }
+    }
+    out.push('"');
+    out
   }
 
   /// Formats memory usage for human-readable display.

@@ -67,6 +67,26 @@ mod private
     }
   }
 
+  // Fix(BUG-230): every `with_repeat` registration below used to cast its Rhai-supplied `i64`
+  // straight to `i32` via `as`, which silently wraps out-of-range values instead of erroring --
+  // `4294967295i64 as i32 == -1`, so a script author intending a very large but FINITE repeat
+  // count would silently get an INFINITE tween instead (`Tween::repeat_count == -1` is the
+  // documented infinite-repeat sentinel; see `animation::interpolation::Tween::repeat_handle`).
+  // Root cause: `as` truncation is a silent, well-defined-but-surprising Rust operation with no
+  // failure signal -- any i32-range violation should be a script-catchable error instead, the
+  // same contract `easing_from_name` (above) already enforces for unrecognized easing names.
+  // Pitfall: `as` between integer types never panics and never returns `Result` -- every such
+  // cast reachable from script input needs its own explicit range check, since nothing else
+  // will ever surface the truncation to the script author.
+  /// Converts a script-supplied `i64` repeat count to the `i32` `Tween::with_repeat` actually
+  /// stores. Out-of-range values are a script-catchable runtime error, never a silent wrapping
+  /// cast -- see `Fix(BUG-230)` above for why a wrapped value is actively dangerous here (it can
+  /// land exactly on `-1`, the infinite-repeat sentinel).
+  fn repeat_count_from_i64( count : i64 ) -> Result< i32, Box< EvalAltResult > >
+  {
+    i32::try_from( count ).map_err( | _ | format!( "repeat count {count} out of range for i32 (min {}, max {})", i32::MIN, i32::MAX ).into() )
+  }
+
   /// Registers `animation::Tween< F32x1 >` into `engine` as Rhai type
   /// `"Tween"`: constructor `tween( start, end, duration )` (linear easing),
   /// its 4-arg overload `tween( start, end, duration, easing )` picking a
@@ -82,7 +102,10 @@ mod private
   /// `.current_repeat()`/`.state()` report playback state,
   /// `.pause()`/`.resume()`/`.reset()` control it, and
   /// `.with_delay()`/`.with_duration()`/`.with_repeat()`/`.with_yoyo()` each
-  /// consume the tween and return a modified copy for chaining. See
+  /// consume the tween and return a modified copy for chaining --
+  /// `.with_repeat()` additionally range-checks its `i64` argument against
+  /// `i32` via [`repeat_count_from_i64`], raising a script-catchable error
+  /// instead of silently wrapping out of range. See
   /// [`tween_f32x2_register`] for the shared-name rationale and
   /// [`tween_f64x1_register`] for the `f64`-element sibling.
   #[ inline ]
@@ -125,7 +148,14 @@ mod private
     .register_fn( "reset", | t : &mut Tween< F32x1 > | t.reset() )
     .register_fn( "with_delay", | t : Tween< F32x1 >, delay : f64 | t.with_delay( delay ) )
     .register_fn( "with_duration", | t : Tween< F32x1 >, duration : f64 | t.with_duration( duration ) )
-    .register_fn( "with_repeat", | t : Tween< F32x1 >, count : i64 | t.with_repeat( count as i32 ) )
+    .register_fn
+    (
+      "with_repeat",
+      | t : Tween< F32x1 >, count : i64 | -> Result< Tween< F32x1 >, Box< EvalAltResult > >
+      {
+        Ok( t.with_repeat( repeat_count_from_i64( count )? ) )
+      }
+    )
     .register_fn( "with_yoyo", | t : Tween< F32x1 >, yoyo : bool | t.with_yoyo( yoyo ) );
   }
 
@@ -188,7 +218,14 @@ mod private
     .register_fn( "reset", | t : &mut Tween< F32x2 > | t.reset() )
     .register_fn( "with_delay", | t : Tween< F32x2 >, delay : f64 | t.with_delay( delay ) )
     .register_fn( "with_duration", | t : Tween< F32x2 >, duration : f64 | t.with_duration( duration ) )
-    .register_fn( "with_repeat", | t : Tween< F32x2 >, count : i64 | t.with_repeat( count as i32 ) )
+    .register_fn
+    (
+      "with_repeat",
+      | t : Tween< F32x2 >, count : i64 | -> Result< Tween< F32x2 >, Box< EvalAltResult > >
+      {
+        Ok( t.with_repeat( repeat_count_from_i64( count )? ) )
+      }
+    )
     .register_fn( "with_yoyo", | t : Tween< F32x2 >, yoyo : bool | t.with_yoyo( yoyo ) );
   }
 
@@ -235,7 +272,14 @@ mod private
     .register_fn( "reset", | t : &mut Tween< F32x3 > | t.reset() )
     .register_fn( "with_delay", | t : Tween< F32x3 >, delay : f64 | t.with_delay( delay ) )
     .register_fn( "with_duration", | t : Tween< F32x3 >, duration : f64 | t.with_duration( duration ) )
-    .register_fn( "with_repeat", | t : Tween< F32x3 >, count : i64 | t.with_repeat( count as i32 ) )
+    .register_fn
+    (
+      "with_repeat",
+      | t : Tween< F32x3 >, count : i64 | -> Result< Tween< F32x3 >, Box< EvalAltResult > >
+      {
+        Ok( t.with_repeat( repeat_count_from_i64( count )? ) )
+      }
+    )
     .register_fn( "with_yoyo", | t : Tween< F32x3 >, yoyo : bool | t.with_yoyo( yoyo ) );
   }
 
@@ -282,7 +326,14 @@ mod private
     .register_fn( "reset", | t : &mut Tween< F32x4 > | t.reset() )
     .register_fn( "with_delay", | t : Tween< F32x4 >, delay : f64 | t.with_delay( delay ) )
     .register_fn( "with_duration", | t : Tween< F32x4 >, duration : f64 | t.with_duration( duration ) )
-    .register_fn( "with_repeat", | t : Tween< F32x4 >, count : i64 | t.with_repeat( count as i32 ) )
+    .register_fn
+    (
+      "with_repeat",
+      | t : Tween< F32x4 >, count : i64 | -> Result< Tween< F32x4 >, Box< EvalAltResult > >
+      {
+        Ok( t.with_repeat( repeat_count_from_i64( count )? ) )
+      }
+    )
     .register_fn( "with_yoyo", | t : Tween< F32x4 >, yoyo : bool | t.with_yoyo( yoyo ) );
   }
 
@@ -331,7 +382,14 @@ mod private
     .register_fn( "reset", | t : &mut Tween< F64x1 > | t.reset() )
     .register_fn( "with_delay", | t : Tween< F64x1 >, delay : f64 | t.with_delay( delay ) )
     .register_fn( "with_duration", | t : Tween< F64x1 >, duration : f64 | t.with_duration( duration ) )
-    .register_fn( "with_repeat", | t : Tween< F64x1 >, count : i64 | t.with_repeat( count as i32 ) )
+    .register_fn
+    (
+      "with_repeat",
+      | t : Tween< F64x1 >, count : i64 | -> Result< Tween< F64x1 >, Box< EvalAltResult > >
+      {
+        Ok( t.with_repeat( repeat_count_from_i64( count )? ) )
+      }
+    )
     .register_fn( "with_yoyo", | t : Tween< F64x1 >, yoyo : bool | t.with_yoyo( yoyo ) );
   }
 
@@ -380,7 +438,14 @@ mod private
     .register_fn( "reset", | t : &mut Tween< F64x2 > | t.reset() )
     .register_fn( "with_delay", | t : Tween< F64x2 >, delay : f64 | t.with_delay( delay ) )
     .register_fn( "with_duration", | t : Tween< F64x2 >, duration : f64 | t.with_duration( duration ) )
-    .register_fn( "with_repeat", | t : Tween< F64x2 >, count : i64 | t.with_repeat( count as i32 ) )
+    .register_fn
+    (
+      "with_repeat",
+      | t : Tween< F64x2 >, count : i64 | -> Result< Tween< F64x2 >, Box< EvalAltResult > >
+      {
+        Ok( t.with_repeat( repeat_count_from_i64( count )? ) )
+      }
+    )
     .register_fn( "with_yoyo", | t : Tween< F64x2 >, yoyo : bool | t.with_yoyo( yoyo ) );
   }
 
@@ -426,7 +491,14 @@ mod private
     .register_fn( "reset", | t : &mut Tween< F64x3 > | t.reset() )
     .register_fn( "with_delay", | t : Tween< F64x3 >, delay : f64 | t.with_delay( delay ) )
     .register_fn( "with_duration", | t : Tween< F64x3 >, duration : f64 | t.with_duration( duration ) )
-    .register_fn( "with_repeat", | t : Tween< F64x3 >, count : i64 | t.with_repeat( count as i32 ) )
+    .register_fn
+    (
+      "with_repeat",
+      | t : Tween< F64x3 >, count : i64 | -> Result< Tween< F64x3 >, Box< EvalAltResult > >
+      {
+        Ok( t.with_repeat( repeat_count_from_i64( count )? ) )
+      }
+    )
     .register_fn( "with_yoyo", | t : Tween< F64x3 >, yoyo : bool | t.with_yoyo( yoyo ) );
   }
 
@@ -472,7 +544,14 @@ mod private
     .register_fn( "reset", | t : &mut Tween< F64x4 > | t.reset() )
     .register_fn( "with_delay", | t : Tween< F64x4 >, delay : f64 | t.with_delay( delay ) )
     .register_fn( "with_duration", | t : Tween< F64x4 >, duration : f64 | t.with_duration( duration ) )
-    .register_fn( "with_repeat", | t : Tween< F64x4 >, count : i64 | t.with_repeat( count as i32 ) )
+    .register_fn
+    (
+      "with_repeat",
+      | t : Tween< F64x4 >, count : i64 | -> Result< Tween< F64x4 >, Box< EvalAltResult > >
+      {
+        Ok( t.with_repeat( repeat_count_from_i64( count )? ) )
+      }
+    )
     .register_fn( "with_yoyo", | t : Tween< F64x4 >, yoyo : bool | t.with_yoyo( yoyo ) );
   }
 }

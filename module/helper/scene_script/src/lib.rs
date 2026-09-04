@@ -21,4 +21,11 @@ mod private
 
   /// Enforces the top-level-bindings / imperative-in-`main` convention.
   layer top_level_lint;
+
+  /// Enforces the whole-AST script-as-data purity invariant.
+  layer purity_lint;
+
+  /// Production compile-and-lint entry points ( one per script form ) that
+  /// wire `top_level_lint`/`purity_lint` into the load path itself.
+  layer script_load;
 }
