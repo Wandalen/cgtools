@@ -16,6 +16,9 @@ crate::mod_interface!
   /// Material related functionality
   layer material;
 
+  /// Dynamic text engraving: config, canvas rasterization, GPU texture, scene wiring
+  layer engraving;
+
   /// Scene related functionality
   layer scene;
 

@@ -1,0 +1,42 @@
+{
+  "nodes": [
+    {
+      "nodeName": "RingBand_Inner",
+      "uvChannel": 1,
+      "aspectRatio": 4.0,
+      "maxCharacters": 24,
+      "defaultFont": "Roboto",
+      "allowedFonts": [ "Roboto", "Playfair Display", "Great Vibes" ],
+      "textureHeight": 256,
+      "padding": 0.12,
+      "engravingStrength": 1.0,
+      "engravingRoughness": 0.7,
+      "engravingDarkening": 0.35,
+      "sizingMode": "HYBRID",
+      "stripHeightMm": 2.5,
+      "defaultFontSizeMm": 1.5,
+      "minFontSizeMm": 0.8,
+      "align": "center"
+    },
+    {
+      "nodeName": "Charm_Bracelet_Link",
+      "uvChannel": 1,
+      "aspectRatio": 3.2,
+      "maxCharacters": 8,
+      "defaultFont": "Roboto",
+      "allowedFonts": [ "Roboto" ],
+      "textureHeight": 128,
+      "sizingMode": "PHYSICAL",
+      "stripHeightMm": 1.2,
+      "defaultFontSizeMm": 0.8
+    },
+    {
+      "nodeName": "PendantTag_Back",
+      "uvChannel": 1,
+      "aspectRatio": 2.5,
+      "maxCharacters": 16,
+      "defaultFont": "Great Vibes",
+      "allowedFonts": [ "Great Vibes", "Roboto" ]
+    }
+  ]
+}

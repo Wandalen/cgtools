@@ -1,0 +1,24 @@
+{
+  "nodes":
+  [
+    {
+      "nodeName": "Cylinder",
+      "uvChannel": 1,
+      "aspectRatio": 0.98,
+      "maxCharacters": 20,
+      "defaultFont": "Arial",
+      "allowedFonts": [ "Arial", "Georgia", "Times New Roman", "Courier New", "Trebuchet MS" ],
+      "textureHeight": 512,
+      "padding": 0.12,
+      "engravingStrength": 1.0,
+      "engravingRoughness": 0.7,
+      "engravingDarkening": 0.35,
+      "sizingMode": "HYBRID",
+      "stripHeightMm": 2.0,
+      "defaultFontSizeMm": 1.2,
+      "minFontSizeMm": 0.5,
+      "fontSizeRatio": 0.6,
+      "align": "center"
+    }
+  ]
+}

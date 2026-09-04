@@ -31,6 +31,9 @@
 | skeleton_tests.rs | Tests skeleton stuff |
 | animation_graph_tests.rs | Tests animation graph stuff |
 | mirror_tests.rs | Tests animation mirroring stuff |
+| clearcoat_anisotropy_shader_tests.rs | Headless-browser shader-compilation tests for KHR_materials_clearcoat / KHR_materials_anisotropy |
+| engraving_shader_tests.rs | Headless-browser shader-compilation tests for the USE_ENGRAVING relief/roughness/darkening block |
+| engraving_config_tests.rs | Native tests for engraving_config.json parsing, SizingMode resolution and validation |
 | pmrem_tests.rs | Structural browser tests of the PMREM IBL generator |
 | fbo_pass_cycle_test.rs | Live-context FBO pass-cycle tests for `ShadowMap`/`GBuffer` bind/render |
 | pbr_material_live_test.rs | Live-context tests for `PbrMaterial` defines/IBL-flag/emission/clone logic |

@@ -37,6 +37,18 @@ struct PhysicalMaterial
   float roughness;
   vec3 f0;
   vec3 f90;
+  #ifdef USE_KHR_materials_clearcoat
+    vec3 clearcoatNormal;
+    float clearcoatFactor;
+    float clearcoatRoughness;
+  #endif
+  #ifdef USE_KHR_materials_anisotropy
+    vec3 anisotropicT;
+    vec3 anisotropicB;
+    float at;
+    float ab;
+    float anisotropyStrength;
+  #endif
 };
 
 struct ReflectedLight
@@ -45,6 +57,9 @@ struct ReflectedLight
   vec3 indirectSpecular;
   vec3 directDiffuse;
   vec3 directSpecular;
+  #ifdef USE_KHR_materials_clearcoat
+    vec3 clearcoatSpecular;
+  #endif
 };
 
 struct PointLight
@@ -108,6 +123,37 @@ uniform vec4 baseColorFactor; // Default: [1, 1, 1, 1]
   #ifdef USE_SPECULAR_COLOR_TEXTURE
     uniform sampler2D specularColorTexture;
   #endif
+#endif
+#ifdef USE_KHR_materials_clearcoat
+  uniform float clearcoatFactor;
+  uniform float clearcoatRoughnessFactor;
+  uniform float clearcoatNormalScale;
+  #ifdef USE_CLEARCOAT_TEXTURE
+    uniform sampler2D clearcoatTexture;
+  #endif
+  #ifdef USE_CLEARCOAT_ROUGHNESS_TEXTURE
+    uniform sampler2D clearcoatRoughnessTexture;
+  #endif
+  #ifdef USE_CLEARCOAT_NORMAL_TEXTURE
+    uniform sampler2D clearcoatNormalTexture;
+  #endif
+#endif
+#ifdef USE_KHR_materials_anisotropy
+  uniform float anisotropyStrength;
+  uniform float anisotropyRotation;
+  #ifdef USE_ANISOTROPY_TEXTURE
+    uniform sampler2D anisotropyTexture;
+  #endif
+#endif
+#ifdef USE_ENGRAVING
+  // vEngravingUv
+  uniform sampler2D engravingTexture;
+  // Bevel / normal-perturbation intensity at letter edges.
+  uniform float engravingStrength;
+  // Target roughness inside the carved groove (matte laser-etched finish).
+  uniform float engravingRoughness;
+  // How much the groove darkens the base albedo / specular color (0 = no change).
+  uniform float engravingDarkening;
 #endif
 #ifdef USE_MR_TEXTURE
   // Roughness is sampled from the G channel
@@ -258,6 +304,46 @@ float D_GGX( const in float alpha, const in float dotNH )
   return 0.3183098861837907 * a2 / pow2( denom );
 }
 
+#ifdef USE_KHR_materials_anisotropy
+// Anisotropic GGX normal distribution function.
+// https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_anisotropy/README.md
+float D_GGX_anisotropic( const in float dotNH, const in float dotTH, const in float dotBH, const in float at, const in float ab )
+{
+  float a2 = at * ab;
+  vec3 f = vec3( ab * dotTH, at * dotBH, a2 * dotNH );
+  float w2 = a2 / dot( f, f );
+  return a2 * w2 * w2 * RECIPROCAL_PI;
+}
+
+// Anisotropic visibility (masking-shadowing) function.
+float V_GGX_anisotropic
+(
+  const in float dotNL, const in float dotNV,
+  const in float dotBV, const in float dotTV,
+  const in float dotTL, const in float dotBL,
+  const in float at, const in float ab
+)
+{
+  float GGXV = dotNL * length( vec3( at * dotTV, ab * dotBV, dotNV ) );
+  float GGXL = dotNV * length( vec3( at * dotTL, ab * dotBL, dotNL ) );
+  return clamp( 0.5 / max( GGXV + GGXL, 1e-6 ), 0.0, 1.0 );
+}
+#endif
+
+#ifdef USE_KHR_materials_clearcoat
+// The clearcoat layer is modeled as a fixed-IOR (1.5) dielectric coat, using the same
+// isotropic GGX D/V terms as the base layer but with its own normal and roughness.
+// https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_clearcoat/README.md
+vec3 BRDF_Clearcoat( const in float dotNL, const in float dotNV, const in float dotNH, const in float dotVH, const in float roughness )
+{
+  float alpha = pow2( roughness );
+  float D = D_GGX( alpha, dotNH );
+  float V = V_GGX_SmithCorrelated( alpha, dotNL, dotNV );
+  vec3 F = F_Schlick( vec3( 0.04 ), vec3( 1.0 ), dotVH );
+  return F * ( D * V * dotNL );
+}
+#endif
+
 void applyLightContribution
 (
   const in vec3 lightDir,
@@ -282,10 +368,20 @@ void applyLightContribution
   vec3 Fs = F_Schlick( material.f0, material.f90, dotVH );
   // Diffuse BRDF (Burley)
   vec3 Fd = Fd_Barley( alpha, dotNV, dotNL, dotLH );
-  // Visibility Geometry function
-  float V = V_GGX_SmithCorrelated( alpha, dotNL, dotNV );
-  // Normal distribution function
-  float D = D_GGX( alpha, dotNH );
+  // Visibility Geometry function and Normal distribution function
+  #ifdef USE_KHR_materials_anisotropy
+    float dotTL = dot( material.anisotropicT, lightDir );
+    float dotBL = dot( material.anisotropicB, lightDir );
+    float dotTV = dot( material.anisotropicT, viewDir );
+    float dotBV = dot( material.anisotropicB, viewDir );
+    float dotTH = dot( material.anisotropicT, halfDir );
+    float dotBH = dot( material.anisotropicB, halfDir );
+    float V = V_GGX_anisotropic( dotNL, dotNV, dotBV, dotTV, dotTL, dotBL, material.at, material.ab );
+    float D = D_GGX_anisotropic( dotNH, dotTH, dotBH, material.at, material.ab );
+  #else
+    float V = V_GGX_SmithCorrelated( alpha, dotNL, dotNV );
+    float D = D_GGX( alpha, dotNH );
+  #endif
 
   vec3 irradiance = lightColor * lightIntensity * dotNL;
   vec3 diffuseColor = material.diffuseColor * irradiance;
@@ -293,6 +389,14 @@ void applyLightContribution
 
   reflectedLight.directDiffuse += ( 1.0 - Fs ) * Fd * diffuseColor;
   reflectedLight.directSpecular += Fs * specularColor;
+
+  #ifdef USE_KHR_materials_clearcoat
+    float ccDotNL = clamp( dot( material.clearcoatNormal, lightDir ), 0.0, 1.0 );
+    float ccDotNV = clamp( dot( material.clearcoatNormal, viewDir ), 0.0, 1.0 );
+    float ccDotNH = clamp( dot( material.clearcoatNormal, halfDir ), 0.0, 1.0 );
+    float ccDotVH = clamp( dot( viewDir, halfDir ), 0.0, 1.0 );
+    reflectedLight.clearcoatSpecular += BRDF_Clearcoat( ccDotNL, ccDotNV, ccDotNH, ccDotVH, material.clearcoatRoughness ) * lightColor * lightIntensity;
+  #endif
 }
 
 void computeDirectLight
@@ -372,8 +476,19 @@ void computeSpotLight
 
   vec3 Fs = F_Schlick( material.f0, material.f90, dotVH );
   vec3 Fd = Fd_Barley( alpha, dotNV, dotNL, dotLH );
-  float V = V_GGX_SmithCorrelated( alpha, dotNL, dotNV );
-  float D = D_GGX( alpha, dotNH );
+  #ifdef USE_KHR_materials_anisotropy
+    float dotTL = dot( material.anisotropicT, lightDir );
+    float dotBL = dot( material.anisotropicB, lightDir );
+    float dotTV = dot( material.anisotropicT, viewDir );
+    float dotBV = dot( material.anisotropicB, viewDir );
+    float dotTH = dot( material.anisotropicT, halfDir );
+    float dotBH = dot( material.anisotropicB, halfDir );
+    float V = V_GGX_anisotropic( dotNL, dotNV, dotBV, dotTV, dotTL, dotBL, material.at, material.ab );
+    float D = D_GGX_anisotropic( dotNH, dotTH, dotBH, material.at, material.ab );
+  #else
+    float V = V_GGX_SmithCorrelated( alpha, dotNL, dotNV );
+    float D = D_GGX( alpha, dotNH );
+  #endif
 
   vec3 irradiance = light.color * attenuation * dotNL;
   vec3 diffuseColor = material.diffuseColor * irradiance;
@@ -381,6 +496,14 @@ void computeSpotLight
 
   reflectedLight.directDiffuse += ( 1.0 - Fs ) * Fd * diffuseColor;
   reflectedLight.directSpecular += Fs * specularColor;
+
+  #ifdef USE_KHR_materials_clearcoat
+    float ccDotNL = clamp( dot( material.clearcoatNormal, lightDir ), 0.0, 1.0 );
+    float ccDotNV = clamp( dot( material.clearcoatNormal, viewDir ), 0.0, 1.0 );
+    float ccDotNH = clamp( dot( material.clearcoatNormal, halfDir ), 0.0, 1.0 );
+    float ccDotVH = clamp( dot( viewDir, halfDir ), 0.0, 1.0 );
+    reflectedLight.clearcoatSpecular += BRDF_Clearcoat( ccDotNL, ccDotNV, ccDotNH, ccDotVH, material.clearcoatRoughness ) * light.color * attenuation;
+  #endif
 }
 
 void computeLights
@@ -441,6 +564,18 @@ float ditherNoise( vec2 fragCoord )
 
     vec3 R = reflect( -V, N );
 
+    // Anisotropic IBL: bend the reflection vector towards the anisotropic tangent frame
+    // (bent-normal approximation from the glTF-Sample-Renderer reference implementation).
+    // The LOD / envBRDF / multi-scatter terms below stay driven by the original roughness —
+    // only the sampled direction changes.
+    #ifdef USE_KHR_materials_anisotropy
+      vec3 anisotropicTangent = cross( material.anisotropicB, V );
+      vec3 anisotropicNormal = cross( anisotropicTangent, material.anisotropicB );
+      float bendFactor = 1.0 - material.anisotropyStrength * ( 1.0 - material.roughness );
+      vec3 bentNormal = normalize( mix( anisotropicNormal, N, pow4( bendFactor ) ) );
+      R = reflect( -V, bentNormal );
+    #endif
+
     // Base LOD from roughness. No fixed floor (e.g. `max( .., 1.0 )`) is applied: with the
     // PMREM prefilter, mip 0 of prefilterEnvMap is the sharp environment, which is the correct,
     // physically expected result for a mirror-smooth surface. Specular aliasing comes from the
@@ -485,6 +620,15 @@ float ditherNoise( vec2 fragCoord )
     reflectedLight.indirectSpecular += radiance * singleScatter;
     reflectedLight.indirectSpecular += multiScatter * irradiance;
     reflectedLight.indirectDiffuse += diffuse * irradiance;
+
+    // Clearcoat IBL: raw prefiltered radiance sampled along the clearcoat normal, with no
+    // split-sum Fresnel weighting here — the coat's Fresnel is applied once, at the final
+    // mix with the base result (see KHR_materials_clearcoat's fresnel_mix in main()).
+    #ifdef USE_KHR_materials_clearcoat
+      vec3 Rc = reflect( -V, material.clearcoatNormal );
+      float lodc = min( material.clearcoatRoughness * u_max_lod, u_max_lod );
+      reflectedLight.clearcoatSpecular += textureLod( prefilterEnvMap, Rc, lodc ).xyz;
+    #endif
   }
 
 #endif
@@ -531,7 +675,14 @@ float adjustRoughnessNormalMap ( const in float roughness, const in vec3 normal 
 void main()
 {
   PhysicalMaterial material;
-  ReflectedLight reflectedLight = ReflectedLight( vec3( 0.0 ), vec3( 0.0 ), vec3( 0.0 ), vec3( 0.0 ) );
+  ReflectedLight reflectedLight;
+  reflectedLight.indirectDiffuse = vec3( 0.0 );
+  reflectedLight.indirectSpecular = vec3( 0.0 );
+  reflectedLight.directDiffuse = vec3( 0.0 );
+  reflectedLight.directSpecular = vec3( 0.0 );
+  #ifdef USE_KHR_materials_clearcoat
+    reflectedLight.clearcoatSpecular = vec3( 0.0 );
+  #endif
 
   float alpha = 1.0;
 
@@ -579,27 +730,167 @@ void main()
   material.f0 = mix( material.f0, material.diffuseColor, material.metallness );
   material.diffuseColor *= 1.0 - material.metallness;
 
-  vec3 normal = normalize( vNormal );
+  // faceDirection is applied to the geometric normal up front (before TBN / normal-map /
+  // clearcoat / anisotropy all consume it), so every one of those is consistently oriented
+  // on double-sided back faces.
+  float faceDirection = gl_FrontFacing ? 1.0 : -1.0;
+  vec3 geometricNormal = normalize( vNormal ) * faceDirection;
 
+  #ifdef USE_TBN
+    mat3 TBN;
+    #ifdef USE_TANGENTS
+      vec3 bitangent = cross( geometricNormal, vTangent.xyz ) * vTangent.w;
+      TBN = mat3( vTangent.xyz, bitangent, geometricNormal );
+    #else
+      // No per-texture UV is threaded through here (unlike the normal texture's own vNormalUv
+      // below) — vUv_0 is used as a simplification for the clearcoat-normal/anisotropy-only case.
+      TBN = getTBN( geometricNormal, vWorldPos, vUv_0 );
+    #endif
+  #endif
+
+  vec3 normal = geometricNormal;
   #ifdef USE_NORMAL_TEXTURE
     vec3 normalSample = texture( normalTexture, vNormalUv ).xyz * 2.0 - 1.0;
     //material.roughness = adjustRoughnessNormalMap( material.roughness, normalSample );
     normalSample.xy *= vec2( normalScale );
-
-    #ifdef USE_TANGENTS
-    {
-      vec3 bitangent = cross( normal, vTangent.xyz ) * vTangent.w;
-      mat3x3 TBN = mat3x3( vTangent.xyz, bitangent, normal );
-      normal = TBN * normalSample;
-    }
-    #else
-      normal = getTBN( normal, vWorldPos, vNormalUv ) * normalSample;
-    #endif
-    normal = normalize( normal );
+    normal = normalize( TBN * normalSample );
   #endif
 
-  float faceDirection = gl_FrontFacing ? 1.0 : -1.0;
-  normal *= faceDirection;
+  // Engraving: a laser-etched text mask sampled from a dedicated UV channel (vEngravingUv,
+  // typically TEXCOORD_1), separate from the base material's UVs. Three things happen here:
+  //
+  //  1. Bounds check — vEngravingUv is expected to only be meaningful inside [0, 1]; outside
+  //     that range (e.g. the rest of the mesh sharing the same UV set with degenerate/unused
+  //     coordinates there) the mask is forced to 0 so nothing bleeds in from CLAMP_TO_EDGE
+  //     sampling at the strip's border.
+  //
+  //  2. Relief LOD estimate — `engravingLod` approximates which mip level a filtered lookup at
+  //     vEngravingUv would resolve to, from the screen-space footprint of the UV itself
+  //     (texels-per-pixel, isotropic/worst-axis, same rule hardware trilinear filtering uses).
+  //     This only looks at how fast the UV moves across the screen, never at the mask value's
+  //     own derivative, so the estimate stays stable even right at a glyph edge; step 3 uses it
+  //     to pick both the explicit LOD and the UV offset for its central-difference samples.
+  //
+  //  3. Relief via a surface gradient (Mikkelsen), sampled explicitly in UV space —
+  //     engravingTexture is a binary-ish mask (0 outside glyphs, 1 inside, antialiased in
+  //     between). Treating it as a height field h(u, v), the bevel at a stroke edge perturbs the
+  //     normal by the standard first-order bump-mapping approximation (Blinn 1978):
+  //
+  //       N' = normalize( N - engravingStrength * ( dh/du * T + dh/dv * B ) )
+  //
+  //     — for a surface *raised* along +N by h (bas-relief/emboss). A laser-engraved groove is
+  //     the opposite: it's carved *into* the metal, i.e. displaced along -N by h, so entering a
+  //     glyph (mask 0 -> 1) must tilt the normal inward toward the channel instead of outward
+  //     away from it. Flipping the sign of the whole perturbation term (+ instead of -) accounts
+  //     for that -h displacement and is what actually reads as a carved/concave groove rather
+  //     than a raised/convex bump — see step 3's code below.
+  //
+  //     A prior version of this code computed dh/du, dh/dv as dFdx(h)/dFdy(h) — the change in
+  //     mask value per *screen* pixel — and fed that directly into the T/B (UV-axis tangent)
+  //     projection above. That's a unit mismatch: screen X/Y only line up with UV U/V when the
+  //     camera is exactly front-on with no in-plane rotation, so at any other angle a screen-space
+  //     step mixes U and V in the wrong proportions and the bump rotates away from the true groove
+  //     wall as the camera turns. Worse, dFdx/dFdy of a *filtered texture fetch* differentiates
+  //     across a 2x2 fragment quad, and each fragment in that quad can resolve a slightly
+  //     different mip/bilinear sample — so even the magnitude was jittery, which reads as
+  //     sparkling specular noise (worst at low roughness, where the lobe is narrow enough to make
+  //     per-pixel normal jitter visible as flickering).
+  //
+  //     Both problems go away by computing dh/du, dh/dv as explicit central differences of
+  //     `textureLod` samples taken along the actual U and V axes, at a fixed LOD derived from
+  //     step 2: every fragment now samples the exact same, deliberately-chosen texels (instead of
+  //     an implicit, quad-dependent derivative), and the offset is expressed purely in UV space,
+  //     so it composes correctly with T = dP/du and B = dP/dv regardless of camera orientation.
+  //     The finite difference is left undivided by the UV step (rather than forming a literal
+  //     dh/du = Δh / (2Δu)) so the gradient stays O(1) — matching the previous tuning range of
+  //     engravingStrength — and bounded at any LOD/distance instead of blowing up as the sample
+  //     step shrinks at grazing angles.
+  //
+  //  4. PBR response — inside the groove (mask towards 1) roughness is pushed towards
+  //     engravingRoughness (a matte, laser-scattered finish) and the albedo / specular color is
+  //     darkened by engravingDarkening, approximating the micro-occlusion of a recessed groove
+  //     without desaturating the metal's own hue (both diffuseColor and f0 are scaled by the
+  //     same factor, so hue/chroma survive, only brightness drops).
+  #ifdef USE_ENGRAVING
+    bool engravingInBounds = all( greaterThanEqual( vEngravingUv, vec2( 0.0 ) ) ) && all( lessThanEqual( vEngravingUv, vec2( 1.0 ) ) );
+    float engravingMask = engravingInBounds ? texture( engravingTexture, vEngravingUv ).r : 0.0;
+
+    ivec2 engravingTexDims = textureSize( engravingTexture, 0 );
+    vec2 engravingInvTexelSize = 1.0 / vec2( engravingTexDims );
+    vec2 engravingUvDx = dFdx( vEngravingUv ) * vec2( engravingTexDims );
+    vec2 engravingUvDy = dFdy( vEngravingUv ) * vec2( engravingTexDims );
+    float engravingTexelsPerPixel = max( length( engravingUvDx ), length( engravingUvDy ) );
+    float engravingLod = log2( max( engravingTexelsPerPixel, 1.0 ) );
+
+    // Clamp before exp2: engravingLod is only bounded below (max(..,1.0) inside the log2), so at
+    // a near-grazing/sliver footprint it can grow large enough that exp2() overflows to inf and
+    // poisons the sample offsets with NaN. Past the texture's own top mip there is nothing left
+    // to resolve anyway, so clamping to it costs nothing.
+    float engravingMaxLod = log2( float( max( engravingTexDims.x, engravingTexDims.y ) ) );
+    float engravingSampleLod = clamp( engravingLod, 0.0, engravingMaxLod );
+
+    // One texel *at the resolved LOD* in each axis — matches the support size of the sample
+    // being differentiated, avoiding both sub-texel noise (step too small) and over-blurring
+    // (step too large).
+    vec2 engravingStep = max( engravingInvTexelSize * exp2( engravingSampleLod ), engravingInvTexelSize );
+    float engravingHR = textureLod( engravingTexture, vEngravingUv + vec2( engravingStep.x, 0.0 ), engravingSampleLod ).r;
+    float engravingHL = textureLod( engravingTexture, vEngravingUv - vec2( engravingStep.x, 0.0 ), engravingSampleLod ).r;
+    float engravingHU = textureLod( engravingTexture, vEngravingUv + vec2( 0.0, engravingStep.y ), engravingSampleLod ).r;
+    float engravingHD = textureLod( engravingTexture, vEngravingUv - vec2( 0.0, engravingStep.y ), engravingSampleLod ).r;
+    vec2 engravingGrad = vec2( engravingHR - engravingHL, engravingHU - engravingHD );
+
+    // '+' (not '-'): the mask is carved *into* the surface (height -h along N, not +h), so the
+    // sign of the standard bump-mapping perturbation is flipped to match — see step 3 above.
+    normal = normalize( normal + engravingStrength * ( engravingGrad.x * TBN[ 0 ] + engravingGrad.y * TBN[ 1 ] ) );
+
+    material.roughness = mix( material.roughness, engravingRoughness, engravingMask );
+
+    float engravingAo = 1.0 - engravingDarkening * engravingMask;
+    material.diffuseColor *= engravingAo;
+    material.f0 *= engravingAo;
+  #endif
+
+  // KHR_materials_clearcoat: an additional dielectric (IOR 1.5) coat layer, using its own
+  // normal (starting from the *unperturbed* geometric normal, not the base normal map result)
+  // and roughness. See https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_clearcoat/README.md
+  #ifdef USE_KHR_materials_clearcoat
+    material.clearcoatFactor = clearcoatFactor;
+    #ifdef USE_CLEARCOAT_TEXTURE
+      material.clearcoatFactor *= texture( clearcoatTexture, vClearcoatUv ).r;
+    #endif
+    material.clearcoatRoughness = clearcoatRoughnessFactor;
+    #ifdef USE_CLEARCOAT_ROUGHNESS_TEXTURE
+      material.clearcoatRoughness *= texture( clearcoatRoughnessTexture, vClearcoatRoughnessUv ).g;
+    #endif
+    material.clearcoatRoughness = clamp( material.clearcoatRoughness, 0.0, 1.0 );
+    material.clearcoatNormal = geometricNormal;
+    #ifdef USE_CLEARCOAT_NORMAL_TEXTURE
+      vec3 ccNormalSample = texture( clearcoatNormalTexture, vClearcoatNormalUv ).xyz * 2.0 - 1.0;
+      ccNormalSample.xy *= vec2( clearcoatNormalScale );
+      material.clearcoatNormal = normalize( TBN * ccNormalSample );
+    #endif
+  #endif
+
+  // KHR_materials_anisotropy: tangent/bitangent frame construction. The roughness split
+  // (material.at / material.ab) is computed further below, once the final (GSAA-adjusted)
+  // roughness is known.
+  // See https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_anisotropy/README.md
+  #ifdef USE_KHR_materials_anisotropy
+    vec2 anisotropyDirection = vec2( 1.0, 0.0 );
+    float anisotropyMagnitude = anisotropyStrength;
+    #ifdef USE_ANISOTROPY_TEXTURE
+      vec3 anisotropySample = texture( anisotropyTexture, vAnisotropyUv ).rgb;
+      anisotropyDirection = anisotropySample.rg * 2.0 - 1.0;
+      anisotropyMagnitude *= anisotropySample.b;
+    #endif
+    float anisoRotCos = cos( anisotropyRotation );
+    float anisoRotSin = sin( anisotropyRotation );
+    anisotropyDirection = mat2( anisoRotCos, anisoRotSin, -anisoRotSin, anisoRotCos ) * normalize( anisotropyDirection );
+
+    material.anisotropicT = normalize( TBN * vec3( anisotropyDirection, 0.0 ) );
+    material.anisotropicB = cross( geometricNormal, material.anisotropicT );
+    material.anisotropyStrength = anisotropyMagnitude;
+  #endif
 
   // Geometric Specular Anti-Aliasing (Tokuyoshi & Kaplanyan 2019)
   // Increases roughness where screen-space normal derivatives are large (geometry edges),
@@ -609,6 +900,12 @@ void main()
   float geometricVariance = dot( dNdx, dNdx ) + dot( dNdy, dNdy );
   material.roughness = sqrt( clamp( material.roughness * material.roughness + 0.5 * geometricVariance, 0.0, 1.0 ) );
   material.roughness = max( material.roughness, 0.0525 );
+
+  #ifdef USE_KHR_materials_anisotropy
+    float anisotropyBaseAlpha = pow2( material.roughness );
+    material.at = mix( anisotropyBaseAlpha, 1.0, pow2( material.anisotropyStrength ) );
+    material.ab = clamp( anisotropyBaseAlpha, 0.001, 1.0 );
+  #endif
 
   vec3 color = vec3( 0.0 );
   vec3 viewDir = normalize( cameraPosition - vWorldPos );
@@ -640,6 +937,16 @@ void main()
   reflectedLight.indirectSpecular +
   reflectedLight.directDiffuse +
   reflectedLight.directSpecular;
+
+  // KHR_materials_clearcoat: fresnel_mix the base result with the coat lobe. The coat's own
+  // Fresnel term is applied once here (not per light / per IBL term), and the emissive
+  // output is dampened by the same weight, matching the extension's "coated_emission" note.
+  #ifdef USE_KHR_materials_clearcoat
+    vec3 clearcoatFresnel = F_Schlick( vec3( 0.04 ), vec3( 1.0 ), clamp( dot( material.clearcoatNormal, viewDir ), 0.0, 1.0 ) );
+    vec3 clearcoatWeight = clamp( material.clearcoatFactor * clearcoatFresnel, 0.0, 1.0 );
+    color = mix( color, reflectedLight.clearcoatSpecular, clearcoatWeight );
+    emissive_color.rgb *= ( 1.0 - clearcoatWeight );
+  #endif
 
   // Exposure is applied uniformly to the whole lit result here ( the tone mapping
   // pass operates in display-referred space ). The clear-color background is not

@@ -1,0 +1,120 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/Wandalen/cgtools/module/helper/renderer/engraving_config.schema.json",
+  "title": "EngravingConfig",
+  "description": "Maps glTF model nodes to dynamic text-engraving settings. One file is loaded per glTF asset; each entry in `nodes` binds a mesh node name to the UV channel and canvas layout used to rasterize user-supplied engraving text for that node.",
+  "type": "object",
+  "required": [ "nodes" ],
+  "additionalProperties": false,
+  "properties": {
+    "nodes": {
+      "type": "array",
+      "description": "One entry per engravable node. A node not listed here has no engraving support.",
+      "items": { "$ref": "#/definitions/EngravingNodeConfig" }
+    }
+  },
+  "definitions": {
+    "EngravingNodeConfig": {
+      "type": "object",
+      "required": [ "nodeName", "uvChannel", "aspectRatio", "maxCharacters", "defaultFont", "allowedFonts" ],
+      "additionalProperties": false,
+      "properties": {
+        "nodeName": {
+          "type": "string",
+          "description": "Exact name of the mesh node in the glTF file (matched via Scene::get_node)."
+        },
+        "uvChannel": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4,
+          "description": "Index of the UV set dedicated to engraving, e.g. 1 for TEXCOORD_1 / vUv_1. Must be a channel not otherwise used by base-color/normal/etc. textures on this node's material."
+        },
+        "aspectRatio": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "width / height of the engraving zone, e.g. 4.0 for a 1024x256 strip. Drives the offscreen canvas size (see EngravingCanvasManager::canvas_size_for)."
+        },
+        "maxCharacters": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Upper bound on text length. Enforced by EngravingCanvasManager before rasterizing."
+        },
+        "defaultFont": {
+          "type": "string",
+          "description": "CSS font-family used when the caller doesn't pick one explicitly. Must also appear in allowedFonts."
+        },
+        "allowedFonts": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "description": "Whitelist of CSS font-family names selectable for this node. Each must be loadable via document.fonts (e.g. declared with @font-face or a web-safe font)."
+        },
+        "textureHeight": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 256,
+          "description": "Height in pixels of the offscreen canvas / GPU texture. Width is derived as round(textureHeight * aspectRatio). Optional; defaults to 256."
+        },
+        "padding": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 0.49,
+          "default": 0.1,
+          "description": "Fractional padding (of the shorter canvas dimension) kept empty around the text on every side during auto-scaling. Optional; defaults to 0.1 (10%)."
+        },
+        "engravingStrength": {
+          "type": "number",
+          "minimum": 0,
+          "default": 1.0,
+          "description": "Intensity of the derivative-based normal perturbation at letter edges (bevel depth). Optional; defaults to 1.0."
+        },
+        "engravingRoughness": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.7,
+          "description": "Target PBR roughness inside the carved groove (matte laser-etched finish). Optional; defaults to 0.7."
+        },
+        "engravingDarkening": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.35,
+          "description": "Fraction by which the base albedo / specular color (f0) is darkened inside the groove, simulating micro-occlusion without altering hue. Optional; defaults to 0.35."
+        },
+        "sizingMode": {
+          "type": "string",
+          "enum": [ "PHYSICAL", "HYBRID", "RELATIVE" ],
+          "description": "Text-sizing strategy. Optional; if omitted, resolves to HYBRID when both stripHeightMm and defaultFontSizeMm are present, otherwise RELATIVE. PHYSICAL/HYBRID require stripHeightMm and defaultFontSizeMm to also be set."
+        },
+        "stripHeightMm": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Physical height (mm) of the TEXCOORD_1 engraving strip on the real object. Required by PHYSICAL/HYBRID sizing."
+        },
+        "defaultFontSizeMm": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Target physical font height (mm) in PHYSICAL/HYBRID modes. Required alongside stripHeightMm."
+        },
+        "minFontSizeMm": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Smallest font height (mm) HYBRID mode may shrink to before overflowing text is rejected. Optional; must not exceed defaultFontSizeMm. If unset, HYBRID shrinks to fit the strip width with no floor."
+        },
+        "fontSizeRatio": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "description": "Fixed font height as a fraction of canvas height, used by RELATIVE mode when set. Optional; if unset, RELATIVE auto-fits the largest size that fits the padded bounds."
+        },
+        "align": {
+          "type": "string",
+          "enum": [ "left", "center", "right" ],
+          "default": "center",
+          "description": "Horizontal text alignment within the padded strip. Optional; defaults to center."
+        }
+      }
+    }
+  }
+}

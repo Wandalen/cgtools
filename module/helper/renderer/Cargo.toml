@@ -39,7 +39,10 @@ enabled = [
   "dep:web-sys",
   "dep:clone_dyn_types",
   "dep:zune-hdr",
-  "dep:rustc-hash"
+  "dep:rustc-hash",
+  "dep:serde",
+  "dep:serde_json",
+  "dep:wasm-bindgen-futures"
 ]
 default = [ "enabled", "webgl" ]
 full = [ "enabled", "webgl", "animation", "webgpu", "native" ]
@@ -76,6 +79,9 @@ clone_dyn_types = { workspace = true, optional = true }
 asbytes = { workspace = true, optional = true }
 former = { workspace = true, optional = true }
 uuid = { version = "1.20.0", features = ["v4", "js"], optional = true }
+serde = { workspace = true, features = [ "derive" ], optional = true }
+serde_json = { workspace = true, optional = true }
+wasm-bindgen-futures = { workspace = true, optional = true }
 
 [dependencies.web-sys]
 workspace = true
@@ -92,7 +98,16 @@ features = [
   'WebGlFramebuffer',
   'WebGlRenderbuffer',
   'HtmlSpanElement',
-  'HtmlSelectElement'
+  'HtmlSelectElement',
+  'HtmlCanvasElement',
+  'CanvasRenderingContext2d',
+  'TextMetrics',
+  'ImageData',
+  'Document',
+  'Window',
+  'FontFace',
+  'FontFaceSet',
+  'CssStyleDeclaration'
 ]
 
 [dev-dependencies]
