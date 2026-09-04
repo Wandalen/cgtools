@@ -1,6 +1,0 @@
-//! Empty crate
-
-fn main()
-{
-
-}

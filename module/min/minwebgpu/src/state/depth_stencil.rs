@@ -160,7 +160,7 @@ mod private
     /// Disables writing to the depth buffer.
     #[ inline ]
     #[ must_use ]
-    pub fn disable_depth_write( mut self ) -> Self
+    pub fn depth_write_disable( mut self ) -> Self
     {
       self.depth_write_enabled = false;
       self

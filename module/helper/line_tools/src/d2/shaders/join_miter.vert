@@ -39,7 +39,20 @@ void main()
   vec2 pointB = ( u_world_matrix * vec3( inPointB.xy, 1.0 ) ).xy;
   vec2 pointC = ( u_world_matrix * vec3( inPointC.xy, 1.0 ) ).xy;
 
-  vec2 tangent = normalize( normalize( pointC - pointB ) + normalize( pointB - pointA ) );
+  vec2 dirIn = normalize( pointB - pointA );
+  vec2 dirOut = normalize( pointC - pointB );
+  vec2 tangentSum = dirOut + dirIn;
+  // Fix(BUG-158)
+  // Root cause: when the path reverses ~180 degrees at pointB (dirOut ~= -dirIn, a "cusp"),
+  // tangentSum's length collapses to ~0 and normalize(~0) is NaN in GLSL (0/0 on both
+  // components) -- propagating through normal/sigma/offsetPoint into gl_Position and corrupting
+  // this joint's geometry.
+  // Pitfall: no CPU-side guard exists (line.rs/lib.rs only check near-coincident points via
+  // EPSILON=1e-8 distance, never direction/collinearity), so this is reachable from ordinary
+  // API usage any time three consecutive path points fold back on themselves. The identical
+  // copy-pasted formula (no shared GLSL header in this crate) is duplicated in join_bevel.vert,
+  // join_round.vert, body.vert and body_terminal.vert -- fixed identically in all 5.
+  vec2 tangent = dot( tangentSum, tangentSum ) > 1e-12 ? normalize( tangentSum ) : dirIn;
   vec2 normal = vec2( -tangent.y, tangent.x );
 
   vec2 AB = pointB - pointA;

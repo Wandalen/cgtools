@@ -14,6 +14,7 @@ Every backend presents a **Y-up** coordinate system to callers: `(0, 0)` is the 
 ### Enforcement Mechanism
 
 - **WebGL2 adapter**: matches Y-up natively (OpenGL's own convention), so no conversion is applied.
+- **WebGPU and native adapters** (`gpu_hal`-backed): both map `Transform`-derived world-space Y directly into clip space with no adapter-side flip, the same convention as WebGL2. The native adapter additionally flips the sampled row for UV only — row 0 of uploaded image bytes is the image's top row, but `ly = 0.5` is the top of a Y-up world-space quad (see `src/adapters/native.rs`'s `quad_vertices`); the WebGPU adapter does not yet exercise this, since it never uploads real pixel data (see [feature/005_webgpu_backend_adapter.md](../feature/005_webgpu_backend_adapter.md)).
 - **SVG adapter**: SVG's native convention is Y-down (`(0, 0)` at the top-left), so `src/adapters/svg.rs` converts at emission time for every positioned element: position Y is flipped (`height - y`), rotation is negated (CCW in Y-up becomes CW in SVG's Y-down space), and scale Y is negated — emitted as `scale(1,-1)` even at identity scale so the flip is always present. Viewport pan/zoom is composed into the same conversion via a single top-level `<g transform="scale(s) translate(ox,-oy)">` wrapper (see the `transform_to_svg` / local-transform split in source) so batch-instance transforms drawn inside that wrapper use raw, unflipped local coordinates rather than double-converting.
 - Verified directly in source: the conversion logic sits in `src/adapters/svg.rs` (`transform_to_svg`, the "Y-up (0,0 = bottom-left) → SVG Y-down (0,0 = top-left)" comment block, and the drop-shadow direction negation), and is covered by dedicated unit tests — `transform_y_up_bottom_left_origin`, `transform_y_up_top_right`, `transform_y_up_center`, `transform_identity_scale_emits_y_flip`, `local_transform_no_y_flip`, and `effect_drop_shadow_y_flipped` — all inline in `src/adapters/svg.rs`.
 
@@ -27,6 +28,8 @@ A backend (or an SVG code path) that omits the conversion would render mirrored 
 |------|--------------|
 | [feature/001_svg_backend_adapter.md](../feature/001_svg_backend_adapter.md) | Actively converts Y-up to SVG's native Y-down at emission time |
 | [feature/002_webgl2_backend_adapter.md](../feature/002_webgl2_backend_adapter.md) | Satisfies Y-up natively; no conversion needed |
+| [feature/005_webgpu_backend_adapter.md](../feature/005_webgpu_backend_adapter.md) | Satisfies Y-up natively for `Transform` placement; UV row-order not yet exercised (no real pixel upload) |
+| [feature/006_native_backend_adapter.md](../feature/006_native_backend_adapter.md) | Satisfies Y-up natively for `Transform` placement; also flips sampled UV row to match Y-up world-space quads |
 
 ### Sources
 

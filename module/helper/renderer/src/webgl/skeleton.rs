@@ -28,7 +28,11 @@ mod private
 
   /// Loads data to data texture where every pixel
   /// is 4 float values. Used for packing matrices array
-  pub fn load_texture_data_4f
+  ///
+  /// # Errors
+  ///
+  /// Returns `WebglError` if the texture allocation or upload fails.
+  pub fn texture_data_4f_load
   (
     gl : &GL,
     texture : &WebGlTexture,
@@ -75,7 +79,7 @@ mod private
   /// * `texture` - The texture to bind.
   /// * `location` - The uniform location in the shader for the sampler.
   /// * `slot` - The texture unit to bind to ( e.g., `GL::TEXTURE0` ).
-  fn upload_texture
+  fn texture_upload
   (
     gl : &GL,
     texture : &WebGlTexture,
@@ -97,9 +101,34 @@ mod private
   ///    between two rows and all matrices have grid alignment.
   /// 3. The ceil is needed to get the smallest integer side length that fits all the data.
   #[ must_use ]
-  pub fn calculate_data_texture_size( data_size : usize ) -> u32
+  pub fn data_texture_size_calculate( data_size : usize ) -> u32
   {
     4.0_f32.powf( ( data_size as f32 ).sqrt().log( 4.0 ).ceil() ) as u32
+  }
+
+  /// Computes the `( width, height )`, in texels, of a displacement texture holding
+  /// `data_len` floats, keeping each row a whole multiple of `vertex_displacement_len`
+  /// ( texels-per-vertex, i.e. `attributes_count * targets_count` ) so a single vertex's
+  /// texel block never spans two rows.
+  #[ must_use ]
+  pub fn displacement_texture_size_compute( data_len : usize, vertex_displacement_len : usize ) -> ( u32, u32 )
+  {
+    let v = vertex_displacement_len as f32;
+    // Fix(BUG-252): plain `floor()` could round `i` down to `0` whenever
+    // `sqrt(data_len) < v` (small vertex counts relative to attributes*targets), collapsing
+    // the texture width `a` to `0` and forcing `b = data_len / 0 == +inf`, which saturates
+    // to `u32::MAX` and always exceeds the caller's size-limit check -- so the update
+    // silently and permanently failed every frame with a misleading "texture too large"
+    // error instead of ever writing real displacement data.
+    // Root cause: rounding the row width down to the nearest multiple of
+    // `vertex_displacement_len` can legitimately round all the way down to zero multiples
+    // when `data_len` is small; `.max( 1.0 )` guarantees at least one.
+    // Pitfall: `a.max( b ) > max_size` looks like it only guards against oversized
+    // textures, so it silently absorbed this unrelated div-by-zero-by-`a` failure mode too.
+    let i = ( ( data_len as f32 ).sqrt() / v ).floor().max( 1.0 );
+    let a = ( v * i ) as u32;
+    let b = ( data_len as f32 / a as f32 ).ceil() as u32;
+    ( a, b )
   }
 
   /// Skin joints transforms related data
@@ -124,13 +153,21 @@ mod private
     /// Defines if [`TransformsData`] is recently cloned,
     /// but not all fields have been cloned too
     need_clone_inner : bool,
-    /// WebGL context used by `Drop` to delete the textures above. `None` until the
-    /// first `upload()` call actually allocates them.
+    /// GL context `global_texture`/`inverse_texture` were allocated from -- retained so
+    /// `impl Drop` can free them. `None` until the first `upload()` call actually allocates
+    /// a texture ( `new()` receives no `gl` parameter, so it can't be populated any earlier ).
     gl : Option< GL >,
   }
 
   impl TransformsData
   {
+    /// Returns a slice of the resolved joint nodes, in skin-joint-array order.
+    #[ must_use ]
+    pub fn joints_get( &self ) -> &[ Rc< RefCell< Node > > ]
+    {
+      self.joints.as_slice()
+    }
+
     /// Creates [`TransformsData`]
     #[ must_use ]
     pub fn new( joints : Vec< ( Rc< RefCell< Node > >, F32x4x4 ) > ) -> Self
@@ -164,7 +201,7 @@ mod private
       locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > >
     )
     {
-      if self.gl.is_none() { self.gl = Some( gl.clone() ); }
+      self.gl = Some( gl.clone() );
 
       if self.need_clone_inner
       {
@@ -181,7 +218,7 @@ mod private
       let global_matrices = self.joints.iter()
       .map
       (
-        | node | node.borrow().get_world_matrix()
+        | node | node.borrow().world_matrix_get()
       )
       .collect::< Vec< _ > >();
 
@@ -189,7 +226,7 @@ mod private
       .flat_map(| m | m.to_array().to_vec())
       .collect::< Vec< _ > >();
 
-      let a = calculate_data_texture_size(global_data.len() );
+      let a = data_texture_size_calculate(global_data.len() );
       let texture_size = [ a, a ];
 
       global_data.extend( vec![ 0.0; ( a * a * 4 ) as usize - global_data.len() ] );
@@ -210,7 +247,7 @@ mod private
         .collect::< Vec< _ > >();
 
         inverse_data.extend( vec![ 0.0; ( a * a * 4 ) as usize - inverse_data.len() ] );
-        let _ = load_texture_data_4f( gl, self.inverse_texture.as_ref().unwrap(), inverse_data.as_slice(), texture_size );
+        let _ = texture_data_4f_load( gl, self.inverse_texture.as_ref().unwrap(), inverse_data.as_slice(), texture_size );
 
         if self.inverse_texture.is_some() && self.global_texture.is_some()
         {
@@ -224,10 +261,45 @@ mod private
         let inverse_matrices_loc = locations.get( "inverseBindMatricesTexture" ).unwrap();
         let texture_size_loc = locations.get( "skinMatricesTextureSize" ).unwrap();
 
-        let _ = load_texture_data_4f( gl, global_texture, global_data.as_slice(), texture_size );
-        upload_texture( gl, global_texture, global_matrices_loc.as_ref(), GLOBAL_MATRICES_SLOT );
-        upload_texture( gl, inverse_texture, inverse_matrices_loc.as_ref(), INVERSE_MATRICES_SLOT );
+        let _ = texture_data_4f_load( gl, global_texture, global_data.as_slice(), texture_size );
+        texture_upload( gl, global_texture, global_matrices_loc.as_ref(), GLOBAL_MATRICES_SLOT );
+        texture_upload( gl, inverse_texture, inverse_matrices_loc.as_ref(), INVERSE_MATRICES_SLOT );
         gl::uniform::upload( gl, texture_size_loc.clone(), texture_size.as_slice() ).unwrap();
+      }
+    }
+  }
+
+  /// Construction of the owning form of `TransformsData` — reachable from
+  /// `tests/` under `test_internals`.
+  ///
+  /// A teardown test needs an instance whose `gl` is populated ( that field is
+  /// what decides whether `Drop` frees the two textures at all ) and needs the
+  /// joint data left empty, since nothing about the joints affects teardown.
+  /// A constructor taking exactly those three things is a far smaller seam than
+  /// making all seven fields reachable so a test can write a struct literal.
+  #[ cfg( feature = "test_internals" ) ]
+  impl TransformsData
+  {
+    /// A `TransformsData` with no joints that owns the two given textures: its
+    /// `Drop` will free both.
+    #[ doc( hidden ) ]
+    #[ must_use ]
+    pub fn new_owning_for_test
+    (
+      global_texture : Option< WebGlTexture >,
+      inverse_texture : Option< WebGlTexture >,
+      gl : &GL,
+    ) -> Self
+    {
+      Self
+      {
+        joints : vec![],
+        inverse_bind_matrices : vec![],
+        global_texture,
+        inverse_texture,
+        need_update_inverse : false,
+        need_clone_inner : false,
+        gl : Some( gl.clone() ),
       }
     }
   }
@@ -243,7 +315,7 @@ mod private
       Self
       {
         joints : self.joints.iter()
-        .map( | n | n.borrow().clone_tree() )
+        .map( | n | n.borrow().tree_clone() )
         .collect::< Vec< _ > >(),
         inverse_bind_matrices : self.inverse_bind_matrices.clone(),
         global_texture : self.global_texture.clone(),
@@ -255,15 +327,26 @@ mod private
     }
   }
 
-  /// Deletes the joint-transform textures this `TransformsData` allocated via `upload()`.
-  /// A no-op if `upload()` was never called (`gl` still `None`) — see the `Clone` impl,
-  /// which intentionally clears `gl` because a freshly cloned instance does not yet own
-  /// its own GPU textures (its next `upload()` allocates new ones before use).
+  // Fix(BUG-437): `TransformsData` allocated `global_texture`/`inverse_texture` via
+  // `gl.create_texture()` inside `upload()` but never freed them anywhere -- dropping a
+  // `TransformsData` ( e.g. when its owning `Skeleton`/`Mesh`/`Node` is discarded ) silently
+  // leaked both GPU textures every time.
+  // Root cause: the struct had no `impl Drop` and no manual `gl_resources_free`-style method;
+  // nothing in the type ever called `gl.delete_texture` on either field.
+  // Pitfall: `Clone` copies `global_texture`/`inverse_texture` by handle ( the same underlying
+  // GPU texture, not a deep copy ), relying on `need_clone_inner = true` to force `upload()`
+  // to allocate the clone its *own* fresh textures before ever binding/uploading through them
+  // ( see the `if self.need_clone_inner { .. }` block in `upload()`, which always runs before
+  // any GL call that would actually use the field ). Freeing unconditionally in `Drop` is safe
+  // only because of that ordering guarantee -- if a future edit ever read `global_texture`/
+  // `inverse_texture` for a GL call *before* the `need_clone_inner` reallocation in `upload()`,
+  // dropping the original ahead of the clone's first `upload()` would leave the clone pointing
+    // at an already-deleted texture.
   impl Drop for TransformsData
   {
     fn drop( &mut self )
     {
-      if let Some( gl ) = &self.gl
+      if let Some( ref gl ) = self.gl
       {
         gl.delete_texture( self.global_texture.as_ref() );
         gl.delete_texture( self.inverse_texture.as_ref() );
@@ -305,8 +388,9 @@ mod private
     /// Defines if [`DisplacementsData`] is recently cloned,
     /// but not all fields have been cloned too
     need_clone_inner : bool,
-    /// WebGL context used by `Drop` to delete `displacements_texture`. `None` until
-    /// the first `upload()` call actually allocates it.
+    /// GL context `displacements_texture` was allocated from -- retained so `impl Drop` can
+    /// free it. `None` until the first `upload()` call actually allocates a texture ( `new()`
+    /// receives no `gl` parameter, so it can't be populated any earlier ).
     gl : Option< GL >,
   }
 
@@ -371,7 +455,10 @@ mod private
     /// |  X  | Y (4 bytes) |  Z  |   |       |    |    |       |    |     |       |    |      ...       |
     /// +-----+-------------+-----+---+--...--+----+----+--...--+----+-----+--...--+----+------...-------+
     ///
-    pub fn pack_displacements_data( &mut self ) -> Vec< f32 >
+    /// # Panics
+    ///
+    /// Does not panic in practice : the `unwrap` runs only on slots pre-filtered to be `Some`.
+    pub fn displacements_data_pack( &mut self ) -> Vec< f32 >
     {
       let arrays =
       [
@@ -419,9 +506,6 @@ mod private
     }
 
     /// Uploads morph targets data to uniforms
-    // 111 lines : one GPU-upload sequence ( texture realloc, weight defaults, packing,
-    // size guard, uniform uploads ) over tightly coupled GL state; splitting would scatter it.
-    #[ allow( clippy::too_many_lines ) ]
     fn upload
     (
       &mut self,
@@ -429,10 +513,7 @@ mod private
       locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > >
     )
     {
-      if self.gl.is_none()
-      {
-        self.gl = Some( gl.clone() );
-      }
+      self.gl = Some( gl.clone() );
 
       if self.need_clone_inner
       {
@@ -442,89 +523,107 @@ mod private
         .is_none();
       }
 
-      if self.need_update_displacement
+      if self.need_update_displacement && !self.displacements_update( gl )
       {
-        if self.displacements_texture.is_none()
+        return;
+      }
+
+      self.uniforms_upload( gl, locations );
+    }
+
+    /// Repacks displacement data and reallocates the displacement texture.
+    ///
+    /// Returns `false` when the required texture would exceed the WebGL size limit — the update is
+    /// abandoned and `need_update_displacement` stays set, so the next call retries.
+    fn displacements_update( &mut self, gl : &GL ) -> bool
+    {
+      if self.displacements_texture.is_none()
+      {
+        self.displacements_texture = gl.create_texture();
+      }
+
+      let mut data = self.displacements_data_pack();
+
+      let vertex_displacement_len = self.attributes_count() * self.targets_count;
+      if self.morph_weights.borrow().is_empty()
+      {
+        *self.morph_weights.borrow_mut() = if self.default_weights.len() == self.targets_count
         {
-          self.displacements_texture = gl.create_texture();
+          self.default_weights.clone()
+        }
+        else
+        {
+          vec![ 0.0; self.targets_count ]
+        };
+      }
+
+      if vertex_displacement_len != 0
+      {
+        let ( a, b ) = displacement_texture_size_compute( data.len(), vertex_displacement_len );
+
+        let max_size = gl.get_parameter( gl::MAX_TEXTURE_SIZE )
+        .ok()
+        .and_then(| v | v.as_f64())
+        .unwrap_or( 0.0 ) as u32;
+        if a.max( b ) > max_size
+        {
+          gl::web::error!
+          (
+            "Displacement texture size exceeded max WebGL texture size: {:?} > {:?}",
+            ( a, b ),
+            ( max_size, max_size )
+          );
+          return false;
         }
 
-        let mut data = self.pack_displacements_data();
+        self.disp_texture_size = [ a, b ];
+        data.extend( vec![ 0.0; ( a * b * 4 ) as usize - data.len() ] );
+        let _ = texture_data_4f_load( gl, self.displacements_texture.as_ref().unwrap(), data.as_slice(), [ a, b ] );
+      }
 
-        let vertex_displacement_len = self.attributes_count() * self.targets_count;
-        if self.morph_weights.borrow().is_empty()
+      let mut offset = 0_i32;
+      let offsets =
+      [
+        &self.positions_displacements,
+        &self.normals_displacements,
+        &self.tangents_displacements
+      ]
+      .map
+      (
+        | v |
         {
-          *self.morph_weights.borrow_mut() = if self.default_weights.len() == self.targets_count
+          if v.is_some()
           {
-            self.default_weights.clone()
+            let i = offset;
+            offset += 1;
+            i
           }
           else
           {
-            vec![ 0.0; self.targets_count ]
-          };
-        }
-
-        if vertex_displacement_len != 0
-        {
-          let v = vertex_displacement_len as f32;
-          let i = ( ( data.len() as f32 ).sqrt() / v ).floor();
-          let a = ( v * i ) as u32;
-          let b = ( data.len() as f32 / a as f32 ).ceil() as u32;
-
-          let max_size = gl.get_parameter( gl::MAX_TEXTURE_SIZE )
-          .ok()
-          .and_then(| v | v.as_f64())
-          .unwrap_or( 0.0 ) as u32;
-          if a.max( b ) > max_size
-          {
-            gl::web::error!
-            (
-              "Displacement texture size exceeded max WebGL texture size: {:?} > {:?}",
-              ( a, b ),
-              ( max_size, max_size )
-            );
-            return;
+            -1
           }
-
-          self.disp_texture_size = [ a, b ];
-          data.extend( vec![ 0.0; ( a * b * 4 ) as usize - data.len() ] );
-          let _ = load_texture_data_4f( gl, self.displacements_texture.as_ref().unwrap(), data.as_slice(), [ a, b ] );
         }
+      );
 
-        let mut offset = 0_i32;
-        let offsets =
-        [
-          &self.positions_displacements,
-          &self.normals_displacements,
-          &self.tangents_displacements
-        ]
-        .map
-        (
-          | v |
-          {
-            if v.is_some()
-            {
-              let i = offset;
-              offset += 1;
-              i
-            }
-            else
-            {
-              -1
-            }
-          }
-        );
+      self.disp_offsets = I32x3::from_array( offsets );
 
-        self.disp_offsets = I32x3::from_array( offsets );
+      self.need_update_displacement = false;
+      true
+    }
 
-        self.need_update_displacement = false;
-      }
-
+    /// Uploads the displacement texture and morph-target uniforms to their locations.
+    fn uniforms_upload
+    (
+      &self,
+      gl : &GL,
+      locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > >
+    )
+    {
       if let Some( displacements_texture ) = &self.displacements_texture
       {
         if let Some( displacements_loc ) = locations.get( "morphTargetsDisplacementsTexture" )
         {
-          upload_texture( gl, displacements_texture, displacements_loc.as_ref(), DISPLACEMENTS_SLOT );
+          texture_upload( gl, displacements_texture, displacements_loc.as_ref(), DISPLACEMENTS_SLOT );
         }
         if let Some( morph_weights_loc ) = locations.get( "morphWeights" )
         {
@@ -559,13 +658,13 @@ mod private
 
     /// Returns morph weights that is used for updating geometry
     #[ must_use ]
-    pub fn get_morph_weights( &self ) -> Rc< RefCell< Vec< f32 > > >
+    pub fn morph_weights_get( &self ) -> Rc< RefCell< Vec< f32 > > >
     {
       self.morph_weights.clone()
     }
 
     /// Sets one morph targets vertex attribute data that will be packed into texture
-    pub fn set_displacement
+    pub fn displacement_set
     (
       &mut self,
       displacement_array : Option< Vec< [ f32; 3 ] > >,
@@ -627,6 +726,32 @@ mod private
     }
   }
 
+  /// Construction of the owning form of `DisplacementsData` — reachable from
+  /// `tests/` under `test_internals`.
+  ///
+  /// Same shape and same reason as `TransformsData::new_owning_for_test` above:
+  /// a teardown test needs `gl` populated ( the field that decides whether
+  /// `Drop` frees the texture at all ) and cares about nothing else, so it
+  /// starts from `new()` rather than reaching all thirteen fields.
+  #[ cfg( feature = "test_internals" ) ]
+  impl DisplacementsData
+  {
+    /// An otherwise-default `DisplacementsData` that owns the given texture: its
+    /// `Drop` will free it.
+    #[ doc( hidden ) ]
+    #[ must_use ]
+    pub fn new_owning_for_test( displacements_texture : Option< WebGlTexture >, gl : &GL ) -> Self
+    {
+      // Assigned rather than written as `..Self::new()` — functional-update
+      // syntax moves the un-named fields out of its base value, which Rust
+      // forbids on a type that implements `Drop` ( E0509 ).
+      let mut data = Self::new();
+      data.displacements_texture = displacements_texture;
+      data.gl = Some( gl.clone() );
+      data
+    }
+  }
+
   impl Clone for DisplacementsData
   {
     /// `need_clone_inner: true` makes the next `upload()` allocate a fresh GPU
@@ -654,13 +779,24 @@ mod private
     }
   }
 
-  /// Deletes the morph-target displacement texture this `DisplacementsData`
-  /// allocated via `upload()`. A no-op if `upload()` was never called.
+  // Fix(BUG-437): `DisplacementsData` allocated `displacements_texture` via
+  // `gl.create_texture()` inside `upload()` but never freed it anywhere -- dropping a
+  // `DisplacementsData` ( e.g. when its owning `Skeleton`/`Mesh`/`Node` is discarded ) silently
+  // leaked the GPU texture every time.
+  // Root cause: the struct had no `impl Drop` and no manual `gl_resources_free`-style method;
+  // nothing in the type ever called `gl.delete_texture` on the field.
+  // Pitfall: `Clone` copies `displacements_texture` by handle ( the same underlying GPU
+  // texture, not a deep copy ), relying on `need_clone_inner = true` to force `upload()` to
+  // allocate the clone its *own* fresh texture before ever binding/uploading through it ( see
+  // the `if self.need_clone_inner { .. }` block in `upload()`, which always runs before
+  // `displacements_update()` would otherwise reuse an existing `Some` handle ). Freeing
+  // unconditionally in `Drop` is safe only because of that ordering guarantee -- see the
+    // identical caveat on `TransformsData`'s `impl Drop` above.
   impl Drop for DisplacementsData
   {
     fn drop( &mut self )
     {
-      if let Some( gl ) = &self.gl
+      if let Some( ref gl ) = self.gl
       {
         gl.delete_texture( self.displacements_texture.as_ref() );
       }
@@ -723,27 +859,27 @@ mod private
       }
     }
 
-    /// Get [`Self::transforms`] as reference
+    /// Get `Self::transforms` as reference
     #[ must_use ]
     pub fn transforms_as_ref( &self ) -> &Option< TransformsData >
     {
       &self.transforms
     }
 
-    /// Get [`Self::transforms`] as mutable reference
+    /// Get `Self::transforms` as mutable reference
     pub fn transforms_as_mut( &mut self ) -> &mut Option< TransformsData >
     {
       &mut self.transforms
     }
 
-    /// Get [`Self::displacements`] as reference
+    /// Get `Self::displacements` as reference
     #[ must_use ]
     pub fn displacements_as_ref( &self ) -> &Option< DisplacementsData >
     {
       &self.displacements
     }
 
-    /// Get [`Self::displacements`] as mutable reference
+    /// Get `Self::displacements` as mutable reference
     pub fn displacements_as_mut( &mut self ) -> &mut Option< DisplacementsData >
     {
       &mut self.displacements
@@ -769,8 +905,9 @@ crate::mod_interface!
 {
   orphan use
   {
-    load_texture_data_4f,
-    calculate_data_texture_size,
+    texture_data_4f_load,
+    data_texture_size_calculate,
+    displacement_texture_size_compute,
     TransformsData,
     DisplacementsData,
     Skeleton,

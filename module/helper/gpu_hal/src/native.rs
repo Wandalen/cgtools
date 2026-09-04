@@ -18,131 +18,154 @@ mod private
   // own bitflags share — from_bits_truncate is a bit-identical mapping, not
   // a lossy approximation.
 
-  impl BufferUsage
+  impl From< BufferUsage > for wgpu::BufferUsages
   {
     /// The equivalent raw wgpu usage flags.
-    #[must_use]
-    pub fn to_wgpu( self ) -> wgpu::BufferUsages
+    fn from( value : BufferUsage ) -> Self
     {
-      wgpu::BufferUsages::from_bits_truncate( self.bits() )
+      wgpu::BufferUsages::from_bits_truncate( value.bits() )
     }
   }
 
-  impl TextureUsage
+  impl From< TextureUsage > for wgpu::TextureUsages
   {
     /// The equivalent raw wgpu usage flags.
-    #[must_use]
-    pub fn to_wgpu( self ) -> wgpu::TextureUsages
+    fn from( value : TextureUsage ) -> Self
     {
-      wgpu::TextureUsages::from_bits_truncate( self.bits() )
+      wgpu::TextureUsages::from_bits_truncate( value.bits() )
     }
   }
 
-  impl ShaderStages
+  impl From< ShaderStages > for wgpu::ShaderStages
   {
     /// The equivalent raw wgpu stage flags.
-    #[must_use]
-    pub fn to_wgpu( self ) -> wgpu::ShaderStages
+    fn from( value : ShaderStages ) -> Self
     {
-      wgpu::ShaderStages::from_bits_truncate( self.bits() )
+      wgpu::ShaderStages::from_bits_truncate( value.bits() )
     }
   }
 
-  impl TextureFormat
+  impl From< TextureFormat > for wgpu::TextureFormat
   {
     /// The equivalent raw wgpu format.
-    #[must_use]
-    pub fn to_wgpu( self ) -> wgpu::TextureFormat
+    fn from( value : TextureFormat ) -> Self
     {
-      match self
+      match value
       {
-        Self::Rgba8Unorm => wgpu::TextureFormat::Rgba8Unorm,
-        Self::Rgba8UnormSrgb => wgpu::TextureFormat::Rgba8UnormSrgb,
-        Self::Bgra8Unorm => wgpu::TextureFormat::Bgra8Unorm,
-        Self::Rgba16Float => wgpu::TextureFormat::Rgba16Float,
-        Self::Depth24Plus => wgpu::TextureFormat::Depth24Plus
+        TextureFormat::Rgba8Unorm => wgpu::TextureFormat::Rgba8Unorm,
+        TextureFormat::Rgba8UnormSrgb => wgpu::TextureFormat::Rgba8UnormSrgb,
+        TextureFormat::Bgra8Unorm => wgpu::TextureFormat::Bgra8Unorm,
+        TextureFormat::Bgra8UnormSrgb => wgpu::TextureFormat::Bgra8UnormSrgb,
+        TextureFormat::Rgba16Float => wgpu::TextureFormat::Rgba16Float,
+        TextureFormat::Depth24Plus => wgpu::TextureFormat::Depth24Plus
       }
     }
   }
 
-  impl VertexFormat
+  impl TryFrom< wgpu::TextureFormat > for TextureFormat
   {
-    /// The equivalent raw wgpu format.
-    #[must_use]
-    pub fn to_wgpu( self ) -> wgpu::VertexFormat
+    /// The error type returned if the conversion fails.
+    type Error = Error;
+
+    /// The HAL equivalent of a raw wgpu format, when the v0 surface has one.
+    ///
+    /// Reverse of the `From< TextureFormat > for wgpu::TextureFormat` mapping
+    /// above. Needed because a swapchain picks its own presentation format —
+    /// the HAL must name whatever the driver chose, rather than only convert
+    /// formats it selected itself.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Unsupported`] when `format` has no equivalent in the
+    /// v0 surface.
+    fn try_from( format : wgpu::TextureFormat ) -> Result< Self, Self::Error >
     {
-      match self
+      match format
       {
-        Self::Float32x2 => wgpu::VertexFormat::Float32x2,
-        Self::Float32x3 => wgpu::VertexFormat::Float32x3,
-        Self::Float32x4 => wgpu::VertexFormat::Float32x4
+        wgpu::TextureFormat::Rgba8Unorm => Ok( Self::Rgba8Unorm ),
+        wgpu::TextureFormat::Rgba8UnormSrgb => Ok( Self::Rgba8UnormSrgb ),
+        wgpu::TextureFormat::Bgra8Unorm => Ok( Self::Bgra8Unorm ),
+        wgpu::TextureFormat::Bgra8UnormSrgb => Ok( Self::Bgra8UnormSrgb ),
+        wgpu::TextureFormat::Rgba16Float => Ok( Self::Rgba16Float ),
+        wgpu::TextureFormat::Depth24Plus => Ok( Self::Depth24Plus ),
+        other => Err( Error::Unsupported( format!( "texture format {other:?} is outside the v0 surface" ) ) )
       }
     }
   }
 
-  impl IndexFormat
+  impl From< VertexFormat > for wgpu::VertexFormat
   {
     /// The equivalent raw wgpu format.
-    #[must_use]
-    pub fn to_wgpu( self ) -> wgpu::IndexFormat
+    fn from( value : VertexFormat ) -> Self
     {
-      match self
+      match value
       {
-        Self::Uint32 => wgpu::IndexFormat::Uint32
+        VertexFormat::Float32x2 => wgpu::VertexFormat::Float32x2,
+        VertexFormat::Float32x3 => wgpu::VertexFormat::Float32x3,
+        VertexFormat::Float32x4 => wgpu::VertexFormat::Float32x4
       }
     }
   }
 
-  impl BindingType
+  impl From< IndexFormat > for wgpu::IndexFormat
+  {
+    /// The equivalent raw wgpu format.
+    fn from( value : IndexFormat ) -> Self
+    {
+      match value
+      {
+        IndexFormat::Uint32 => wgpu::IndexFormat::Uint32
+      }
+    }
+  }
+
+  impl From< BindingType > for wgpu::BindingType
   {
     /// The equivalent raw wgpu binding type — the v0 fixed set: uniform
     /// buffers, filterable 2d float textures, filtering samplers.
-    #[must_use]
-    pub fn to_wgpu( self ) -> wgpu::BindingType
+    fn from( value : BindingType ) -> Self
     {
-      match self
+      match value
       {
-        Self::UniformBuffer => wgpu::BindingType::Buffer
+        BindingType::UniformBuffer => wgpu::BindingType::Buffer
         {
           ty : wgpu::BufferBindingType::Uniform,
           has_dynamic_offset : false,
           min_binding_size : None
         },
-        Self::Texture => wgpu::BindingType::Texture
+        BindingType::Texture => wgpu::BindingType::Texture
         {
           sample_type : wgpu::TextureSampleType::Float { filterable : true },
           view_dimension : wgpu::TextureViewDimension::D2,
           multisampled : false
         },
-        Self::Sampler => wgpu::BindingType::Sampler( wgpu::SamplerBindingType::Filtering )
+        BindingType::Sampler => wgpu::BindingType::Sampler( wgpu::SamplerBindingType::Filtering )
       }
     }
   }
 
-  impl FilterMode
+  impl From< FilterMode > for wgpu::FilterMode
   {
     /// The equivalent raw wgpu filter mode.
-    #[must_use]
-    pub fn to_wgpu( self ) -> wgpu::FilterMode
+    fn from( value : FilterMode ) -> Self
     {
-      match self
+      match value
       {
-        Self::Nearest => wgpu::FilterMode::Nearest,
-        Self::Linear => wgpu::FilterMode::Linear
+        FilterMode::Nearest => wgpu::FilterMode::Nearest,
+        FilterMode::Linear => wgpu::FilterMode::Linear
       }
     }
   }
 
-  impl AddressMode
+  impl From< AddressMode > for wgpu::AddressMode
   {
     /// The equivalent raw wgpu address mode.
-    #[must_use]
-    pub fn to_wgpu( self ) -> wgpu::AddressMode
+    fn from( value : AddressMode ) -> Self
     {
-      match self
+      match value
       {
-        Self::ClampToEdge => wgpu::AddressMode::ClampToEdge,
-        Self::Repeat => wgpu::AddressMode::Repeat
+        AddressMode::ClampToEdge => wgpu::AddressMode::ClampToEdge,
+        AddressMode::Repeat => wgpu::AddressMode::Repeat
       }
     }
   }
@@ -158,7 +181,7 @@ mod private
   /// Returns [`Error::Unsupported`] if `texture`'s format is not
   /// `Rgba8Unorm`. Returns [`Error::Native`] if the device poll, the
   /// readback map callback, or the GPU-side buffer mapping fails.
-  pub fn read_texture_rgba8
+  pub fn texture_rgba8_read
   (
     device : &wgpu::Device,
     queue : &wgpu::Queue,
@@ -169,7 +192,7 @@ mod private
     {
       return Err( Error::Unsupported
       (
-        format!( "read_texture_rgba8 reads rgba8unorm only, not {:?}", texture.format() )
+        format!( "texture_rgba8_read reads rgba8unorm only, not {:?}", texture.format() )
       ) );
     }
     let width = texture.width();
@@ -179,6 +202,25 @@ mod private
     // padded on copy and re-packed tightly below.
     let padded_bytes_per_row = bytes_per_row.div_ceil( wgpu::COPY_BYTES_PER_ROW_ALIGNMENT )
     * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+    let staging = native_texture_rgba8_copy_to_staging
+    (
+      device, queue, texture, width, height, padded_bytes_per_row
+    );
+    native_texture_rgba8_staging_read( device, &staging, bytes_per_row, padded_bytes_per_row, height )
+  }
+
+  /// Copies `texture`'s rgba8 pixels into a newly-created, row-padded
+  /// staging buffer and submits the copy — the buffer is not yet mapped.
+  fn native_texture_rgba8_copy_to_staging
+  (
+    device : &wgpu::Device,
+    queue : &wgpu::Queue,
+    texture : &wgpu::Texture,
+    width : u32,
+    height : u32,
+    padded_bytes_per_row : u32
+  ) -> wgpu::Buffer
+  {
     let staging = device.create_buffer( &wgpu::BufferDescriptor
     {
       label : Some( "gpu_hal readback staging" ),
@@ -210,7 +252,20 @@ mod private
       wgpu::Extent3d { width, height, depth_or_array_layers : 1 }
     );
     queue.submit( core::iter::once( encoder.finish() ) );
+    staging
+  }
 
+  /// Maps `staging`, blocks until the GPU-side copy and map complete, and
+  /// re-packs its row-padded bytes into tightly-packed rgba8 pixels.
+  fn native_texture_rgba8_staging_read
+  (
+    device : &wgpu::Device,
+    staging : &wgpu::Buffer,
+    bytes_per_row : u32,
+    padded_bytes_per_row : u32,
+    height : u32
+  ) -> Result< Vec< u8 >, Error >
+  {
     let slice = staging.slice( .. );
     let ( sender, receiver ) = std::sync::mpsc::channel();
     slice.map_async( wgpu::MapMode::Read, move | result | { let _ = sender.send( result ); } );
@@ -220,7 +275,8 @@ mod private
     .map_err( | _ | Error::Native( "readback map callback never fired".to_string() ) )?
     .map_err( | e | Error::Native( format!( "readback map failed : {e:?}" ) ) )?;
 
-    let mapped = slice.get_mapped_range();
+    let mapped = slice.get_mapped_range()
+    .map_err( | e | Error::Native( format!( "readback map range failed : {e:?}" ) ) )?;
     let mut pixels = Vec::with_capacity( bytes_per_row as usize * height as usize );
     for row in 0..height as usize
     {
@@ -235,5 +291,5 @@ mod private
 
 crate::mod_interface!
 {
-  own use read_texture_rgba8;
+  own use texture_rgba8_read;
 }

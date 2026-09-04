@@ -13,15 +13,14 @@
 | attributes_vao | yes | yes | yes | yes | | | |
 | character_control | no | yes | yes | yes | | | |
 | color_space_conversions | yes | yes | yes | yes | | | |
+| context_triangle_smoke | yes | yes | yes | no | | | |
 | curve_surface_rendering | yes | yes | yes | yes | | | |
 | deferred_shading | yes | yes | yes | yes | | | |
 | diamond | yes | yes | yes | yes | | | |
-| filter | yes | yes | yes | yes | | | |
 | filters | yes | yes | yes | yes | | | |
 | gltf_viewer | yes | yes | yes | yes | | | |
 | hexagonal_grid | yes | yes | yes | yes | | | |
 | hexagonal_map | yes | yes | yes | yes | | | |
-| jewelry_site | no | yes | yes | yes | | | |
 | lottie_surface_rendering | no | yes | yes | yes | | | |
 | make_cube_map | yes | yes | yes | yes | | | |
 | mapgen_tiles_rendering | yes | yes | yes | yes | | | |
@@ -40,9 +39,7 @@
 | simple_pbr | yes | yes | yes | yes | | | |
 | skeletal_animation | no | yes | yes | yes | | | |
 | space_partition | no | yes | yes | yes | | | |
-| spinning_cube_size_opt | yes | yes | yes | yes | | | |
 | sprite_animation | yes | yes | yes | yes | | | |
-| sun_grid_lines (webgl) | no | yes | yes | yes | | | |
 | text_msdf | yes | yes | yes | yes | | | |
 | text_rendering | yes | yes | yes | yes | | | |
 | touch_input_test | no | yes | yes | no | | | |
@@ -55,11 +52,10 @@
 | hello_triangle (webgpu) | yes | yes | yes | yes | | | |
 | hello_triangle_quickstart (webgpu) | yes | yes | yes | yes | | | |
 | renderer_pbr_scene (webgpu) | no | yes | yes | no | | | |
-| sun_grid_lines (webgpu) | no | yes | yes | no | | | |
+| orrery (webgpu) | no | yes | yes | no | | | |
 | grid_render | yes | yes | yes | yes | | | |
 | hello_triangle (wgpu) | yes | yes | yes | yes | | | |
-| sun_grid_lines (wgpu) | no | yes | yes | yes | | | |
-| sun_grid_lines_vulkan (wgpu) | no | yes | yes | yes | | | |
+| flecs_bouncing_circles | yes | yes | yes | yes | | | |
 | f32x2_vector_arithmetic | no | yes | yes | no | | | |
 | pingpong_animation | no | yes | yes | no | | | |
 | advanced_pathfinding_demo | no | yes | yes | no | | | |
@@ -74,3 +70,6 @@
 | simple_collision_demo | no | yes | yes | no | | | |
 | stealth_game | no | yes | yes | no | | | |
 | tactical_rpg | no | yes | yes | no | | | |
+| triangle_browser | yes | yes | yes | no | | | |
+| opaque_path_browser | yes | yes | yes | no | | | |
+| tilemap_renderer_adapter_browser | yes | yes | yes | no | | | |

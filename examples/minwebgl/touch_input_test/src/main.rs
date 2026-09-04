@@ -9,7 +9,7 @@ use gl::GL;
 use browser_input::{ EventType, Input, CLIENT };
 use gl::JsCast as _;
 
-fn run() -> Result< (), gl::WebglError >
+fn app_run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( gl::browser::Config::default() );
   let canvas = gl::canvas::make()?;
@@ -60,7 +60,7 @@ fn run() -> Result< (), gl::WebglError >
     let w = canvas.width() as f32;
     let h = canvas.height() as f32;
 
-    input.update_state();
+    input.state_update();
 
     // Wheel zoom on desktop
     for browser_input::Event { event_type, .. } in input.event_queue().iter()
@@ -72,7 +72,7 @@ fn run() -> Result< (), gl::WebglError >
       }
     }
 
-    input.clear_events();
+    input.events_clear();
 
     // Pan and pinch via active_pointers
     let active = input.active_pointers().to_vec();
@@ -137,5 +137,5 @@ fn run() -> Result< (), gl::WebglError >
 
 fn main()
 {
-  run().unwrap();
+  app_run().unwrap();
 }

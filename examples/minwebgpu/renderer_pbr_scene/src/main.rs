@@ -85,7 +85,7 @@ mod app
 
   /// Builds the draw list: a 5x2 sphere grid ( metallic and dielectric rows,
   /// roughness rising left to right ) over a ground plane.
-  fn build_items( context : &GpuContext, renderer : &WebGpuRenderer ) -> Result< Vec< RenderItem >, Error >
+  fn items_build( context : &GpuContext, renderer : &WebGpuRenderer ) -> Result< Vec< RenderItem >, Error >
   {
     let mut items = Vec::new();
 
@@ -107,10 +107,10 @@ mod app
           roughness_factor : 0.05 + i as f32 * 0.225,
           ..PbrMaterial::new()
         };
-        let binding = renderer.create_material_binding( context, &material )?;
+        let binding = renderer.material_binding_create( context, &material )?;
         let position = gl::math::F32x3::from( [ ( i as f32 - 2.0 ) * 1.7, 0.62, z ] );
         let world = gl::math::mat3x3h::translation( position );
-        items.push( renderer.create_item( context, geometry, binding, world )? );
+        items.push( renderer.item_create( context, geometry, binding, world )? );
       }
     }
 
@@ -123,25 +123,25 @@ mod app
       roughness_factor : 0.85,
       ..PbrMaterial::new()
     };
-    let binding = renderer.create_material_binding( context, &material )?;
+    let binding = renderer.material_binding_create( context, &material )?;
     let world = gl::math::mat3x3h::translation( gl::math::F32x3::from( [ 0.0, 0.0, 0.0 ] ) );
-    items.push( renderer.create_item( context, geometry, binding, world )? );
+    items.push( renderer.item_create( context, geometry, binding, world )? );
 
     Ok( items )
   }
 
   /// One light of each supported kind: warm sun, cool point fill, white spot.
-  fn build_lights() -> Lights
+  fn lights_build() -> Lights
   {
     let mut lights = Lights::new();
-    assert!( lights.push_direct( [ 1.0, 2.0, 1.0 ], [ 1.0, 0.96, 0.88 ], 3.0 ) );
-    assert!( lights.push_point( [ -4.0, 3.0, 3.0 ], [ 0.3, 0.5, 1.0 ], 30.0, 25.0 ) );
-    assert!( lights.push_spot( [ 0.0, 6.0, 5.0 ], [ 0.0, -1.0, -0.8 ], [ 1.0, 1.0, 1.0 ], 60.0, 30.0, 0.35, 0.55 ) );
+    assert!( lights.direct_push( [ 1.0, 2.0, 1.0 ], [ 1.0, 0.96, 0.88 ], 3.0 ) );
+    assert!( lights.point_push( [ -4.0, 3.0, 3.0 ], [ 0.3, 0.5, 1.0 ], 30.0, 25.0 ) );
+    assert!( lights.spot_push( [ 0.0, 6.0, 5.0 ], [ 0.0, -1.0, -0.8 ], [ 1.0, 1.0, 1.0 ], 60.0, 30.0, 0.35, 0.55 ) );
     lights
   }
 
   /// Sets up the chosen backend and runs the render loop.
-  pub async fn run() -> Result< (), Error >
+  pub async fn app_run() -> Result< (), Error >
   {
     gl::browser::setup( gl::browser::Config::default() );
     let canvas = gl::canvas::retrieve_or_make().map_err( gl::WebGPUError::from )?;
@@ -162,8 +162,8 @@ mod app
     document.set_title( &format!( "renderer PBR scene — {backend}" ) );
 
     let renderer = WebGpuRenderer::new( &context )?;
-    let items = build_items( &context, &renderer )?;
-    let lights = build_lights();
+    let items = items_build( &context, &renderer )?;
+    let lights = lights_build();
 
     let aspect = canvas.width() as f32 / canvas.height() as f32;
     let fovy = 40f32.to_radians();
@@ -199,7 +199,7 @@ mod app
 #[ cfg( target_arch = "wasm32" ) ]
 fn main()
 {
-  gl::spawn_local( async move { app::run().await.unwrap() } );
+  gl::spawn_local( async move { app::app_run().await.unwrap() } );
 }
 
 #[ cfg( not( target_arch = "wasm32" ) ) ]

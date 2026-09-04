@@ -26,12 +26,12 @@ where
   };
 
   // Define matrices using row_major for consistent logical layout
-  let mat_a = Mat::< 1, 3, f32, D >::default().set_row_major
+  let mat_a = Mat::< 1, 3, f32, D >::default().row_major_set
   (&[
     1.0, 2.0, 3.0,
   ]);
 
-  let mat_b = Mat::< 3, 2, f32, D >::default().set_row_major
+  let mat_b = Mat::< 3, 2, f32, D >::default().row_major_set
   (&[
     7.0, 8.0,
     9.0, 10.0,
@@ -46,7 +46,7 @@ where
   println!( "After mul" );
 
   // Expected result
-  let exp = Mat::< 1, 2, f32, D >::default().set_row_major
+  let exp = Mat::< 1, 2, f32, D >::default().row_major_set
   (&[
     58.0, 64.0,
   ]);
@@ -119,8 +119,8 @@ where
 
   // a is 2x3, b is 2x2: a's column count (3) does not match b's row count (2), so the
   // inner multiplication dimension is incompatible.
-  let mat_a = Mat::< 2, 3, f32, D >::default().set_row_major( &[ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 ] );
-  let mat_b = Mat::< 2, 2, f32, D >::default().set_row_major( &[ 1.0, 2.0, 3.0, 4.0 ] );
+  let mat_a = Mat::< 2, 3, f32, D >::default().row_major_set( &[ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 ] );
+  let mat_b = Mat::< 2, 2, f32, D >::default().row_major_set( &[ 1.0, 2.0, 3.0, 4.0 ] );
   let mut mat_r = Mat::< 2, 2, f32, D >::default();
 
   // Attempt multiplication with incompatible inner dimensions, should panic
@@ -144,16 +144,16 @@ fn test_multiply_incompatible_dimensions_column_major()
 }
 
 /// ## Root Cause
-/// `d2::mul_mat_vec`'s dimension-compatibility check (`adim[1] != ROWS`) lived inside
+/// `d2::mat_vec_mul`'s dimension-compatibility check (`adim[1] != ROWS`) lived inside
 /// `#[ cfg( debug_assertions ) ]`, so a release build skipped it entirely.
 ///
 /// ## Why Not Caught
-/// `mul_mat_vec` has no direct test anywhere in this suite; it is only reachable
+/// `mat_vec_mul` has no direct test anywhere in this suite; it is only reachable
 /// indirectly through the `Mul<Vector<COLS>>` operator impls, which never exercise a
 /// mismatched shape.
 ///
 /// ## Fix Applied
-/// TASK-014 changed `mul_mat_vec()`'s `#[ cfg( debug_assertions ) ]` block to run
+/// TASK-014 changed `mat_vec_mul()`'s `#[ cfg( debug_assertions ) ]` block to run
 /// unconditionally (see `src/d2/arithmetics/mul.rs`). This test calls the free function
 /// directly with a matrix column count that does not match the vector length.
 ///
@@ -181,12 +181,12 @@ where
 
   // a is 3x3 (3 columns), but b/r are length-2 vectors: a's column count (3) does not
   // match the vector length (2).
-  let mat_a = Mat::< 3, 3, f32, D >::default().set_row_major( &[ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0 ] );
+  let mat_a = Mat::< 3, 3, f32, D >::default().row_major_set( &[ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0 ] );
   let vec_b = Vector::< f32, 2 >::from_array( [ 1.0, 2.0 ] );
   let mut vec_r = Vector::< f32, 2 >::default();
 
   // Attempt matrix-vector multiplication with incompatible dimensions, should panic
-  d2::mul_mat_vec( &mut vec_r, &mat_a, &vec_b );
+  d2::mat_vec_mul( &mut vec_r, &mat_a, &vec_b );
 }
 
 #[ test ]
@@ -203,4 +203,72 @@ fn test_multiply_vec_incompatible_dimensions_column_major()
 {
   use the_module::mat::DescriptorOrderColumnMajor;
   test_multiply_vec_incompatible_dimensions_generic::< DescriptorOrderColumnMajor >();
+}
+
+/// ## Root Cause
+/// `mat_vec_mul`'s output length and the `Mul<Vector<COLS>>` operator impls' `Output` type
+/// both used the matrix's COLUMN count (`COLS`) instead of its ROW count (`ROWS`) for the
+/// result vector's length -- correct only by coincidence for a square matrix, where the two
+/// counts are equal.
+///
+/// ## Why Not Caught
+/// Every existing `Mat * Vector` test used a square matrix, where `ROWS == COLS` hides the
+/// mismatch; no test exercised a non-square matrix through this path before this task.
+///
+/// ## Fix Applied
+/// BUG-121 split `mat_vec_mul`'s single `ROWS` const generic into independent `IN`/`OUT`
+/// generics, and changed both `Mul<Vector<COLS>>` impls' `Output` from `Vector<E,COLS>` to
+/// `Vector<E,ROWS>` (see `src/d2/arithmetics/mul.rs`).
+///
+/// ## Prevention
+/// This test multiplies a real 3-row, 2-column matrix by a length-2 vector and asserts the
+/// result has all 3 rows populated correctly, both via the free function and the `*`
+/// operator. Pre-fix, the result vector's length was pinned to 2 (the column count) by
+/// `mat_vec_mul`'s signature and the operator's `Output` type, silently dropping the third
+/// row's dot product instead of producing the correct length-3 result.
+///
+/// ## Pitfall
+/// A linear map's input length (matrix columns) and output length (matrix rows) are
+/// independent quantities -- never unify them under one generic parameter, even when every
+/// currently-existing caller happens to use a square matrix where the two coincide.
+fn test_mat_vec_mul_non_square_produces_full_length_result_generic< D : the_module::mat::Descriptor >()
+where
+  the_module::Mat< 3, 2, f32, D > : the_module::IndexingRef< Scalar = f32 >,
+  the_module::Mat< 3, 2, f32, D > : the_module::Indexable< Index = the_module::Ix2 >,
+  the_module::Mat< 3, 2, f32, D > : the_module::RawSliceMut< Scalar = f32 >,
+  the_module::Mat< 3, 2, f32, D > : core::ops::Mul< the_module::Vector< f32, 2 >, Output = the_module::Vector< f32, 3 > >,
+{
+  use the_module::
+  {
+    Mat,
+    Vector,
+    d2,
+  };
+
+  // a is 3x2 (3 rows, 2 columns): a non-square matrix whose output length (3, ROWS) differs
+  // from its input length (2, COLS).
+  let mat_a = Mat::< 3, 2, f32, D >::default().row_major_set( &[ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 ] );
+  let vec_b = Vector::< f32, 2 >::from_array( [ 1.0, 1.0 ] );
+  let exp = Vector::< f32, 3 >::from_array( [ 3.0, 7.0, 11.0 ] );
+
+  let mut vec_r = Vector::< f32, 3 >::default();
+  d2::mat_vec_mul( &mut vec_r, &mat_a, &vec_b );
+  assert_eq!( vec_r, exp, "Expected {exp:?}, got {vec_r:?}" );
+
+  let vec_r = mat_a * vec_b;
+  assert_eq!( vec_r, exp, "Expected {exp:?}, got {vec_r:?}" );
+}
+
+#[ test ]
+fn test_mat_vec_mul_non_square_produces_full_length_result_row_major()
+{
+  use the_module::mat::DescriptorOrderRowMajor;
+  test_mat_vec_mul_non_square_produces_full_length_result_generic::< DescriptorOrderRowMajor >();
+}
+
+#[ test ]
+fn test_mat_vec_mul_non_square_produces_full_length_result_column_major()
+{
+  use the_module::mat::DescriptorOrderColumnMajor;
+  test_mat_vec_mul_non_square_produces_full_length_result_generic::< DescriptorOrderColumnMajor >();
 }

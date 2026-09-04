@@ -259,6 +259,32 @@ the pointer's value must trace back to a `*mut`-producing accessor
 never to a `*const`-producing accessor ( e.g. `as_ptr()` ) cast to `*mut`.
 ```
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Is `vector_mut`'s cast fixed from `self.as_ptr()` to `self.as_mut_ptr()`? Direct read of `slice.rs:50-63` → `unsafe { &mut *self.as_mut_ptr().cast::<[E;N]>() }`; `grep -n "as_ptr() as \*mut" module/math/mdmath_core/src/vector/*.rs` (the bug's own `## Prevention` detection command) → 0 matches.
+- [x] C2 — Is the `Fix(BUG-054)` 3-field comment present, and does it explain the provenance mechanism (not just "fixed")? Direct read of `slice.rs:53-59` → present, states `as_ptr()` carries only `SharedReadOnly` provenance, names the root cause (copy-pasted from `array_ref`'s immutable sibling without switching accessors), and the pitfall.
+- [x] C3 — Does the pre-existing `test_vector_mut_slice` remain the sole coverage (per this bug's own "no duplicate test added" decision), correctly tagged? `slice_test.rs:20-27` → `// test_kind: bug_reproducer(BUG-054)` present directly above `test_vector_mut_slice`; no second, duplicate test was added alongside it.
+- [x] C4 — Does the fixed source pass clean under Miri (the bug's own primary evidence mechanism)? This session's fresh `cargo +nightly miri test -p mdmath_core --all-features` shows `inc::vector_test::slice_test::test_vector_mut_slice ... ok` with zero Stacked-Borrows errors anywhere in the run (I3) — matches the bug's documented "Green (post-fix)" expectation.
+- [x] C5 — Is the "dormant, zero live callers" Impact/Magnitude claim still true? Workspace-wide `grep -rn "\.vector_mut(" --include="*.rs" .` → every hit is inside `mdmath_core/tests/vector_test/*_test.rs`; `grep -rln "ArrayMut" module/ examples/ --include="*.rs"` → only `mdmath_core`'s own impls/tests plus one safe-by-construction impl in `ndarray_cg/src/vector/general.rs` (`&mut self.0`, no raw pointer) — no generic consumer exists that could be affected either way.
+
+### Measurements
+
+- [x] M1 — `as_ptr() as *mut` occurrences in `mdmath_core/src/vector/`: `0` (was: `1`, at `slice.rs`'s `vector_mut` — `git show 9b71cf39^:module/math/mdmath_core/src/vector/slice.rs` line 55 shows `unsafe { &mut *( self.as_ptr() as *mut [ E ; N ] ) }`).
+- [x] M2 — Miri UB errors on the crate's full test suite: `0` (was: `1`, reproduced in `## Symptom`: `error: Undefined Behavior: trying to retag from <852419> for Unique permission ... but that tag only grants SharedReadOnly permission`, at pre-fix `slice.rs:55` — this session's fresh run against current source shows the same test now passing clean).
+
+### Invariants
+
+- [x] I1 — Test suite (crate-scoped): `cargo nextest run -p mdmath_core --all-features` (via `longrun`) → exit 0, 89 tests run: 89 passed, 0 skipped, including `test_vector_mut_slice` (log `-0014_longrun.log`).
+- [x] I2 — Lints clean: `cargo clippy -p mdmath_core --all-targets --all-features -- -D warnings` (via `longrun`) → exit 0, zero warnings (log `-0018_longrun.log`).
+- [x] I3 — Miri Stacked Borrows (this bug's own primary evidence mechanism): `cargo +nightly miri test -p mdmath_core --all-features` (via `longrun`) → exit 0, 89 passed, 0 failed, zero UB anywhere in the crate (log `-0019_longrun.log`); Miri's availability confirmed first (`cargo +nightly miri --version` → `miri 0.1.0`) rather than assumed.
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against the `as_ptr()`-cast-to-`*mut` pattern reappearing in this or any sibling accessor: re-run C1's `grep -n "as_ptr() as \*mut"` across `mdmath_core/src/vector/*.rs` — must return 0 matches; the bug's own `## Prevention` names this exact command.
+- [x] AF2 — Guards against a future edit re-widening `vector_mut`'s real callers beyond today's test-only usage without also re-running Miri first: any new production call site to `<[E] as ArrayMut<E,N>>::vector_mut` should trigger a fresh `cargo +nightly miri test -p mdmath_core --all-features` before being trusted, since ordinary (non-Miri) `cargo test`/`cargo clippy` cannot detect this UB class at all (confirmed clean natively both before and after the fix, per this bug's own `## Why Not Caught`).
+
 ## History
 
 | Date       | Event  | Notes                                                                                                     |

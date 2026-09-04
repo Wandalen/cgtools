@@ -46,13 +46,23 @@ mod private
   {
     type AnimatableType = Quat< E >;
 
+    // Fix(BUG-149)
+    // Root cause: `apply` inserted an extraneous 1/3-blend step (`b_start`/`b_end`, blending
+    // `start`/`end` toward the tangents) before the second slerp, instead of slerping
+    // `out_tangent`/`in_tangent` directly against each other -- the correct SQUAD formula
+    // (Shoemake's Definition 17, confirmed independently via this file's own cited ROBOOP and
+    // MIT-thesis sources) is `Slerp( Slerp(start,end,t), Slerp(out_tangent,in_tangent,t),
+    // 2t(1-t) )`, using the pre-computed tangent quaternions directly, with no further blending
+    // toward the endpoints.
+    // Pitfall: the outer `2t(1-t)` coefficient is exactly `0` at `time == 0.0` and `time == 1.0`,
+    // so `apply` returns precisely `start`/`end` at both boundaries under BOTH the buggy and
+    // fixed formula -- a boundary-only test (the style already used elsewhere in this crate) can
+    // never catch this class of defect; only a pinned mid-curve value can.
     fn apply( &self, start : Quat< E >, end : Quat< E >, time : f64 ) -> Quat< E >
     {
       let time_e = E::from( time ).unwrap();
-      let b_start = start.slerp( &self.out_tangent, E::from( 1.0 / 3.0 ).unwrap() );
-      let b_end = end.slerp( &self.in_tangent, E::from( 1.0 / 3.0 ).unwrap() );
       let slerp1 = start.slerp( &end, time_e );
-      let slerp2 = b_start.slerp( &b_end, time_e );
+      let slerp2 = self.out_tangent.slerp( &self.in_tangent, time_e );
 
       slerp1.slerp( &slerp2, E::from( 2.0 * time * ( 1.0 - time ) ).unwrap() )
     }

@@ -175,13 +175,13 @@ mod private
   // it via `edge_lookup()` above); there is no existing or planned caller
   // passing a different hasher, so generalizing over `BuildHasher` would add
   // API surface for no current need.
-  #[ allow( clippy::implicit_hasher ) ]
+  #[ allow( clippy::implicit_hasher, reason = "edge_lookup is always this crate's FxHashMap alias; every caller builds it via edge_lookup() above, so generalizing over BuildHasher would add API surface for no current need" ) ]
   // `ccw_idx`/`cw_idx` and `ccw_dir`/`cw_dir` are the CCW/CW halves of the same
   // SPEC-defined pair (see the doc comment above); the shared prefix is what
   // makes the pairing legible, so splitting the names further apart would hide
   // the relationship rather than clarify it.
-  #[ allow( clippy::similar_names ) ]
-  pub fn compute_edge_connected_bitmask
+  #[ allow( clippy::similar_names, reason = "ccw_idx/cw_idx and ccw_dir/cw_dir are the CCW/CW halves of the same SPEC-defined pair; the shared prefix makes the pairing legible" ) ]
+  pub fn edge_connected_bitmask_compute
   (
     canon : CanonicalEdge,
     connects_with : &[ String ],
@@ -292,6 +292,6 @@ mod_interface::mod_interface!
   exposed use edge_world_pixel;
   exposed use edge_rotation;
   exposed use edge_lookup;
-  exposed use compute_edge_connected_bitmask;
+  exposed use edge_connected_bitmask_compute;
   exposed use index_to_dir;
 }

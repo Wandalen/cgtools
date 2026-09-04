@@ -10,9 +10,9 @@ use std::
   rc::Rc,
 };
 
-fn run() -> Result< (), gl::WebglError >
+fn app_run() -> Result< (), gl::WebglError >
 {
-  gl::browser::setup( Default::default() );
+  gl::browser::setup( gl::browser::Config::default() );
   let gl = gl::context::retrieve_or_make()?;
 
   // Vertex and fragment shader source code
@@ -51,8 +51,8 @@ fn run() -> Result< (), gl::WebglError >
   gl.uniform_block_binding( &program, trans_block_index, trans_block_point );
 
   // Retrieve UBO information for diagnostic purposes only; these lines should be removed in production builds.
-  gl::ubo::diagnostic_info( &gl, &program, color_block_index ).debug_info();
-  gl::ubo::diagnostic_info( &gl, &program, trans_block_index ).debug_info();
+  gl::ubo::diagnostic_info( &gl, &program, color_block_index ).debug_info( module_path!() );
+  gl::ubo::diagnostic_info( &gl, &program, trans_block_index ).debug_info( module_path!() );
 
   // Define the update and draw logic
   let update_and_draw =
@@ -95,5 +95,5 @@ fn run() -> Result< (), gl::WebglError >
 
 fn main()
 {
-  run().unwrap()
+  app_run().unwrap();
 }

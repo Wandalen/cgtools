@@ -26,7 +26,7 @@ mod private
     /// Sets the type of the sampler from the provided type
     #[ inline ]
     #[ must_use ]
-    pub fn set_type( mut self, s_type : web_sys::GpuSamplerBindingType ) -> Self
+    pub fn type_set( mut self, s_type : web_sys::GpuSamplerBindingType ) -> Self
     {
       self.s_type = Some( s_type );
       self

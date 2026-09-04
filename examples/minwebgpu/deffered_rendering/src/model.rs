@@ -43,8 +43,9 @@ impl ModelState
   pub async fn new( device : &web_sys::GpuDevice ) -> Result< ModelState, gl::WebGPUError >
   {
     // Load models, create buffer and initialize buffer with the data
-    let model = gl::file::load( "static/bunny.obj" ).await.expect( "Failed to fetch the model" );
-    let ( models, _ ) = gl::model::obj::load_model_from_slice( &model, "static", &tobj::GPU_LOAD_OPTIONS ).await.unwrap();
+    let model = gl::file::load( "static/bunny.obj" ).await
+    .map_err( | e | gl::dom::Error::BindgenError( "Failed to fetch static/bunny.obj", format!( "{e:?}" ) ) )?;
+    let ( models, _ ) = gl::model::obj::model_load_from_slice( &model, "static", &tobj::GPU_LOAD_OPTIONS ).await.unwrap();
 
     let model = &models[ 0 ];
     let mesh = &model.mesh;
@@ -56,7 +57,7 @@ impl ModelState
     let index_buffer = gl::BufferInitDescriptor::new( &mesh.indices, gl::BufferUsage::INDEX ).create( device )?;
     let index_length = mesh.indices.len() as u32;
 
-    let instances = generate_instances();
+    let instances = instances_generate();
     let instances_raw = instances.iter().map( Instance::as_raw ).collect::< Vec< InstanceRaw > >();
     let instance_buffer = gl::BufferInitDescriptor::new( &instances_raw, gl::BufferUsage::VERTEX ).create( device )?;
 
@@ -119,7 +120,7 @@ impl ModelState
   }
 }
 
-fn generate_instances() -> Vec< Instance >
+fn instances_generate() -> Vec< Instance >
 {
   let mut instances = Vec::new();
 

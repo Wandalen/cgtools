@@ -19,11 +19,19 @@
 //!
 //! let config = RenderConfig { width : 800, height : 600, ..Default::default() };
 //! let mut svg = SvgBackend::new( config );
-//! svg.load_assets( &assets )?;
+//! svg.assets_load( &assets )?;
 //! svg.submit( &commands )?;
 //! let Output::String( doc ) = svg.output()? else { unreachable!() };
 //! ```
 
+// Empty, but required: `mod_interface!` below resolves its own generated paths
+// through a `private` module in every file that invokes it. This one briefly
+// held a `wasm_bindgen_test_configure!( run_in_browser )` call, needed because
+// the BUG-441 reproducer was an inline `#[cfg(test)]` block in
+// `src/adapters/webgl.rs` and so compiled into this crate's `--lib` test binary,
+// which defaults to Node where `web_sys::window()` is always `None`. That test
+// now lives in `tests/webgl_context_loss_test.rs`, whose binary carries its own
+// call, so nothing wasm-gated compiles into `--lib` any more.
 mod private {}
 
 #[ cfg( feature = "enabled" ) ]
@@ -39,6 +47,9 @@ mod_interface::mod_interface!
     feature = "adapter-svg",
     feature = "adapter-terminal",
     feature = "adapter-webgl",
+    feature = "adapter-webgpu",
+    feature = "adapter-native",
+    feature = "adapter-none",
   ) ) ]
   layer adapters;
 }

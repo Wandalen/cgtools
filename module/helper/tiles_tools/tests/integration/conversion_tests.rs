@@ -27,8 +27,8 @@
 use tiles_tools::coordinates::{
   conversion::{
     Convert, ApproximateConvert, BatchConvertExact, BatchConvertApproximate,
-    convert_batch_exact, convert_batch_approximate, test_roundtrip_conversion,
-    measure_approximate_conversion_error
+    batch_convert_exact, batch_convert_approximate, roundtrip_conversion_test,
+    approximate_conversion_error_measure
   },
   square::{Coordinate as SquareCoord, FourConnected as SquareFour, EightConnected as SquareEight},
   isometric::{Coordinate as IsoCoord, Diamond},
@@ -184,7 +184,7 @@ fn test_batch_exact_conversion()
     SquareCoord::<SquareFour>::new(0, 0),
   ];
 
-  let isos: Vec<IsoCoord<Diamond>> = squares.clone().convert_batch_exact();
+  let isos: Vec<IsoCoord<Diamond>> = squares.clone().batch_convert_exact();
 
   assert_eq!(isos.len(), squares.len());
   for (square, iso) in squares.iter().zip(isos.iter()) {
@@ -203,7 +203,7 @@ fn test_batch_approximate_conversion()
     HexCoord::<Axial, Pointy>::new(0, 0),
   ];
 
-  let squares: Vec<SquareCoord<SquareFour>> = hexes.clone().convert_batch_approximate();
+  let squares: Vec<SquareCoord<SquareFour>> = hexes.clone().batch_convert_approximate();
 
   assert_eq!(squares.len(), hexes.len());
   for (hex, square) in hexes.iter().zip(squares.iter()) {
@@ -217,7 +217,7 @@ fn test_batch_approximate_conversion()
 fn test_batch_conversion_empty_vector()
 {
   let empty_squares: Vec<SquareCoord<SquareFour>> = vec![];
-  let empty_isos: Vec<IsoCoord<Diamond>> = empty_squares.convert_batch_exact();
+  let empty_isos: Vec<IsoCoord<Diamond>> = empty_squares.batch_convert_exact();
 
   assert_eq!(empty_isos.len(), 0);
 }
@@ -226,7 +226,7 @@ fn test_batch_conversion_empty_vector()
 fn test_batch_conversion_single_element()
 {
   let single = vec![SquareCoord::<SquareFour>::new(7, 3)];
-  let result: Vec<IsoCoord<Diamond>> = single.clone().convert_batch_exact();
+  let result: Vec<IsoCoord<Diamond>> = single.clone().batch_convert_exact();
 
   assert_eq!(result.len(), 1);
   assert_eq!(result[0].x, single[0].x);
@@ -241,7 +241,7 @@ fn test_batch_conversion_large_vector()
     .map(|i| SquareCoord::<SquareFour>::new(i % 50, i / 50))
     .collect();
 
-  let isos: Vec<IsoCoord<Diamond>> = squares.clone().convert_batch_exact();
+  let isos: Vec<IsoCoord<Diamond>> = squares.clone().batch_convert_exact();
 
   assert_eq!(isos.len(), squares.len());
   for (square, iso) in squares.iter().zip(isos.iter()) {
@@ -262,7 +262,7 @@ fn test_convert_batch_exact_utility()
     SquareCoord::<SquareFour>::new(3, 4),
   ];
 
-  let isos: Vec<IsoCoord<Diamond>> = convert_batch_exact(squares.clone());
+  let isos: Vec<IsoCoord<Diamond>> = batch_convert_exact(squares.clone());
 
   assert_eq!(isos.len(), squares.len());
   for (square, iso) in squares.iter().zip(isos.iter()) {
@@ -279,7 +279,7 @@ fn test_convert_batch_approximate_utility()
     HexCoord::<Axial, Pointy>::new(2, 0),
   ];
 
-  let squares: Vec<SquareCoord<SquareFour>> = convert_batch_approximate(hexes.clone());
+  let squares: Vec<SquareCoord<SquareFour>> = batch_convert_approximate(hexes.clone());
 
   assert_eq!(squares.len(), hexes.len());
   for (hex, square) in hexes.iter().zip(squares.iter()) {
@@ -294,7 +294,7 @@ fn test_roundtrip_conversion_utility()
   let square = SquareCoord::<SquareFour>::new(5, -3);
 
   // Test exact roundtrip conversion
-  assert!(test_roundtrip_conversion::<_, IsoCoord<Diamond>, SquareCoord<SquareFour>>(&square));
+  assert!(roundtrip_conversion_test::<_, IsoCoord<Diamond>, SquareCoord<SquareFour>>(&square));
 
   // Test with different coordinates
   let coords = vec![
@@ -304,7 +304,7 @@ fn test_roundtrip_conversion_utility()
   ];
 
   for coord in coords {
-    assert!(test_roundtrip_conversion::<_, IsoCoord<Diamond>, SquareCoord<SquareFour>>(&coord),
+    assert!(roundtrip_conversion_test::<_, IsoCoord<Diamond>, SquareCoord<SquareFour>>(&coord),
             "Roundtrip test failed for {coord:?}");
   }
 }
@@ -314,7 +314,7 @@ fn test_measure_approximate_conversion_error()
 {
   let hex = HexCoord::<Axial, Pointy>::new(3, -2);
 
-  let error = measure_approximate_conversion_error::<_, SquareCoord<SquareFour>>(hex);
+  let error = approximate_conversion_error_measure::<_, SquareCoord<SquareFour>>(hex);
 
   // Error should be non-negative
   assert!(error >= 0.0);
@@ -335,7 +335,7 @@ fn test_measure_error_various_coordinates()
   ];
 
   for coord in test_coords {
-    let error = measure_approximate_conversion_error::<_, SquareCoord<SquareFour>>(coord);
+    let error = approximate_conversion_error_measure::<_, SquareCoord<SquareFour>>(coord);
     assert!(error >= 0.0, "Error should be non-negative for {coord:?}");
     assert!(error.is_finite(), "Error should be finite for {coord:?}");
   }
@@ -404,7 +404,7 @@ fn test_batch_conversion_preserves_order()
     SquareCoord::<SquareFour>::new(5, 5),
   ];
 
-  let converted: Vec<IsoCoord<Diamond>> = coords.clone().convert_batch_exact();
+  let converted: Vec<IsoCoord<Diamond>> = coords.clone().batch_convert_exact();
 
   // Verify order is preserved
   for (i, (original, converted)) in coords.iter().zip(converted.iter()).enumerate() {
@@ -426,7 +426,7 @@ fn test_conversion_performance()
     .collect();
 
   // Time the batch conversion (this won't fail, just verify it completes)
-  let converted: Vec<IsoCoord<Diamond>> = coords.clone().convert_batch_exact();
+  let converted: Vec<IsoCoord<Diamond>> = coords.clone().batch_convert_exact();
 
   assert_eq!(converted.len(), 10000);
 

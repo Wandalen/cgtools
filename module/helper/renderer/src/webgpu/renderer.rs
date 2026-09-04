@@ -14,6 +14,7 @@ mod private
   use gpu_hal::
   {
     Error,
+    Device,
     Buffer,
     BufferUsage,
     TextureDesc,
@@ -116,6 +117,159 @@ mod private
     default_sampler : Sampler
   }
 
+  /// Creates the HDR color and depth render targets sized to
+  /// `width` x `height`, returning their views.
+  fn frame_targets_create( device : &Device, width : u32, height : u32 )
+  -> Result< ( TextureView, TextureView ), Error >
+  {
+    let hdr_texture = device.texture_create
+    (
+      &TextureDesc
+      {
+        size : [ width, height, 1 ],
+        format : TextureFormat::Rgba16Float,
+        usage : TextureUsage::RENDER_ATTACHMENT | TextureUsage::TEXTURE_BINDING
+      }
+    )?;
+    let hdr_view = hdr_texture.view()?;
+
+    let depth_texture = device.texture_create
+    (
+      &TextureDesc
+      {
+        size : [ width, height, 1 ],
+        format : TextureFormat::Depth24Plus,
+        usage : TextureUsage::RENDER_ATTACHMENT
+      }
+    )?;
+    let depth_view = depth_texture.view()?;
+
+    Ok( ( hdr_view, depth_view ) )
+  }
+
+  /// Creates the stand-ins bound when a material lacks a texture : a 1x1
+  /// dummy texture view and a linear-filtering repeat sampler.
+  fn material_defaults_create( device : &Device ) -> Result< ( TextureView, Sampler ), Error >
+  {
+    // 1x1 stand-in for absent material textures. Its contents are never
+    // read: the shader samples a slot only when its flag bit is set.
+    let dummy_texture = device.texture_create
+    (
+      &TextureDesc
+      {
+        size : [ 1, 1, 1 ],
+        format : TextureFormat::Rgba8Unorm,
+        usage : TextureUsage::TEXTURE_BINDING
+      }
+    )?;
+    let dummy_texture_view = dummy_texture.view()?;
+
+    let default_sampler = device.sampler_create
+    (
+      SamplerDesc { filter : FilterMode::Linear, address : AddressMode::Repeat }
+    )?;
+
+    Ok( ( dummy_texture_view, default_sampler ) )
+  }
+
+  /// Compiles the PBR shader and builds the opaque HDR pass pipeline over the
+  /// frame/material/model bind group layouts.
+  fn opaque_pipeline_create
+  (
+    device : &Device,
+    frame_layout : &BindGroupLayout,
+    material_layout : &BindGroupLayout,
+    model_layout : &BindGroupLayout
+  )
+  -> Result< RenderPipeline, Error >
+  {
+    let main_shader = device.shader_module_create
+    (
+      &ShaderSource
+      {
+        wgsl : include_str!( "shaders/main.wgsl" ),
+        glsl_vertex : Some( include_str!( concat!( env!( "OUT_DIR" ), "/main.vert.glsl" ) ) ),
+        glsl_fragment : Some( include_str!( concat!( env!( "OUT_DIR" ), "/main.frag.glsl" ) ) )
+      }
+    )?;
+
+    let vertex_layouts = Geometry::vertex_layouts();
+
+    device.render_pipeline_create
+    (
+      &RenderPipelineDesc
+      {
+        shader : &main_shader,
+        vertex_entry : "vs_main",
+        fragment_entry : "fs_main",
+        vertex_buffers : &vertex_layouts,
+        bind_group_layouts : &[ frame_layout, material_layout, model_layout ],
+        color_format : TextureFormat::Rgba16Float,
+        depth : Some( DepthState { format : TextureFormat::Depth24Plus } ),
+        cull_back : true
+      }
+    )
+  }
+
+  /// Compiles the ACES tone mapping shader and builds the fullscreen pass
+  /// pipeline targeting `color_format` ( the surface's own format ).
+  fn tonemap_pipeline_create
+  (
+    device : &Device,
+    tonemap_layout : &BindGroupLayout,
+    color_format : TextureFormat
+  )
+  -> Result< RenderPipeline, Error >
+  {
+    let tonemap_shader = device.shader_module_create
+    (
+      &ShaderSource
+      {
+        wgsl : include_str!( "shaders/tonemap.wgsl" ),
+        glsl_vertex : Some( include_str!( concat!( env!( "OUT_DIR" ), "/tonemap.vert.glsl" ) ) ),
+        glsl_fragment : Some( include_str!( concat!( env!( "OUT_DIR" ), "/tonemap.frag.glsl" ) ) )
+      }
+    )?;
+
+    device.render_pipeline_create
+    (
+      &RenderPipelineDesc
+      {
+        shader : &tonemap_shader,
+        vertex_entry : "vs_main",
+        fragment_entry : "fs_main",
+        vertex_buffers : &[],
+        bind_group_layouts : &[ tonemap_layout ],
+        color_format,
+        depth : None,
+        cull_back : false
+      }
+    )
+  }
+
+  /// Derives the world-space normal transform ( inverse-transpose of the
+  /// rotation-scale block ) from a world matrix's linear part.
+  ///
+  /// A singular `rotation_scale` ( e.g. a zero scale on some axis — a common
+  /// glTF "flatten"/hide trick, or an animation channel interpolating scale
+  /// through `0.0` ) falls back to identity, matching `webgl::Node`'s own
+  /// BUG-171 fix.
+  // Fix(BUG-257): previously fell back to the raw, un-inverted `rotation_scale` block itself on a
+  // singular matrix, with a comment claiming this was "the same degenerate result" as the sibling
+  // `webgl::Node::world_matrix_set` path (BUG-171) -- it wasn't: BUG-171 falls back to identity.
+  // Using the raw block directly scales normals by the object's own (possibly axis-collapsing)
+  // scale instead of leaving them unmodified, producing visibly wrong (non-unit-length, direction-
+  // distorted) lighting instead of BUG-171's safe, well-formed identity fallback.
+  // Root cause: BUG-171's fix was applied only to the `webgl` backend's `Node`, never to this
+  // sibling `webgpu` backend's equivalent normal-matrix computation.
+  // Pitfall: a comment asserting parity between two sibling implementations is not itself proof of
+  // parity -- the sibling path must be re-read and compared directly, not assumed from a comment.
+  #[ must_use ]
+  pub fn normal_matrix_compute( rotation_scale : gl::math::F32x3x3 ) -> gl::math::F32x3x3
+  {
+    rotation_scale.inverse().map_or_else( gl::math::mat3x3::identity, | m | m.transpose() )
+  }
+
   impl WebGpuRenderer
   {
     /// Builds pipelines and frame targets sized to the context's current
@@ -125,16 +279,13 @@ mod private
     ///
     /// Returns an error when shader compilation, pipeline creation, or GPU
     /// resource allocation fails on the device.
-    // One linear chain of layout/buffer/texture/pipeline creation; each step feeds
-    // the next, so splitting would only scatter the wiring.
-    #[ allow( clippy::too_many_lines ) ]
     pub fn new( context : &GpuContext ) -> Result< Self, Error >
     {
       let device = &context.device;
       let [ width, height ] = context.size();
 
       // Group 0 — camera ( vertex + fragment ) and lights ( fragment ).
-      let frame_layout = device.create_bind_group_layout
+      let frame_layout = device.bind_group_layout_create
       (
         &[
           BindGroupLayoutEntry
@@ -148,7 +299,7 @@ mod private
 
       // Group 1 — material uniform + base color and metallic-roughness
       // texture/sampler pairs, all fragment-stage.
-      let material_layout = device.create_bind_group_layout
+      let material_layout = device.bind_group_layout_create
       (
         &[
           BindGroupLayoutEntry { visibility : ShaderStages::FRAGMENT, ty : BindingType::UniformBuffer },
@@ -160,126 +311,43 @@ mod private
       )?;
 
       // Group 2 — model uniform, vertex-stage.
-      let model_layout = device.create_bind_group_layout
+      let model_layout = device.bind_group_layout_create
       (
         &[ BindGroupLayoutEntry { visibility : ShaderStages::VERTEX, ty : BindingType::UniformBuffer } ]
       )?;
 
       // Tone mapping group 0 — the HDR color target as a plain texture.
-      let tonemap_layout = device.create_bind_group_layout
+      let tonemap_layout = device.bind_group_layout_create
       (
         &[ BindGroupLayoutEntry { visibility : ShaderStages::FRAGMENT, ty : BindingType::Texture } ]
       )?;
 
-      let camera_buffer = device.create_buffer
+      let camera_buffer = device.buffer_create
       (
         core::mem::size_of::< CameraRaw >() as u64,
         BufferUsage::UNIFORM | BufferUsage::COPY_DST
       )?;
-      let lights_buffer = device.create_buffer
+      let lights_buffer = device.buffer_create
       (
         core::mem::size_of::< LightsRaw >() as u64,
         BufferUsage::UNIFORM | BufferUsage::COPY_DST
       )?;
 
-      let hdr_texture = device.create_texture
-      (
-        &TextureDesc
-        {
-          size : [ width, height, 1 ],
-          format : TextureFormat::Rgba16Float,
-          usage : TextureUsage::RENDER_ATTACHMENT | TextureUsage::TEXTURE_BINDING
-        }
-      )?;
-      let hdr_view = hdr_texture.view()?;
+      let ( hdr_view, depth_view ) = frame_targets_create( device, width, height )?;
+      let ( dummy_texture_view, default_sampler ) = material_defaults_create( device )?;
 
-      let depth_texture = device.create_texture
-      (
-        &TextureDesc
-        {
-          size : [ width, height, 1 ],
-          format : TextureFormat::Depth24Plus,
-          usage : TextureUsage::RENDER_ATTACHMENT
-        }
-      )?;
-      let depth_view = depth_texture.view()?;
+      let opaque_pipeline =
+        opaque_pipeline_create( device, &frame_layout, &material_layout, &model_layout )?;
+      let tonemap_pipeline =
+        tonemap_pipeline_create( device, &tonemap_layout, context.surface.format() )?;
 
-      // 1x1 stand-in for absent material textures. Its contents are never
-      // read: the shader samples a slot only when its flag bit is set.
-      let dummy_texture = device.create_texture
-      (
-        &TextureDesc
-        {
-          size : [ 1, 1, 1 ],
-          format : TextureFormat::Rgba8Unorm,
-          usage : TextureUsage::TEXTURE_BINDING
-        }
-      )?;
-      let dummy_texture_view = dummy_texture.view()?;
-
-      let default_sampler = device.create_sampler
-      (
-        SamplerDesc { filter : FilterMode::Linear, address : AddressMode::Repeat }
-      )?;
-
-      let main_shader = device.create_shader_module
-      (
-        &ShaderSource
-        {
-          wgsl : include_str!( "shaders/main.wgsl" ),
-          glsl_vertex : Some( include_str!( "shaders/main.vert.glsl" ) ),
-          glsl_fragment : Some( include_str!( "shaders/main.frag.glsl" ) )
-        }
-      )?;
-      let tonemap_shader = device.create_shader_module
-      (
-        &ShaderSource
-        {
-          wgsl : include_str!( "shaders/tonemap.wgsl" ),
-          glsl_vertex : Some( include_str!( "shaders/tonemap.vert.glsl" ) ),
-          glsl_fragment : Some( include_str!( "shaders/tonemap.frag.glsl" ) )
-        }
-      )?;
-
-      let vertex_layouts = Geometry::vertex_layouts();
-
-      let opaque_pipeline = device.create_render_pipeline
-      (
-        &RenderPipelineDesc
-        {
-          shader : &main_shader,
-          vertex_entry : "vs_main",
-          fragment_entry : "fs_main",
-          vertex_buffers : &vertex_layouts,
-          bind_group_layouts : &[ &frame_layout, &material_layout, &model_layout ],
-          color_format : TextureFormat::Rgba16Float,
-          depth : Some( DepthState { format : TextureFormat::Depth24Plus } ),
-          cull_back : true
-        }
-      )?;
-
-      let tonemap_pipeline = device.create_render_pipeline
-      (
-        &RenderPipelineDesc
-        {
-          shader : &tonemap_shader,
-          vertex_entry : "vs_main",
-          fragment_entry : "fs_main",
-          vertex_buffers : &[],
-          bind_group_layouts : &[ &tonemap_layout ],
-          color_format : context.surface.format(),
-          depth : None,
-          cull_back : false
-        }
-      )?;
-
-      let frame_bind_group = device.create_bind_group
+      let frame_bind_group = device.bind_group_create
       (
         &frame_layout,
         &[ BindingResource::Buffer( &camera_buffer ), BindingResource::Buffer( &lights_buffer ) ]
       )?;
 
-      let tonemap_bind_group = device.create_bind_group
+      let tonemap_bind_group = device.bind_group_create
       (
         &tonemap_layout,
         &[ BindingResource::TextureView( &hdr_view ) ]
@@ -314,24 +382,24 @@ mod private
     ///
     /// Returns an error when buffer allocation, the uniform upload, or bind-group
     /// creation fails.
-    pub fn create_material_binding
+    pub fn material_binding_create
     (
       &self,
       context : &GpuContext,
       material : &PbrMaterial
     ) -> Result< MaterialBinding, Error >
     {
-      let buffer = context.device.create_buffer
+      let buffer = context.device.buffer_create
       (
         core::mem::size_of::< MaterialRaw >() as u64,
         BufferUsage::UNIFORM | BufferUsage::COPY_DST
       )?;
-      context.queue.write_buffer( &buffer, bytemuck::bytes_of( &material.as_raw() ) )?;
+      context.queue.buffer_write( &buffer, bytemuck::bytes_of( &material.as_raw() ) )?;
 
       let base_color_view = material.base_color_texture.as_ref().unwrap_or( &self.dummy_texture_view );
       let mr_view = material.metallic_roughness_texture.as_ref().unwrap_or( &self.dummy_texture_view );
 
-      let bind_group = context.device.create_bind_group
+      let bind_group = context.device.bind_group_create
       (
         &self.material_layout,
         &[
@@ -353,7 +421,7 @@ mod private
     /// # Errors
     ///
     /// Returns an error when the model uniform buffer or its bind group cannot be created.
-    pub fn create_item
+    pub fn item_create
     (
       &self,
       context : &GpuContext,
@@ -362,12 +430,12 @@ mod private
       world_matrix : gl::math::F32x4x4
     ) -> Result< RenderItem, Error >
     {
-      let model_buffer = context.device.create_buffer
+      let model_buffer = context.device.buffer_create
       (
         core::mem::size_of::< ModelRaw >() as u64,
         BufferUsage::UNIFORM | BufferUsage::COPY_DST
       )?;
-      let model_bind_group = context.device.create_bind_group
+      let model_bind_group = context.device.bind_group_create
       (
         &self.model_layout,
         &[ BindingResource::Buffer( &model_buffer ) ]
@@ -389,9 +457,7 @@ mod private
     fn model_raw( world : &gl::math::F32x4x4 ) -> ModelRaw
     {
       let rotation_scale = world.truncate();
-      // Singular world matrices fall back to the untransposed block — same
-      // degenerate result the WebGL node path would produce lighting-wise.
-      let normal = rotation_scale.inverse().map_or( rotation_scale, | m | m.transpose() );
+      let normal = normal_matrix_compute( rotation_scale );
       let n = normal.to_array();
 
       ModelRaw
@@ -430,42 +496,42 @@ mod private
         projection_matrix : frame.projection_matrix.to_array(),
         position_exposure : [ eye[ 0 ], eye[ 1 ], eye[ 2 ], frame.exposure ]
       };
-      context.queue.write_buffer( &self.camera_buffer, bytemuck::bytes_of( &camera_raw ) )?;
-      context.queue.write_buffer( &self.lights_buffer, bytemuck::bytes_of( &lights.as_raw() ) )?;
+      context.queue.buffer_write( &self.camera_buffer, bytemuck::bytes_of( &camera_raw ) )?;
+      context.queue.buffer_write( &self.lights_buffer, bytemuck::bytes_of( &lights.as_raw() ) )?;
       for item in items
       {
-        context.queue.write_buffer( &item.model_buffer, bytemuck::bytes_of( &Self::model_raw( &item.world_matrix ) ) )?;
+        context.queue.buffer_write( &item.model_buffer, bytemuck::bytes_of( &Self::model_raw( &item.world_matrix ) ) )?;
       }
 
       let canvas_view = context.surface.current_view()?;
 
-      let mut encoder = context.device.create_command_encoder();
+      let mut encoder = context.device.command_encoder_create();
 
       {
         // Color clears to ( 0, 0, 0, 0 ) — alpha 0 marks background for the
         // tone mapping bypass — and depth clears to 1.0.
-        let mut opaque_pass = encoder.begin_render_pass
+        let mut opaque_pass = encoder.render_pass_begin
         (
           &ColorAttachmentDesc { view : &self.hdr_view, clear : [ 0.0, 0.0, 0.0, 0.0 ] },
           Some( &DepthAttachmentDesc { view : &self.depth_view } )
         )?;
 
-        opaque_pass.set_pipeline( &self.opaque_pipeline );
-        opaque_pass.set_bind_group( 0, &self.frame_bind_group );
+        opaque_pass.pipeline_set( &self.opaque_pipeline );
+        opaque_pass.bind_group_set( 0, &self.frame_bind_group );
 
         for item in items
         {
-          opaque_pass.set_bind_group( 1, &item.material.bind_group );
-          opaque_pass.set_bind_group( 2, &item.model_bind_group );
+          opaque_pass.bind_group_set( 1, &item.material.bind_group );
+          opaque_pass.bind_group_set( 2, &item.model_bind_group );
           for ( slot, buffer ) in item.geometry.vertex_buffers.iter().enumerate()
           {
-            opaque_pass.set_vertex_buffer( slot as u32, buffer );
+            opaque_pass.vertex_buffer_set( slot as u32, buffer );
           }
           match &item.geometry.index_buffer
           {
             Some( index_buffer ) =>
             {
-              opaque_pass.set_index_buffer( index_buffer, IndexFormat::Uint32 );
+              opaque_pass.index_buffer_set( index_buffer, IndexFormat::Uint32 );
               opaque_pass.draw_indexed( item.geometry.index_count );
             }
             None => opaque_pass.draw( item.geometry.vertex_count )
@@ -476,14 +542,14 @@ mod private
       }
 
       {
-        let mut tonemap_pass = encoder.begin_render_pass
+        let mut tonemap_pass = encoder.render_pass_begin
         (
           &ColorAttachmentDesc { view : &canvas_view, clear : [ 0.0, 0.0, 0.0, 0.0 ] },
           None
         )?;
 
-        tonemap_pass.set_pipeline( &self.tonemap_pipeline );
-        tonemap_pass.set_bind_group( 0, &self.tonemap_bind_group );
+        tonemap_pass.pipeline_set( &self.tonemap_pipeline );
+        tonemap_pass.bind_group_set( 0, &self.tonemap_bind_group );
         tonemap_pass.draw( 3 );
         tonemap_pass.end();
       }
@@ -502,6 +568,7 @@ crate::mod_interface!
     ModelRaw,
     Frame,
     RenderItem,
-    WebGpuRenderer
+    WebGpuRenderer,
+    normal_matrix_compute
   };
 }

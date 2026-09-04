@@ -33,8 +33,8 @@ mod private
     T : EasingFunction< AnimatableType = A >,
     A : Animatable,
   {
-    /// Creates a new `Box` containing an instance of the easing function.
-    fn new() -> Box< T >;
+    /// Builds a `Box` containing an instance of the easing function.
+    fn build() -> Box< T >;
   }
 
   /// A basic linear easing function.
@@ -58,7 +58,7 @@ mod private
   impl< A > EasingBuilder< Linear< A >, A > for Linear< A >
   where A : Animatable
   {
-    fn new() -> Box< Linear< A > >
+    fn build() -> Box< Linear< A > >
     {
       Box::new( Linear( PhantomData ) )
     }
@@ -82,11 +82,19 @@ mod private
     A : Animatable,
   {
     /// Init [`Step`] easing function
+    // Fix(BUG-233)
+    // Root cause: `steps` was stored as given, with no floor -- `Step::new( 0.0 )` reached
+    // `apply`'s `( time * self.steps ).ceil() / self.steps` with a `0.0` divisor, and `f64`
+    // division never panics, so `0.0 / 0.0` silently produced `NaN` instead of erroring.
+    // Pitfall: mirrors `Tween::new`'s own `duration.max( 0.001 )` floor -- any `f64` constructor
+    // parameter that later becomes a division's divisor needs the same guard, since Rust's
+    // float division silently returns `NaN`/`inf` rather than panicking on zero.
+    #[must_use]
     pub fn new( steps : f64 ) -> Self
     {
       Self
       {
-        steps,
+        steps : steps.max( 0.001 ), // Minimum step count to avoid division by zero
         _marker : PhantomData
       }
     }

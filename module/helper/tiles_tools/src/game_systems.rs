@@ -34,16 +34,16 @@
 //! let mut game = TurnBasedGame::new();
 //!
 //! // Add players to the turn order
-//! game.add_participant(1, 100); // entity_id: 1, initiative: 100
-//! game.add_participant(2, 85);  // entity_id: 2, initiative: 85
+//! game.participant_add(1, 100); // entity_id: 1, initiative: 100
+//! game.participant_add(2, 85);  // entity_id: 2, initiative: 85
 //!
 //! // Process a few turns
 //! for _ in 0..3 {
 //!     if let Some(current_entity) = game.current_turn() {
 //!         println!("Entity {}'s turn", current_entity);
-//!         
+//!
 //!         // Process actions for current entity
-//!         game.end_turn();
+//!         game.turn_end();
 //!     }
 //! }
 //! ```
@@ -59,6 +59,7 @@ pub struct TurnBasedGame {
   round_number: u32,
   turn_time_limit: Option<Duration>,
   turn_start_time: Option<Instant>,
+  game_started: bool,
 }
 
 /// Participant in a turn-based game.
@@ -136,6 +137,7 @@ impl TurnBasedGame
       round_number: 1,
       turn_time_limit: None,
       turn_start_time: None,
+      game_started: false,
     }
   }
 
@@ -147,7 +149,7 @@ impl TurnBasedGame
   }
 
   /// Adds a participant to the game.
-  pub fn add_participant(&mut self, entity_id: u32, initiative: u32) {
+  pub fn participant_add(&mut self, entity_id: u32, initiative: u32) {
     let participant = TurnParticipant {
       entity_id,
       initiative,
@@ -158,13 +160,13 @@ impl TurnBasedGame
     };
     
     self.participants.insert(entity_id, participant);
-    self.rebuild_turn_order();
+    self.turn_order_rebuild();
   }
 
   /// Removes a participant from the game.
-  pub fn remove_participant(&mut self, entity_id: u32) {
+  pub fn participant_remove(&mut self, entity_id: u32) {
     self.participants.remove(&entity_id);
-    self.rebuild_turn_order();
+    self.turn_order_rebuild();
   }
 
   /// Gets the entity ID of the current turn.
@@ -194,10 +196,11 @@ impl TurnBasedGame
   }
 
   /// Ends the current turn and advances to the next participant.
-  pub fn end_turn(&mut self) {
+  pub fn turn_end(&mut self) {
     if self.turn_order.is_empty() {
       return;
     }
+    self.game_started = true;
 
     // Reset current participant's action points for next turn
     if let Some(participant) = self.current_participant_mut() {
@@ -210,14 +213,14 @@ impl TurnBasedGame
     if self.current_turn_index >= self.turn_order.len() {
       self.round_number += 1;
       self.current_turn_index = 0;
-      self.process_end_of_round();
+      self.end_of_round_process();
     }
 
     self.turn_start_time = Some(Instant::now());
   }
 
   /// Spends action points for the current participant.
-  pub fn spend_action_points(&mut self, cost: u32) -> bool {
+  pub fn action_points_spend(&mut self, cost: u32) -> bool {
     if let Some(participant) = self.current_participant_mut() {
       if participant.action_points >= cost {
         participant.action_points -= cost;
@@ -247,7 +250,7 @@ impl TurnBasedGame
   }
 
   /// Applies a status effect to a participant.
-  pub fn apply_status_effect(&mut self, entity_id: u32, effect: StatusEffect) {
+  pub fn status_effect_apply(&mut self, entity_id: u32, effect: StatusEffect) {
     if let Some(participant) = self.participants.get_mut(&entity_id) {
       // Check for existing effects of the same category
       if let Some(existing_index) = participant.status_effects
@@ -270,21 +273,51 @@ impl TurnBasedGame
       .collect()
   }
 
-  fn rebuild_turn_order(&mut self) {
+  fn turn_order_rebuild(&mut self) {
+    let current_entity = self.turn_order.get(self.current_turn_index).copied();
+
     let mut participants: Vec<_> = self.participants.values().collect();
     participants.sort_by_key(|b| std::cmp::Reverse(b.initiative));
-    
+
     self.turn_order = participants.into_iter()
       .map(|p| p.entity_id)
       .collect();
-    
-    // Ensure current turn index is valid
+
+    // Fix(BUG-133)
+    // Root cause: only clamped current_turn_index numerically against the
+    // new turn_order's length, never remapped it to the same entity_id --
+    // any participant_add/participant_remove call mid-round silently
+    // reassigned "whose turn it is" to whichever entity happened to land on
+    // that numeric slot after re-sorting, with no turn_end() call in between.
+    // Pitfall: when the previously-current entity was itself removed, there
+    // is no identity to preserve -- fall back to the same numeric clamp the
+    // original code used unconditionally, so removing the acting entity
+    // still advances play to whoever now occupies that slot instead of
+    // panicking or stalling.
+    //
+    // Fix(BUG-532)
+    // Root cause: the identity-preserving remap above ran unconditionally,
+    // including during initial roster setup (before turn_end() has ever been
+    // called) -- so the first participant_add call's index-0 fallback got
+    // treated as a genuine "current turn" identity to preserve, permanently
+    // locking play onto whichever participant happened to be added first
+    // instead of whoever currently has the highest initiative.
+    // Pitfall: gating this on game_started (set only by turn_end(), once the
+    // turn_order is non-empty) rather than e.g. "was turn_order empty before"
+    // -- the roster can have 1+ participants and still be pre-game, so an
+    // empty-turn_order check alone would not catch the second, third, ... add.
     if !self.turn_order.is_empty() {
-      self.current_turn_index = self.current_turn_index.min(self.turn_order.len() - 1);
+      self.current_turn_index = if self.game_started {
+        current_entity
+          .and_then(|id| self.turn_order.iter().position(|&e| e == id))
+          .unwrap_or_else(|| self.current_turn_index.min(self.turn_order.len() - 1))
+      } else {
+        0
+      };
     }
   }
 
-  fn process_end_of_round(&mut self) {
+  fn end_of_round_process(&mut self) {
     // Process status effects for all participants
     for participant in self.participants.values_mut() {
       participant.status_effects.retain_mut(|effect| {
@@ -307,12 +340,7 @@ pub struct GameStateMachine {
   previous_state: Option<GameState>,
   state_data: HashMap<String, String>,
   transitions: HashMap<(GameState, GameStateEvent), GameState>,
-  state_enter_handlers: HashMap<GameState, StateHandler>,
-  state_exit_handlers: HashMap<GameState, StateHandler>,
 }
-
-/// Boxed handler invoked when the state machine enters or exits a state.
-type StateHandler = Box<dyn Fn(&mut GameStateMachine)>;
 
 /// Possible game states.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -397,11 +425,9 @@ impl GameStateMachine {
       previous_state: None,
       state_data: HashMap::new(),
       transitions: HashMap::new(),
-      state_enter_handlers: HashMap::new(),
-      state_exit_handlers: HashMap::new(),
     };
 
-    machine.setup_default_transitions();
+    machine.default_transitions_setup();
     machine
   }
 
@@ -418,12 +444,12 @@ impl GameStateMachine {
   }
 
   /// Adds a state transition rule.
-  pub fn add_transition(&mut self, from: GameState, event: GameStateEvent, to: GameState) {
+  pub fn transition_add(&mut self, from: GameState, event: GameStateEvent, to: GameState) {
     self.transitions.insert((from, event), to);
   }
 
   /// Processes a state event and potentially transitions to a new state.
-  pub fn process_event(&mut self, event: GameStateEvent) -> bool {
+  pub fn event_process(&mut self, event: GameStateEvent) -> bool {
     if let Some(&new_state) = self.transitions.get(&(self.current_state, event)) {
       self.transition_to(new_state);
       true
@@ -432,34 +458,34 @@ impl GameStateMachine {
     }
   }
 
+  // Fix(BUG-479): removed the dead `state_enter_handlers`/`state_exit_handlers`
+  // fields (and the `StateHandler` type alias) entirely, rather than wiring
+  // them up.
+  // Root cause: both fields were private, had no public registration API
+  // anywhere in the crate, and `transition_to` only ever performed a `.get()`
+  // lookup whose result was immediately discarded (`_handler`) behind a
+  // comment noting the call was never wired up due to a borrow conflict
+  // (resolvable via the standard `remove` -> call -> re-`insert` pattern,
+  // but nothing in this crate ever needed that).
+  // Pitfall: a `HashMap` field that only ever receives `.get()` calls whose
+  // `Some` arm is never used is dead weight wearing the shape of a real
+  // feature -- confirm at least one caller or test actually depends on the
+  // behavior before implementing it; grep found none here.
   /// Forces a transition to a specific state.
   pub fn transition_to(&mut self, new_state: GameState) {
     let old_state = self.current_state;
-    
-    // Call exit handler for current state
-    if let Some(_handler) = self.state_exit_handlers.get(&old_state) {
-      // Note: Can't call handler directly due to borrowing issues
-      // In a real implementation, would use a different pattern
-    }
-
     self.previous_state = Some(old_state);
     self.current_state = new_state;
-
-    // Call enter handler for new state
-    if let Some(_handler) = self.state_enter_handlers.get(&new_state) {
-      // Note: Can't call handler directly due to borrowing issues
-      // In a real implementation, would use a different pattern
-    }
   }
 
   /// Sets data associated with the current state.
-  pub fn set_state_data(&mut self, key: String, value: String) {
+  pub fn state_data_set(&mut self, key: String, value: String) {
     self.state_data.insert(key, value);
   }
 
   /// Gets data associated with the current state.
   #[must_use]
-  pub fn get_state_data(&self, key: &str) -> Option<&String> {
+  pub fn state_data_get(&self, key: &str) -> Option<&String> {
     self.state_data.get(key)
   }
 
@@ -469,43 +495,43 @@ impl GameStateMachine {
     self.transitions.contains_key(&(self.current_state, event))
   }
 
-  fn setup_default_transitions(&mut self) {
+  fn default_transitions_setup(&mut self) {
     // Initialize -> MainMenu
-    self.add_transition(GameState::Initialize, GameStateEvent::InitComplete, GameState::MainMenu);
+    self.transition_add(GameState::Initialize, GameStateEvent::InitComplete, GameState::MainMenu);
     
     // MainMenu transitions
-    self.add_transition(GameState::MainMenu, GameStateEvent::StartGame, GameState::Loading);
-    self.add_transition(GameState::MainMenu, GameStateEvent::LoadGame, GameState::Loading);
-    self.add_transition(GameState::MainMenu, GameStateEvent::OpenSettings, GameState::Settings);
+    self.transition_add(GameState::MainMenu, GameStateEvent::StartGame, GameState::Loading);
+    self.transition_add(GameState::MainMenu, GameStateEvent::LoadGame, GameState::Loading);
+    self.transition_add(GameState::MainMenu, GameStateEvent::OpenSettings, GameState::Settings);
     
     // Loading -> Playing
-    self.add_transition(GameState::Loading, GameStateEvent::StartGame, GameState::Playing);
+    self.transition_add(GameState::Loading, GameStateEvent::StartGame, GameState::Playing);
     
     // Playing state transitions
-    self.add_transition(GameState::Playing, GameStateEvent::Pause, GameState::Paused);
-    self.add_transition(GameState::Playing, GameStateEvent::EnterCombat, GameState::Combat);
-    self.add_transition(GameState::Playing, GameStateEvent::OpenInventory, GameState::Inventory);
-    self.add_transition(GameState::Playing, GameStateEvent::PlayerDefeated, GameState::GameOver);
-    self.add_transition(GameState::Playing, GameStateEvent::VictoryAchieved, GameState::Victory);
+    self.transition_add(GameState::Playing, GameStateEvent::Pause, GameState::Paused);
+    self.transition_add(GameState::Playing, GameStateEvent::EnterCombat, GameState::Combat);
+    self.transition_add(GameState::Playing, GameStateEvent::OpenInventory, GameState::Inventory);
+    self.transition_add(GameState::Playing, GameStateEvent::PlayerDefeated, GameState::GameOver);
+    self.transition_add(GameState::Playing, GameStateEvent::VictoryAchieved, GameState::Victory);
     
     // Paused -> Playing
-    self.add_transition(GameState::Paused, GameStateEvent::Resume, GameState::Playing);
-    self.add_transition(GameState::Paused, GameStateEvent::ReturnToMenu, GameState::MainMenu);
+    self.transition_add(GameState::Paused, GameStateEvent::Resume, GameState::Playing);
+    self.transition_add(GameState::Paused, GameStateEvent::ReturnToMenu, GameState::MainMenu);
     
     // Combat transitions
-    self.add_transition(GameState::Combat, GameStateEvent::ExitCombat, GameState::Playing);
-    self.add_transition(GameState::Combat, GameStateEvent::PlayerDefeated, GameState::GameOver);
-    self.add_transition(GameState::Combat, GameStateEvent::VictoryAchieved, GameState::Victory);
+    self.transition_add(GameState::Combat, GameStateEvent::ExitCombat, GameState::Playing);
+    self.transition_add(GameState::Combat, GameStateEvent::PlayerDefeated, GameState::GameOver);
+    self.transition_add(GameState::Combat, GameStateEvent::VictoryAchieved, GameState::Victory);
     
     // Settings -> MainMenu (or previous)
-    self.add_transition(GameState::Settings, GameStateEvent::CloseSettings, GameState::MainMenu);
+    self.transition_add(GameState::Settings, GameStateEvent::CloseSettings, GameState::MainMenu);
     
     // Inventory -> Playing
-    self.add_transition(GameState::Inventory, GameStateEvent::CloseInventory, GameState::Playing);
+    self.transition_add(GameState::Inventory, GameStateEvent::CloseInventory, GameState::Playing);
     
     // End states
-    self.add_transition(GameState::GameOver, GameStateEvent::ReturnToMenu, GameState::MainMenu);
-    self.add_transition(GameState::Victory, GameStateEvent::ReturnToMenu, GameState::MainMenu);
+    self.transition_add(GameState::GameOver, GameStateEvent::ReturnToMenu, GameState::MainMenu);
+    self.transition_add(GameState::Victory, GameStateEvent::ReturnToMenu, GameState::MainMenu);
   }
 }
 
@@ -548,6 +574,15 @@ impl Resource {
   /// Creates a new resource with the given maximum value.
   #[must_use]
   pub fn new(maximum: f32) -> Self {
+    // Fix(BUG-349): clamp maximum to a non-negative value, matching the
+    // invariant maximum_set already enforces (`self.maximum = value.max(0.0)`).
+    // Root cause: modify/current_set both call `.clamp(0.0, self.maximum)`,
+    // and f32::clamp asserts `min <= max` unconditionally -- a negative
+    // maximum stored here made every later modify/current_set call panic.
+    // Pitfall: a sibling setter (maximum_set) enforcing an invariant
+    // correctly is not evidence every value-producing path (new,
+    // with_regeneration) enforces the same invariant -- check each one.
+    let maximum = maximum.max(0.0);
     Self {
       current: maximum,
       maximum,
@@ -558,6 +593,8 @@ impl Resource {
   /// Creates a resource with regeneration.
   #[must_use]
   pub fn with_regeneration(maximum: f32, regeneration: f32) -> Self {
+    // Fix(BUG-349): see `Resource::new` -- same clamp, same root cause.
+    let maximum = maximum.max(0.0);
     Self {
       current: maximum,
       maximum,
@@ -581,12 +618,12 @@ impl Resource {
   }
 
   /// Sets the current value directly.
-  pub fn set_current(&mut self, value: f32) {
+  pub fn current_set(&mut self, value: f32) {
     self.current = value.clamp(0.0, self.maximum);
   }
 
   /// Sets the maximum value and adjusts current if needed.
-  pub fn set_maximum(&mut self, value: f32) {
+  pub fn maximum_set(&mut self, value: f32) {
     self.maximum = value.max(0.0);
     self.current = self.current.min(self.maximum);
   }
@@ -607,7 +644,20 @@ impl Resource {
   /// Checks if the resource is at maximum.
   #[must_use]
   pub fn is_full(&self) -> bool {
-    (self.current - self.maximum).abs() < f32::EPSILON
+    // Fix(BUG-480): compare against a tolerance scaled to `maximum` instead
+    // of the fixed absolute `f32::EPSILON` (~1.19e-7).
+    // Root cause: `f32::EPSILON` is only the gap between 1.0 and the next
+    // representable f32 -- for any `maximum` much larger than 1.0, f32's
+    // representable-value spacing near `maximum` is itself larger than
+    // `f32::EPSILON`, so a resource sitting at its true maximum (e.g. after
+    // repeated `modify` calls that each round to the nearest representable
+    // f32) could differ from `self.maximum` by more than `f32::EPSILON` and
+    // wrongly report `is_full() == false`.
+    // Pitfall: an absolute floating-point tolerance is only valid near the
+    // magnitude it was chosen for (here, near 1.0) -- comparisons against
+    // values of arbitrary magnitude need a tolerance scaled to that
+    // magnitude, e.g. `value.abs() * f32::EPSILON`.
+    (self.current - self.maximum).abs() <= self.maximum.abs() * f32::EPSILON
   }
 }
 
@@ -621,7 +671,7 @@ impl ResourceManager {
   }
 
   /// Adds resources for an entity.
-  pub fn add_entity(&mut self, entity_id: u32, health: f32, mana: f32) {
+  pub fn entity_add(&mut self, entity_id: u32, health: f32, mana: f32) {
     let resources = EntityResources {
       entity_id,
       health: Resource::new(health),
@@ -635,23 +685,23 @@ impl ResourceManager {
   }
 
   /// Removes resources for an entity.
-  pub fn remove_entity(&mut self, entity_id: u32) {
+  pub fn entity_remove(&mut self, entity_id: u32) {
     self.resources.remove(&entity_id);
   }
 
   /// Gets resources for an entity.
   #[must_use]
-  pub fn get_resources(&self, entity_id: u32) -> Option<&EntityResources> {
+  pub fn resources_get(&self, entity_id: u32) -> Option<&EntityResources> {
     self.resources.get(&entity_id)
   }
 
   /// Gets mutable resources for an entity.
-  pub fn get_resources_mut(&mut self, entity_id: u32) -> Option<&mut EntityResources> {
+  pub fn resources_get_mut(&mut self, entity_id: u32) -> Option<&mut EntityResources> {
     self.resources.get_mut(&entity_id)
   }
 
   /// Modifies health for an entity.
-  pub fn modify_health(&mut self, entity_id: u32, amount: f32) -> bool {
+  pub fn health_modify(&mut self, entity_id: u32, amount: f32) -> bool {
     if let Some(resources) = self.resources.get_mut(&entity_id) {
       resources.health.modify(amount);
       true
@@ -661,7 +711,7 @@ impl ResourceManager {
   }
 
   /// Modifies mana for an entity.
-  pub fn modify_mana(&mut self, entity_id: u32, amount: f32) -> bool {
+  pub fn mana_modify(&mut self, entity_id: u32, amount: f32) -> bool {
     if let Some(resources) = self.resources.get_mut(&entity_id) {
       resources.mana.modify(amount);
       true
@@ -680,7 +730,7 @@ impl ResourceManager {
 
   /// Gets all entities with depleted health.
   #[must_use]
-  pub fn get_defeated_entities(&self) -> Vec<u32> {
+  pub fn defeated_entities_get(&self) -> Vec<u32> {
     self.resources
       .iter()
       .filter(|(_, r)| r.health.is_depleted())
@@ -842,16 +892,16 @@ impl QuestManager {
   }
 
   /// Adds a quest to the manager.
-  pub fn add_quest(&mut self, quest: Quest) {
+  pub fn quest_add(&mut self, quest: Quest) {
     self.quests.insert(quest.id.clone(), quest);
   }
 
   /// Starts a quest if prerequisites are met.
-  pub fn start_quest(&mut self, quest_id: &str, player_level: u32) -> bool {
+  pub fn quest_start(&mut self, quest_id: &str, player_level: u32) -> bool {
     // Check prerequisites first without holding a mutable reference
     let can_start = if let Some(quest) = self.quests.get(quest_id) {
       quest.status == QuestStatus::Available &&
-      self.check_prerequisites(&quest.prerequisites, player_level)
+      self.prerequisites_check(&quest.prerequisites, player_level)
     } else {
       false
     };
@@ -867,7 +917,7 @@ impl QuestManager {
   }
 
   /// Completes a quest and awards rewards.
-  pub fn complete_quest(&mut self, quest_id: &str) -> Vec<QuestReward> {
+  pub fn quest_complete(&mut self, quest_id: &str) -> Vec<QuestReward> {
     if let Some(quest) = self.quests.get_mut(quest_id) {
       if quest.status == QuestStatus::Active {
         quest.status = QuestStatus::Completed;
@@ -883,7 +933,7 @@ impl QuestManager {
   }
 
   /// Updates quest objectives based on game events.
-  pub fn update_objective(&mut self, quest_id: &str, objective_id: &str, progress: u32) {
+  pub fn objective_update(&mut self, quest_id: &str, objective_id: &str, progress: u32) {
     if let Some(quest) = self.quests.get_mut(quest_id) {
       if quest.status == QuestStatus::Active {
         for objective in &mut quest.objectives {
@@ -906,20 +956,20 @@ impl QuestManager {
           .all(|obj| obj.completed);
         
         if all_required_complete {
-          self.complete_quest(quest_id);
+          self.quest_complete(quest_id);
         }
       }
     }
   }
 
   /// Sets a global flag.
-  pub fn set_flag(&mut self, flag: String, value: bool) {
+  pub fn flag_set(&mut self, flag: String, value: bool) {
     self.global_flags.insert(flag, value);
   }
 
   /// Gets a global flag value.
   #[must_use]
-  pub fn get_flag(&self, flag: &str) -> bool {
+  pub fn flag_get(&self, flag: &str) -> bool {
     self.global_flags.get(flag).copied().unwrap_or(false)
   }
 
@@ -953,14 +1003,14 @@ impl QuestManager {
     self.completed_quests.contains(&quest_id.to_string())
   }
 
-  fn check_prerequisites(&self, prerequisites: &[QuestCondition], player_level: u32) -> bool {
+  fn prerequisites_check(&self, prerequisites: &[QuestCondition], player_level: u32) -> bool {
     prerequisites.iter().all(|condition| {
       match condition {
         QuestCondition::MinLevel(level) => player_level >= *level,
         QuestCondition::QuestCompleted(quest_id) => {
           self.completed_quests.contains(quest_id)
         },
-        QuestCondition::FlagSet(flag) => self.get_flag(flag),
+        QuestCondition::FlagSet(flag) => self.flag_get(flag),
         QuestCondition::HasItems(_, _) => true, // Simplified for this example
       }
     })

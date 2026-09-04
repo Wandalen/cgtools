@@ -60,7 +60,7 @@ impl Stealth {
   self.noise_level = 0;
   }
 
-  pub fn set_cover(&mut self, in_cover: bool) {
+  pub fn cover_set(&mut self, in_cover: bool) {
   self.in_cover = in_cover;
   if in_cover {
     self.noise_level = self.noise_level.saturating_sub(2);
@@ -97,11 +97,11 @@ impl Vision {
   }
   }
 
-  pub fn increase_alert(&mut self, amount: u32) {
+  pub fn alert_increase(&mut self, amount: u32) {
   self.alert_level = (self.alert_level + amount).min(10);
   }
 
-  pub fn get_effective_range(&self) -> u32 {
+  pub fn effective_range_get(&self) -> u32 {
   // Alert guards see farther
   self.base_range + (self.alert_level / 2)
   }
@@ -137,11 +137,11 @@ impl PatrolRoute {
   }
   }
 
-  pub fn get_current_target(&self) -> Option<SquareCoord<EightConnected>> {
+  pub fn current_target_get(&self) -> Option<SquareCoord<EightConnected>> {
   self.waypoints.get(self.current_waypoint).copied()
   }
 
-  pub fn advance_waypoint(&mut self) {
+  pub fn waypoint_advance(&mut self) {
   if self.current_wait > 0 {
     self.current_wait = self.current_wait.saturating_sub(1);
     return;
@@ -223,11 +223,11 @@ impl LevelMap {
   };
 
   // Create a simple level layout
-  map.generate_level_layout();
+  map.level_layout_generate();
   map
   }
 
-  fn generate_level_layout(&mut self) {
+  fn level_layout_generate(&mut self) {
   // Create perimeter walls
   for x in 0..self.width {
     self.walls.insert(SquareCoord::<EightConnected>::new(x, 0));
@@ -350,7 +350,7 @@ impl StealthGame {
   for torch_pos in &level_map.light_sources {
     let torch_light = LightSource::new(*torch_pos, 4, 0.7)
       .with_color(1.0, 0.8, 0.3); // Warm torch light
-    lighting_calculator.add_light_source(torch_light);
+    lighting_calculator.light_source_add(torch_light);
   }
 
   Self {
@@ -366,18 +366,18 @@ impl StealthGame {
   }
 
   /// Processes one turn of the game.
-  pub fn process_turn(&mut self) {
+  pub fn turn_process(&mut self) {
   self.turn_counter += 1;
 
   match self.game_state {
     GameState::Stealth => {
-      self.process_stealth_turn();
+      self.stealth_turn_process();
     }
     GameState::Alert => {
-      self.process_alert_turn();
+      self.alert_turn_process();
     }
     GameState::Detected => {
-      self.process_detected_turn();
+      self.detected_turn_process();
     }
     _ => {
       // Game over states
@@ -394,27 +394,27 @@ impl StealthGame {
   }
 
   /// Processes a turn in stealth mode.
-  fn process_stealth_turn(&mut self) {
+  fn stealth_turn_process(&mut self) {
   // Update guard patrols
   let guard_entities = self.guard_entities.clone();
   for guard in guard_entities {
-    self.update_guard_patrol(guard);
+    self.guard_patrol_update(guard);
   }
 
   // Check for player detection
-  if self.check_player_detection() {
+  if self.player_detection_check() {
     self.game_state = GameState::Alert;
     println!("🚨 Alert! Guards are searching...");
   }
 
   // Simulate player movement (in a real game, this would be input-driven)
-  self.simulate_player_movement();
+  self.player_movement_simulate();
   }
 
   /// Processes a turn in alert mode.
-  fn process_alert_turn(&mut self) {
+  fn alert_turn_process(&mut self) {
   // Guards move toward last known player position
-  if self.check_player_detection() {
+  if self.player_detection_check() {
     self.game_state = GameState::Detected;
     println!("🎯 Player detected! Game over!");
   }
@@ -439,13 +439,13 @@ impl StealthGame {
   }
 
   /// Processes a turn when player is detected.
-  fn process_detected_turn(&mut self) {
+  fn detected_turn_process(&mut self) {
   // Game over - guards converge on player
   self.game_state = GameState::GameOver;
   }
 
   /// Updates a guard's patrol behavior.
-  fn update_guard_patrol(&mut self, guard: hecs::Entity) {
+  fn guard_patrol_update(&mut self, guard: hecs::Entity) {
   // First get position without any mutable borrows
   let current_pos = {
     if let Ok(pos) = self.world.get::<Position<SquareCoord<EightConnected>>>(guard) {
@@ -458,10 +458,10 @@ impl StealthGame {
   // Then get and modify patrol data
   let target_to_move = {
     if let Ok(mut patrol) = self.world.get_mut::<PatrolRoute>(guard) {
-      if let Some(target) = patrol.get_current_target() {
+      if let Some(target) = patrol.current_target_get() {
         // Check if we've reached the target
         if current_pos.distance(&target) <= 1 {
-          patrol.advance_waypoint();
+          patrol.waypoint_advance();
           None
         } else {
           // Need to move toward target
@@ -476,42 +476,64 @@ impl StealthGame {
   };
 
   if let Some(target) = target_to_move {
-    self.move_guard_toward(guard, target);
+    self.guard_move_toward(guard, target);
   }
   }
 
   /// Moves a guard toward a target position.
-  fn move_guard_toward(&mut self, guard: hecs::Entity, target: SquareCoord<EightConnected>) {
-  if let Ok(pos) = self.world.get::<Position<SquareCoord<EightConnected>>>(guard) {
-    if let Ok(movable) = self.world.get::<Movable>(guard) {
-      // Use pathfinding to move toward target
-      let path_result = astar(
-        &pos.coord,
-        &target,
-        |coord| self.level_map.is_passable(*coord),
-        |_| 1,
-      );
+  // Fix(BUG-484): guard's computed `new_pos` was printed but never written back to
+  // the entity's `Position` component, so guards appeared to move in the console log
+  // while staying frozen at their spawn coordinate for every other system (rendering,
+  // detection, pathfinding).
+  // Root cause: this function borrowed `Position`/`Movable` read-only, computed a new
+  // coordinate, and returned without ever calling `world.get_mut::<Position<_>>` to
+  // persist it into the ECS world (the authoritative store every other query reads).
+  // Pitfall: printing a "moved from X to Y" message is not evidence the move was
+  // applied — always trace whether the computed value round-trips into the component
+  // store that other systems actually query.
+  fn guard_move_toward(&mut self, guard: hecs::Entity, target: SquareCoord<EightConnected>) {
+  let (current_pos, move_range) = {
+    if let Ok(pos) = self.world.get::<Position<SquareCoord<EightConnected>>>(guard) {
+      if let Ok(movable) = self.world.get::<Movable>(guard) {
+        (pos.coord, movable.range)
+      } else {
+        return;
+      }
+    } else {
+      return;
+    }
+  };
 
-      if let Some((path, _cost)) = path_result {
-        let move_distance = movable.range.min(u32::try_from(path.len() - 1).unwrap_or(u32::MAX));
-        if move_distance > 0 {
-          let new_pos = path[move_distance as usize];
-          println!("🚶 Guard moving from ({}, {}) to ({}, {})",
-                   pos.coord.x, pos.coord.y, new_pos.x, new_pos.y);
-        }
+  // Use pathfinding to move toward target
+  let path_result = astar(
+    &current_pos,
+    &target,
+    |coord| self.level_map.is_passable(*coord),
+    |_| 1,
+  );
+
+  if let Some((path, _cost)) = path_result {
+    let move_distance = move_range.min(u32::try_from(path.len() - 1).unwrap_or(u32::MAX));
+    if move_distance > 0 {
+      let new_pos = path[move_distance as usize];
+      println!("🚶 Guard moving from ({}, {}) to ({}, {})",
+               current_pos.x, current_pos.y, new_pos.x, new_pos.y);
+
+      if let Ok(mut guard_pos) = self.world.get_mut::<Position<SquareCoord<EightConnected>>>(guard) {
+        guard_pos.set(new_pos);
       }
     }
   }
   }
 
   /// Checks if any guard can detect the player.
-  fn check_player_detection(&mut self) -> bool {
+  fn player_detection_check(&mut self) -> bool {
   let (player_coord, player_stealth_state, player_light_level) = {
     if let Ok(player_pos) = self.world.get::<Position<SquareCoord<EightConnected>>>(self.player_entity) {
       if let Ok(player_stealth) = self.world.get::<Stealth>(self.player_entity) {
 
         // Calculate lighting at player position
-        let lighting = self.lighting_calculator.calculate_lighting(|coord| {
+        let lighting = self.lighting_calculator.lighting_calculate(|coord| {
           self.level_map.blocks_sight(*coord)
         });
 
@@ -540,7 +562,7 @@ impl StealthGame {
     if let Ok(mut vision) = self.world.get_mut::<Vision>(guard) {
 
       let distance = guard_coord.distance(&player_coord);
-      let effective_range = vision.get_effective_range();
+      let effective_range = vision.effective_range_get();
 
       if distance <= effective_range {
         // Check line of sight
@@ -555,7 +577,7 @@ impl StealthGame {
           let base_detection = 10 - player_stealth_state.level;
           // player_light_level is a normalized lighting value in [0.0, 1.0], so the
           // scaled product is always small and non-negative: no truncation or sign loss.
-          #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+          #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, reason = "player_light_level is a normalized lighting value in [0.0, 1.0], so the scaled product is always small and non-negative: no truncation or sign loss")]
           let light_modifier = (player_light_level * 5.0) as u32;
           let distance_modifier = (effective_range - distance) / 2;
           let cover_modifier = if player_stealth_state.in_cover { 0 } else { 3 };
@@ -565,7 +587,7 @@ impl StealthGame {
                               distance_modifier + cover_modifier + noise_modifier;
 
           if detection_score >= vision.detection_threshold {
-            vision.increase_alert(3);
+            vision.alert_increase(3);
             if vision.alert_level >= 7 {
               detected = true;
             }
@@ -585,7 +607,7 @@ impl StealthGame {
   }
 
   /// Simulates player movement for demonstration.
-  fn simulate_player_movement(&mut self) {
+  fn player_movement_simulate(&mut self) {
   let (current_pos, objective) = {
     if let Ok(player_pos) = self.world.get::<Position<SquareCoord<EightConnected>>>(self.player_entity) {
       (player_pos.coord, self.level_map.objective)
@@ -609,10 +631,17 @@ impl StealthGame {
         println!("🚶 Player moving from ({}, {}) to ({}, {})",
                  current_pos.x, current_pos.y, next_pos.x, next_pos.y);
 
+        // Fix(BUG-484): see `guard_move_toward` above -- same root cause, same fix:
+        // persist the computed coordinate into the `Position` component instead of
+        // only printing it, so the player actually advances toward the objective.
+        if let Ok(mut player_pos) = self.world.get_mut::<Position<SquareCoord<EightConnected>>>(self.player_entity) {
+          player_pos.set(next_pos);
+        }
+
         // Update stealth state
         if let Ok(mut stealth) = self.world.get_mut::<Stealth>(self.player_entity) {
           stealth.start_moving();
-          stealth.set_cover(self.level_map.has_cover(next_pos));
+          stealth.cover_set(self.level_map.has_cover(next_pos));
         }
       } else {
         // Wait and hide
@@ -632,7 +661,7 @@ impl StealthGame {
     if let Ok(guard_pos) = self.world.get::<Position<SquareCoord<EightConnected>>>(guard) {
       if let Ok(vision) = self.world.get::<Vision>(guard) {
         let distance = guard_pos.coord.distance(&pos);
-        if distance <= vision.get_effective_range() {
+        if distance <= vision.effective_range_get() {
           let has_los = self.fov_calculator.line_of_sight(
             &guard_pos.coord,
             &pos,
@@ -650,12 +679,12 @@ impl StealthGame {
   }
 
   /// Prints the current game state.
-  pub fn print_game_state(&self) {
+  pub fn game_state_print(&self) {
   println!("\n=== Turn {} ===", self.turn_counter);
   println!("Game State: {:?}", self.game_state);
 
   // Print level with entities
-  self.print_level_map();
+  self.level_map_print();
 
   // Print player status
   if let Ok(player_pos) = self.world.get::<Position<SquareCoord<EightConnected>>>(self.player_entity) {
@@ -678,8 +707,8 @@ impl StealthGame {
   }
 
   /// Prints the level map with entities and lighting.
-  fn print_level_map(&self) {
-  let lighting = self.lighting_calculator.calculate_lighting(|coord| {
+  fn level_map_print(&self) {
+  let lighting = self.lighting_calculator.lighting_calculate(|coord| {
     self.level_map.blocks_sight(*coord)
   });
 
@@ -749,18 +778,18 @@ impl StealthGame {
   }
 
   /// Runs the complete stealth game simulation.
-  pub fn run_simulation(&mut self) {
+  pub fn simulation_run(&mut self) {
   println!("🎯 Stealth Game Simulation");
   println!("=========================");
   println!("Objective: Reach the 🏆 without being detected!");
   println!("Use cover (🌿) and darkness to avoid guards (👮)");
 
-  self.print_game_state();
+  self.game_state_print();
 
   // Run game loop
   for turn in 1..=30 {
-    self.process_turn();
-    self.print_game_state();
+    self.turn_process();
+    self.game_state_print();
 
     match self.game_state {
       GameState::Victory => {
@@ -788,7 +817,7 @@ impl StealthGame {
 fn main()
 {
   let mut game = StealthGame::new();
-  game.run_simulation();
+  game.simulation_run();
 
   println!("\n✨ Stealth Game Demo Complete!");
   println!("This example showcases:");
@@ -797,4 +826,80 @@ fn main()
   println!("• Stealth mechanics with detection algorithms");
   println!("• Guard AI with patrol routes and alertness");
   println!("• Environmental factors (cover, lighting, noise)");
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  /// ## Root Cause
+  /// `guard_move_toward` and `player_movement_simulate` each computed a new
+  /// coordinate (`new_pos`/`next_pos`) via `astar` and printed a "moving from X
+  /// to Y" message, but neither ever called `world.get_mut::<Position<_>>` to
+  /// write that coordinate back into the entity's `Position` component -- the
+  /// only state every other system (rendering, detection, the victory check)
+  /// actually reads.
+  ///
+  /// ## Why Not Caught
+  /// The demo's own console output prints a "moving" message unconditionally
+  /// whenever a move is computed, so a manual run *looks* correct at a glance;
+  /// nothing in the existing code base asserted on the resulting `Position`
+  /// component, and `stealth_game` had no `tests/` directory at all before this
+  /// fix (its private helpers are only reachable from an inline `mod tests`).
+  ///
+  /// ## Fix Applied
+  /// Both functions now call `world.get_mut::<Position<_>>(entity)` and
+  /// `.set(new_pos)` immediately after computing the move, persisting it into
+  /// the ECS world the same way every other mutated component (`Vision`,
+  /// `PatrolRoute`, `Stealth`) in this file already does.
+  ///
+  /// ## Prevention
+  /// These tests assert the entity's queried `Position` component actually
+  /// changes after the move function runs -- the general invariant the fix
+  /// restores, not a pinned per-coordinate expectation.
+  ///
+  /// ## Pitfall
+  /// A `println!` describing a state change is not evidence the change was
+  /// applied -- always trace whether a computed value round-trips into the
+  /// authoritative store (here, the ECS `Position` component) that other
+  /// systems actually query, rather than trusting console output.
+  #[test]
+  fn bug_reproducer_bug_484_guard_move_toward_persists_position() {
+    let mut game = StealthGame::new();
+    let guard = game.guard_entities[0];
+
+    let before = game.world.get::<Position<SquareCoord<EightConnected>>>(guard).unwrap().coord;
+
+    // Guard 1 spawns at (8, 3); drive it toward its own second patrol waypoint
+    // (12, 3) -- a clear, unobstructed straight line at y=3 -- to force real movement.
+    let target = SquareCoord::<EightConnected>::new(12, 3);
+    game.guard_move_toward(guard, target);
+
+    let after = game.world.get::<Position<SquareCoord<EightConnected>>>(guard).unwrap().coord;
+
+    assert_ne!(before, after, "guard's Position component must change after guard_move_toward");
+  }
+
+  #[test]
+  fn bug_reproducer_bug_484_player_movement_simulate_persists_position() {
+    let mut game = StealthGame::new();
+
+    // Relocate the player to a corner neither guard's vision can reach: guard 1
+    // is at (8, 3) with range 6, guard 2 at (16, 11) with range 8, and distance
+    // here is Chebyshev (square.rs's `EightConnected::distance`), so (2, 12) is
+    // 9 and 14 tiles away respectively -- out of range regardless of line of
+    // sight. This guarantees the very next `player_movement_simulate` call takes
+    // the "safe to move" branch instead of "wait and hide", so the test isolates
+    // the persistence bug instead of depending on shadowcasting FOV geometry.
+    let safe_start = SquareCoord::<EightConnected>::new(2, 12);
+    if let Ok(mut player_pos) = game.world.get_mut::<Position<SquareCoord<EightConnected>>>(game.player_entity) {
+      player_pos.set(safe_start);
+    }
+
+    game.player_movement_simulate();
+
+    let after = game.world.get::<Position<SquareCoord<EightConnected>>>(game.player_entity).unwrap().coord;
+
+    assert_ne!(safe_start, after, "player's Position component must change after player_movement_simulate finds a safe step");
+  }
 }

@@ -23,13 +23,21 @@ and a redeploy, exactly the loop scripting exists to break.
 
 Embed a scripting language and curate its surface:
 
-- The host assembles an interpreter (`build_engine()` in the known use,
+- The host assembles an interpreter (`engine_build()` in the known use,
   over Rhai) and registers bindings — each binding module exposes one slice
   of engine vocabulary (vectors, tweens) into script space.
 - The script is code: it calls the bound API imperatively, and new behavior
   is written in script without touching the host.
 - The binding surface is the contract: what is not bound does not exist for
   scripts, which is how the host keeps the exposure deliberate.
+
+### Applicability
+
+Interactive tooling and live-authoring loops, or when the script author is
+the engine consumer. For a new stack's L5, reach for
+[script-as-data](004_script_as_data.md) first and add glue only where data
+cannot express the need — the determinism contract is the harder thing to
+retrofit.
 
 ### Consequences
 
@@ -68,19 +76,17 @@ Embed a scripting language and curate its surface:
   `top_level_lint` passing, or from a script's mere absence of loops and
   branches — check whether it calls a registered binding instead.
 
-### When to Choose
-
-Interactive tooling and live-authoring loops, or when the script author is
-the engine consumer. For a new stack's L5, reach for
-[script-as-data](004_script_as_data.md) first and add glue only where data
-cannot express the need — the determinism contract is the harder thing to
-retrofit.
-
-### Patterns
+### Features
 
 | File | Relationship |
 |------|--------------|
-| [004_script_as_data.md](004_script_as_data.md) | The contrasting form: trades this pattern's expressiveness for structural determinism |
+| [../../module/helper/scene_script/docs/feature/001_rhai_scene_scripting.md](../../module/helper/scene_script/docs/feature/001_rhai_scene_scripting.md) | One of the two script forms this feature hosts per-script, alongside script-as-data |
+
+### Invariants
+
+| File | Relationship |
+|------|--------------|
+| [../../module/helper/scene_script/docs/invariant/001_top_level_bindings_convention.md](../../module/helper/scene_script/docs/invariant/001_top_level_bindings_convention.md) | The convention this pattern's scripts are checked against (imperative code confined to `main()`) |
 
 ### Layers
 
@@ -88,11 +94,17 @@ retrofit.
 |------|--------------|
 | [../layer/006_l5_scene_script_and_runners.md](../layer/006_l5_scene_script_and_runners.md) | The layer contract this pattern is one realization of |
 
+### Patterns
+
+| File | Relationship |
+|------|--------------|
+| [004_script_as_data.md](004_script_as_data.md) | The contrasting form: trades this pattern's expressiveness for structural determinism |
+
 ### Sources
 
 | File | Relationship |
 |------|--------------|
-| `module/helper/scene_script/src/engine.rs` | Interpreter assembly (`build_engine()`) |
+| `module/helper/scene_script/src/engine.rs` | Interpreter assembly (`engine_build()`) |
 | `module/helper/scene_script/src/tween_binding.rs` | Binding slice: animation tweens |
 | `module/helper/scene_script/src/vector_binding.rs` | Binding slice: vector math |
 | `module/helper/scene_script/src/top_level_lint.rs` | Structural check: imperative code confined to `main()` |

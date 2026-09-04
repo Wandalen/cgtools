@@ -14,7 +14,7 @@ use the_module::
 
 // `determinant` on these small-integer-valued matrices only sums/subtracts products of
 // exactly-representable integers — no rounding is possible, so exact equality is correct.
-#[ allow( clippy::float_cmp ) ]
+#[ expect( clippy::float_cmp, reason = "assertions check exact expected values; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
 fn test_determinant_generic< Descriptor : mat::Descriptor >()
 where
   Mat2< f32, Descriptor > :
@@ -112,7 +112,7 @@ fn test_identity_column_major()
 
 // `to_homogenous` only copies existing elements and inserts exact 0.0/1.0 padding — no
 // arithmetic, so the result is bit-identical to the literal arrays compared against.
-#[ allow( clippy::float_cmp ) ]
+#[ expect( clippy::float_cmp, reason = "assertions check exact expected values; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
 fn test_to_homogenous_generic< Descriptor : mat::Descriptor >()
 where
   Mat3< f32, Descriptor > :

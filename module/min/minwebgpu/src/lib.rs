@@ -20,6 +20,14 @@ mod_interface!
   own use ::web_sys;
   own use ::js_sys;
   own use ::wasm_bindgen::JsValue;
+  // `Into`/`IntoIterator`/`TryInto` must exist at the crate root
+  // unconditionally: dozens of modules import them via
+  // `use crate::{ ..., Into, ... }`, but without these lines they are only
+  // present when the optional `math` layer's `reuse ::mingl::math` happens
+  // to carry them in transitively — every no-math build fails.
+  own use ::mingl::Into;
+  own use ::mingl::IntoIterator;
+  own use ::mingl::TryInto;
 
   /// Error related stuff
   layer error;

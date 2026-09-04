@@ -98,7 +98,7 @@ mod private
 
       for node_config in &config.nodes
       {
-        let node = scene.get_node( &node_config.node_name )
+        let node = scene.node_get( &node_config.node_name )
         .ok_or_else( || EngravingError::NodeNotFound( node_config.node_name.clone() ) )?;
 
         let materials : Vec< _ > =

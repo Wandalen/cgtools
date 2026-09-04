@@ -1,0 +1,6 @@
+outs:
+- md5: 66601cdcf8292b75981615ac8c31208b.dir
+  size: 533828
+  nfiles: 12
+  hash: md5
+  path: obj

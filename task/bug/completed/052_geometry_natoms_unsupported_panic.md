@@ -348,6 +348,34 @@ every reachable panicking macro inside f's body ( panic!, unwrap, expect ) is ei
       already covered by (a), with a comment stating which guard makes it safe.
 ```
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Does the pre-fix `panic!( "Unsapported buffer descriptor" )` genuinely no longer exist anywhere in `geometry.rs`? `grep -c "panic!" module/min/minwebgl/src/geometry.rs` → `0`.
+- [x] C2 — Does `validate_natoms` exist as a guard called before any WebGL resource allocation in `Positions::new`? Direct read confirms `validate_natoms( natoms )?;` is the first statement of `Positions::new`'s body (`geometry.rs:82`), before `buffer::create`/`vao::create`.
+- [ ] C3 — Does this bug's own documented fix (`natoms == 2` only, error message `"natoms other than 2 is not supported"`) still literally match the current source? **No** — current source reads `1 ..= 4 => Ok( () )` / `"natoms outside 1..=4 is not supported by Positions::new"`. Git-verified 3-stage timeline: `f4acdc76` (bare `panic!`) → `9b71cf39` (this bug's own fix: `2 =>` only) → `4469eafb` (TASK-062's later, separate, same-day widening: `1..=4 =>`, superseding this bug's literal fix). The underlying invariant this bug fixed — an unsupported `natoms` returns `Err`, never panics — still fully holds; only the boundary of what counts as "unsupported" has moved. Reported honestly rather than restating the bug file's now-superseded code excerpt as current fact.
+- [x] C4 — Is the RED→GREEN reproducer test still present, and does it still genuinely test the "no panic, only `Err`" contract (not silently vacated by TASK-062's range widening)? Direct read of `validate_natoms_rejects_unsupported_value` confirms its probes moved to `[ 0, 5, -1 ]` (outside the new range) — documented in-loop by TASK-062 itself — rather than being deleted or silently reduced to a no-op.
+- [x] C5 — Does the specific `unreachable!` arm this bug's fix introduced (for the pre-existing `match typ.natoms`) still exist and still hold? **Superseded, not dangling**: TASK-062 deleted that entire secondary match (replaced by an unconditional struct-literal `BufferDescriptor` construction covering every arity), so the artifact no longer exists at all rather than existing-but-now-incorrect. `grep -c unreachable module/min/minwebgl/src/geometry.rs` → `0`.
+
+### Measurements
+
+- [x] M1 — `natoms` values that crash the process in `Positions::new`: now `0` (every value, valid or invalid, returns via `Result`) (was: every value except `2` — unbounded — cite `git show f4acdc76:module/min/minwebgl/src/geometry.rs`, the pre-fix `_ => panic!(...)` catch-all).
+- [x] M2 — `validate_natoms`'s accepted range across this bug's own fix and the later superseding change: pre-bug = unbounded panic (`f4acdc76`) → this bug's own fix = exactly `{2}`, 1 value (`git show 9b71cf39:module/min/minwebgl/src/geometry.rs`) → current = `1..=4`, 4 values (`git show 4469eafb:module/min/minwebgl/src/geometry.rs`, TASK-062). Recorded as a 3-stage timeline since the bug file's own 2-stage "Before"/"After" framing no longer describes the current state.
+
+### Invariants
+
+- [x] I1 — Crate-scoped native test suite: `cargo test -p minwebgl --all-features` → exit `0`; both `validate_natoms_*` tests report `ok`.
+- [x] I2 — Wasm32 check (this bug's own originally-cited "real deployment target" command, replicated per the crate's wasm32-first nature): `cargo check -p minwebgl --target wasm32-unknown-unknown --all-features` → exit `0`.
+- [ ] I3 — Lint cleanliness, native, literal historically-cited command: `cargo clippy -p minwebgl --all-targets --all-features -- -D warnings` → exit `101` today, but not from this bug's own code — blocked at the unrelated `browser_log` dependency (see task 011's Verification I2 for the same root cause, dated after this bug was fixed). Isolated `--no-deps`: the file's only currently-attributable finding is the dead `AsBytes` import (`geometry.rs:4`) — confirmed introduced by TASK-062's later switch removal, not by this bug's own patch (at `9b71cf39`, this bug's own fix commit, the switch and its `AsBytes` usage were both still present and legitimately in use).
+- [ ] I4 — Lint cleanliness, wasm32, literal historically-cited command: `cargo clippy -p minwebgl --target wasm32-unknown-unknown --all-features -- -D warnings` → exit `101` today, same unrelated `browser_log` blocker as I3, reproducing identically on the wasm32 target.
+- [x] I5 — Sole external caller: `cargo check -p hexagonal_grid --all-features` → exit `0` (3 call sites, all passing literal `2`, unaffected by either this bug's fix or the later widening).
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against a future reader trusting this bug file's `## Fix Location` "After" code excerpt as current ground truth: re-run `grep -n "natoms outside\|natoms other than 2" module/min/minwebgl/src/geometry.rs` to see which version is actually live before citing either this file's or TASK-062's code verbatim.
+- [x] AF2 — Guards against the panic contract regressing silently: re-run C1's `grep -c "panic!" module/min/minwebgl/src/geometry.rs` (must stay `0`) and the two `validate_natoms_*` tests (must stay passing) after any future edit to this function.
+
 ## History
 
 | Date       | Event  | Notes                                                                                                     |

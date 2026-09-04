@@ -236,7 +236,7 @@ pub fn setup
         {
           pbr.engraving_strength = value;
         }
-        mat.set_needs_update( true );
+        mat.needs_update_set( true );
       }
     }
   );
@@ -259,7 +259,7 @@ pub fn setup
           pbr.engraving_roughness = value;
           pbr.roughness_factor = value;
         }
-        mat.set_needs_update( true );
+        mat.needs_update_set( true );
       }
     }
   );
@@ -278,7 +278,7 @@ pub fn setup
         {
           pbr.engraving_darkening = value;
         }
-        mat.set_needs_update( true );
+        mat.needs_update_set( true );
       }
     }
   );

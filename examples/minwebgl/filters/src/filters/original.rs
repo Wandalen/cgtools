@@ -1,4 +1,4 @@
-use super::*;
+use super::{ Filter, FilterRenderer, default_render_pass };
 
 pub struct Original;
 

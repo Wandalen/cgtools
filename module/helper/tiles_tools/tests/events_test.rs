@@ -45,7 +45,7 @@ fn test_subscribe_and_publish() {
   bus.publish(event.clone());
   assert_eq!(bus.pending_count::<TestEvent>(), 1);
 
-  bus.process_events();
+  bus.events_process();
   assert_eq!(bus.pending_count::<TestEvent>(), 0);
 
   let received_events = received.lock().unwrap();
@@ -79,7 +79,7 @@ fn test_event_priorities() {
   }, EventPriority::Normal);
 
   bus.publish(TestEvent { id: 1, message: "test".to_string() });
-  bus.process_events();
+  bus.events_process();
 
   let order = execution_order.lock().unwrap();
   assert_eq!(*order, vec!["critical", "normal", "low"]);
@@ -101,7 +101,7 @@ fn test_event_consumption() {
   });
 
   bus.publish(TestEvent { id: 1, message: "test".to_string() });
-  bus.process_events();
+  bus.events_process();
 
   let received_events = received.lock().unwrap();
   assert_eq!(received_events.len(), 0); // Event was consumed before reaching second listener
@@ -120,13 +120,13 @@ fn test_unsubscribe() {
 
   // Publish and process first event
   bus.publish(TestEvent { id: 1, message: "test1".to_string() });
-  bus.process_events();
+  bus.events_process();
   assert_eq!(*received.lock().unwrap(), 1);
 
   // Unsubscribe and publish second event
   assert!(bus.unsubscribe::<TestEvent>(listener_id));
   bus.publish(TestEvent { id: 2, message: "test2".to_string() });
-  bus.process_events();
+  bus.events_process();
   assert_eq!(*received.lock().unwrap(), 1); // Should still be 1
 }
 
@@ -148,13 +148,119 @@ fn test_auto_unsubscribe() {
 
   // First event - listener remains
   bus.publish(TestEvent { id: 1, message: "test1".to_string() });
-  bus.process_events();
+  bus.events_process();
   assert_eq!(bus.subscriber_count::<TestEvent>(), 1);
 
   // Second event - listener unsubscribes
   bus.publish(TestEvent { id: 2, message: "test2".to_string() });
-  bus.process_events();
+  bus.events_process();
   assert_eq!(bus.subscriber_count::<TestEvent>(), 0);
+}
+
+// test_kind: bug_reproducer(BUG-137)
+/// ## Root Cause
+/// `EventChannel::events_process` queued a listener returning
+/// `EventResult::Unsubscribe` for removal but never broke out of the
+/// `for listener in &self.listeners` loop, so the same event kept
+/// propagating to lower-priority listeners -- contradicting the variant's
+/// own doc comment ("Stop processing and remove this listener").
+///
+/// ## Why Not Caught
+/// `test_unsubscribe` only exercises the manual `bus.unsubscribe(id)` API
+/// path, never `EventResult::Unsubscribe`. `test_auto_unsubscribe` uses a
+/// single listener, so it confirms that listener stops receiving future
+/// events but never checks whether a *different*, lower-priority listener
+/// still receives the *same* event after the first one unsubscribes.
+///
+/// ## Fix Applied
+/// Added `break;` to the `EventResult::Unsubscribe` arm in
+/// `EventChannel::events_process`, matching the existing `Consume` arm.
+///
+/// ## Prevention
+/// Any new `EventResult` variant whose doc comment implies "stop
+/// processing" must be checked against `events_process`'s match arms for a
+/// `break`, and covered by a multi-listener test, not a single-listener one.
+///
+/// ## Pitfall
+/// Unsubscription (removal from `self.listeners`) and propagation halting
+/// (whether the current event still reaches lower-priority listeners) are
+/// separate concerns -- a single-listener test can confirm the former while
+/// staying completely blind to the latter.
+#[test]
+fn test_unsubscribe_halts_propagation_to_lower_priority_listeners() {
+  let mut bus = EventBus::new();
+  let low_priority_called = Arc::new(Mutex::new(false));
+
+  bus.subscribe_with_priority(|_: &TestEvent| EventResult::Unsubscribe, EventPriority::High);
+
+  let low_priority_called_clone = low_priority_called.clone();
+  bus.subscribe_with_priority(move |_: &TestEvent| {
+    *low_priority_called_clone.lock().unwrap() = true;
+    EventResult::Continue
+  }, EventPriority::Low);
+
+  bus.publish(TestEvent { id: 1, message: "test".to_string() });
+  bus.events_process();
+
+  assert!(
+    !*low_priority_called.lock().unwrap(),
+    "lower-priority listener was invoked after a higher-priority listener returned EventResult::Unsubscribe"
+  );
+  assert_eq!(bus.subscriber_count::<TestEvent>(), 1);
+}
+
+// test_kind: bug_reproducer(BUG-268)
+/// ## Root Cause
+/// `EventStatistics::total_subscribers` was only ever decremented by the
+/// explicit `EventBus::unsubscribe(id)` API path. A listener that
+/// self-unsubscribed by returning `EventResult::Unsubscribe` during
+/// `events_process`/`events_for_type_process` was removed from its
+/// `EventChannel` (so `subscriber_count` dropped correctly) but
+/// `total_subscribers` was never told about that removal, since
+/// `EventChannel::events_process` had no way to report how many listeners it
+/// had just removed back up to the `EventBus` that owns the statistics.
+///
+/// ## Why Not Caught
+/// `test_statistics` never subscribes a listener that unsubscribes itself,
+/// and `test_unsubscribe_halts_propagation_to_lower_priority_listeners`
+/// (the `BUG-137` regression test) checks `subscriber_count`, not
+/// `statistics().total_subscribers` -- so no existing test compared the two,
+/// which is exactly where they diverge.
+///
+/// ## Fix Applied
+/// Changed `EventChannel::events_process` to return the number of listeners
+/// it removed, propagated that count through the private `AnyEventChannel`
+/// trait, and had `EventBus::events_process`/`events_for_type_process`
+/// subtract it from `total_subscribers` (saturating, matching the explicit
+/// `unsubscribe()` path's existing style).
+///
+/// ## Prevention
+/// Any statistic that is incremented by one public API path must be checked
+/// for every other path that can produce the same underlying state change --
+/// here, "a listener stopped being subscribed" has two triggers (explicit
+/// `unsubscribe()` and self-returned `EventResult::Unsubscribe`), and only
+/// one was wired to the counter.
+///
+/// ## Pitfall
+/// A "current count" statistic drifting out of sync with the data structure
+/// it describes is silent by nature -- it never panics or errors, it just
+/// slowly becomes wrong. Test it against the same operations that mutate the
+/// underlying collection, not in isolation.
+#[test]
+fn test_auto_unsubscribe_decrements_total_subscribers_statistic() {
+  let mut bus = EventBus::new();
+  bus.subscribe(|_: &TestEvent| EventResult::Unsubscribe);
+
+  assert_eq!(bus.statistics().total_subscribers, 1);
+
+  bus.publish(TestEvent { id: 1, message: "test".to_string() });
+  bus.events_process();
+
+  assert_eq!(bus.subscriber_count::<TestEvent>(), 0);
+  assert_eq!(
+    bus.statistics().total_subscribers, 0,
+    "total_subscribers should track a listener that unsubscribed itself via EventResult::Unsubscribe, not only the explicit unsubscribe() path"
+  );
 }
 
 #[test]
@@ -174,8 +280,8 @@ fn test_batch_publishing() {
     TestEvent { id: 3, message: "test3".to_string() },
   ];
 
-  bus.publish_batch(events);
-  bus.process_events();
+  bus.batch_publish(events);
+  bus.events_process();
 
   let received_ids = received.lock().unwrap();
   assert_eq!(*received_ids, vec![1, 2, 3]);
@@ -193,7 +299,7 @@ fn test_statistics() {
   assert_eq!(bus.statistics().events_published, 1);
   assert_eq!(bus.statistics().events_processed, 0);
 
-  bus.process_events();
+  bus.events_process();
   assert_eq!(bus.statistics().events_processed, 1);
   assert_eq!(bus.statistics().process_cycles, 1);
 }
@@ -218,7 +324,7 @@ fn test_common_events() {
     movement_type: MovementType::Walk,
   });
 
-  bus.process_events();
+  bus.events_process();
 
   let recorded_moves = moves.lock().unwrap();
   assert_eq!(recorded_moves.len(), 1);
@@ -235,7 +341,7 @@ fn test_utility_functions() {
 
   bus.publish(TestEvent { id: 1, message: "test1".to_string() });
   bus.publish(TestEvent { id: 2, message: "test2".to_string() });
-  bus.process_events();
+  bus.events_process();
 
   assert_eq!(*counter.lock().unwrap(), 2);
 }
@@ -267,7 +373,7 @@ fn test_multiple_event_types() {
 
   bus.publish(EventA { value: 42 });
   bus.publish(EventB { text: "hello".to_string() });
-  bus.process_events();
+  bus.events_process();
 
   assert_eq!(*received_a.lock().unwrap(), vec![42]);
   assert_eq!(*received_b.lock().unwrap(), vec!["hello".to_string()]);

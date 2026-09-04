@@ -193,7 +193,6 @@ mod private
   // Struct-literal construction with `..Default::default()` is the established public
   // contract, exercised extensively by `tests/tests/camera_orbit_controls.rs` (23+ cases)
   // and by downstream examples — `#[non_exhaustive]` would break that contract.
-  #[ allow( clippy::exhaustive_structs ) ]
   pub struct CameraOrbitControls
   {
     /// The position of the camera in 3D space.
@@ -250,7 +249,7 @@ mod private
 
     /// Updates the camera's knowledge of the window or viewport size.
     #[ inline ]
-    pub fn set_size( &mut self, size : [ f32; 2 ] )
+    pub fn size_set( &mut self, size : [ f32; 2 ] )
     {
       self.window_size = F32x2::from( size );
     }
@@ -290,11 +289,11 @@ mod private
       else
       {
         self.rotation.current_rotation_angle = screen_d;
-        self.apply_rotation();
+        self.rotation_apply();
       }
     }
 
-    fn apply_rotation( &mut self )
+    fn rotation_apply( &mut self )
     {
       let dir = ( self.eye - self.center ).normalize();
       let x = dir.cross( self.up ).normalize();
@@ -447,7 +446,15 @@ mod private
 
       // If scroll is up (-) then zoom in
       // If scroll is down (+) then zoom out
-      let k = if delta_y < 0.0 { 1.0 + delta_y.abs() } else { 1.0 - delta_y.abs() };
+      // Fix(BUG-126): clamp the zoom-out branch's divisor to a positive floor
+      // Root cause: `1.0 - delta_y.abs()` reaches 0.0 (division by zero) or goes negative
+      // (sign flip) whenever a single event's `|delta_y|` reaches/exceeds `zoom.speed`; a fast
+      // pinch gesture's raw screen-pixel distance delta, or a high-precision wheel event, both
+      // reach that magnitude in practice
+      // Pitfall: a divisor derived as `1.0 - x.abs()` is only safe while `x` is known to stay
+      // inside the unit interval — an external, unbounded input can never be assumed to satisfy
+      // that on its own
+      let k = if delta_y < 0.0 { 1.0 + delta_y.abs() } else { ( 1.0 - delta_y.abs() ).max( f32::EPSILON ) };
 
       // We need the center to be at the origin before we can apply zoom
       let mut eye_new = self.eye - self.center;
@@ -486,17 +493,37 @@ mod private
     {
       // `delta_time` is a per-frame delta in seconds — always minuscule relative to
       // f32's precision limits, so narrowing it once here cannot lose meaningful precision.
-      #[ allow( clippy::cast_possible_truncation ) ]
       let delta_time = delta_time as f32;
+      // Fix(BUG-125): convert to milliseconds before applying the formulas below, which are
+      // written and documented in terms of milliseconds
+      // Root cause: `delta_time` arrives in seconds (per this function's own doc contract and
+      // every real caller), but the /10.0 and /1000.0 constants below assumed milliseconds
+      // Pitfall: a doc comment naming a time unit is not proof the formula beneath it agrees —
+      // verify the two independently
+      let delta_time_ms = delta_time * 1000.0;
 
       // Decays self.movement_decay% every 10 milliseconds
-      let mut decay_percentage = self.rotation.movement_decay * delta_time / 10.0;
+      let mut decay_percentage = self.rotation.movement_decay * delta_time_ms / 10.0;
       decay_percentage = decay_percentage.min( 1.0 );
 
-      if self.rotation.movement_smoothing_enabled
+      // Fix(BUG-427): guarded with `self.rotation.enabled` -- previously this branch applied
+      // smoothed rotation ( and decayed `current_angular_speed` ) purely on
+      // `movement_smoothing_enabled`, with no check that rotation was enabled at all, unlike
+      // `rotate()` above, which returns immediately when `!self.rotation.enabled`. A caller
+      // that disabled rotation ( e.g. `controls.rotation.enabled = false` ) after already
+      // accumulating angular speed via smoothing would still see the camera keep rotating on
+      // every subsequent `update()` call, since nothing here re-checked `enabled`.
+      // Root cause: `rotate()` and `update()` are two independent entry points into the same
+      // smoothing state ( `current_angular_speed` ), and only `rotate()` was given the
+      // `enabled` guard when smoothing was added -- `update()`'s own smoothing branch was
+      // never audited against the same invariant.
+      // Pitfall: when a piece of state ( here, "is rotation enabled" ) must gate more than one
+      // entry point, grep every reader/writer of that state for the guard, not just the one
+      // that happened to be under review when the guard was added.
+      if self.rotation.enabled && self.rotation.movement_smoothing_enabled
       {
-        self.rotation.current_rotation_angle = self.rotation.current_angular_speed * delta_time / 1000.0;
-        self.apply_rotation();
+        self.rotation.current_rotation_angle = self.rotation.current_angular_speed * delta_time_ms / 1000.0;
+        self.rotation_apply();
         self.rotation.current_angular_speed *= 1.0 - decay_percentage;
       }
     }
@@ -562,7 +589,7 @@ mod private
   /// and selects the resulting camera interaction state.
   #[ cfg( feature = "web" ) ]
   #[ inline ]
-  fn make_pointer_down_closure
+  fn pointer_down_closure_make
   (
     canvas : &web_sys::HtmlCanvasElement,
     state : &Rc< RefCell< CameraState > >,
@@ -579,7 +606,6 @@ mod private
       move | e : web_sys::PointerEvent |
       {
         // screen_x/y return f64 under web_sys_unstable_apis (web-sys ≥ 0.3.94); f64→f32 cast is intentional
-        #[ allow( clippy::cast_possible_truncation ) ]
         let pos = [ e.screen_x() as f32, e.screen_y() as f32 ];
         active_pointers.borrow_mut().insert( e.pointer_id(), pos );
         let count = active_pointers.borrow().len();
@@ -612,7 +638,7 @@ mod private
   /// camera depending on the current interaction state.
   #[ cfg( feature = "web" ) ]
   #[ inline ]
-  fn make_pointer_move_closure
+  fn pointer_move_closure_make
   (
     camera : &Rc< RefCell< CameraOrbitControls > >,
     state : &Rc< RefCell< CameraState > >,
@@ -630,7 +656,6 @@ mod private
       {
         let pointer_id = e.pointer_id();
         // screen_x/y return f64 under web_sys_unstable_apis (web-sys ≥ 0.3.94); f64→f32 cast is intentional
-        #[ allow( clippy::cast_possible_truncation ) ]
         let new_pos = [ e.screen_x() as f32, e.screen_y() as f32 ];
 
         let current_state = state.borrow().clone();
@@ -694,7 +719,7 @@ mod private
   /// Creates the `wheel` closure that zooms the camera when no pointer gesture is active.
   #[ cfg( feature = "web" ) ]
   #[ inline ]
-  fn make_wheel_closure
+  fn wheel_closure_make
   (
     camera : &Rc< RefCell< CameraOrbitControls > >,
     state : &Rc< RefCell< CameraState > >
@@ -709,7 +734,6 @@ mod private
         if let CameraState::None = *state.borrow()
         {
           // delta_y is a scroll increment (typically tens to low thousands); f64→f32 cast is intentional
-          #[ allow( clippy::cast_possible_truncation ) ]
           let delta_y = e.delta_y() as f32;
           camera.borrow_mut().zoom( delta_y );
         }
@@ -721,7 +745,7 @@ mod private
   /// which all remove the pointer and transition state identically.
   #[ cfg( feature = "web" ) ]
   #[ inline ]
-  fn make_pointer_release_closure
+  fn pointer_release_closure_make
   (
     state : &Rc< RefCell< CameraState > >,
     prev_screen_pos : &Rc< RefCell< [ f32; 2 ] > >,
@@ -759,7 +783,7 @@ mod private
   /// Creates the `contextmenu` closure that suppresses the browser's context menu.
   #[ cfg( feature = "web" ) ]
   #[ inline ]
-  fn make_context_menu_closure() -> Closure< dyn Fn( web_sys::PointerEvent ) >
+  fn context_menu_closure_make() -> Closure< dyn Fn( web_sys::PointerEvent ) >
   {
     Closure::new
     (
@@ -790,7 +814,7 @@ mod private
   ///   instance that will be manipulated by the user input.
   #[ cfg( feature = "web" ) ]
   #[ inline ]
-  pub fn bind_controls_to_input
+  pub fn controls_bind_to_input
   (
     canvas : &web_sys::HtmlCanvasElement,
     camera : &Rc< RefCell< CameraOrbitControls > >
@@ -805,11 +829,11 @@ mod private
     // Prevent the browser from handling touch gestures (pinch-to-zoom, scroll) on the canvas.
     let _ = canvas.style().set_property( "touch-action", "none" );
 
-    let on_pointer_down = make_pointer_down_closure( canvas, &state, &prev_screen_pos, &active_pointers );
-    let on_pointer_move = make_pointer_move_closure( camera, &state, &prev_screen_pos, &active_pointers );
-    let on_wheel = make_wheel_closure( camera, &state );
-    let on_pointer_release = make_pointer_release_closure( &state, &prev_screen_pos, &active_pointers );
-    let on_context_menu = make_context_menu_closure();
+    let on_pointer_down = pointer_down_closure_make( canvas, &state, &prev_screen_pos, &active_pointers );
+    let on_pointer_move = pointer_move_closure_make( camera, &state, &prev_screen_pos, &active_pointers );
+    let on_wheel = wheel_closure_make( camera, &state );
+    let on_pointer_release = pointer_release_closure_make( &state, &prev_screen_pos, &active_pointers );
+    let on_context_menu = context_menu_closure_make();
 
     canvas.set_oncontextmenu( Some( on_context_menu.as_ref().unchecked_ref() ) );
     on_context_menu.forget();
@@ -837,7 +861,7 @@ crate::mod_interface!
   #[ cfg( feature = "web" ) ]
   own use
   {
-    bind_controls_to_input
+    controls_bind_to_input
   };
 
   /// Exposes the `CameraOrbitControls` struct for public use.

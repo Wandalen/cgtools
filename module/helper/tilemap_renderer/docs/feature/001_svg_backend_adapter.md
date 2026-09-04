@@ -7,11 +7,11 @@
 - **Purpose**: Let a command stream produce a static, standards-compliant SVG 1.1 document.
 - **Responsibility**: Cross-reference the SVG adapter's source, the invariants it must uphold, and its known pitfalls and gaps.
 - **In Scope**: SVG document generation for all command families (paths, text, sprites, meshes, batches, groups/effects) and asset handling (images, geometries, gradients, patterns, clip masks).
-- **Out of Scope**: WebGL2 and Terminal adapters (see [feature/002_webgl2_backend_adapter.md](002_webgl2_backend_adapter.md), [feature/003_terminal_backend_adapter.md](003_terminal_backend_adapter.md)); the Y-up→Y-down conversion mechanics themselves (see [invariant/001](../invariant/001_y_up_coordinate_system.md)); the injection-safety guarantee mechanics themselves (see [invariant/002](../invariant/002_svg_injection_safe_output.md)).
+- **Out of Scope**: WebGL2, Terminal, None, WebGPU, and Native adapters (see [002](002_webgl2_backend_adapter.md), [003](003_terminal_backend_adapter.md), [004](004_none_backend_adapter.md), [005](005_webgpu_backend_adapter.md), [006](006_native_backend_adapter.md)); the Y-up→Y-down conversion mechanics themselves (see [invariant/001](../invariant/001_y_up_coordinate_system.md)); the injection-safety guarantee mechanics themselves (see [invariant/002](../invariant/002_svg_injection_safe_output.md)).
 
 ### Design
 
-Documents are built incrementally via an internal content manager that tracks byte offsets for the `<defs>` section, the body element list, and the top-level viewport `<g transform>` wrapper, so inserts and viewport updates are `O(1)` splice operations on one contiguous string rather than a full re-render — `set_viewport_offset`/`set_viewport_scale` rewrite only the wrapper's `transform` attribute via `replace_range`, without re-submitting any commands.
+Documents are built incrementally via an internal content manager that tracks byte offsets for the `<defs>` section, the body element list, and the top-level viewport `<g transform>` wrapper, so inserts and viewport updates are `O(1)` splice operations on one contiguous string rather than a full re-render — `viewport_offset_set`/`viewport_scale_set` rewrite only the wrapper's `transform` attribute via `replace_range`, without re-submitting any commands.
 
 Coordinate conversion (Y-up → SVG's native Y-down) is applied per positioned element; see [invariant/001](../invariant/001_y_up_coordinate_system.md) for the mechanism. Batch instances are drawn with raw, unflipped local transforms inside an already-flipped `<g>` parent, avoiding a double conversion.
 
@@ -21,9 +21,9 @@ Bitmap images are re-encoded to PNG (via the `image` crate) and inlined as `data
 
 Injection-safety for caller-controlled text and path strings is a dedicated cross-cutting guarantee — see [invariant/002](../invariant/002_svg_injection_safe_output.md) for exactly what is and isn't covered.
 
-**Known gap — font selection**: `Assets.fonts` is currently ignored by `load_assets`; no `@font-face`/`<font-face>` definitions are emitted and `<text>` elements carry no `font-family`, so all text renders in the SVG viewer's default font. Text *rendering* (positioning, anchoring, styling other than font) works; font *selection* does not. Confirmed directly in the `capabilities()` doc comment in `src/adapters/svg.rs` and listed under svg adapter gaps in `roadmap.md`.
+**Known gap — font selection**: `Assets.fonts` is currently ignored by `assets_load`; no `@font-face`/`<font-face>` definitions are emitted and `<text>` elements carry no `font-family`, so all text renders in the SVG viewer's default font. Text *rendering* (positioning, anchoring, styling other than font) works; font *selection* does not. Confirmed directly in the `capabilities()` doc comment in `src/adapters/svg.rs` and listed under svg adapter gaps in `roadmap.md`.
 
-**Known gap — image `Path` sources**: `ImageSource::Path` performs no file I/O at `load_assets` time — callers must supply `ImageSource::Bitmap`/`ImageSource::Encoded` when sprite regions are needed; sprites referencing a `Path` sheet are skipped with a stderr warning and an HTML diagnostic comment. `GeometryAsset`'s `Source::Path`, by contrast, *is* loaded, via a blocking `std::fs` read (implemented by task 064): on success the geometry behaves exactly like `Source::Bytes`; on read failure — missing file, or wasm32 where no filesystem exists — the geometry is skipped with the same stderr-warning + diagnostic-comment idiom, and a failed *index* source skips the whole geometry rather than silently falling back to unindexed topology. The former silent-drop trap (pitfall/003) is retired.
+**Known gap — image `Path` sources**: `ImageSource::Path` performs no file I/O at `assets_load` time — callers must supply `ImageSource::Bitmap`/`ImageSource::Encoded` when sprite regions are needed; sprites referencing a `Path` sheet are skipped with a stderr warning and an HTML diagnostic comment. `GeometryAsset`'s `Source::Path`, by contrast, *is* loaded, via a blocking `std::fs` read (implemented by task 064): on success the geometry behaves exactly like `Source::Bytes`; on read failure — missing file, or wasm32 where no filesystem exists — the geometry is skipped with the same stderr-warning + diagnostic-comment idiom, and a failed *index* source skips the whole geometry rather than silently falling back to unindexed topology. The former silent-drop trap (pitfall/003) is retired.
 
 Given the font gap, this adapter's status is tracked as partial (⚠️) rather than fully complete, even though every other command and asset family is implemented.
 
@@ -33,17 +33,14 @@ Given the font gap, this adapter's status is tracked as partial (⚠️) rather 
 |------|--------------|
 | [invariant/001_y_up_coordinate_system.md](../invariant/001_y_up_coordinate_system.md) | This adapter performs the only active Y-up → Y-down conversion among shipped backends |
 | [invariant/002_svg_injection_safe_output.md](../invariant/002_svg_injection_safe_output.md) | This adapter is the only backend that emits caller-controlled strings into a markup document |
+| [invariant/003_z_layer_draw_ordering.md](../invariant/003_z_layer_draw_ordering.md) | No depth buffer exists here; submission order is this backend's entire ordering contract |
+| [invariant/004_vector_representability_of_commands.md](../invariant/004_vector_representability_of_commands.md) | This adapter's completeness across the full command set is the invariant's living proof |
 
 ### Patterns
 
 | File | Relationship |
 |------|--------------|
 | [pattern/001_ports_and_adapters_backend_architecture.md](../pattern/001_ports_and_adapters_backend_architecture.md) | This adapter is one `Backend` implementation within the crate's hexagonal architecture |
-
-### Pitfalls
-
-| File | Relationship |
-|------|--------------|
 
 ### Sources
 
@@ -55,5 +52,5 @@ Given the font gap, this adapter's status is tracked as partial (⚠️) rather 
 
 | File | Relationship |
 |------|--------------|
-| `src/adapters/svg.rs` (inline `#[cfg(test)]`) | Internal-helper coverage: transform conversion, escaping, MIME detection, asset-skip diagnostics, geometry `Source::Path` loading (from-disk happy path, missing-file skip, missing-index whole-skip), blend modes, effects, and more |
+| `tests/svg_backend_test.rs` | Relocated from inline `src/adapters/svg.rs` by task 071 — no `#[cfg(test)]` block remains in the source file. Behavior tests drive `SvgBackend` through its public surface (`SvgBackend::new` / `viewport_scale_set` / `viewport_offset_set` plus the `Backend` trait), asserting on the rendered SVG string from `output()`; formatting/encoding helper tests cover the `#[doc(hidden)]`-exported helpers. Covers transform conversion, escaping, MIME detection, asset-skip diagnostics, geometry `Source::Path` loading (from-disk happy path, missing-file skip, missing-index whole-skip), blend modes, effects, and more |
 | `tests/backend_test.rs` | `Backend` trait contract exercised generically (not SVG-specific) |

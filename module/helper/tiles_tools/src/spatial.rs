@@ -37,7 +37,7 @@
 //!
 //! // Query entities in a region
 //! let query_bounds = SpatialBounds::new(20, 20, 30, 30);
-//! let nearby_entities = quadtree.query_region(&query_bounds);
+//! let nearby_entities = quadtree.region_query(&query_bounds);
 //! println!("Found {} entities in region", nearby_entities.len());
 //! ```
 
@@ -140,7 +140,24 @@ pub struct SpatialEntity<C> {
 
 impl<C> SpatialEntity<C> {
     /// Creates a new spatial entity.
+    ///
+    /// `radius` is clamped to a non-negative value: a negative radius would
+    /// invert `bounds()`'s rectangle and wrap to a huge value when cast to
+    /// `u32` in `intersects_entity`.
     pub fn new(id: u32, position: C, radius: i32) -> Self {
+        // Fix(BUG-482): clamp radius to a non-negative value at construction.
+        // Root cause: `radius` was stored unclamped. `bounds()` computes
+        // `SpatialBounds::from_center_size(x, y, radius * 2, radius * 2)` --
+        // a negative radius produces a negative width/height, which
+        // `from_center_size` silently turns into an inverted rectangle
+        // (`left > right`, `top > bottom`), and `intersects_entity` computes
+        // `(self.radius + other.radius) as u32`, which wraps to a huge
+        // positive value when the signed sum is negative.
+        // Pitfall: casting a signed integer that can be negative to an
+        // unsigned type (`as u32`) never panics -- it silently wraps, so a
+        // missing non-negative invariant at construction surfaces far away,
+        // as a bogus huge distance threshold, not as an obvious crash here.
+        let radius = radius.max(0);
         Self { id, position, radius }
     }
 
@@ -234,10 +251,34 @@ where
     }
 
     /// Inserts an entity into the quadtree.
-    pub fn insert(&mut self, entity: SpatialEntity<C>) {
+    ///
+    /// Returns `false` (and leaves the quadtree unchanged) if the entity's position falls
+    /// outside the quadtree's own bounds.
+    #[must_use]
+    pub fn insert(&mut self, entity: SpatialEntity<C>) -> bool {
+        // Fix(BUG-134)
+        // Root cause: insert_recursive_static's quadrant routing always finds
+        // SOME quadrant via unbounded center-point comparisons, with no check
+        // that the entity's position actually falls within the tree's own
+        // bounds -- an out-of-bounds entity got filed into a leaf whose real
+        // bounds don't contain it, then region_query's node_bounds
+        // intersects() pruning (walked from the tree's fixed self.bounds,
+        // which never grows) silently excluded it from every spatially-scoped
+        // query while it remained visible via all_entities().
+        // Pitfall: this check must live here, once, at the entry point -- the
+        // recursive quadrant split (bounds.center() then >=/<= comparison)
+        // already preserves containment correctly for any position that
+        // starts inside bounds, so duplicating a bounds check at every
+        // recursion level would be redundant, not defensive.
+        let (x, y) = entity.position.to_spatial_coords();
+        if !self.bounds.contains_point(x, y) {
+            return false;
+        }
+
         let bounds = self.bounds;
         let max_entities = self.max_entities;
         Self::insert_recursive_static(&mut self.root, entity, &bounds, 0, max_entities, &mut self.max_depth);
+        true
     }
 
     /// Removes all entities with the specified ID from the quadtree.
@@ -249,7 +290,7 @@ where
 
     /// Queries all entities that intersect with the specified boundary.
     #[must_use]
-    pub fn query_region(&self, query_bounds: &SpatialBounds) -> Vec<SpatialEntity<C>> {
+    pub fn region_query(&self, query_bounds: &SpatialBounds) -> Vec<SpatialEntity<C>> {
         let mut results = Vec::new();
         Self::query_recursive(&self.root, query_bounds, &self.bounds, &mut results);
         results
@@ -257,13 +298,13 @@ where
 
     /// Queries all entities within a circular area.
     #[must_use]
-    pub fn query_circle(&self, center_x: i32, center_y: i32, radius: i32) -> Vec<SpatialEntity<C>>
+    pub fn circle_query(&self, center_x: i32, center_y: i32, radius: i32) -> Vec<SpatialEntity<C>>
     where
         C: Distance,
     {
         // First get candidates from rectangular query
         let query_bounds = SpatialBounds::from_center_size(center_x, center_y, radius * 2, radius * 2);
-        let candidates = self.query_region(&query_bounds);
+        let candidates = self.region_query(&query_bounds);
 
         // Filter by actual circular distance
         let center_coord = C::from_spatial_coords(center_x, center_y);
@@ -279,7 +320,7 @@ where
     #[must_use]
     pub fn all_entities(&self) -> Vec<SpatialEntity<C>> {
         let mut entities = Vec::new();
-        Self::collect_all_entities(&self.root, &mut entities);
+        Self::all_entities_collect(&self.root, &mut entities);
         entities
     }
 
@@ -293,7 +334,7 @@ where
     #[must_use]
     pub fn stats(&self) -> QuadtreeStats {
         let mut stats = QuadtreeStats::default();
-        Self::calculate_stats(&self.root, 0, &mut stats);
+        Self::stats_calculate(&self.root, 0, &mut stats);
         stats
     }
 
@@ -315,7 +356,7 @@ where
                 
                 // Check if we need to subdivide
                 if entities.len() > max_entities && depth < 16 { // Max depth limit
-                    Self::subdivide_node_static(node, bounds, depth, max_entities, current_max_depth);
+                    Self::node_subdivide_static(node, bounds, depth, max_entities, current_max_depth);
                 }
             }
             QuadtreeNode::Internal { northeast, northwest, southeast, southwest } => {
@@ -352,7 +393,7 @@ where
         }
     }
 
-    fn subdivide_node_static(
+    fn node_subdivide_static(
         node: &mut QuadtreeNode<C>, 
         bounds: &SpatialBounds, 
         depth: usize,
@@ -449,21 +490,21 @@ where
         }
     }
 
-    fn collect_all_entities(node: &QuadtreeNode<C>, entities: &mut Vec<SpatialEntity<C>>) {
+    fn all_entities_collect(node: &QuadtreeNode<C>, entities: &mut Vec<SpatialEntity<C>>) {
         match node {
             QuadtreeNode::Leaf { entities: node_entities } => {
                 entities.extend_from_slice(node_entities);
             }
             QuadtreeNode::Internal { northeast, northwest, southeast, southwest } => {
-                Self::collect_all_entities(northeast, entities);
-                Self::collect_all_entities(northwest, entities);
-                Self::collect_all_entities(southeast, entities);
-                Self::collect_all_entities(southwest, entities);
+                Self::all_entities_collect(northeast, entities);
+                Self::all_entities_collect(northwest, entities);
+                Self::all_entities_collect(southeast, entities);
+                Self::all_entities_collect(southwest, entities);
             }
         }
     }
 
-    fn calculate_stats(node: &QuadtreeNode<C>, depth: usize, stats: &mut QuadtreeStats) {
+    fn stats_calculate(node: &QuadtreeNode<C>, depth: usize, stats: &mut QuadtreeStats) {
         stats.total_nodes += 1;
         stats.max_depth = stats.max_depth.max(depth);
 
@@ -478,10 +519,10 @@ where
             }
             QuadtreeNode::Internal { northeast, northwest, southeast, southwest } => {
                 stats.internal_nodes += 1;
-                Self::calculate_stats(northeast, depth + 1, stats);
-                Self::calculate_stats(northwest, depth + 1, stats);
-                Self::calculate_stats(southeast, depth + 1, stats);
-                Self::calculate_stats(southwest, depth + 1, stats);
+                Self::stats_calculate(northeast, depth + 1, stats);
+                Self::stats_calculate(northwest, depth + 1, stats);
+                Self::stats_calculate(southeast, depth + 1, stats);
+                Self::stats_calculate(southwest, depth + 1, stats);
             }
         }
     }

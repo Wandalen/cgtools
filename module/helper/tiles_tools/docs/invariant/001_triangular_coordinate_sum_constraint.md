@@ -26,17 +26,24 @@ For every `triangular::Coordinate<Orientation> { a, b, c, .. }`, the sum `a + b 
 
 Because the only reachable *external* constructor (`new`) is checked, and every *internal* `new_unchecked` call site verified above is either preceded by an explicit check (`Deserialize`) or is provably sum-preserving by its own arithmetic (`neighbors()`), no currently-shipped code path can produce a `triangular::Coordinate` violating the invariant. The residual risk is prospective, not present: `new_unchecked` is `pub(crate)`, not `private` — any *future* internal contributor adding a new derivation (a new `From` impl, a new geometric helper) can call it directly without the compiler enforcing the sum constraint, and would need to re-derive (or at least re-check) sum-preservation by hand, the same way `neighbors()`'s implementer evidently did. There is no compile-time guard against a future unchecked call site that isn't actually sum-preserving.
 
-### Types
-
-| File | Relationship |
-|------|--------------|
-| [type/001_coordinate_system_type_model.md](../type/001_coordinate_system_type_model.md) | `triangular::Coordinate<Orientation>` is the one type in that doc's table carrying a field-value invariant beyond phantom-type grid separation |
-
 ### Algorithms
 
 | File | Relationship |
 |------|--------------|
 | [algorithm/001_coordinate_distance_and_neighbor_formulas.md](../algorithm/001_coordinate_distance_and_neighbor_formulas.md) | `neighbors()`'s sum-preserving offset derivation, verified above, is this invariant's clearest evidence of correctness |
+
+### Data Structures
+
+| File | Relationship |
+|------|--------------|
+| [data_structure/001_grid2d_dense_hex_bounded_storage.md](../data_structure/001_grid2d_dense_hex_bounded_storage.md) | Not applicable — `Grid2D` is hexagonal-only; a triangular-coordinate grid needing this invariant would require its own storage type |
+| [data_structure/002_spatial_quadtree.md](../data_structure/002_spatial_quadtree.md) | Not applicable — `triangular::Coordinate` does not implement `SpatialCoordinate` and cannot be used with `Quadtree` directly |
+
+### Types
+
+| File | Relationship |
+|------|--------------|
+| [type/001_coordinate_system_type_model.md](../type/001_coordinate_system_type_model.md) | `triangular::Coordinate<Orientation>` is the one type in that doc's table carrying a field-value invariant beyond phantom-type grid separation |
 
 ### Sources
 

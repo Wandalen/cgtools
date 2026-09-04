@@ -43,6 +43,43 @@ system's own `task/unverified/001_sprawl_procedural_city_dashboard.md` — coinc
 independent, ungoverned numbering sequences), but a real conflict TA063's global ID-uniqueness
 requirement would need resolved (renumber one side) the moment option (a) or (b) above is chosen.
 
+## In Scope
+
+- Deciding among the Goal's 3 options for `module/helper/browser_input/task/001_dependency_cleanup.md` (adopt as a proper local Task System / migrate the idea and retire the note / leave it and relocate)
+- Migrating the note's idea into the root task system as `task/completed/057_browser_input_minwebgl_dependency_cleanup.md`, including verifying its technical premise against source (found 2 coupling sites the note missed: a `JsCast` re-export and a test-file import)
+- Deleting `module/helper/browser_input/task/001_dependency_cleanup.md` and the now-empty `task/` directory
+- Rewriting `task/readme.md`'s "unresolved gap" preamble into a resolution record
+
+## Out of Scope
+
+- Option (a) — building a full local Task System (readme.md + canonical template) plus Aggregated Index + Global ID Registry for `browser_input` — rejected as YAGNI (nothing else to aggregate)
+- Option (c) — leaving the note in place and renaming/relocating it — rejected as leaving a second, ungoverned tracking convention alive
+- Actually implementing the migrated idea (replacing browser_input's `minwebgl` dependency with `ndarray_cg`) — deferred to task 057
+
+## Verification
+
+### Checklist
+
+- [x] C1 — Is `module/helper/browser_input/task/` genuinely deleted (not merely emptied or renamed)? `ls module/helper/browser_input/ | grep -i task` → no match (directory absent); `git ls-tree -r 4469eafb^ --name-only | grep module/helper/browser_input/task/` confirms it held exactly `001_dependency_cleanup.md` immediately before the deletion commit.
+- [x] C2 — Does exactly one `task/` directory exist workspace-wide now, clearing TA124's `TASK_DIR_COUNT`/TA125's "Aggregated Index Missing Entirely" condition? `find . -type d -name "task" -not -path "*/target/*" -not -path "*/.git/*"` → `./task` only (count 1).
+- [x] C3 — Was the note's idea actually migrated into this root task system rather than discarded? `task/completed/057_browser_input_minwebgl_dependency_cleanup.md` exists, state `✅`, and its Goal states it was "migrated from `module/helper/browser_input/task/001_dependency_cleanup.md`, an ungoverned pre-existing note retired by task 040."
+- [x] C4 — Does `task/readme.md` carry the resolution record instead of the old "unresolved gap" framing, and correctly show no hierarchical `type:` metadata? Read in full: opens with "This `readme.md` carries no `type: root`/`type: local` hierarchical metadata" followed by a "**Resolved 2026-08-10 (task 040):**" paragraph naming `TASK_DIR_COUNT` 1 again and pointing at both `completed/057` and `completed/040`.
+- [x] C5 — Do zero dangling references to the deleted path remain outside this system's own records? `grep -rl "browser_input/task/" . --include="*.md" --include="*.rs" --include="*.toml"` → exactly 3 hits: `task/readme.md`, `task/completed/040_browser_input_task_note_disposition.md`, `task/completed/057_browser_input_minwebgl_dependency_cleanup.md` — all this system's own historical/index records, none a live dependency or code reference.
+
+### Measurements
+
+- [x] M1 — `TASK_DIR_COUNT` (workspace-wide count of directories literally named `task/`): `1` (was: `2` — `git ls-tree -r 4469eafb^ --name-only` lists both the root `task/` tree and `module/helper/browser_input/task/001_dependency_cleanup.md` as present immediately before the same commit that deleted the latter).
+
+### Invariants
+
+- [x] I1 — Test suite (crate-scoped, unaffected by this file-only task): `cargo test -p browser_input --all-features` → exit 0; unittests 0/0 (no inline tests — see task 076), `active_pointers_test` 7/7, `pointer_type_test` 6/6, doc-tests 0/0.
+- [x] I2 — Compiler/lints clean: `cargo clippy -p browser_input --all-targets --all-features -- -D warnings` → exit 0, zero warnings.
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against the old note silently reappearing (e.g. a future contributor re-creating a `task/` note directly under `module/helper/browser_input/` instead of filing through the root system): re-running C1's directory check and C2's `find` `TASK_DIR_COUNT` after any future `browser_input` change must still show no `task/` subdir and count `1`.
+- [x] AF2 — Guards against `task/readme.md`'s resolution paragraph being silently reverted or deleted without re-verifying the underlying condition is still closed: re-grep `task/readme.md` for the string `Resolved 2026-08-10 (task 040)` — its disappearance without a fresh, equally-verified disposition record reopens the exact hierarchical-detection false positive this task closed.
+
 ## History
 
 - **[2026-08-08]** `FILED` — Filed during task-backlog normalization; discovered while investigating
@@ -62,7 +99,7 @@ requirement would need resolved (renumber one side) the moment option (a) or (b)
   `JsCast` trait through minwebgl's re-export (crate has no direct `wasm-bindgen` dep — the note's
   "just two math types" premise is wrong), and `tests/active_pointers_test.rs:4` imports
   `minwebgl::math::I32x2` (a fourth site the note's file list missed). All of this is recorded in the
-  migrated task. **Executed:** filed [draft/057](../draft/057_browser_input_minwebgl_dependency_cleanup.md)
+  migrated task. **Executed:** filed [draft/057](../completed/057_browser_input_minwebgl_dependency_cleanup.md)
   (highest_id bumped 056 → 057); deleted `module/helper/browser_input/task/001_dependency_cleanup.md`
   and removed the now-empty `task/` directory; rewrote `task/readme.md`'s "Known, unresolved gap"
   preamble paragraph to a resolution record. The old note's `001` ID collision with root task `001` is

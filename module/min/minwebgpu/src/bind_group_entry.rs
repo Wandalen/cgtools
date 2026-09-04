@@ -22,6 +22,7 @@ mod private
   {
     /// Creates a new `BindGroupEntry` builder with a given resource.
     #[ inline ]
+    #[ must_use ]
     pub fn new< T : BindingResource >( resource : &T ) -> Self
     {
       let binding = 0;

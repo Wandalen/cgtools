@@ -137,7 +137,18 @@ mod private
       self.yaw -= delta_x * self.rotation_sensitivity;
 
       // Update pitch (up/down rotation around X axis)
-      self.pitch -= delta_y * self.rotation_sensitivity;
+      // Fix(BUG-278): changed `-=` to `+=` for the pitch delta.
+      // Root cause: increasing `pitch` already rotates `forward.y` negative (down) via
+      // `Quat::from_angle_x`, unlike yaw -- where `-=` is required because the
+      // character's own `right_xz()` base vector is `-X` while increasing yaw rotates
+      // `forward` toward `+X`. Pitch has no such compensating inversion, but the `-=`
+      // used for yaw one line above was copy-pasted onto the pitch line without
+      // re-deriving pitch's own sign, inverting "mouse down" (positive `movementY`)
+      // into "look up" instead of "look down".
+      // Pitfall: two sibling axes sharing a delta-application pattern can each need a
+      // different sign; always re-derive a copied line's operator from its own
+      // rotation math, never from the neighboring line's already-established sign.
+      self.pitch += delta_y * self.rotation_sensitivity;
 
       // Clamp pitch to prevent over-rotation
       self.pitch = self.pitch.clamp( self.pitch_range.start, self.pitch_range.end );
@@ -198,7 +209,7 @@ mod private
 
     /// Sets the character position.
     #[ inline ]
-    pub fn set_position( &mut self, position : F64x3 )
+    pub fn position_set( &mut self, position : F64x3 )
     {
       self.position = position;
     }
@@ -209,7 +220,7 @@ mod private
     /// * `yaw` - Rotation around Y axis in radians
     /// * `pitch` - Rotation around X axis in radians
     #[ inline ]
-    pub fn set_rotation( &mut self, yaw : f64, pitch : f64 )
+    pub fn rotation_set( &mut self, yaw : f64, pitch : f64 )
     {
       self.yaw = yaw;
       self.pitch = pitch.clamp( self.pitch_range.start, self.pitch_range.end );
@@ -298,7 +309,7 @@ mod private
 
   /// Creates the `keydown` event closure that sets movement flags in `input`.
   #[ inline ]
-  fn make_key_down_closure( input : &Rc< RefCell< CharacterInput > > ) -> Closure< dyn Fn( web_sys::KeyboardEvent ) >
+  fn key_down_closure_make( input : &Rc< RefCell< CharacterInput > > ) -> Closure< dyn Fn( web_sys::KeyboardEvent ) >
   {
     let input = input.clone();
     Closure::new
@@ -322,7 +333,7 @@ mod private
 
   /// Creates the `keyup` event closure that clears movement flags in `input`.
   #[ inline ]
-  fn make_key_up_closure( input : &Rc< RefCell< CharacterInput > > ) -> Closure< dyn Fn( web_sys::KeyboardEvent ) >
+  fn key_up_closure_make( input : &Rc< RefCell< CharacterInput > > ) -> Closure< dyn Fn( web_sys::KeyboardEvent ) >
   {
     let input = input.clone();
     Closure::new
@@ -346,7 +357,7 @@ mod private
 
   /// Creates the `mousemove` event closure that rotates `controls` while the pointer is locked.
   #[ inline ]
-  fn make_mouse_move_closure
+  fn mouse_move_closure_make
   (
     controls : &Rc< RefCell< CharacterControls > >,
     is_pointer_locked : &Rc< RefCell< bool > >
@@ -371,7 +382,7 @@ mod private
 
   /// Creates the `wheel` event closure that zooms `controls` while the pointer is locked.
   #[ inline ]
-  fn make_wheel_closure
+  fn wheel_closure_make
   (
     controls : &Rc< RefCell< CharacterControls > >,
     is_pointer_locked : &Rc< RefCell< bool > >
@@ -394,7 +405,7 @@ mod private
 
   /// Creates the `contextmenu` event closure that suppresses the browser's context menu.
   #[ inline ]
-  fn make_context_menu_closure() -> Closure< dyn Fn( web_sys::MouseEvent ) >
+  fn context_menu_closure_make() -> Closure< dyn Fn( web_sys::MouseEvent ) >
   {
     Closure::new
     (
@@ -407,7 +418,7 @@ mod private
 
   /// Creates the `click` event closure that requests pointer lock on `canvas`.
   #[ inline ]
-  fn make_click_closure
+  fn click_closure_make
   (
     canvas : &web_sys::HtmlCanvasElement,
     is_pointer_locked : &Rc< RefCell< bool > >
@@ -429,7 +440,7 @@ mod private
 
   /// Creates the `pointerlockchange` document event closure that tracks lock state.
   #[ inline ]
-  fn make_pointer_lock_change_closure( is_pointer_locked : &Rc< RefCell< bool > > ) -> Closure< dyn Fn() >
+  fn pointer_lock_change_closure_make( is_pointer_locked : &Rc< RefCell< bool > > ) -> Closure< dyn Fn() >
   {
     let is_pointer_locked = is_pointer_locked.clone();
     Closure::new
@@ -447,7 +458,7 @@ mod private
 
   /// Creates the `pointerlockerror` document event closure that logs lock failures.
   #[ inline ]
-  fn make_pointer_lock_error_closure() -> Closure< dyn Fn() >
+  fn pointer_lock_error_closure_make() -> Closure< dyn Fn() >
   {
     Closure::new
     (
@@ -475,13 +486,13 @@ mod private
   /// ```ignore
   /// let controls = Rc::new( RefCell::new( CharacterControls::default() ) );
   /// let input = Rc::new( RefCell::new( CharacterInput::new() ) );
-  /// bind_controls_to_input( &canvas, &controls, &input );
+  /// controls_bind_to_input( &canvas, &controls, &input );
   ///
   /// // In your update loop:
   /// controls.borrow_mut().update( &input.borrow(), delta_time );
   /// ```
   #[ inline ]
-  pub fn bind_controls_to_input
+  pub fn controls_bind_to_input
   (
     canvas : &web_sys::HtmlCanvasElement,
     controls : &Rc< RefCell< CharacterControls > >,
@@ -490,14 +501,14 @@ mod private
   {
     let is_pointer_locked = Rc::new( RefCell::new( false ) );
 
-    let on_key_down = make_key_down_closure( input );
-    let on_key_up = make_key_up_closure( input );
-    let on_mouse_move = make_mouse_move_closure( controls, &is_pointer_locked );
-    let on_wheel = make_wheel_closure( controls, &is_pointer_locked );
-    let on_context_menu = make_context_menu_closure();
-    let on_click = make_click_closure( canvas, &is_pointer_locked );
-    let on_pointer_lock_change = make_pointer_lock_change_closure( &is_pointer_locked );
-    let on_pointer_lock_error = make_pointer_lock_error_closure();
+    let on_key_down = key_down_closure_make( input );
+    let on_key_up = key_up_closure_make( input );
+    let on_mouse_move = mouse_move_closure_make( controls, &is_pointer_locked );
+    let on_wheel = wheel_closure_make( controls, &is_pointer_locked );
+    let on_context_menu = context_menu_closure_make();
+    let on_click = click_closure_make( canvas, &is_pointer_locked );
+    let on_pointer_lock_change = pointer_lock_change_closure_make( &is_pointer_locked );
+    let on_pointer_lock_error = pointer_lock_error_closure_make();
 
     let _ = canvas.set_attribute( "tabindex", "0" );
     let _ = canvas.focus();
@@ -543,7 +554,7 @@ crate::mod_interface!
 {
   own use
   {
-    bind_controls_to_input
+    controls_bind_to_input
   };
 
   exposed use

@@ -7,7 +7,6 @@
 //! - Movement and attack ranges on hexagonal grid
 //! - AI-controlled enemies with different behaviors  
 //! - Player-controlled units with tactical decisions
-//! - Line-of-sight and area-of-effect attacks
 //! - Experience and leveling system
 //! - Equipment and inventory management
 //!
@@ -44,7 +43,7 @@ impl Experience {
   }
   }
   
-  pub fn add_xp(&mut self, xp: u32) -> bool {
+  pub fn xp_add(&mut self, xp: u32) -> bool {
   self.current_xp += xp;
   if self.current_xp >= self.xp_to_next_level {
     self.level_up();
@@ -119,7 +118,7 @@ enum GamePhase
 }
 
 impl TacticalRPG {
-  fn spawn_player_warrior(world: &mut World, team: Team) -> hecs::Entity {
+  fn player_warrior_spawn(world: &mut World, team: Team) -> hecs::Entity {
   world.spawn((
     Position::new(HexCoord::<Axial, Pointy>::new(-2, 1)),
     Health::new(120),
@@ -138,7 +137,7 @@ impl TacticalRPG {
   ))
   }
 
-  fn spawn_player_mage(world: &mut World, team: Team) -> hecs::Entity {
+  fn player_mage_spawn(world: &mut World, team: Team) -> hecs::Entity {
   world.spawn((
     Position::new(HexCoord::<Axial, Pointy>::new(-1, 0)),
     Health::new(80),
@@ -157,7 +156,7 @@ impl TacticalRPG {
   ))
   }
 
-  fn spawn_enemy_goblin(world: &mut World, team: Team) -> hecs::Entity {
+  fn enemy_goblin_spawn(world: &mut World, team: Team) -> hecs::Entity {
   world.spawn((
     Position::new(HexCoord::<Axial, Pointy>::new(2, -1)),
     Health::new(60),
@@ -176,7 +175,7 @@ impl TacticalRPG {
   ))
   }
 
-  fn spawn_enemy_orc(world: &mut World, team: Team) -> hecs::Entity {
+  fn enemy_orc_spawn(world: &mut World, team: Team) -> hecs::Entity {
   world.spawn((
     Position::new(HexCoord::<Axial, Pointy>::new(3, -2)),
     Health::new(100),
@@ -201,10 +200,10 @@ impl TacticalRPG {
   let player_team = Team::new(0);
   let enemy_team = Team::hostile(1);
 
-  let player_warrior = Self::spawn_player_warrior(&mut world, player_team);
-  let player_mage = Self::spawn_player_mage(&mut world, player_team);
-  let enemy_goblin = Self::spawn_enemy_goblin(&mut world, enemy_team);
-  let enemy_orc = Self::spawn_enemy_orc(&mut world, enemy_team);
+  let player_warrior = Self::player_warrior_spawn(&mut world, player_team);
+  let player_mage = Self::player_mage_spawn(&mut world, player_team);
+  let enemy_goblin = Self::enemy_goblin_spawn(&mut world, enemy_team);
+  let enemy_orc = Self::enemy_orc_spawn(&mut world, enemy_team);
 
   let mut turn_queue = VecDeque::new();
   turn_queue.extend([player_warrior, player_mage, enemy_goblin, enemy_orc]);
@@ -221,11 +220,11 @@ impl TacticalRPG {
   }
   
   /// Starts a new turn
-  pub fn start_turn(&mut self) {
+  pub fn turn_start(&mut self) {
   if let Some(entity) = self.turn_queue.pop_front() {
     self.current_turn = Some(entity);
     println!("\n=== Turn {} ===", self.turn_number);
-    self.print_unit_status(entity);
+    self.unit_status_print(entity);
     
     // Check if this is a player or AI unit
     let team_id = {
@@ -238,20 +237,20 @@ impl TacticalRPG {
     
     if team_id == self.player_team.id {
       self.game_phase = GamePhase::Planning;
-      self.handle_player_turn(entity);
+      self.player_turn_handle(entity);
     } else {
       self.game_phase = GamePhase::AI;
-      self.handle_ai_turn(entity);
+      self.ai_turn_handle(entity);
     }
   } else {
     // End of round, reset turn queue
-    self.reset_turn_queue();
+    self.turn_queue_reset();
     self.turn_number += 1;
   }
   }
   
   /// Handles a player unit's turn
-  fn handle_player_turn(&mut self, entity: hecs::Entity) {
+  fn player_turn_handle(&mut self, entity: hecs::Entity) {
   println!("🎮 Player turn - planning actions...");
   
   // In a real implementation, this would wait for player input
@@ -263,7 +262,7 @@ impl TacticalRPG {
       println!("Player unit at ({}, {})", pos_coord.q, pos_coord.r);
       
       // Find nearest enemy
-      let target = self.find_nearest_enemy(entity);
+      let target = self.nearest_enemy_find(entity);
       (pos_coord, target)
     } else {
       return;
@@ -276,7 +275,7 @@ impl TacticalRPG {
     
     // Try to attack or move closer
     if pos.distance_to(&target.1) <= 2 {
-      self.execute_attack(entity, target.0);
+      self.attack_execute(entity, target.0);
     } else {
       self.execute_move_toward(entity, target.1.coord);
     }
@@ -286,7 +285,7 @@ impl TacticalRPG {
   }
   
   /// Handles an AI unit's turn
-  fn handle_ai_turn(&mut self, entity: hecs::Entity) {
+  fn ai_turn_handle(&mut self, entity: hecs::Entity) {
   println!("🤖 AI turn - calculating optimal action...");
   
   let (pos_coord, target) = {
@@ -295,7 +294,7 @@ impl TacticalRPG {
       println!("AI unit at ({}, {})", pos_coord.q, pos_coord.r);
       
       // Simple AI: move toward nearest player unit and attack if possible
-      let target = self.find_nearest_player(entity);
+      let target = self.nearest_player_find(entity);
       (pos_coord, target)
     } else {
       return;
@@ -309,7 +308,7 @@ impl TacticalRPG {
     
     if distance <= 1 {
       // Attack if adjacent
-      self.execute_attack(entity, target.0);
+      self.attack_execute(entity, target.0);
     } else if distance <= 4 {
       // Move closer if within reasonable range
       self.execute_move_toward(entity, target.1.coord);
@@ -323,7 +322,7 @@ impl TacticalRPG {
   }
   
   /// Executes an attack between two units
-  fn execute_attack(&mut self, attacker: hecs::Entity, target: hecs::Entity) {
+  fn attack_execute(&mut self, attacker: hecs::Entity, target: hecs::Entity) {
   let (final_damage, target_level) = {
     let attacker_stats = self.world.get::<Stats>(attacker).expect("attacker should have stats");
     let attacker_equipment = self.world.get::<Equipment>(attacker).expect("attacker should have equipment");
@@ -359,7 +358,7 @@ impl TacticalRPG {
     // Award experience to attacker
     if let Ok(mut exp) = self.world.get_mut::<Experience>(attacker) {
       let xp_gained = target_level * 50;
-      if exp.add_xp(xp_gained) {
+      if exp.xp_add(xp_gained) {
         println!("🎉 Level up! Now level {}", exp.level);
       }
     }
@@ -367,68 +366,93 @@ impl TacticalRPG {
   }
   
   /// Executes movement toward a target position
+  // Fix(BUG-485): the pre-fix body computed `new_pos` and printed it under a comment
+  // reading "Update position (in real implementation would use proper ECS mutation)"
+  // -- it never actually performed that mutation, so units never moved: battlefield
+  // rendering, `nearest_enemy_find`/`nearest_player_find`, and attack-range checks all
+  // kept reading each unit's original spawn `Position` component forever.
+  // Root cause: `pos`/`movable` were only ever borrowed read-only (`world.get::<_>`);
+  // no code path in this function called `world.get_mut::<Position<_>>` to persist
+  // the computed coordinate back into the ECS world.
+  // Pitfall: a comment describing intended future work ("in real implementation...")
+  // is not a substitute for the work -- it silently documents a known gap instead of
+  // closing it, and is easy to mistake for a deliberate design choice on read-through.
   fn execute_move_toward(&mut self, entity: hecs::Entity, target: HexCoord<Axial, Pointy>) {
-  if let Ok(pos) = self.world.get::<Position<HexCoord<Axial, Pointy>>>(entity) {
-    if let Ok(movable) = self.world.get::<Movable>(entity) {
-      // Use pathfinding to find route
-      let path_result = astar(
-        &pos.coord,
-        &target,
-        |&coord| Self::is_position_passable(coord),
-        |_| 1,
-      );
+  let (current_pos, move_range) = {
+    if let Ok(pos) = self.world.get::<Position<HexCoord<Axial, Pointy>>>(entity) {
+      if let Ok(movable) = self.world.get::<Movable>(entity) {
+        (pos.coord, movable.range)
+      } else {
+        return;
+      }
+    } else {
+      return;
+    }
+  };
 
-      if let Some((path, _cost)) = path_result {
-        let path_len = u32::try_from(path.len()).unwrap_or(u32::MAX);
-        let move_distance = movable.range.min(path_len - 1);
-        if move_distance > 0 {
-          let new_pos = path[move_distance as usize];
-          
-          // Update position (in real implementation would use proper ECS mutation)
-          println!("🚶 Moving from ({}, {}) to ({}, {})", 
-                   pos.coord.q, pos.coord.r, new_pos.q, new_pos.r);
-        }
+  // Use pathfinding to find route
+  let path_result = astar(
+    &current_pos,
+    &target,
+    |&coord| Self::is_position_passable(coord),
+    |_| 1,
+  );
+
+  if let Some((path, _cost)) = path_result {
+    let path_len = u32::try_from(path.len()).unwrap_or(u32::MAX);
+    let move_distance = move_range.min(path_len - 1);
+    if move_distance > 0 {
+      let new_pos = path[move_distance as usize];
+
+      println!("🚶 Moving from ({}, {}) to ({}, {})",
+               current_pos.q, current_pos.r, new_pos.q, new_pos.r);
+
+      if let Ok(mut entity_pos) = self.world.get_mut::<Position<HexCoord<Axial, Pointy>>>(entity) {
+        entity_pos.set(new_pos);
       }
     }
   }
   }
   
   /// Finds the nearest enemy unit
-  fn find_nearest_enemy(&self, entity: hecs::Entity) -> Option<(hecs::Entity, Position<HexCoord<Axial, Pointy>>)> {
+  // Fix(BUG-531): exclude `entity` itself from the nearest-entity search instead
+  // of relying on `nearest_entity_find` (which has no self-exclusion parameter)
+  // plus a post-hoc team filter.
+  // Root cause: `nearest_entity_find(&our_pos)` always finds `entity` itself
+  // (distance 0 to its own position, and no other unit starts on the same
+  // tile), and `is_hostile_to` always returns `false` for a same-team
+  // self-match -- so the old `.and_then` filter always rejected the single
+  // candidate it was given, returning `None` and never considering any other
+  // entity.
+  // Pitfall: reverting to a bare `self.world.nearest_entity_find(&our_pos)`
+  // call silently reintroduces the guaranteed self-match; any call site
+  // supplying an entity's own position as the query center must filter that
+  // entity out explicitly.
+  fn nearest_enemy_find(&self, entity: hecs::Entity) -> Option<(hecs::Entity, Position<HexCoord<Axial, Pointy>>)> {
   if let Ok(our_team) = self.world.get::<Team>(entity) {
     if let Ok(our_pos) = self.world.get::<Position<HexCoord<Axial, Pointy>>>(entity) {
-      return self.world.find_nearest_entity(&our_pos)
-        .and_then(|(nearest_entity, nearest_pos, _distance)| {
-          if let Ok(their_team) = self.world.get::<Team>(nearest_entity) {
-            if our_team.is_hostile_to(&their_team) {
-              Some((nearest_entity, nearest_pos))
-            } else {
-              None
-            }
-          } else {
-            None
-          }
-        });
+      let mut query = self.world.query::<(hecs::Entity, &Position<HexCoord<Axial, Pointy>>, &Team)>();
+      return query.iter()
+        .filter(|&(candidate, _, their_team)| candidate != entity && our_team.is_hostile_to(their_team))
+        .map(|(candidate, pos, _)| (candidate, *pos, our_pos.distance_to(pos)))
+        .min_by_key(|&(_, _, distance)| distance)
+        .map(|(candidate, pos, _)| (candidate, pos));
     }
   }
   None
   }
-  
+
   /// Finds the nearest player unit
-  fn find_nearest_player(&self, entity: hecs::Entity) -> Option<(hecs::Entity, Position<HexCoord<Axial, Pointy>>)> {
+  // Fix(BUG-531): same self-exclusion fix as `nearest_enemy_find` above -- see
+  // that function's comment for the shared root cause and pitfall.
+  fn nearest_player_find(&self, entity: hecs::Entity) -> Option<(hecs::Entity, Position<HexCoord<Axial, Pointy>>)> {
   if let Ok(our_pos) = self.world.get::<Position<HexCoord<Axial, Pointy>>>(entity) {
-    return self.world.find_nearest_entity(&our_pos)
-      .and_then(|(nearest_entity, nearest_pos, _distance)| {
-        if let Ok(their_team) = self.world.get::<Team>(nearest_entity) {
-          if their_team.id == self.player_team.id {
-            Some((nearest_entity, nearest_pos))
-          } else {
-            None
-          }
-        } else {
-          None
-        }
-      });
+    let mut query = self.world.query::<(hecs::Entity, &Position<HexCoord<Axial, Pointy>>, &Team)>();
+    return query.iter()
+      .filter(|&(candidate, _, their_team)| candidate != entity && their_team.id == self.player_team.id)
+      .map(|(candidate, pos, _)| (candidate, *pos, our_pos.distance_to(pos)))
+      .min_by_key(|&(_, _, distance)| distance)
+      .map(|(candidate, pos, _)| (candidate, pos));
   }
   None
   }
@@ -440,11 +464,11 @@ impl TacticalRPG {
   }
   
   /// Resets the turn queue for a new round
-  fn reset_turn_queue(&mut self) {
+  fn turn_queue_reset(&mut self) {
   // Collect all living units sorted by initiative
   let mut units_by_initiative = Vec::new();
   
-  for (entity, (init, health)) in &mut self.world.query::<(&Initiative, &Health)>() {
+  for (entity, (init, health)) in &mut self.world.query::<(hecs::Entity, (&Initiative, &Health))>() {
     if health.is_alive() {
       units_by_initiative.push((entity, init.value));
     }
@@ -459,7 +483,7 @@ impl TacticalRPG {
   }
   
   /// Prints the status of a unit
-  fn print_unit_status(&self, entity: hecs::Entity) {
+  fn unit_status_print(&self, entity: hecs::Entity) {
   if let Ok(health) = self.world.get::<Health>(entity) {
     if let Ok(stats) = self.world.get::<Stats>(entity) {
       if let Ok(pos) = self.world.get::<Position<HexCoord<Axial, Pointy>>>(entity) {
@@ -484,12 +508,12 @@ impl TacticalRPG {
   }
   
   /// Prints the current battlefield state
-  pub fn print_battlefield(&self) {
+  pub fn battlefield_print(&self) {
   println!("\n📍 Battlefield Status:");
   
   // Find all living units
   let mut units = Vec::new();
-  for (_entity, (pos, health, team)) in &mut self.world.query::<(&Position<HexCoord<Axial, Pointy>>, &Health, &Team)>() {
+  for (pos, health, team) in &mut self.world.query::<(&Position<HexCoord<Axial, Pointy>>, &Health, &Team)>() {
     if health.is_alive() {
       let symbol = if team.id == self.player_team.id { "🟢" } else { "🔴" };
       units.push((pos.coord.q, pos.coord.r, symbol));
@@ -525,28 +549,25 @@ impl TacticalRPG {
   }
   
   /// Runs the complete game simulation
-  pub fn run_simulation(&mut self) {
+  pub fn simulation_run(&mut self) {
   println!("🎯 Tactical RPG Combat Simulation");
   println!("=================================");
   println!("🟢 = Player Units");
   println!("🔴 = Enemy Units");
   println!("⬡ = Empty Hex");
   
-  self.print_battlefield();
+  self.battlefield_print();
   
   // Run several turns
   for turn in 1..=10 {
-    self.start_turn();
-    self.print_battlefield();
+    self.turn_start();
+    self.battlefield_print();
     
     // Check victory conditions
-    let player_units_alive = self.count_living_units(self.player_team.id);
-    let enemy_units_alive = self.count_living_units(self.enemy_team.id);
+    let player_units_alive = self.living_units_count(self.player_team.id);
+    let enemy_units_alive = self.living_units_count(self.enemy_team.id);
     
-    // Both branches diverge (`break`), so a trailing `else` would be flagged
-    // `redundant_else`, but omitting it triggers `else_if_without_else` — the two
-    // pedantic lints contradict for this pattern; redundant_else's guidance is followed.
-    #[allow(clippy::else_if_without_else)]
+    #[allow(clippy::else_if_without_else, reason = "both branches diverge (`break`), so a trailing `else` would be flagged `redundant_else`, but omitting it triggers `else_if_without_else` — the two pedantic lints contradict for this pattern; redundant_else's guidance is followed")]
     if player_units_alive == 0 {
       println!("💀 Defeat! All player units have fallen.");
       break;
@@ -566,9 +587,9 @@ impl TacticalRPG {
   }
   
   /// Counts living units for a team
-  fn count_living_units(&self, team_id: u32) -> usize {
+  fn living_units_count(&self, team_id: u32) -> usize {
   let mut count = 0;
-  for (_entity, (health, team)) in &mut self.world.query::<(&Health, &Team)>() {
+  for (health, team) in &mut self.world.query::<(&Health, &Team)>() {
     if health.is_alive() && team.id == team_id {
       count += 1;
     }
@@ -581,7 +602,7 @@ impl TacticalRPG {
 fn main()
 {
   let mut game = TacticalRPG::new();
-  game.run_simulation();
+  game.simulation_run();
   
   println!("\n✨ Tactical RPG Demo Complete!");
   println!("This example showcases:");
@@ -590,4 +611,116 @@ fn main()
   println!("• Equipment and stat systems");
   println!("• Experience and leveling mechanics");
   println!("• Grid-aware tactical positioning");
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  /// ## Root Cause
+  /// `execute_move_toward` computed `new_pos` via `astar` and printed it under
+  /// a comment reading "Update position (in real implementation would use
+  /// proper ECS mutation)" -- the mutation itself was never written, so no
+  /// unit ever actually moved on the battlefield: `battlefield_print`,
+  /// `nearest_enemy_find`/`nearest_player_find`, and every attack-range check
+  /// kept reading each unit's original spawn `Position` component forever.
+  ///
+  /// ## Why Not Caught
+  /// The console log still prints a "Moving from X to Y" message whenever a
+  /// move is computed, so a manual run looks correct at a glance; the existing
+  /// `tests/readme_doc_test.rs` only checks the readme's own claims, never the
+  /// simulation's actual `Position` state after a move.
+  ///
+  /// ## Fix Applied
+  /// `execute_move_toward` now calls `world.get_mut::<Position<_>>(entity)` and
+  /// `.set(new_pos)` immediately after computing the move, matching how every
+  /// other mutated component (`Health`, `Experience`) in this file is already
+  /// persisted via `get_mut`.
+  ///
+  /// ## Prevention
+  /// This test asserts the entity's queried `Position` component actually
+  /// changes after `execute_move_toward` runs -- the general invariant the fix
+  /// restores, not a pinned per-coordinate expectation.
+  ///
+  /// ## Pitfall
+  /// A comment describing intended future work ("in real implementation...")
+  /// is not a substitute for the work -- it silently documents a known gap
+  /// instead of closing it, and reads as a deliberate design choice rather
+  /// than an unfinished one.
+  #[test]
+  fn bug_reproducer_bug_485_execute_move_toward_persists_position() {
+    let mut game = TacticalRPG::new();
+    let entity = game.turn_queue[0];
+
+    let before = game.world.get::<Position<HexCoord<Axial, Pointy>>>(entity).unwrap().coord;
+
+    // The board has no obstacles (`is_position_passable` always returns `true`),
+    // so any target different from the spawn point is guaranteed reachable.
+    let target = HexCoord::<Axial, Pointy>::new(2, -1);
+    game.execute_move_toward(entity, target);
+
+    let after = game.world.get::<Position<HexCoord<Axial, Pointy>>>(entity).unwrap().coord;
+
+    assert_ne!(before, after, "entity's Position component must change after execute_move_toward");
+  }
+
+  /// ## Root Cause
+  /// `nearest_enemy_find`/`nearest_player_find` both call the library's
+  /// `World::nearest_entity_find(&our_pos)`, which searches every entity with a
+  /// `Position` component for the one nearest to the given coordinate -- with no
+  /// exclusion parameter for the querying entity itself. Since the caller always
+  /// passes its own position, and no other unit starts on the same tile, the
+  /// querying entity is always its own unique nearest match at distance 0. The
+  /// subsequent team filter (`is_hostile_to` / `team.id == player_team.id`) then
+  /// always rejects this self-match (a unit is never hostile to itself, and an
+  /// AI unit is never on the player team), so both functions always return
+  /// `None` -- never falling back to consider the second-nearest entity.
+  ///
+  /// ## Why Not Caught
+  /// `simulation_run` still prints "Player turn - planning actions..." / "AI
+  /// turn - calculating optimal action..." every turn, and the demo runs to
+  /// completion with exit code 0 -- nothing crashes or panics. Only reading the
+  /// output critically (no unit's printed position ever changes across 8
+  /// processed turns, no "Targeting enemy at distance" / "AI targeting player at
+  /// distance" / "Attack!" line ever appears) reveals that every unit's turn is
+  /// a silent no-op.
+  ///
+  /// ## Fix Applied
+  /// Both functions now query `(Entity, &Position<_>, &Team)` directly, filter
+  /// out the querying `entity` itself before computing distances, and pick the
+  /// minimum-distance remaining candidate that also passes the team check --
+  /// the same "exclude self, then re-derive nearest via a direct query" pattern
+  /// already used for the library's `nearest_entity_find` primitive elsewhere in
+  /// this bug sweep (`ecs_collision_demo`, BUG-515).
+  ///
+  /// ## Prevention
+  /// This test asserts that a fresh `TacticalRPG` -- which spawns 2 player units
+  /// and 2 hostile enemy units, none sharing a tile -- finds a target from both
+  /// a player unit's enemy search and an enemy unit's player search. It fails
+  /// loudly (`None`) against the pre-fix self-matching implementation.
+  ///
+  /// ## Pitfall
+  /// A general-purpose "nearest entity to a coordinate" primitive with no
+  /// self-exclusion option will always find the querying entity itself when
+  /// queried with that entity's own position -- any call site built on top of it
+  /// must explicitly filter the querying entity out; the primitive cannot guess
+  /// which entity is "self".
+  #[test]
+  fn bug_reproducer_bug_531_nearest_enemy_and_player_find_always_self_match_to_none() {
+    let game = TacticalRPG::new();
+    let player_warrior = game.turn_queue[0];
+    let enemy_goblin = game.turn_queue[2];
+
+    let enemy_target = game.nearest_enemy_find(player_warrior);
+    assert!(
+      enemy_target.is_some(),
+      "player_warrior must find one of the 2 living hostile enemies on the board -- got None (self-match filtered to nothing)"
+    );
+
+    let player_target = game.nearest_player_find(enemy_goblin);
+    assert!(
+      player_target.is_some(),
+      "enemy_goblin must find one of the 2 living player units on the board -- got None (self-match filtered to nothing)"
+    );
+  }
 }

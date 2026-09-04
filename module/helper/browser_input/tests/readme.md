@@ -10,7 +10,11 @@ modules (task 076 relocated the last 6).
 | File | Responsibility |
 |------|----------------|
 | active_pointers_test.rs | Pointer press/release tracking through the Input event queue |
+| focus_loss_test.rs | State reset on the FocusLost event (blur/visibilitychange consequence) |
+| keyboard_from_str_test.rs | `KeyboardKey::from_str` string-parsing behavior, incl. case-insensitivity |
+| keyboard_key_state_test.rs | Keyboard key press/release state, incl. Unidentified aliasing |
 | manual/ | Manual browser-testing plan (DOM wiring not coverable natively) |
+| mouse_button_state_test.rs | Per-pointer button held-state bookkeeping, incl. cap and aliasing |
 | pointer_type_test.rs | PointerType DOM-string parsing and default pins |
 
 ## Adding tests

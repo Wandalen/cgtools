@@ -2,8 +2,10 @@ mod private
 {
   #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
   use minwebgpu as gl;
-  #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
   use crate::Error;
+  /// Re-exported so consumers constructing `VertexBufferLayout` don't need `mingl` as their own
+  /// direct dependency just to spell `StepMode::Vertex`/`StepMode::Instance`.
+  pub use mingl::StepMode;
 
   /// Buffer usage bit flags ( WebGPU bit values ).
   #[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
@@ -91,36 +93,76 @@ mod private
     Rgba8UnormSrgb,
     /// 8-bit bgra, linear ( common canvas format ).
     Bgra8Unorm,
+    /// 8-bit bgra, sRGB-encoded ( the format desktop swapchains most often
+    /// select for a window surface ).
+    Bgra8UnormSrgb,
     /// 16-bit float rgba.
     Rgba16Float,
     /// 24-bit depth.
     Depth24Plus
   }
 
-  #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
   impl TextureFormat
   {
-    /// The equivalent raw WebGPU format.
-    pub fn to_webgpu( self ) -> gl::GpuTextureFormat
+    /// Bytes occupied by one texel, for `bytes_per_row` computation on a
+    /// tightly-packed ( unpadded ) CPU-side upload buffer.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Unsupported`] for `Depth24Plus`, whose CPU-side
+    /// byte layout is platform-defined and not a portable upload target.
+    pub fn bytes_per_texel( self ) -> Result< u32, Error >
     {
       match self
       {
-        Self::Rgba8Unorm => gl::GpuTextureFormat::Rgba8unorm,
-        Self::Rgba8UnormSrgb => gl::GpuTextureFormat::Rgba8unormSrgb,
-        Self::Bgra8Unorm => gl::GpuTextureFormat::Bgra8unorm,
-        Self::Rgba16Float => gl::GpuTextureFormat::Rgba16float,
-        Self::Depth24Plus => gl::GpuTextureFormat::Depth24plus
+        Self::Rgba8Unorm | Self::Rgba8UnormSrgb | Self::Bgra8Unorm | Self::Bgra8UnormSrgb => Ok( 4 ),
+        Self::Rgba16Float => Ok( 8 ),
+        Self::Depth24Plus =>
+        {
+          Err( Error::Unsupported( "depth24plus has no portable CPU-side texel layout".to_string() ) )
+        }
       }
     }
+  }
+
+  #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
+  impl From< TextureFormat > for gl::GpuTextureFormat
+  {
+    /// The equivalent raw WebGPU format.
+    fn from( value : TextureFormat ) -> Self
+    {
+      match value
+      {
+        TextureFormat::Rgba8Unorm => gl::GpuTextureFormat::Rgba8unorm,
+        TextureFormat::Rgba8UnormSrgb => gl::GpuTextureFormat::Rgba8unormSrgb,
+        TextureFormat::Bgra8Unorm => gl::GpuTextureFormat::Bgra8unorm,
+        TextureFormat::Bgra8UnormSrgb => gl::GpuTextureFormat::Bgra8unormSrgb,
+        TextureFormat::Rgba16Float => gl::GpuTextureFormat::Rgba16float,
+        TextureFormat::Depth24Plus => gl::GpuTextureFormat::Depth24plus
+      }
+    }
+  }
+
+  #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
+  impl TryFrom< gl::GpuTextureFormat > for TextureFormat
+  {
+    /// The error type returned if the conversion fails.
+    type Error = Error;
 
     /// The HAL equivalent of a raw WebGPU format, when the v0 surface has one.
-    pub fn from_webgpu( format : gl::GpuTextureFormat ) -> Result< Self, Error >
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Unsupported`] when `format` has no equivalent in the
+    /// v0 surface.
+    fn try_from( format : gl::GpuTextureFormat ) -> Result< Self, Self::Error >
     {
       match format
       {
         gl::GpuTextureFormat::Rgba8unorm => Ok( Self::Rgba8Unorm ),
         gl::GpuTextureFormat::Rgba8unormSrgb => Ok( Self::Rgba8UnormSrgb ),
         gl::GpuTextureFormat::Bgra8unorm => Ok( Self::Bgra8Unorm ),
+        gl::GpuTextureFormat::Bgra8unormSrgb => Ok( Self::Bgra8UnormSrgb ),
         gl::GpuTextureFormat::Rgba16float => Ok( Self::Rgba16Float ),
         gl::GpuTextureFormat::Depth24plus => Ok( Self::Depth24Plus ),
         other => Err( Error::Unsupported( format!( "texture format {other:?} is outside the v0 surface" ) ) )
@@ -141,16 +183,16 @@ mod private
   }
 
   #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
-  impl VertexFormat
+  impl From< VertexFormat > for gl::GpuVertexFormat
   {
     /// The equivalent raw WebGPU format.
-    pub fn to_webgpu( self ) -> gl::GpuVertexFormat
+    fn from( value : VertexFormat ) -> Self
     {
-      match self
+      match value
       {
-        Self::Float32x2 => gl::GpuVertexFormat::Float32x2,
-        Self::Float32x3 => gl::GpuVertexFormat::Float32x3,
-        Self::Float32x4 => gl::GpuVertexFormat::Float32x4
+        VertexFormat::Float32x2 => gl::GpuVertexFormat::Float32x2,
+        VertexFormat::Float32x3 => gl::GpuVertexFormat::Float32x3,
+        VertexFormat::Float32x4 => gl::GpuVertexFormat::Float32x4
       }
     }
   }
@@ -164,14 +206,14 @@ mod private
   }
 
   #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
-  impl IndexFormat
+  impl From< IndexFormat > for gl::GpuIndexFormat
   {
     /// The equivalent raw WebGPU format.
-    pub fn to_webgpu( self ) -> gl::GpuIndexFormat
+    fn from( value : IndexFormat ) -> Self
     {
-      match self
+      match value
       {
-        Self::Uint32 => gl::GpuIndexFormat::Uint32
+        IndexFormat::Uint32 => gl::GpuIndexFormat::Uint32
       }
     }
   }
@@ -245,12 +287,38 @@ mod private
     pub offset : u32
   }
 
+  impl TryFrom< mingl::VertexAttribute > for VertexAttribute
+  {
+    type Error = Error;
+
+    /// Converts a cross-backend `mingl::VertexAttribute` into this crate's own, narrower
+    /// `VertexFormat`-typed attribute. Fallible because `mingl::VectorDataType` covers scalar
+    /// types and shapes ( integers, matrices ) the v0 `VertexFormat` surface doesn't yet support --
+    /// only `f32` vectors of arity 2-4 ( non-matrix, `nelements == 1` ) map onto it.
+    fn try_from( value : mingl::VertexAttribute ) -> Result< Self, Self::Error >
+    {
+      let format = match ( value.vector.scalar, value.vector.nelements(), value.vector.natoms() )
+      {
+        ( mingl::DataType::F32, 1, 2 ) => VertexFormat::Float32x2,
+        ( mingl::DataType::F32, 1, 3 ) => VertexFormat::Float32x3,
+        ( mingl::DataType::F32, 1, 4 ) => VertexFormat::Float32x4,
+        other => return Err( Error::Unsupported( format!( "vertex format {other:?} is outside the v0 surface" ) ) )
+      };
+      let offset = u32::try_from( value.offset )
+      .map_err( | _ | Error::Unsupported( format!( "negative vertex attribute offset {}", value.offset ) ) )?;
+
+      Ok( Self { location : value.location, format, offset } )
+    }
+  }
+
   /// Layout of one vertex buffer slot.
   #[ derive( Debug, Clone ) ]
   pub struct VertexBufferLayout
   {
     /// Byte stride between vertices.
     pub stride : u32,
+    /// Whether attributes in this buffer advance per-vertex or per-instance.
+    pub step_mode : mingl::StepMode,
     /// Attributes read from this buffer.
     pub attributes : Vec< VertexAttribute >
   }
@@ -359,6 +427,7 @@ crate::mod_interface!
     BindGroupLayoutEntry,
     VertexAttribute,
     VertexBufferLayout,
+    StepMode,
     FilterMode,
     AddressMode,
     SamplerDesc,

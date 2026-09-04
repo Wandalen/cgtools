@@ -58,11 +58,24 @@ instead of widening a bridge.
 |------|--------------|
 | [../adr/001_multi_stack_rendering_architecture.md](../adr/001_multi_stack_rendering_architecture.md) | Adopts this pattern as the only sanctioned cross-stack composition mechanism |
 
+### Layers
+
+| File | Relationship |
+|------|--------------|
+| [../layer/001_l0_drivers.md](../layer/001_l0_drivers.md) | Foundation resources (textures, buffers) are driver-level handles at their lowest layer |
+| [../layer/002_l1_gpu_hal.md](../layer/002_l1_gpu_hal.md) | The backend-agnostic layer a bridge crate composes foundation resources through |
+
+### Render Stacks
+
+| File | Relationship |
+|------|--------------|
+| [../render_stack/003_d3.md](../render_stack/003_d3.md) | d3 content (e.g. a 3D object in a 2D game) crosses into d2 via this pattern |
+
 ### Sources
 
 | File | Relationship |
 |------|--------------|
-| `examples/minwebgl/lottie_surface_rendering/src/main.rs` | Bridge in use: `CanvasRenderer::new(…)` then `canvas_renderer.get_texture()` — content crosses as a texture handle |
+| `examples/minwebgl/lottie_surface_rendering/src/main.rs` | Bridge in use: `CanvasRenderer::new(…)` then `canvas_renderer.texture_get()` — content crosses as a texture handle |
 | `module/helper/canvas_renderer/` | Existing bridge: "2D canvas renderer … with framebuffer rendering and 3D scene support" — 3D content crosses into 2D as a framebuffer, not as a scene type |
 | `module/helper/tilemap_renderer/src/commands.rs` | The d2 command stream — the declared input format any external system may emit |
 

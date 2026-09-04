@@ -5,14 +5,24 @@
 mod tests
 {
   use wasm_bindgen_test::wasm_bindgen_test;
+
+  // Fix(BUG-110): this suite had no `wasm_bindgen_test_configure!( run_in_browser )` call, so
+  // its one test binary defaulted to Node.js, where `web_sys::window()` is always `None`.
+  // Root cause: file created without the configure! line every sibling suite in this directory
+  // (animation_tests.rs, pmrem_tests.rs, skeleton_tests.rs) already carries.
+  // Pitfall: a missing `run_in_browser` config doesn't fail to compile — it fails at runtime
+  // with an unrelated-looking `CanvasRetrievingError("Failed to get window")`, which reads like
+  // a `minwebgl`/`mingl` regression rather than the test's own harness misconfiguration.
+  wasm_bindgen_test::wasm_bindgen_test_configure!( run_in_browser );
   use minwebgl as gl;
   use gl::GL;
+  use mingl::geometry::BoundingBox;
   use renderer::webgl::{ Geometry, AttributeInfo };
 
   /// Creates a headless WebGL2 context for structural tests.
-  async fn init_gl() -> GL
+  fn gl_init() -> GL
   {
-    gl::browser::setup( Default::default() );
+    gl::browser::setup( gl::browser::Config::default() );
     let canvas = gl::canvas::make().unwrap();
     gl::context::from_canvas( &canvas ).unwrap()
   }
@@ -23,14 +33,15 @@ mod tests
   fn make_attribute_info( gl : &GL ) -> AttributeInfo
   {
     let buffer = gl.create_buffer().unwrap();
-    let descriptor = gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 0 ).stride( 0 );
+    let attr = mingl::VertexAttribute::new( 0, mingl::VectorDataType::new( mingl::DataType::F32, 3, 1 ), 0 );
+    let descriptor = gl::BufferDescriptor::from_vector( attr.vector ).offset( attr.offset ).stride( 0 );
 
     AttributeInfo
     {
       slot : 0,
       buffer,
       descriptor,
-      bounding_box : Default::default()
+      bounding_box : BoundingBox::default()
     }
   }
 
@@ -58,18 +69,18 @@ mod tests
   #[ wasm_bindgen_test( async ) ]
   async fn add_attribute_duplicate_name_returns_err_not_panic()
   {
-    let gl = init_gl().await;
+    let gl = gl_init();
     let mut geometry = Geometry::new( &gl ).expect( "Geometry::new should succeed" );
 
-    geometry.add_attribute( &gl, "positions", make_attribute_info( &gl ) )
+    geometry.attribute_add( &gl, "positions", make_attribute_info( &gl ) )
     .expect( "first add_attribute call with a fresh name should succeed" );
 
-    let result = geometry.add_attribute( &gl, "positions", make_attribute_info( &gl ) );
+    let result = geometry.attribute_add( &gl, "positions", make_attribute_info( &gl ) );
 
     assert!
     (
       result.is_err(),
-      "adding a duplicate attribute name must return Err, not panic — got {:?}", result
+      "adding a duplicate attribute name must return Err, not panic — got {result:?}"
     );
   }
 }

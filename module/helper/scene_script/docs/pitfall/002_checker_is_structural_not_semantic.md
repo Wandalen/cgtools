@@ -66,6 +66,18 @@ binding that performs a real side effect: I/O, logging, mutating shared
 state) as something to document and code-review by hand at the call site,
 not something this checker will ever catch.
 
+### Algorithms
+
+| File | Relationship |
+|------|--------------|
+| [../algorithm/001_top_level_statement_classification.md](../algorithm/001_top_level_statement_classification.md) | The classification logic whose structural, not semantic, enforcement this pitfall documents the edge of |
+
+### Features
+
+| File | Relationship |
+|------|--------------|
+| [../feature/001_rhai_scene_scripting.md](../feature/001_rhai_scene_scripting.md) | Navigational hub this pitfall's warning serves |
+
 ### Invariants
 
 | File | Relationship |

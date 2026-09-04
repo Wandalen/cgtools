@@ -253,7 +253,7 @@ where
       ( 0..ROWS ).map( move | row |
       {
         // SAFETY: ptr is ROWS * COLS in length, and row * COLS + col will always be less than COLS * ROWS,
-        #[ allow( unsafe_code ) ]
+        #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
         unsafe { &mut *ptr.add( row * COLS + col ) }
       })
     })
@@ -269,7 +269,7 @@ where
       {
         // SAFETY: ptr is ROWS * COLS in length, and for a row major matrix, scalar_offset
         // will return an 1-d offset for a matrix [ ROWS, COLS ], which will be less than ROWS * COLS,
-        #[ allow( unsafe_code ) ]
+        #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
         let value = unsafe { &mut *ptr.add( Self::scalar_offset( Ix2( row, col ) ) ) };
         ( Ix2( row, col ), value )
       })
@@ -302,12 +302,12 @@ where
   {
     // SAFETY: This is safe because the memory layout of [ [ E ; COLS ] ; ROWS ]
     // is contiguous and can be reinterpreted as a flat slice of E.
-    #[ allow( unsafe_code ) ]
+    #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
     unsafe { std::slice::from_raw_parts_mut( self.as_mut_ptr(), ROWS * COLS ) }
   }
 
   #[ inline( always ) ]
-  fn raw_set_slice( &mut self, scalars : &[ Self::Scalar ] )
+  fn raw_slice_set( &mut self, scalars : &[ Self::Scalar ] )
   {
     self.raw_slice_mut().copy_from_slice( scalars );
   }
@@ -322,7 +322,7 @@ where
 
   #[ inline( always ) ]
   fn with_row_major( mut self, scalars : &[ Self::Scalar ] ) -> Self {
-      self.raw_set_slice( scalars );
+      self.raw_slice_set( scalars );
       self
   }
 
@@ -348,13 +348,13 @@ where
       {
         // SAFETY: Thanks to the check above, ptr is ROWS * COLS in length, 
         // so col * ROWS + row will always be less than ROWS * COLS,
-        #[ allow( unsafe_code ) ]
+        #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
         unsafe { *ptr.add( col * ROWS + row ) }
       })
     })
     .collect();
     
-    self.raw_set_slice( scalars.as_ref() );
+    self.raw_slice_set( scalars.as_ref() );
     self
   }
 }

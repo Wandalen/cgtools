@@ -122,10 +122,12 @@ trunk serve --release
 
 ### WGPU Examples (minwgpu)
 
-WGPU examples run natively (not in browser) and output to image files.
+WGPU examples run natively (not in browser). Most render once and output to image files
+(`runtime:offscreen`); a few open a real, continuously-rendering window (`runtime:native`) — check
+an example's tags via `action/run list api:wgpu` before assuming which kind it is.
 
 ```bash
-# Navigate to WGPU example
+# Navigate to an offscreen WGPU example
 cd examples/minwgpu/hello_triangle
 
 # Build the example
@@ -135,6 +137,14 @@ cargo build --release
 cargo run --release
 
 # Output image will be saved to file
+```
+
+**Windowed WGPU example:** `examples/minwgpu/flecs_bouncing_circles` opens a window and renders
+continuously instead of writing an image file — close the window to exit.
+
+```bash
+cd examples/minwgpu/flecs_bouncing_circles
+cargo run --release
 ```
 
 ### Math Examples
@@ -328,12 +338,18 @@ cargo test --all-features
 
 ### Full Workspace Test
 
-Run the complete test suite as recommended in main readme:
+Run the complete test suite as recommended in main readme — never prefix these commands
+with `RUSTFLAGS`/`RUSTDOCFLAGS` env vars, which replace (not merge with)
+`.cargo/config.toml`'s `--cfg web_sys_unstable_apis`:
 
 ```bash
-RUSTFLAGS="-D warnings" cargo nextest run --all-features && \
-RUSTDOCFLAGS="-D warnings" cargo test --doc --all-features && \
-cargo clippy --all-targets --all-features -- -D warnings
+# Full verification: native suite (nextest + doctests + clippy), plus a wasm32
+# compile check across every browser-kind example and the actual
+# wasm_bindgen_test suites (browser-driven).
+verb/test
+
+# Ordinary, scoped verification during development (single package).
+verb/test_only pkg::<crate>
 ```
 
 ### Browser Support

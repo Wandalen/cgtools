@@ -38,13 +38,13 @@ fn opaque_path_renders_lit_quad()
   material.base_color_factor = [ 1.0, 0.0, 0.0, 1.0 ];
   material.metallic_factor = 0.0;
   material.roughness_factor = 1.0;
-  let binding = renderer.create_material_binding( &context, &material )
+  let binding = renderer.material_binding_create( &context, &material )
   .expect( "material binding failed" );
-  let item = renderer.create_item( &context, geometry, binding, gl::math::mat4x4::identity() )
+  let item = renderer.item_create( &context, geometry, binding, gl::math::mat4x4::identity() )
   .expect( "item creation failed" );
 
   let mut lights = Lights::new();
-  assert!( lights.push_direct( [ 0.0, 0.0, 1.0 ], [ 1.0, 1.0, 1.0 ], 3.0 ) );
+  assert!( lights.direct_push( [ 0.0, 0.0, 1.0 ], [ 1.0, 1.0, 1.0 ], 3.0 ) );
 
   let eye = gl::math::F32x3::from( [ 0.0, 0.0, 2.5 ] );
   let frame = Frame
@@ -57,7 +57,7 @@ fn opaque_path_renders_lit_quad()
 
   renderer.render( &context, &frame, &lights, &[ item ] ).expect( "render failed" );
 
-  let pixels = context.surface.read_pixels( &context.device, &context.queue )
+  let pixels = context.surface.pixels_read( &context.device, &context.queue )
   .expect( "readback failed" );
   assert_eq!( pixels.len(), ( width * height * 4 ) as usize );
 

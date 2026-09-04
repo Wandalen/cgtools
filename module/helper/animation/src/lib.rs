@@ -24,7 +24,7 @@ macro_rules! impl_easing_function
 {
   ( $builder_ty:ident, $function_ty:ty, $value:expr ) =>
   {
-    /// A builder for the `EasingFunction` of type [`$function_ty`].
+    #[ doc = concat!( "A builder for the `EasingFunction` of type `", stringify!( $function_ty ), "`." ) ]
     ///
     /// This struct provides a way to create a boxed instance of the
     /// associated easing function.
@@ -34,11 +34,10 @@ macro_rules! impl_easing_function
     impl< A > crate::easing::base::EasingBuilder< $function_ty, A > for $builder_ty< A >
     where A : crate::Animatable
     {
-      /// Creates a new `Box` containing an instance of the easing function.
+      /// Builds a `Box` containing an instance of the easing function.
       // `$builder_ty` is a zero-sized phantom marker, never itself constructed by callers —
-      // `new()` intentionally returns the boxed easing function it selects, not `Self`/`Box<Self>`.
-      #[ allow( clippy::new_ret_no_self ) ]
-      fn new() -> Box< $function_ty >
+      // `build()` returns the boxed easing function it selects.
+      fn build() -> Box< $function_ty >
       {
         Box::new( $value )
       }

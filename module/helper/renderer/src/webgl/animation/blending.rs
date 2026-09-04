@@ -25,11 +25,8 @@ mod private
     }
   };
 
-  /// Precision for finding equal floats
-  const EPSILON : f64 = 0.001;
-
   /// Normalize weights of blended animation values
-  pub fn normalize_weights< T >( values : &mut [ ( T, f32 ) ] )
+  pub fn weights_normalize< T >( values : &mut [ ( T, f32 ) ] )
   {
     let sum = values.iter().map( | ( _, w ) | w ).sum::< f32 >();
     if sum > 0.0
@@ -129,37 +126,19 @@ mod private
 
     /// Check if blended animation is completed ( checks if all animations are completed )
     /// Better use before update
+    // Fix(BUG-242): previously sorted animations by `.time()` and, when the top two were tied
+    // ( within an EPSILON ), unconditionally returned `false` regardless of completion state;
+    // when not tied, checked only the single animation with the largest raw elapsed time --
+    // meaningless across animations of different durations -- and ignored every other one.
+    // Neither branch implemented "all animations completed". Root cause: `.time()` measures
+    // raw elapsed time, not completion; two animations can be time-tied while both genuinely
+    // completed ( false negative ), or untied while the largest-time one alone is completed and
+    // a shorter one isn't ( false positive ).
     #[ must_use ]
     pub fn is_completed( &self ) -> bool
     {
-      let mut animations = self.weighted_animations.values()
-      .map( | ( s, _ ) | s ).collect::< Vec< _ > >();
-
-      animations.sort_by
-      (
-        | a, b |
-        a.time().partial_cmp( &b.time() ).unwrap()
-      );
-      animations.reverse();
-
-      let mut i = 1;
-      while i < animations.len()
-      {
-        if ( animations[ i - 1 ].time() - animations[ i ].time() ).abs() > EPSILON
-        {
-          break;
-        }
-        i += 1;
-      }
-
-      if i == 1
-      {
-        animations[ 0 ].is_completed()
-      }
-      else
-      {
-        false
-      }
+      !self.weighted_animations.is_empty()
+      && self.weighted_animations.values().all( | ( s, _ ) | s.is_completed() )
     }
 
     /// Reset all blended animations
@@ -170,7 +149,7 @@ mod private
     }
 
     /// Blend translation values from all weighted animations for a specific node
-    fn blend_translation( &self, name : &str, node : &Rc< RefCell< Node > > )
+    fn translation_blend( &self, name : &str, node : &Rc< RefCell< Node > > )
     {
       let mut values = vec![];
 
@@ -195,9 +174,29 @@ mod private
         }
       }
 
+      // Fix(BUG-261): previously fell straight through to `translation_set` unconditionally,
+      // even when no blended `Sequencer` had a translation channel for this node -- overwriting
+      // the node's existing translation with `F32x3::default()` == `(0,0,0)`. glTF skeletal
+      // rigs commonly omit a translation channel per-joint ( e.g. joints animated only via
+      // rotation ), so this reachably zeroed out untouched joints' positions on every
+      // `Blender::set` call.
+      // Root cause: no `values.is_empty()` guard before applying the accumulated ( vacuous,
+      // zero ) sum -- every sibling `AnimatableComposition` impl ( `Sequencer`, `Pose`,
+      // `Scaler`, `Transition` ) instead skips the `_set()` call entirely when a channel is
+      // absent, per the "skip-if-absent" convention established across this module.
+      // Pitfall: an accumulator seeded from `Default::default()` is only safe to apply
+      // unconditionally when "no contributions" and "identity contribution" are the same value
+      // -- here they are not ( zero translation vs. "leave untouched" ), so emptiness must be
+      // tracked and checked explicitly. See `rotation_blend`/`scale_blend` below for the same
+      // fix applied to their own accumulators.
+      if values.is_empty()
+      {
+        return;
+      }
+
       if self.normalize
       {
-        normalize_weights( &mut values );
+        weights_normalize( &mut values );
       }
 
       let mut translation = F32x3::default();
@@ -205,11 +204,11 @@ mod private
       {
         translation += t * w;
       }
-      node.borrow_mut().set_translation( translation );
+      node.borrow_mut().translation_set( translation );
     }
 
     /// Blend rotation values from all weighted animations for a specific node
-    fn blend_rotation( &self, name : &str, node : &Rc< RefCell< Node > > )
+    fn rotation_blend( &self, name : &str, node : &Rc< RefCell< Node > > )
     {
       let mut values = vec![];
 
@@ -236,20 +235,51 @@ mod private
 
       if self.normalize
       {
-        normalize_weights( &mut values );
+        weights_normalize( &mut values );
       }
 
       // NLERP
-      let mut rotation = QuatF32::default();
-      for ( r, w ) in values
+      // Fix(BUG-183): a quaternion `q` and its negation `-q` represent the identical rotation,
+      // but summing them naively does not -- if two blended clips' current rotations land in
+      // opposite hemispheres ( dot product negative ), adding them cancels components instead of
+      // blending, producing a wrong or near-zero result after normalize. Align each quaternion's
+      // hemisphere to the running sum before accumulating it.
+      //
+      // Fix(BUG-196): the accumulator used to start from `QuatF32::default()`, which is the
+      // IDENTITY quaternion `[0,0,0,1]` ( see `Quat::default()` ), not the additive zero
+      // `[0,0,0,0]` a weighted-sum-then-normalize accumulator needs. Starting from identity
+      // silently mixed an extra, unweighted "stay at identity" term into every blend -- even a
+      // single fully-weighted clip no longer normalized back to its own rotation, it normalized
+      // to a blend between its own rotation and identity. Seeding the accumulator from the first
+      // entry itself ( scaled by its own weight ) sidesteps the question of what a "zero
+      // rotation" would even mean here, and needs no hemisphere check of its own since there is
+      // nothing to align against yet.
+      // Fix(BUG-261): see `translation_blend` above for the shared root cause. This branch was
+      // already explicit about the empty case, but explicitly wrong: it force-set the node's
+      // rotation to `QuatF32::default()` ( identity, `[0,0,0,1]` ) whenever no blended
+      // `Sequencer` had a rotation channel for this node, instead of leaving the node's
+      // existing rotation untouched.
+      let mut values_iter = values.into_iter();
+      let Some( ( first_r, first_w ) ) = values_iter.next()
+      else
       {
+        return;
+      };
+
+      let mut rotation = first_r * first_w;
+      for ( mut r, w ) in values_iter
+      {
+        if rotation.dot( &r ) < 0.0
+        {
+          r *= -1.0;
+        }
         rotation += r * w;
       }
-      node.borrow_mut().set_rotation( rotation.normalize() );
+      node.borrow_mut().rotation_set( rotation.normalize() );
     }
 
     /// Blend scale values from all weighted animations for a specific node
-    fn blend_scale( &self, name : &str, node : &Rc< RefCell< Node > > )
+    fn scale_blend( &self, name : &str, node : &Rc< RefCell< Node > > )
     {
       let mut values = vec![];
 
@@ -274,9 +304,17 @@ mod private
         }
       }
 
+      // Fix(BUG-261): see `translation_blend` above for the shared root cause -- same
+      // unconditional fall-through into `scale_set`, applied to `F32x3::default()` == `(0,0,0)`
+      // scale instead of the ( conventional, 1:1 ) "no scale channel present" outcome.
+      if values.is_empty()
+      {
+        return;
+      }
+
       if self.normalize
       {
-        normalize_weights( &mut values );
+        weights_normalize( &mut values );
       }
 
       let mut scale = F32x3::default();
@@ -284,7 +322,7 @@ mod private
       {
         scale += s * w;
       }
-      node.borrow_mut().set_scale( scale );
+      node.borrow_mut().scale_set( scale );
     }
   }
 
@@ -321,9 +359,9 @@ mod private
     {
       for ( name, node ) in nodes
       {
-        self.blend_translation( name, node );
-        self.blend_rotation( name, node );
-        self.blend_scale( name, node );
+        self.translation_blend( name, node );
+        self.rotation_blend( name, node );
+        self.scale_blend( name, node );
       }
     }
   }
@@ -333,7 +371,7 @@ crate::mod_interface!
 {
   orphan use
   {
-    normalize_weights,
+    weights_normalize,
     Blender
   };
 }

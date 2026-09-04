@@ -47,7 +47,7 @@ fn canvas_size( canvas : &gl::web_sys::HtmlCanvasElement ) -> ( u32, u32 )
 /// alongside the text itself, which goes through [`EngravingSession::set_text`].
 fn find_material( scene : &Scene, node_name : &str ) -> Option< Rc< RefCell< Box< dyn Material > > > >
 {
-  let node = scene.get_node( node_name )?;
+  let node = scene.node_get( node_name )?;
   let node_ref = node.borrow();
   let Object3D::Mesh( mesh ) = &node_ref.object else { return None };
   let mesh_ref = mesh.borrow();
@@ -103,9 +103,9 @@ async fn run() -> Result< (), gl::WebglError >
   let far = 100.0;
   let aspect_ratio = pixel_w as f32 / pixel_h as f32;
 
-  let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
-  camera.set_window_size( [ pixel_w as f32, pixel_h as f32 ].into() );
-  camera.bind_controls( &canvas );
+  let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far )?;
+  camera.window_size_set( [ pixel_w as f32, pixel_h as f32 ].into() );
+  camera.controls_bind( &canvas );
 
   let samples = 4;
   let mut renderer = Renderer::new( &gl, pixel_w, pixel_h, samples )?;
@@ -114,9 +114,9 @@ async fn run() -> Result< (), gl::WebglError >
   renderer::webgl::loaders::hdr_texture::load_to_mip_d2( &gl, Some( &equirect ), 0, "static/venice_sunset_1k.hdr" ).await;
 
   let ibl = renderer::webgl::loaders::pmrem::generate( &gl, &equirect, 512 )?;
-  renderer.set_ibl( ibl );
-  renderer.set_clear_color( gl::math::F32x3::from( [ 0.02, 0.02, 0.02 ] ) );
-  renderer.set_exposure( 0.0 );
+  renderer.ibl_set( ibl );
+  renderer.clear_color_set( gl::math::F32x3::from( [ 0.02, 0.02, 0.02 ] ) );
+  renderer.exposure_set( 0.0 );
 
   let renderer = Rc::new( RefCell::new( renderer ) );
 
@@ -143,12 +143,12 @@ async fn run() -> Result< (), gl::WebglError >
         canvas.set_height( h );
 
         let proj = gl::math::mat3x3h::perspective_rh_gl( fov, w as f32 / h as f32, near, far );
-        camera.set_projection_matrix( proj );
-        camera.set_window_size( [ w as f32, h as f32 ].into() );
+        camera.projection_matrix_set( proj ).expect( "Failed to update camera projection" );
+        camera.window_size_set( [ w as f32, h as f32 ].into() );
 
         renderer.borrow_mut().resize( &gl, w, h, samples ).expect( "Failed to resize renderer" );
 
-        swap_buffer.free_gl_resources( &gl );
+        swap_buffer.gl_resources_free( &gl );
         swap_buffer = SwapFramebuffer::new( &gl, w, h );
 
         *prev = ( w, h );
@@ -158,15 +158,15 @@ async fn run() -> Result< (), gl::WebglError >
 
       swap_buffer.reset();
       swap_buffer.bind( &gl );
-      swap_buffer.set_input( renderer.borrow().main_texture() );
+      swap_buffer.input_set( renderer.borrow().main_texture() );
 
-      let t = tonemapping.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
+      let t = tonemapping.render( &gl, swap_buffer.input_get(), swap_buffer.output_get() )
       .expect( "Failed to render tonemapping pass" );
 
-      swap_buffer.set_output( t );
+      swap_buffer.output_set( t );
       swap_buffer.swap();
 
-      let _ = to_srgb.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
+      let _ = to_srgb.render( &gl, swap_buffer.input_get(), swap_buffer.output_get() )
       .expect( "Failed to render ToSrgbPass" );
 
       true

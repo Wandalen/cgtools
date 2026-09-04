@@ -5,7 +5,7 @@ use minwebgl as gl;
 
 pub fn update
 (
-  line : Rc< RefCell< line_tools::d2::Line > >,
+  line : &Rc< RefCell< line_tools::d2::Line > >,
   canvas : &gl::web_sys::HtmlCanvasElement,
   input : &mut browser_input::Input
 )
@@ -13,7 +13,7 @@ pub fn update
   let width = canvas.width() as f32;
   let height = canvas.height() as f32;
 
-  input.update_state();
+  input.state_update();
 
   for browser_input::Event { event_type, .. } in input.event_queue().iter()
   {
@@ -38,5 +38,5 @@ pub fn update
     }
   }
 
-  input.clear_events();
+  input.events_clear();
 }

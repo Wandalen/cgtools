@@ -1,5 +1,7 @@
 # 🧪 renderer_pbr_scene
 
+**Keywords:** PBR, gpu_hal, Renderer, WebGPU, WebGL2, HDR, Tone Mapping
+
 The runtime demo of the canonical `gpu_hal` opaque path ( `renderer::webgpu` ): a metallic-roughness sphere grid over a ground plane — gold metallic row and red dielectric row, roughness rising left to right — lit by one directional, one point and one spot light, rendered through the HDR opaque pass + ACES tone mapping, with a slowly orbiting camera.
 
 The scene is written once against the `gpu_hal` API and runs on **both backends**:

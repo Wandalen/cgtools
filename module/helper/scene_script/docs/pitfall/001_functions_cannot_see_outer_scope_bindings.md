@@ -51,6 +51,12 @@ top-level name to see mutations made inside `main()` reflected back at top
 level (it can't — top level has already finished executing by the time
 `main()` runs, and `main()`'s own copy is independent from the start).
 
+### Features
+
+| File | Relationship |
+|------|--------------|
+| [../feature/001_rhai_scene_scripting.md](../feature/001_rhai_scene_scripting.md) | Navigational hub this pitfall's warning serves |
+
 ### Invariants
 
 | File | Relationship |

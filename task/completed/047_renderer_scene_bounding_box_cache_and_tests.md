@@ -170,6 +170,30 @@ not by this section.
 (`governance/maav.rulebook.md § MAAV : Fix-and-Recheck Loop`); self-administered, no subagent
 dispatch.
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Does `Scene::bounding_box()` return a cached field instead of recomputing on every call? `src/webgl/scene.rs:263-266` → `pub fn bounding_box( &self ) -> BoundingBox { self.bounding_box }` — no tree walk in the body.
+- [x] C2 — Does `update_world_matrix()` refresh the cache on every call? `src/webgl/scene.rs:241`, inside `update_world_matrix` (starts line 227) → `self.compute_bounding_box();`, called after the children-update loop.
+- [x] C3 — Do all 3 claimed tests exist and genuinely prove caching (not just matching values by coincidence)? Confirmed in `tests/webgl/scene.rs`: `test_bounding_box_cached_single_root` (line 149) holds a live `node_root.borrow_mut()` guard across the `scene.bounding_box()` call — a real tree-walking implementation would panic here; `test_bounding_box_cached_three_level_chain` (line 176); `test_bounding_box_empty_scene_is_default` (line 196).
+- [x] C4 — Do the pre-existing regression tests (Test Matrix T04) remain intact? `test_scene_update_world_matrix_after_set_local_matrix1`/`2` (lines 55, 79) still present, unchanged in shape.
+
+### Measurements
+
+- [x] M1 — `fn compute_bounding_box` occurrences in `scene.rs`: `1` (was: `0`, cite `git show 9b71cf39^:module/helper/renderer/src/webgl/scene.rs` → `0` hits; `git show 9b71cf39:...` → `1` hit — the introducing commit).
+- [x] M2 — `test_bounding_box_*` functions in `tests/webgl/scene.rs`: `3` (was: `0`, same commit `9b71cf39`).
+
+### Invariants
+
+- [x] I1 — Native test suite (shared with 013/020/075, package-scoped, `longrun`-detached): `cargo nextest run -p renderer --all-features` → exit 0, `79 tests run: 79 passed, 0 skipped`, including all 3 new tests by name (`renderer::tests webgl::scene::test_bounding_box_cached_three_level_chain`, `test_bounding_box_cached_single_root`, `test_bounding_box_empty_scene_is_default`, all `PASS`).
+- [x] I2 — Compiler/lints: `cargo clippy -p renderer --all-targets --all-features -- -D warnings` → exit 101, **fails**, same unrelated `browser_log` root cause documented in full under task 013's Verification (commit `5f33be66`, 2026-08-11, postdates this task). Isolated via the `--no-deps` variant → exit 0, clean — `renderer`'s own code (incl. `scene.rs` and the `std::slice::from_ref` clippy fix in `tests/webgl/scene.rs:160`) is unaffected.
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against the cache silently reverting to a live tree-walk undetected: `test_bounding_box_cached_single_root`'s borrow-guard mechanism (C3) would panic with "RefCell already mutably borrowed" if `bounding_box()` ever `.borrow()`s a node again — re-running this one test is the direct regression check, independent of whether the returned *value* happens to still match.
+- [x] AF2 — Guards against `update_world_matrix()` losing its call to `compute_bounding_box()` (reintroducing the original dead-cache bug): `grep -n "compute_bounding_box" src/webgl/scene.rs` must show both the definition (C1) and an active call site inside `update_world_matrix` (C2) — a future edit keeping only the definition would silently restore the pre-fix "field looks like a cache but isn't one" state this task fixed.
+
 ## History
 
 *(append-only — newest entry last; never edit or remove past entries)*

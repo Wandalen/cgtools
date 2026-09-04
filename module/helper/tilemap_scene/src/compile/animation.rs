@@ -4,8 +4,8 @@
 
 //! Time-based animation frame sampling.
 //!
-//! Given an [`Animation`] resource, the current global time, and the tile
-//! position (for `HashCoord` phase offsets), [`resolve_animation_frame`]
+//! Given an [`Animation`](crate::resource::Animation) resource, the current global time, and the tile
+//! position (for `HashCoord` phase offsets), [`animation_frame_resolve`]
 //! returns the concrete `( asset, frame )` pair to draw this instant.
 //!
 //! See SPEC §7. All timing is deterministic: the same `( animation, time,
@@ -14,7 +14,7 @@
 mod private
 {
   use crate::compile::error::CompileError;
-  use crate::hash::{ hash_coord, hash_str };
+  use crate::hash::{ coord_hash, str_hash };
   use crate::resource::
   {
     Animation,
@@ -46,7 +46,7 @@ mod private
   /// (degenerate declaration) or when a `FromSheet` variant addresses a
   /// non-existent index (caller is responsible for pre-allocating sprites
   /// in the asset-compile pass; here we just compute which sprite to pick).
-  pub fn resolve_animation_frame
+  pub fn animation_frame_resolve
   (
     anim : &Animation,
     time_seconds : f32,
@@ -80,7 +80,7 @@ mod private
             max : 0,
           });
         }
-        let idx = pick_frame_index( local_t, *fps, frames.len(), anim.mode );
+        let idx = frame_index_pick( local_t, *fps, frames.len(), anim.mode );
         Ok( frames[ idx ].clone() )
       },
       AnimationTiming::FromSheet { asset, start_frame, count, fps } =>
@@ -94,7 +94,7 @@ mod private
             max : 0,
           });
         }
-        let idx = pick_frame_index( local_t, *fps, *count as usize, anim.mode );
+        let idx = frame_index_pick( local_t, *fps, *count as usize, anim.mode );
         let frame_name = ( *start_frame + idx as u32 ).to_string();
         Ok( SpriteRef { asset : asset.clone(), frame : frame_name } )
       },
@@ -151,7 +151,7 @@ mod private
   }
 
   /// Compute `phase_offset` in seconds for a given tile position. Thin
-  /// wrapper retained for [`resolve_animation_frame`]; new callers use
+  /// wrapper retained for [`animation_frame_resolve`]; new callers use
   /// [`declared_phase_seconds`] directly.
   #[ inline ]
   fn phase_offset_seconds
@@ -170,7 +170,7 @@ mod private
   ///
   /// Mirrors the renderer's frame-resolution path so completion-event
   /// detection in `Scene::tick` agrees byte-for-byte with what
-  /// [`resolve_animation_frame`] would show on screen.
+  /// [`animation_frame_resolve`] would show on screen.
   #[ must_use ]
   pub fn declared_phase_seconds
   (
@@ -185,8 +185,8 @@ mod private
       PhaseOffset::Fixed( s ) => s,
       PhaseOffset::HashCoord =>
       {
-        let salt = hash_str( &anim.id );
-        let raw = hash_coord( pos.0, pos.1, salt );
+        let salt = str_hash( &anim.id );
+        let raw = coord_hash( pos.0, pos.1, salt );
         let unit = ( raw as f32 ) / ( u32::MAX as f32 );
         // Multiply by the animation's *natural* period so neighbouring tiles
         // spread across the whole cycle, not just a tiny fraction of it.
@@ -203,11 +203,11 @@ mod private
         // don't have a per-instance seed; fall back to 0.0 so the
         // animation rides the master clock there.
         let Some( seed ) = instance_seed else { return 0.0 };
-        // Mix the seed and the animation id through `hash_coord`'s
+        // Mix the seed and the animation id through `coord_hash`'s
         // avalanche so neighbouring seeds (1, 2, 3 ...) land on
         // well-separated phases — XOR alone leaves the upper bits
         // unchanged and collapses unit-magnitude differences.
-        let mixed = hash_coord( seed as i32, 0, hash_str( &anim.id ) );
+        let mixed = coord_hash( seed as i32, 0, str_hash( &anim.id ) );
         let unit = ( mixed as f32 ) / ( u32::MAX as f32 );
         let period = animation_duration_seconds( anim );
         unit * period
@@ -244,7 +244,7 @@ mod private
   }
 
   /// Pick a regular-timing frame index from local time.
-  fn pick_frame_index
+  fn frame_index_pick
   (
     local_t : f32,
     fps : f32,
@@ -274,7 +274,7 @@ mod private
 
 mod_interface::mod_interface!
 {
-  exposed use resolve_animation_frame;
+  exposed use animation_frame_resolve;
   own use animation_duration_seconds;
   own use declared_phase_seconds;
 }

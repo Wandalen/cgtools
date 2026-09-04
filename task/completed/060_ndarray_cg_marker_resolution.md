@@ -10,7 +10,7 @@
 - **round:** 1
 - **state:** ✅ (Completed)
 - **closes:** null
-- **unit_type:** crate
+- **unit_type:** module
 - **unit:** module/math/ndarray_cg
 - **verified_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
 - **verification_date:** 2026-08-10
@@ -46,6 +46,51 @@ stays, or delete if stale. Verify with `cargo test -p ndarray_cg --all-features`
 `longrun .launch`) — note the alias crate `ndarray_tools` now includes this suite by path (task 038
 enabled it), so donor-suite edits must keep both green:
 `cargo test -p ndarray_tools --all-features`.
+
+## In Scope
+
+- `src/vector/general.rs:5` — stale `document please` marker deleted (every public item already
+  documented); drive-by `"lenght"` → `"length"` typo fix
+- `src/vector/general.rs:152` — new `VectorLengthMismatch` typed-error struct (Debug/Clone/Copy/
+  PartialEq/Eq/Display/`std::error::Error`) replacing the `&'static str` error on `TryFrom<&[E]>`
+- `src/vector/general.rs:189,224` — `IntoVector` test coverage added
+  (`tests/inc/vector_conversion_test.rs`, 4 tests); the commented-out `FromVector` trait and dead
+  `From<E> for Vector` block deleted outright
+- `src/vector/arithmetics.rs:109` — stale `reuse` marker deleted (the requested
+  `reuse ::mdmath_core::vector::arithmetics;` directive was already wired, no duplicate logic remained)
+
+## Out of Scope
+
+- `Cargo.toml:82,84` (`missing_docs`/`missing_debug_implementations` lint markers) — explicitly
+  deferred to task 058's workspace-lint-inheritance pass; this task only confirms they were handled
+  when it closes
+- `tests/inc/d2_test/arithmetic_test/mul_test.rs:80` — matches marker grep but is a fix-doc comment
+  quoting a resolved TASK-014 marker, not live backlog; explicitly left untouched
+
+## Verification
+
+### Checklist
+
+- [x] C1 — Are all 5 claimed in-code markers (`general.rs:5,152,189,224`, `arithmetics.rs:109`) genuinely resolved (zero `qqq`/`xxx` markers remaining in either file)? `grep -n "qqq\|xxx" src/vector/general.rs src/vector/arithmetics.rs` → 0 hits in both.
+- [x] C2 — Does the typed error `VectorLengthMismatch` exist exactly as claimed (Debug/Clone/Copy/PartialEq/Eq derive, `Display` naming both lengths, `std::error::Error` impl), and is it `TryFrom<&[E]>`'s `Error` type? Confirmed in `src/vector/general.rs`: struct at line 157 with `#[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]` and `expected`/`actual` fields; `impl std::fmt::Display` at line 165 writing `"Slice length {actual} does not equal vector's length {expected}"`; `impl std::error::Error for VectorLengthMismatch` at line 174; `TryFrom<&[E]>::Error = VectorLengthMismatch` at line 182.
+- [x] C3 — Is `VectorLengthMismatch` correctly exposed via `mod_interface!`, replacing the old commented-out `AsVector`/`FromVector` exposure lines? Confirmed: the `mod_interface!` block (line 346-347) lists `IntoVector, VectorLengthMismatch,` with no commented-out exposure lines remaining anywhere in the file.
+- [x] C4 — Does `tests/inc/vector_conversion_test.rs` exist with the claimed 4 tests? Confirmed: `test_into_vector_from_tuples_and_arrays`, `test_as_vector_does_not_consume`, `test_try_from_slice_ok`, `test_try_from_slice_length_mismatch_typed_error` — exactly 4 `#[ test ]` functions.
+- [x] C5 — Are the commented-out `FromVector` trait and `From<E> for Vector` blocks genuinely deleted (not merely relocated)? `grep -n "FromVector\|impl.*From< E >.*for Vector"` in `src/vector/general.rs` → 0 hits.
+- [x] C6 — Are the 2 `Cargo.toml` lint markers (`missing_docs`, `missing_debug_implementations`) still consistent with this task's explicit "owned by task 058, this task only confirms" framing (i.e. this task never claims to have resolved them itself)? Current `Cargo.toml` → 0 hits for either lint name (fully resolved since, by 058's own pass) — consistent with, not contradicted by, 060's own scope claim.
+
+### Measurements
+
+- [x] M1 — `qqq`/`xxx` marker count in `general.rs` + `arithmetics.rs`: now `0` (was: `5` — 4 in `general.rs` + 1 in `arithmetics.rs`, cite `git show 4469eafb^:module/math/ndarray_cg/src/vector/general.rs` and `git show 4469eafb^:module/math/ndarray_cg/src/vector/arithmetics.rs`; `4469eafb` is the exact fix commit — confirmed via `git diff 4469eafb^ 4469eafb` matching every claimed marker resolution byte-for-byte, including the `"lenght"`→`"length"` drive-by typo fix).
+
+### Invariants
+
+- [x] I1 — Test suite (crate-scoped): `cargo nextest run -p ndarray_cg --all-features` (via `longrun`) → exit 0, 261/261 passed, 0 skipped.
+- [x] I2 — Compiler/lints clean: `cargo clippy -p ndarray_cg --all-targets --all-features -- -D warnings` (via `longrun`) → exit 0, zero warnings/errors.
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against a stale marker being silently reintroduced (e.g. a future contributor leaving a `// xxx : ...` note unresolved before merging): re-running C1's grep after any future edit to these 2 files must still return 0.
+- [x] AF2 — Guards against `VectorLengthMismatch` being reverted to a bare `&'static str` error (losing the `expected`/`actual` fields this task added): re-running C2's field/impl checks must still hold; `vector_conversion_test.rs::test_try_from_slice_length_mismatch_typed_error` (C4) would fail to compile against a `&'static str` error type.
 
 ## History
 

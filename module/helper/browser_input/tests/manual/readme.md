@@ -98,12 +98,12 @@ Open the provided local server URL in your browser (e.g., `http://localhost:8080
 **Steps:**
 1. Scroll the mouse wheel up and down on the canvas
 2. Use trackpad two-finger scroll if available
-3. Call `clear_events()` and check scroll value
+3. Call `events_clear()` and check scroll value
 
 **Expected Behavior:**
 - Scroll delta accumulates in `scroll()` value
 - Scroll direction is correct (positive/negative)
-- `clear_events()` resets the scroll accumulator to zero
+- `events_clear()` resets the scroll accumulator to zero
 
 ### 6. Keyboard Input
 
@@ -145,6 +145,50 @@ for (let i = 0; i < 100; i++) {
 - No memory exhaustion or crash occurs
 - Additional pointers beyond the limit are ignored
 
+### 8. Key Auto-Repeat (BUG-213)
+
+**Objective:** Verify OS-level key auto-repeat does not desynchronize keyboard state -- the
+`event.repeat()` filter in `Input::new`'s `keyboard_callback` has no live-`KeyboardEvent`
+equivalent in `cargo test`, so this is only verifiable manually.
+
+**Steps:**
+1. Focus the browser window with the test application
+2. Press and hold a single key down continuously for several seconds, so the OS's auto-repeat
+   fires multiple synthetic `keydown` events for it
+3. Release the key
+
+**Expected Behavior:**
+- `is_key_down()` reads `true` continuously for the entire hold, including during auto-repeat
+- Releasing the key once is sufficient to clear it back to `false` (no leftover "held" state from
+  the repeated `keydown` events)
+- If two different unmapped/exotic keys (both aliasing to `KeyboardKey::Unidentified`) are held
+  simultaneously, auto-repeating one of them and then releasing it must not clear the other's held
+  state (see BUG-213's `keyboard_key_state_test.rs` for the non-repeat-triggered version of this
+  same aliasing check)
+
+### 9. Focus Loss / Alt-Tab (BUG-214)
+
+**Objective:** Verify held keys/buttons correctly reset when the page loses OS-level focus -- the
+`blur`/`visibilitychange` listener wiring in `Input::new` has no live-browser equivalent in
+`cargo test`, so this is only verifiable manually.
+
+**Steps:**
+1. Focus the browser window with the test application
+2. Press and hold a key (e.g. an arrow key) on the canvas -- do not release it
+3. While still physically holding the key, switch away from the browser entirely (Alt-Tab to
+   another application, or switch to a different browser tab) so the OS delivers the eventual
+   physical key-up to whatever now has focus, not this page
+4. Release the key (now happening outside the page's focus)
+5. Switch focus back to the test application and check the key's state
+
+**Expected Behavior:**
+- `is_key_down()` reads `false` immediately upon losing focus in step 3 (not stuck `true` after
+  switching back in step 5)
+- Repeat with a held mouse button instead of a key: `is_button_down()` and `active_pointers()`
+  must likewise reset on focus loss
+- `pointer_position()` and `scroll()` are unaffected by the focus loss (they retain their
+  last-known values, not reset to zero)
+
 ## Test Matrix
 
 | Scenario | Desktop Mouse | Touch (1 finger) | Touch (2+ fingers) | Trackpad |
@@ -155,6 +199,8 @@ for (let i = 0; i < 100; i++) {
 | Scroll wheel | ✓ | N/A | N/A | ✓ |
 | Keyboard events | ✓ | ✓ | ✓ | ✓ |
 | DoS protection | ✓ | ✓ | ✓ | ✓ |
+| Key auto-repeat | N/A | N/A | N/A | N/A |
+| Focus loss / alt-tab | ✓ | ✓ | ✓ | ✓ |
 
 ## Reporting Issues
 

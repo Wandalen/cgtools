@@ -33,7 +33,7 @@ fn accessor_test()
   let v = F32x4::new( 1.0, 2.0, 3.0, 4.0 );
   // `v` is constructed from the same literals compared against — no arithmetic occurs, so
   // the stored components are bit-identical to the literals.
-  #[ allow( clippy::float_cmp ) ]
+  #[ expect( clippy::float_cmp, reason = "assertions check exact expected values; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
   {
     assert_eq!( v.x(), 1.0 );
     assert_eq!( v.y(), 2.0 );

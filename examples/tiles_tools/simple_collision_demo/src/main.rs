@@ -35,19 +35,19 @@ fn main()
     
     // Check for collisions
     println!("\nDetecting collisions...");
-    let collisions = CollisionSystem::detect_collisions::<SquareCoord<FourConnected>>(&world.hecs_world);
+    let collisions = CollisionSystem::collisions_detect::<SquareCoord<FourConnected>>(&world.hecs_world);
     println!("Found {} collisions", collisions.len());
     
     if !collisions.is_empty() {
         println!("Resolving collisions...");
-        CollisionSystem::resolve_collisions(&mut world.hecs_world, &collisions);
+        CollisionSystem::collisions_resolve(&mut world.hecs_world, &collisions);
         println!("Collisions resolved");
     }
     
     // Test spatial queries
     println!("\nTesting spatial queries...");
     let center = Position::new(SquareCoord::<FourConnected>::new(5, 5));
-    let nearby = SpatialQuerySystem::query_circle(&world.hecs_world, &center, 3);
+    let nearby = SpatialQuerySystem::circle_query(&world.hecs_world, &center, 3);
     println!("Found {} entities near center", nearby.len());
     
     println!("\nDemo complete!");

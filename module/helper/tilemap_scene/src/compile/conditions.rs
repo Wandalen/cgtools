@@ -1,4 +1,4 @@
-//! Evaluation of [`Condition`] against a single neighbour.
+//! Evaluation of [`Condition`](crate::source::Condition) against a single neighbour.
 //!
 //! Used by `NeighborCondition` sprite sources (skirts, Wesnoth edge blends)
 //! to decide whether to emit a sprite for a given side of the current tile.
@@ -14,7 +14,7 @@ mod private
   /// of the tile whose sprite source is firing — compared to the neighbour's
   /// priority by [`Condition::NeighborPriorityLower`].
   #[ must_use ]
-  pub fn evaluate_condition
+  pub fn condition_evaluate
   (
     condition : &Condition,
     neighbour : &NeighborState< '_ >,
@@ -45,16 +45,16 @@ mod private
         }
       },
       Condition::AnyOf( sub ) =>
-        sub.iter().any( | c | evaluate_condition( c, neighbour, current_priority ) ),
+        sub.iter().any( | c | condition_evaluate( c, neighbour, current_priority ) ),
       Condition::AllOf( sub ) =>
-        sub.iter().all( | c | evaluate_condition( c, neighbour, current_priority ) ),
+        sub.iter().all( | c | condition_evaluate( c, neighbour, current_priority ) ),
       Condition::Not( inner ) =>
-        !evaluate_condition( inner, neighbour, current_priority ),
+        !condition_evaluate( inner, neighbour, current_priority ),
     }
   }
 }
 
 mod_interface::mod_interface!
 {
-  exposed use evaluate_condition;
+  exposed use condition_evaluate;
 }

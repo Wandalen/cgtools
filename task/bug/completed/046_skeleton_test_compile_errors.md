@@ -386,6 +386,33 @@ with the exact cfg configuration M requires, and that job/command runs on a
 recurring cadence (not "exists but has never been executed").
 ```
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Is `Node` now imported in `skeleton_tests.rs`'s `use renderer::webgl::{...}` block? `tests/skeleton_tests.rs:20-27` → `use renderer::webgl::{ Node, Object3D, load_texture_data_4f, loaders::gltf::load, skeleton::Skeleton };`.
+- [x] C2 — Is `.scene[ 0 ]` fixed to `.scenes[ 0 ]`? `tests/skeleton_tests.rs:67` → `gltf.scenes[ 0 ].borrow().traverse( &mut get_skeleton );`.
+- [x] C3 — Are both fix sites documented with the workspace's 3-field comment form (`Fix(BUG-046)` / `Root cause` / `Pitfall`)? Confirmed at lines 15-19 (import fix) and 61-66 (field-name fix).
+- [x] C4 — Does `Node` genuinely resolve to a real, exported type at `renderer::webgl::Node` (not merely silencing the compiler)? `src/webgl/node.rs:556-562` → `crate::mod_interface! { orphan use { Node, Object3D }; }`.
+- [x] C5 — Does `GLTF::scenes` genuinely exist with a type `Scene::traverse` accepts, matching `get_skeleton`'s own signature? `src/webgl/loaders/gltf.rs:57` → `pub scenes : Vec< Rc< RefCell< Scene > > >`; `src/webgl/scene.rs:215` → `pub fn traverse< F >( &self, callback : &mut F ) -> Result< (), gl::WebglError > where F : FnMut( Rc< RefCell< Node > > ) -> Result< (), gl::WebglError >` — matches `get_skeleton`'s closure signature exactly.
+- [x] C6 — Is the singular-typo pattern (`gltf.scene[`) genuinely absent from every other call site workspace-wide? `grep -rn "gltf\.scene\[" --include="*.rs" .` (workspace-wide) → `1` hit, and it is line 61's own `Fix(BUG-046)` comment quoting the historical bug, not live code.
+
+### Measurements
+
+- [x] M1 — `.scene[` (singular, live code) in `skeleton_tests.rs`: `0` (was: `1`, cite `git show 533cadff:module/helper/renderer/tests/skeleton_tests.rs` line 52 — `gltf.scene[ 0 ].borrow().traverse( &mut get_skeleton );`, the commit that introduced this file with the bug already present).
+- [x] M2 — `Node` present in the import block: yes (was: absent, same commit `533cadff` — its import block at lines 11-18 lists `Object3D, calculate_data_texture_size, load_texture_data_4f, loaders::gltf::{ GLTF, load }, skeleton::{ DisplacementsData, Skeleton, TransformsData }` with no `Node`).
+
+### Invariants
+
+- [x] I1 — This bug's own original verification method, replicated fresh (wasm32 compile — the module is `#[ cfg( target_arch = "wasm32" ) ]`-gated and cannot be exercised via native `cargo nextest`): `cargo check -p renderer --target wasm32-unknown-unknown --features animation --tests` (via `longrun`, retried once) → exit 101 both times, **still blocked in this sandbox** — but not by either of this bug's two original defects, and not even by the original `getrandom v0.2.17` compile gap this bug's own `## Why Not Caught`/`## Fix Applied` sections documented (that specific gap is independently resolved: the log shows `Checking getrandom v0.2.17` succeed cleanly, consistent with `renderer/Cargo.toml` now carrying a `[target.'cfg(target_arch = "wasm32")'.dev-dependencies] getrandom = { version = "0.2", features = [ "js" ] }` override that did not exist when this bug was filed). Both attempts instead hit filesystem-level errors on already-built artifacts unrelated to this fix or to `wasm32` specifically — attempt 1: `error: extern location for pretty_assertions/rand_core/rand_chacha does not exist`, then `failed to write .../.fingerprint/indexmap.../lib-indexmap: No such file or directory`, then `failed to build archive at .../libsyn-....rlib: ... No such file or directory`; attempt 2 (fresh retry): `error: could not parse/generate dep info at: .../parse_display_derive-....d: No such file or directory` and `.../serde_derive-....d: No such file or directory`. Different files missing each attempt, on both the `wasm32` and native `target/debug` trees — matches this workspace's own documented pattern of concurrent-session target-directory contention (sibling tasks 013's/020's histories record the same class of interruption). **Not a defect in this fix** — confirmed by C1-C6's static cross-checks, which is the actual decisive verification method this bug's own `## Fix Applied` section used in place of a live compile.
+- [x] I2 — This bug's actual decisive verification method (static cross-check, re-run fresh against current source rather than restated from this file's own prior claim): `Node` resolves to a real export (C4); `GLTF::scenes`/`Scene::traverse` signatures match `get_skeleton` exactly (C5); zero other live `gltf.scene[` call sites exist workspace-wide (C6). All three independently re-confirmed above.
+- [x] I3 — Native regression check (shared native run — this fix should not affect natively-compiled code, since the fixed module is wasm32-gated): `cargo nextest run -p renderer --all-features` (via `longrun`) → exit 0, `79 tests run: 79 passed, 0 skipped` — no native-side regression, exactly as this bug's own `## Why Not Caught` predicts (the fixed module stays invisible to native runs).
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against the `Node` import being silently dropped again: re-running C1/C4 must keep finding `Node` both present in the import list and resolvable to a real export — a future edit reverting the import (e.g. a careless merge from an older branch) reproduces this exact bug.
+- [x] AF2 — Guards against the singular `.scene[` typo reappearing (e.g. via copy-paste from an old example or branch): re-run C6's workspace-wide `grep -rn "gltf\.scene\["` sweep — any hit outside a comment quoting this historical fix is a live regression of the second of this bug's two defects.
+
 ## History
 
 | Date       | Event  | Notes                                                                                                     |

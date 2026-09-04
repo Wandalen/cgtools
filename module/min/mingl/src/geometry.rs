@@ -138,9 +138,9 @@ mod private
     /// Returns a new bounding box that is the result of applying a transformation to this one.
     #[ inline ]
     #[ must_use ]
-    pub fn apply_transform( mut self, transform : F32x4x4 ) -> Self
+    pub fn transform_apply( mut self, transform : F32x4x4 ) -> Self
     {
-      self.apply_transform_mut( transform );
+      self.transform_apply_mut( transform );
       self
     }
 
@@ -148,7 +148,7 @@ mod private
     ///
     /// This is done by transforming all 8 corners of the box and finding the new min/max.
     #[ inline ]
-    pub fn apply_transform_mut( &mut self, transform : F32x4x4 )
+    pub fn transform_apply_mut( &mut self, transform : F32x4x4 )
     {
       let mut points : [ F32x4; 8 ] = Default::default();
       points[ 0 ] = transform * self.min.to_homogenous();

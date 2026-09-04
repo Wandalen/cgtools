@@ -5,8 +5,9 @@
 // direct / spot lights, metallic-roughness material with optional base-color
 // and metallic-roughness textures. Slice scope — not yet ported: IBL,
 // skinning, morph targets, tangent-space normal mapping, emission target,
-// WBOIT targets. This file is the canonical source per ADR-001 §5; the GLSL
-// tree remains the WebGL2 override until the HAL owns transpilation.
+// WBOIT targets. This file is the canonical source per ADR-001 §5; the
+// WebGL2 override is generated from it at build time by gpu_hal's
+// `webgl_build` kit — see `build.rs`.
 //
 // Feature toggles are runtime flags (`MaterialUniform.flags`) instead of the
 // GLSL `#define` scheme: WGSL has no preprocessor, and unused texture slots

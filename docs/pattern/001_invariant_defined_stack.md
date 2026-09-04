@@ -77,6 +77,14 @@ logging) — they sit beside the stacks, not in them.
 |------|--------------|
 | [../adr/001_multi_stack_rendering_architecture.md](../adr/001_multi_stack_rendering_architecture.md) | Adopts this pattern and aggregates the current stack tables |
 
+### Render Stacks
+
+| File | Relationship |
+|------|--------------|
+| [../render_stack/001_d2.md](../render_stack/001_d2.md) | The base invariant table this pattern's classification rules formalize |
+| [../render_stack/002_tile.md](../render_stack/002_tile.md) | Instantiates rule 2 (pure addition founds an extension) over d2's table |
+| [../render_stack/003_d3.md](../render_stack/003_d3.md) | Instantiates rule 1 (contradiction founds a sibling) against d2's table |
+
 ### Sources
 
 | File | Relationship |

@@ -15,6 +15,7 @@ mod private
 
   /// Saturating u32 → i32 conversion for GL parameters — GL sizes never
   /// approach the boundary, so saturation is a formality, not a data path.
+  #[ must_use ]
   pub fn to_i32( value : u32 ) -> i32
   {
     i32::try_from( value ).unwrap_or( i32::MAX )
@@ -23,6 +24,7 @@ mod private
   /// Saturating usize → u32 conversion for binding indices — group and
   /// binding counts never approach the boundary, so saturation is a
   /// formality, not a data path.
+  #[ must_use ]
   pub fn to_u32( value : usize ) -> u32
   {
     u32::try_from( value ).unwrap_or( u32::MAX )
@@ -40,12 +42,31 @@ mod private
       {
         Self::Rgba8Unorm => Ok( gl::GL::RGBA8 ),
         Self::Rgba8UnormSrgb => Ok( gl::GL::SRGB8_ALPHA8 ),
-        Self::Bgra8Unorm =>
+        Self::Bgra8Unorm | Self::Bgra8UnormSrgb =>
         {
-          Err( Error::Unsupported( "bgra8unorm has no WebGL2 internal format".to_string() ) )
+          Err( Error::Unsupported( "bgra8 has no WebGL2 internal format".to_string() ) )
         }
         Self::Rgba16Float => Ok( gl::GL::RGBA16F ),
         Self::Depth24Plus => Ok( gl::GL::DEPTH_COMPONENT24 )
+      }
+    }
+
+    /// The ( format, type ) pair `texSubImage2D` expects for a
+    /// tightly-packed upload of this format's texels.
+    pub( crate ) fn webgl_format_and_type( self ) -> Result< ( u32, u32 ), Error >
+    {
+      match self
+      {
+        Self::Rgba8Unorm | Self::Rgba8UnormSrgb => Ok( ( gl::GL::RGBA, gl::GL::UNSIGNED_BYTE ) ),
+        Self::Bgra8Unorm | Self::Bgra8UnormSrgb =>
+        {
+          Err( Error::Unsupported( "bgra8 has no WebGL2 internal format".to_string() ) )
+        }
+        Self::Rgba16Float => Ok( ( gl::GL::RGBA, gl::GL::HALF_FLOAT ) ),
+        Self::Depth24Plus =>
+        {
+          Err( Error::Unsupported( "depth24plus is not a valid texSubImage2D upload target".to_string() ) )
+        }
       }
     }
   }
@@ -71,7 +92,11 @@ mod private
     /// Raw GL buffer object.
     pub buffer : web_sys::WebGlBuffer,
     /// GL bind target the buffer was created for.
-    pub target : u32
+    pub target : u32,
+    /// Size in bytes the buffer was allocated with ( `Fix(BUG-200)` : needed
+    /// to validate a write against the buffer's actual capacity before
+    /// calling `bufferSubData`, which silently no-ops past this size ).
+    pub size : u64
   }
 
   /// WebGL backend data of a texture handle.
@@ -196,7 +221,7 @@ mod private
       }
     }
 
-    pub( crate ) fn set_current_pipeline( &self, pipeline : Rc< RenderPipelineWebGl > )
+    pub( crate ) fn current_pipeline_set( &self, pipeline : Rc< RenderPipelineWebGl > )
     {
       *self.pipeline.borrow_mut() = Some( pipeline );
     }

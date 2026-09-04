@@ -22,6 +22,10 @@ Ship a working Rust→Wasm procedural city-generation engine — the `sprawl` cr
 
 **Scoped: not yet single-deliverable.** This goal currently bundles all 5 Development Milestones (Wasm bridge/canvas; terrain/hydrology/shoreline; hub placement/traffic/roads/bridges; parcel subdivision/labels; AI integration/segmentation/polish) as one deliverable — see `## Verification Findings` below, which is exactly the open question this normalization pass leaves unresolved (tracked as `Q-01` in `task/decisions.md`).
 
+Implement "SPRAWL", a high-performance web-based procedural city generation dashboard. The application simulates urban growth from terrain generation through traffic routing, culminating in an AI-generated photorealistic satellite map. The simulation engine runs entirely as Rust compiled to WebAssembly via `wasm-bindgen`, handling all math, procedural generation, graph routing, and spatial queries at near-native speed. A frontend UI (React or Svelte, TypeScript) provides the dashboard shell, sidebars, and state management. Rendering targets the HTML5 Canvas / WebGL pipeline driven by the Wasm module's state. An external AI layer (Gemini/OpenAI for text, Stable Diffusion/ControlNet for imagery) is orchestrated by the frontend.
+
+The project must maximally reuse existing cgtools workspace crates and dependencies. Where functionality is missing, new crates are created within the `module/` hierarchy following established patterns (`mod_interface`, `error_tools`, 2-space indent, `tests/` directory, etc.).
+
 ## In Scope
 
 - New crate `sprawl` at `module/helper/sprawl`, with internal modules: `terrain`, `hydrology`, `shoreline`, `hubs`, `traffic`, `roads`, `bridges`, `parcels`, `labels`, `segmentation`, `wasm_bridge`
@@ -36,12 +40,6 @@ Ship a working Rust→Wasm procedural city-generation engine — the `sprawl` cr
 - 3D satellite view via the `renderer` crate — listed as an optional use of an existing crate, not a required deliverable
 - Hydraulic erosion simulation in `sprawl::hydrology` — explicitly marked "optional stretch" under Milestone 2
 - Actual calls to external AI APIs (Gemini/OpenAI, Stable Diffusion/ControlNet) — orchestrated by the (out-of-scope) frontend; this task only produces the JSON/PNG payloads they would consume
-
-## Description
-
-Implement "SPRAWL", a high-performance web-based procedural city generation dashboard. The application simulates urban growth from terrain generation through traffic routing, culminating in an AI-generated photorealistic satellite map. The simulation engine runs entirely as Rust compiled to WebAssembly via `wasm-bindgen`, handling all math, procedural generation, graph routing, and spatial queries at near-native speed. A frontend UI (React or Svelte, TypeScript) provides the dashboard shell, sidebars, and state management. Rendering targets the HTML5 Canvas / WebGL pipeline driven by the Wasm module's state. An external AI layer (Gemini/OpenAI for text, Stable Diffusion/ControlNet for imagery) is orchestrated by the frontend.
-
-The project must maximally reuse existing cgtools workspace crates and dependencies. Where functionality is missing, new crates are created within the `module/` hierarchy following established patterns (`mod_interface`, `error_tools`, 2-space indent, `tests/` directory, etc.).
 
 ---
 
@@ -392,28 +390,11 @@ Desired answer for every question is YES.
 
 - [ ] AF1 — per-phase integration coverage: `grep -rn "#\[test\]" module/helper/sprawl/tests/` → at least one test per generation phase (terrain, hydrology, hubs, traffic, parcels, render), not a single monolithic smoke test
 
-## Verification Findings
-
-Readiness Verification Gate (`tsk.rulebook.md § Task File : Readiness Verification Gate`) — Tier 2 Dual-Role Self-Check, Round 1, self-administered during normalization:
-
-| Gate | Name | Prev | Now | Issues | Fixes |
-|------|------|------|-----|--------|-------|
-| D1 | Scope Coherence | — | 🟢 | In Scope/Out of Scope were both structurally absent before this pass | Both populated above; meaningful observable outcome; Scope Sizing Gate's 3 sub-checks all pass |
-| D2 | MOST Goal Quality | — | 🔴 | Motivated/Observable/Testable all hold, but **Scoped** fails: the Goal spans all 5 Development Milestones bundled as one deliverable, not a single bounded deliverable | Not yet applied — open decision `Q-01` in `task/decisions.md` (split into 5 tasks / narrow to one milestone / extract to a Governing Plan) |
-| D3 | Value / YAGNI | — | 🟢 | Null Hypothesis: skipping this task means cgtools has no procedural-city tool; detail level in the spec signals committed intent, not speculative scaffolding | — |
-| D4 | Implementation Readiness | — | 🟢 | Delivery Requirements are concrete; Test Matrix populated (12 rows, 1:1 with Acceptance Criteria); Acceptance Criteria specific and verifiable | — |
-| D5 | Execution Scope | — | 🟢 | All deliverable paths (`module/helper/sprawl`, root `Cargo.toml`) resolve inside this repository | — |
-| D6 | Crate Scope Unity | — | 🟢 | All functional deliverables resolve inside the one new `sprawl` crate; the root `Cargo.toml` touch is mechanical (registering the new crate + its deps), not a second crate's functional scope | — |
-| D7 | Crate Locality | — | 🟢 | All generation logic (terrain, hydrology, traffic, parcels, etc.) targets the new leaf crate `sprawl` itself, not an aggregator | — |
-| D8 | Crate Single Responsibility | — | 🟢 | `sprawl`'s responsibility states in one sentence without "and": orchestrate the procedural city-generation pipeline (terrain → hubs → traffic → parcels → render); internal modules are pipeline stages, not unrelated concerns | — |
-| **Total** | | — | 🔴 | 1 open (D2) | 0/1 |
-
-**Aggregate verdict:** FAIL (D2 only) — task remains ❓ Unverified. Re-run this gate once `Q-01` (`task/decisions.md`) is resolved and the Goal/In Scope/Out of Scope above are updated to match.
-
 ## History
 
 *(append-only — newest entry last; never edit or remove past entries)*
 
 - **[2026-08-08 12:40:02]** `FILED` — Backfilled: original filing date not recorded (task predates `## History` section adoption; git log unavailable this session per user instruction — see `governance/maav.rulebook.md`-adjacent session constraint). Task retroactively attributed to i4@wbox.pro based on repository authorship context. Goal (as originally filed): implement the SPRAWL procedural city generation dashboard.
 - **[2026-08-08 12:40:03]** `NOTE` — Normalized into canonical `tsk.rulebook.md` structure: added `## Execution State`, `## Goal`, `## In Scope`, `## Out of Scope`, `## Delivery Requirements`, `## Test Matrix`, `## Verification`, `## Verification Findings`, `## History`; corrected `## Requirements` rulebook-discovery citation from non-canonical `prompt .rulebooks.relevant` to `kbase .rulebooks`; moved from `task/` root to `task/unverified/`. Pre-existing content (`## Description`, `## Reuse Analysis`, `## Technical Specification`, `## Development Milestones`, `## Acceptance Criteria`) preserved verbatim in place. Readiness Verification Gate run: D2 (MOST Goal Quality — Scoped) FAILs on 5-milestone bundling; task left at ❓ Unverified pending `Q-01` (`task/decisions.md`).
-- **[2026-08-09]** `CANCELLED` — Reason: Filer (i4@wbox.pro) cancelled the entire SPRAWL initiative as exploratory/idea-stage work, not committed for implementation — decided before `Q-01`'s ENDORSE step ever fired (see `task/decisions.md` Q-01, now ➖ Cancelled). Supersedes the open D2 (Scoped) failure recorded in `## Verification Findings` above; no split/narrow/plan-extract path will be pursued. Milestone tasks 002-006 (split per `Q-01` Option A) cancelled in the same action.
+- **[2026-08-09]** `CANCELLED` — Reason: Filer (i4@wbox.pro) cancelled the entire SPRAWL initiative as exploratory/idea-stage work, not committed for implementation — decided before `Q-01`'s ENDORSE step ever fired (see `task/decisions.md` Q-01, now ➖ Cancelled). Supersedes the open Readiness Verification Gate failure (D2 MOST Goal Quality — **Scoped**: Goal bundled all 5 Development Milestones as one deliverable, not a single bounded deliverable; D1, D3-D8 had all passed cleanly); no split/narrow/plan-extract path will be pursued. Milestone tasks 002-006 (split per `Q-01` Option A) cancelled in the same action.
+- **[2026-08-12]** `NOTE` — Normalization (`tsk.rulebook.md § Core Procedures : Procedure - Task Normalization`): removed stale `## Verification Findings` section — disallowed in 🚫 Cancelled state per `tsk.rulebook.md` § Task File : Readiness Verification Gate Self-Verification Checklist (removal is defined only on VERIFY passing; this task was cancelled directly from a FAILing gate instead, a corner case the checklist's unconditional per-state list still covers). Content folded into the CANCELLED entry above.

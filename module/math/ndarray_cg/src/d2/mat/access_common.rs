@@ -12,40 +12,11 @@ where
   {
     // SAFETY: This is safe because the memory layout of [ [ E ; COLS ] ; ROWS ]
     // is contiguous and can be reinterpreted as a flat slice of E.
-    #[ allow( unsafe_code ) ]
+    #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
     unsafe { std::slice::from_raw_parts( self.as_ptr(), ROWS * COLS ) }
   }
 
 }
-
-// impl< E, const ROWS : usize, const COLS : usize, Descriptor : mat::Descriptor > ZeroIdentity
-// for Mat< ROWS, COLS, E, Descriptor >
-// where
-//   E : nd::NdFloat + Copy,
-//   Self : IndexingMut< Scalar = E >,
-//   // Self : Collection< Scalar = E >,
-//   // Self : Add< Self, Output = Self >,
-// {
-//
-//   #[ inline( always ) ]
-//   fn zer() -> Self
-//   {
-//     Self::_fill( E::zero() )
-//   }
-//
-//   #[ inline( always ) ]
-//   fn is_zer( &self ) -> bool
-//   {
-//     < Self as IndexingRef >::iter_unstable( self ).all( | e | e.is_zero() )
-//   }
-//
-//   #[ inline( always ) ]
-//   fn zer_set( &mut self )
-//   {
-//     < Self as IndexingMut >::iter_unstable_mut( self ).for_each( | e | e.set_zero() )
-//   }
-//
-// }
 
 impl< E, const ROWS : usize, const COLS : usize, Descriptor : mat::Descriptor > ScalarRef
 for Mat< ROWS, COLS, E, Descriptor >

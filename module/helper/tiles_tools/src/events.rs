@@ -53,7 +53,7 @@
 //! });
 //!
 //! // Process all pending events
-//! bus.process_events();
+//! bus.events_process();
 //! ```
 
 use std::collections::{HashMap, VecDeque};
@@ -141,7 +141,7 @@ impl<T> EventChannel<T> {
     }
   }
 
-  fn add_listener(&mut self, listener: EventListener<T>, priority: EventPriority) -> ListenerId {
+  fn listener_add(&mut self, listener: EventListener<T>, priority: EventPriority) -> ListenerId {
     let id = ListenerId::new();
     let prioritized = PrioritizedListener {
       id,
@@ -158,7 +158,7 @@ impl<T> EventChannel<T> {
     id
   }
 
-  fn remove_listener(&mut self, id: ListenerId) -> bool {
+  fn listener_remove(&mut self, id: ListenerId) -> bool {
     if let Some(pos) = self.listeners.iter().position(|l| l.id == id) {
       self.listeners.remove(pos);
       true
@@ -171,25 +171,54 @@ impl<T> EventChannel<T> {
     self.pending_events.push_back(event);
   }
 
-  fn process_events(&mut self) {
+  // Fix(BUG-268): changed from `-> ()` to `-> usize` so callers can learn how
+  // many listeners were auto-removed via `EventResult::Unsubscribe` --
+  // `EventBus::statistics.total_subscribers` was only ever decremented by the
+  // explicit `EventBus::unsubscribe()` path, which has no visibility into
+  // removals this method performs on its own.
+  // Root cause: this method silently removed listeners without reporting a
+  // count, so `EventBus::events_process`/`events_for_type_process` (the only
+  // callers) had no way to keep `total_subscribers` in sync with the listener
+  // that just self-unsubscribed by returning `EventResult::Unsubscribe`.
+  // Pitfall: a "current active count" statistic must be updated at every
+  // removal site, not only the one explicit public API that happens to have
+  // direct access to the statistics struct -- an internal removal path needs
+  // to report what it did, not just do it.
+  fn events_process(&mut self) -> usize {
+    let mut unsubscribed = 0;
+
     while let Some(event) = self.pending_events.pop_front() {
       let mut listeners_to_remove = Vec::new();
-      
+
       for listener in &self.listeners {
         match (listener.listener)(&event) {
           EventResult::Continue => {}
           EventResult::Consume => break,
+          // Fix(BUG-137)
+          // Root cause: this arm queued the listener for removal but never
+          // `break`, so the same event kept propagating to lower-priority
+          // listeners in this loop -- contradicting `EventResult::Unsubscribe`'s
+          // own doc comment ("Stop processing and remove this listener"),
+          // whose "stop processing" half was never implemented.
+          // Pitfall: `Unsubscribe` must halt propagation for the CURRENT event
+          // exactly like `Consume` does -- removal from `self.listeners` is a
+          // separate, deferred concern (handled below, after the loop) and must
+          // not be conflated with whether the current event keeps propagating.
           EventResult::Unsubscribe => {
             listeners_to_remove.push(listener.id);
+            break;
           }
         }
       }
-      
+
       // Remove listeners that requested unsubscription
+      unsubscribed += listeners_to_remove.len();
       for id in listeners_to_remove {
-        self.remove_listener(id);
+        self.listener_remove(id);
       }
     }
+
+    unsubscribed
   }
 
   fn listener_count(&self) -> usize {
@@ -209,15 +238,15 @@ impl<T> Default for EventChannel<T> {
 
 /// Type-erased event channel for storage in the event bus.
 trait AnyEventChannel: Send + Sync {
-  fn process_events(&mut self);
+  fn events_process(&mut self) -> usize;
   fn listener_count(&self) -> usize;
   fn pending_count(&self) -> usize;
   fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
 impl<T: Event> AnyEventChannel for EventChannel<T> {
-  fn process_events(&mut self) {
-    EventChannel::process_events(self);
+  fn events_process(&mut self) -> usize {
+    EventChannel::events_process(self)
   }
 
   fn listener_count(&self) -> usize {
@@ -262,8 +291,8 @@ impl EventBus {
     T: Event,
     F: Fn(&T) -> EventResult + Send + Sync + 'static,
   {
-    let channel = self.get_or_create_channel::<T>();
-    let id = channel.add_listener(Box::new(listener), priority);
+    let channel = self.channel_get_or_create::<T>();
+    let id = channel.listener_add(Box::new(listener), priority);
     self.statistics.total_subscribers += 1;
     id
   }
@@ -273,7 +302,7 @@ impl EventBus {
     let type_id = TypeId::of::<T>();
     if let Some(channel) = self.channels.get_mut(&type_id) {
       if let Some(channel) = channel.as_any_mut().downcast_mut::<EventChannel<T>>() {
-        if channel.remove_listener(id) {
+        if channel.listener_remove(id) {
           self.statistics.total_subscribers = self.statistics.total_subscribers.saturating_sub(1);
           return true;
         }
@@ -284,14 +313,14 @@ impl EventBus {
 
   /// Publishes an event to all subscribers.
   pub fn publish<T: Event>(&mut self, event: T) {
-    let channel = self.get_or_create_channel::<T>();
+    let channel = self.channel_get_or_create::<T>();
     channel.publish(event);
     self.statistics.events_published += 1;
   }
 
   /// Publishes multiple events of the same type.
-  pub fn publish_batch<T: Event>(&mut self, events: Vec<T>) {
-    let channel = self.get_or_create_channel::<T>();
+  pub fn batch_publish<T: Event>(&mut self, events: Vec<T>) {
+    let channel = self.channel_get_or_create::<T>();
     let event_count = events.len() as u64;
     for event in events {
       channel.publish(event);
@@ -300,26 +329,41 @@ impl EventBus {
   }
 
   /// Processes all pending events across all channels.
-  pub fn process_events(&mut self) {
+  pub fn events_process(&mut self) {
     let mut events_processed = 0;
-    
+    let mut unsubscribed = 0;
+
     for channel in self.channels.values_mut() {
       let pending_before = channel.pending_count();
-      channel.process_events();
+      unsubscribed += channel.events_process();
       events_processed += pending_before;
     }
-    
+
     self.statistics.events_processed += events_processed as u64;
     self.statistics.process_cycles += 1;
+    // Fix(BUG-268): a listener that self-unsubscribed by returning
+    // `EventResult::Unsubscribe` during processing was removed from the
+    // channel here but never reflected in `total_subscribers` -- only the
+    // explicit `unsubscribe()` API path decremented it, so the statistic
+    // silently drifted above the real listener count for every automatic
+    // removal.
+    // Root cause: `EventChannel::events_process` used to return `()`, giving
+    // this method no way to learn how many listeners it had just removed.
+    // Pitfall: see the fix comment on `EventChannel::events_process` for the
+    // full explanation of why the count needed to be threaded through.
+    self.statistics.total_subscribers = self.statistics.total_subscribers.saturating_sub(unsubscribed as u64);
   }
 
   /// Processes events for a specific event type only.
-  pub fn process_events_for_type<T: Event>(&mut self) {
+  pub fn events_for_type_process<T: Event>(&mut self) {
     let type_id = TypeId::of::<T>();
     if let Some(channel) = self.channels.get_mut(&type_id) {
       let pending_before = channel.pending_count();
-      channel.process_events();
+      let unsubscribed = channel.events_process();
       self.statistics.events_processed += pending_before as u64;
+      // Fix(BUG-268): same drift as `events_process` above, scoped to a
+      // single event type's channel -- see that method's fix comment.
+      self.statistics.total_subscribers = self.statistics.total_subscribers.saturating_sub(unsubscribed as u64);
     }
   }
 
@@ -330,7 +374,7 @@ impl EventBus {
   }
 
   /// Resets statistics counters.
-  pub fn reset_statistics(&mut self) {
+  pub fn statistics_reset(&mut self) {
     self.statistics = EventStatistics::default();
   }
 
@@ -378,7 +422,7 @@ impl EventBus {
 
   // Private helper methods
 
-  fn get_or_create_channel<T: Event>(&mut self) -> &mut EventChannel<T> {
+  fn channel_get_or_create<T: Event>(&mut self) -> &mut EventChannel<T> {
     let type_id = TypeId::of::<T>();
     self.channels.entry(type_id)
       .or_insert_with(|| Box::new(EventChannel::<T>::new()))

@@ -20,7 +20,7 @@ fn benchmark_astar_hexagonal( c : &mut Criterion )
 {
   let mut group = c.benchmark_group( "astar_hexagonal" );
 
-  for distance in [ 5, 10, 20, 50 ].iter()
+  for distance in &[ 5, 10, 20, 50 ]
   {
   group.bench_with_input( BenchmarkId::new( "straight_line", distance ), distance, |b, &distance|
   {
@@ -52,7 +52,7 @@ fn benchmark_astar_square( c : &mut Criterion )
 {
   let mut group = c.benchmark_group( "astar_square_4connected" );
 
-  for distance in [ 5, 10, 20, 50 ].iter()
+  for distance in &[ 5, 10, 20, 50 ]
   {
   group.bench_with_input( BenchmarkId::new( "straight_line", distance ), distance, |b, &distance|
   {
@@ -81,7 +81,7 @@ fn benchmark_astar_square( c : &mut Criterion )
 
   let mut group8 = c.benchmark_group( "astar_square_8connected" );
 
-  for distance in [ 5, 10, 20, 50 ].iter()
+  for distance in &[ 5, 10, 20, 50 ]
   {
   group8.bench_with_input( BenchmarkId::new( "straight_line", distance ), distance, |b, &distance|
   {
@@ -113,7 +113,7 @@ fn benchmark_astar_triangular( c : &mut Criterion )
 {
   let mut group = c.benchmark_group( "astar_triangular" );
 
-  for distance in [ 5, 10, 20 ].iter() // Fewer distances due to higher neighbor count
+  for distance in &[ 5, 10, 20 ] // Fewer distances due to higher neighbor count
   {
   group.bench_with_input( BenchmarkId::new( "straight_line", distance ), distance, |b, &distance|
   {
@@ -134,7 +134,7 @@ fn benchmark_astar_isometric( c : &mut Criterion )
 {
   let mut group = c.benchmark_group( "astar_isometric" );
 
-  for distance in [ 5, 10, 20, 50 ].iter()
+  for distance in &[ 5, 10, 20, 50 ]
   {
   group.bench_with_input( BenchmarkId::new( "straight_line", distance ), distance, |b, &distance|
   {
@@ -173,7 +173,7 @@ fn benchmark_astar_with_obstacles( c : &mut Criterion )
   !( coord.x % 3 == 1 && coord.y % 2 == 1 )
   };
 
-  for distance in [ 10, 20, 30 ].iter()
+  for distance in &[ 10, 20, 30 ]
   {
   group.bench_with_input( BenchmarkId::new( "maze_pathfinding", distance ), distance, |b, &distance|
   {
@@ -199,15 +199,14 @@ fn benchmark_astar_variable_costs( c : &mut Criterion )
   {
   match ( coord.q.abs() + coord.r.abs() ) % 4
   {
-    0 => 1, // Plains
     1 => 2, // Hills
     2 => 3, // Forests
     3 => 5, // Mountains
-    _ => 1,
+    _ => 1, // Plains ( and the unreachable remainder of `% 4` )
   }
   };
 
-  for distance in [ 10, 20, 30 ].iter()
+  for distance in &[ 10, 20, 30 ]
   {
   group.bench_with_input( BenchmarkId::new( "varied_terrain", distance ), distance, |b, &distance|
   {

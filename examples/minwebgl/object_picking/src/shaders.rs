@@ -21,7 +21,7 @@ impl ObjectShader
     let vertex_shader = include_str!( "shaders/object.vert" );
     let fragment_shader = include_str!( "shaders/object.frag" );
     let program = gl::ProgramFromSources::new( vertex_shader, fragment_shader )
-    .compile_and_link( &gl )
+    .compile_and_link( gl )
     .unwrap();
     let model = gl.get_uniform_location( &program, "u_model" );
     let projection_view = gl.get_uniform_location( &program, "u_projection_view" );
@@ -48,7 +48,7 @@ impl OutlineShader
     let vertex_shader = include_str!( "shaders/outline.vert" );
     let fragment_shader = include_str!( "shaders/outline.frag" );
     let program = gl::ProgramFromSources::new( vertex_shader, fragment_shader )
-    .compile_and_link( &gl )
+    .compile_and_link( gl )
     .unwrap();
     let mvp = gl.get_uniform_location( &program, "u_mvp" );
 
@@ -74,7 +74,7 @@ impl IdShader
     let vertex_shader = include_str!( "shaders/id.vert" );
     let fragment_shader = include_str!( "shaders/id.frag" );
     let program = gl::ProgramFromSources::new( vertex_shader, fragment_shader )
-    .compile_and_link( &gl )
+    .compile_and_link( gl )
     .unwrap();
     let mvp = gl.get_uniform_location( &program, "u_mvp" );
     let id = gl.get_uniform_location( &program, "u_id" );

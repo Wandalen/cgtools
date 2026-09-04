@@ -11,12 +11,9 @@
 //! `minwebgl` ) exist on wasm32 only, like the drivers they wrap; the
 //! `native` backend ( `wgpu` via `minwgpu` ) exists everywhere else and
 //! renders into an offscreen texture readable through
-//! `Surface::read_pixels`.
+//! `Surface::pixels_read`.
 #![ doc( html_root_url = "https://docs.rs/gpu_hal/latest/gpu_hal/" ) ]
 #![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
-#![ allow( clippy::missing_inline_in_public_items ) ] // Backend methods delegate to per-backend impls; inlining is a codegen/LTO decision, not a per-method one.
-#![ allow( clippy::exhaustive_structs ) ] // Literal construction of descriptor/config structs is the public API contract.
-#![ allow( clippy::exhaustive_enums ) ] // Callers must handle every backend/format variant explicitly; hiding future variants would silently break that.
 
 #[ cfg( feature = "enabled" ) ]
 mod private {}
@@ -41,9 +38,24 @@ mod private {}
   #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
   layer webgl;
 
+  /// Build-time-only WGSL→GLSL ES 300 translation for gpu_hal's WebGL
+  /// backend, for use as a `build.rs` build-dependency. Independent of the
+  /// `webgl` feature and its wasm32-only deps, so it compiles on any host
+  /// regardless of the final target.
+  #[ cfg( feature = "webgl-glsl-build" ) ]
+  layer webgl_build;
+
   /// Native wgpu backend mappings and readback internals.
   #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
   layer native;
+
+  /// Native Vulkan ( `ash` ) backend mappings, resource creation and readback
+  /// internals. Deliberately independent of `native`/`wgpu` — see
+  /// docs/adr/004_native_vulkan_hal_backend.md.
+  #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+  #[ allow( unsafe_code, reason = "raw Vulkan FFI backend module -- every `ash` call is inherently \
+unsafe ; each call site carries its own `// SAFETY:` comment" ) ]
+  layer vulkan;
 
   /// GPU resource handles: buffers, textures, samplers, shaders, bindings,
   /// pipelines.
@@ -51,7 +63,8 @@ mod private {}
   (
     all( feature = "webgpu", target_arch = "wasm32" ),
     all( feature = "webgl", target_arch = "wasm32" ),
-    all( feature = "native", not( target_arch = "wasm32" ) )
+    all( feature = "native", not( target_arch = "wasm32" ) ),
+    all( feature = "vulkan", not( target_arch = "wasm32" ) )
   ) ) ]
   layer resource;
 
@@ -60,7 +73,8 @@ mod private {}
   (
     all( feature = "webgpu", target_arch = "wasm32" ),
     all( feature = "webgl", target_arch = "wasm32" ),
-    all( feature = "native", not( target_arch = "wasm32" ) )
+    all( feature = "native", not( target_arch = "wasm32" ) ),
+    all( feature = "vulkan", not( target_arch = "wasm32" ) )
   ) ) ]
   layer device;
 
@@ -69,7 +83,8 @@ mod private {}
   (
     all( feature = "webgpu", target_arch = "wasm32" ),
     all( feature = "webgl", target_arch = "wasm32" ),
-    all( feature = "native", not( target_arch = "wasm32" ) )
+    all( feature = "native", not( target_arch = "wasm32" ) ),
+    all( feature = "vulkan", not( target_arch = "wasm32" ) )
   ) ) ]
   layer pass;
 }

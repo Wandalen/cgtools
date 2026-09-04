@@ -1,4 +1,10 @@
-use super::*;
+use super::
+{
+  Filter,
+  FilterRenderer,
+  gl,
+  default_render_pass,
+};
 use serde::{ Serialize, Deserialize };
 
 #[ derive( Debug, Serialize, Deserialize ) ]
@@ -32,7 +38,7 @@ impl Filter for Gamma
   {
     let gl = renderer.gl();
     let inv_gamma_location = gl.get_uniform_location( renderer.get_program(), "u_inv_gamma" );
-    gl.use_program( Some( &renderer.get_program() ) );
+    gl.use_program( Some( renderer.get_program() ) );
     gl::uniform::upload( gl, inv_gamma_location, &( 1.0 / self.gamma ) ).unwrap();
     default_render_pass( renderer );
   }

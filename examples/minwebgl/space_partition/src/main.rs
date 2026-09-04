@@ -24,7 +24,7 @@ struct Settings
 }
 
 /// Generates points in 0.0..1.0 range
-fn generate_points( num_points : usize ) -> Vec< impls::Point2D >
+fn points_generate( num_points : usize ) -> Vec< impls::Point2D >
 {
   let mut points = Vec::with_capacity( num_points );
   for i in 0..num_points
@@ -37,18 +37,15 @@ fn generate_points( num_points : usize ) -> Vec< impls::Point2D >
 }
 
 /// Apply aspect ratio to the provided value
-fn apply_aspect_ratio( x : f32, aspect : f32 ) -> f32
+fn aspect_ratio_apply( x : f32, aspect : f32 ) -> f32
 {
   let x = x * 2.0 - 1.0;
   let x = x * aspect;
   f32::midpoint( x, 1.0 )
 }
 
-// 240 lines : one linear WebGL/KD-tree setup followed by the frame-loop closure sharing
-// captured state ( gl, trees, lines, colors ); splitting would scatter tightly-coupled
-// locals across artificial helper parameters.
-#[ allow( clippy::too_many_lines ) ]
-fn run() -> Result< (), gl::WebglError >
+#[ allow( clippy::too_many_lines, reason = "240 lines : one linear WebGL/KD-tree setup followed by the frame-loop closure sharing captured state ( gl, trees, lines, colors ); splitting would scatter tightly-coupled locals across artificial helper parameters" ) ]
+fn app_run() -> Result< (), gl::WebglError >
 {
   const NUM_POINTS : usize = 500;
 
@@ -56,10 +53,9 @@ fn run() -> Result< (), gl::WebglError >
   let canvas = gl::canvas::make()?;
   let gl = gl::context::from_canvas( &canvas )?;
 
-  // Canvas dimensions are small pixel values; casting to f32 for GL math is always safe here.
-  #[ allow( clippy::cast_precision_loss ) ]
+  #[ allow( clippy::cast_precision_loss, reason = "canvas dimensions are small pixel values; casting to f32 for GL math is always safe here" ) ]
   let width = canvas.width() as f32;
-  #[ allow( clippy::cast_precision_loss ) ]
+  #[ allow( clippy::cast_precision_loss, reason = "canvas dimensions are small pixel values; casting to f32 for GL math is always safe here" ) ]
   let height = canvas.height() as f32;
 
   let aspect = width / height;
@@ -81,10 +77,10 @@ fn run() -> Result< (), gl::WebglError >
   let view_matrix = gl::math::mat3x3::identity();
 
 
-  let mut points = generate_points( NUM_POINTS );
+  let mut points = points_generate( NUM_POINTS );
   for p in &mut points
   {
-    p.0.0[ 0 ] = apply_aspect_ratio( p.0.0[ 0 ], aspect );
+    p.0.0[ 0 ] = aspect_ratio_apply( p.0.0[ 0 ], aspect );
   }
   let mut colors = vec![ gl::F32x3::splat( 0.0 ); NUM_POINTS ];
 
@@ -100,8 +96,10 @@ fn run() -> Result< (), gl::WebglError >
 
   let points_vao = gl::vao::create( &gl )?;
   gl.bind_vertex_array( Some( &points_vao ) );
-  gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 0 ).stride( 2 ).divisor( 0 ).attribute_pointer( &gl, 0, &positions_buffer )?;
-  gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 0 ).stride( 3 ).divisor( 0 ).attribute_pointer( &gl, 1, &colors_buffer )?;
+  let position_attr = mingl::VertexAttribute::new( 0, mingl::VectorDataType::new( mingl::DataType::F32, 2, 1 ), 0 );
+  gl::BufferDescriptor::from_vector( position_attr.vector ).offset( position_attr.offset ).stride( 2 ).divisor( 0 ).attribute_pointer( &gl, position_attr.location, &positions_buffer )?;
+  let color_attr = mingl::VertexAttribute::new( 1, mingl::VectorDataType::new( mingl::DataType::F32, 3, 1 ), 0 );
+  gl::BufferDescriptor::from_vector( color_attr.vector ).offset( color_attr.offset ).stride( 3 ).divisor( 0 ).attribute_pointer( &gl, color_attr.location, &colors_buffer )?;
 
   gl.use_program( Some( &point_program ) );
   gl::uniform::matrix_upload( &gl, gl.get_uniform_location( &point_program, "projectionMatrix" ), &projection_matrix.to_array(), true )?;
@@ -127,12 +125,12 @@ fn run() -> Result< (), gl::WebglError >
   };
 
   let object = serde_wasm_bindgen::to_value( &settings ).unwrap();
-  let gui = lil_gui::new_gui();
+  let gui = lil_gui::gui_new();
 
   let settings = Rc::new( RefCell::new( settings ) );
 
   // Search type
-  let prop = lil_gui::add_dropdown( &gui, &object, "Search type", &serde_wasm_bindgen::to_value( &[ "KNN", "Range" ] ).unwrap() );
+  let prop = lil_gui::dropdown_add( &gui, &object, "Search type", &serde_wasm_bindgen::to_value( &[ "KNN", "Range" ] ).unwrap() );
   let callback = Closure::new
   (
     {
@@ -148,16 +146,14 @@ fn run() -> Result< (), gl::WebglError >
   callback.forget();
 
   // K Neighbours
-  let prop = lil_gui::add_slider( &gui, &object, "K Neighbours", 0.0, 100.0, 1.0 );
+  let prop = lil_gui::slider_add( &gui, &object, "K Neighbours", 0.0, 100.0, 1.0 );
   let callback = Closure::new
   (
     {
       let settings = settings.clone();
       move | value : f32 |
       {
-        // `value` is UI-slider-bound to [0.0, 100.0] (see the "K Neighbours" slider above),
-        // always non-negative and well within usize range.
-        #[ allow( clippy::cast_possible_truncation, clippy::cast_sign_loss ) ]
+        #[ allow( clippy::cast_possible_truncation, clippy::cast_sign_loss, reason = "value is UI-slider-bound to [0.0, 100.0] (see the K Neighbours slider above), always non-negative and well within usize range" ) ]
         let k_neighbours = value as usize;
         settings.borrow_mut().k_neighbours = k_neighbours;
       }
@@ -167,7 +163,7 @@ fn run() -> Result< (), gl::WebglError >
   callback.forget();
 
   // Range radius
-  let prop = lil_gui::add_slider( &gui, &object, "Range radius", 0.0, 1.0, 0.01 );
+  let prop = lil_gui::slider_add( &gui, &object, "Range radius", 0.0, 1.0, 0.01 );
   let callback = Closure::new
   (
     {
@@ -190,10 +186,9 @@ fn run() -> Result< (), gl::WebglError >
     let settings = settings.clone();
     move | _ : f64 |
     {
-      // Canvas dimensions are small pixel values; casting to f32 for GL math is always safe here.
-      #[ allow( clippy::cast_precision_loss ) ]
+      #[ allow( clippy::cast_precision_loss, reason = "canvas dimensions are small pixel values; casting to f32 for GL math is always safe here" ) ]
       let width = canvas.width() as f32;
-      #[ allow( clippy::cast_precision_loss ) ]
+      #[ allow( clippy::cast_precision_loss, reason = "canvas dimensions are small pixel values; casting to f32 for GL math is always safe here" ) ]
       let height = canvas.height() as f32;
 
       for c in &mut colors
@@ -201,13 +196,12 @@ fn run() -> Result< (), gl::WebglError >
         *c = gl::F32x3::splat( 0.0 );
       }
 
-      input.update_state();
+      input.state_update();
       let mouse_pos = input.pointer_position();
-      // Pointer coordinates are small pixel values; casting to f32 for GL math is always safe here.
-      #[ allow( clippy::cast_precision_loss ) ]
+      #[ allow( clippy::cast_precision_loss, reason = "pointer coordinates are small pixel values; casting to f32 for GL math is always safe here" ) ]
       let mut mouse_pos = gl::F32x2::new( mouse_pos.0[ 0 ] as f32, height - mouse_pos.0[ 1 ] as f32 ) / gl::F32x2::new( width, height );
 
-      mouse_pos.0[ 0 ] = apply_aspect_ratio( mouse_pos.0[ 0 ], aspect );
+      mouse_pos.0[ 0 ] = aspect_ratio_apply( mouse_pos.0[ 0 ], aspect );
 
       let neighbours =
       match settings.borrow().search.as_str()
@@ -244,7 +238,7 @@ fn run() -> Result< (), gl::WebglError >
         colors[ neighbours[ i ].1 ] = gl::F32x3::new( 0.0, 1.0, 0.0 );
       }
 
-      input.clear_events();
+      input.events_clear();
 
       gl::buffer::upload( &gl, &colors_buffer, &colors.iter().flat_map( gl::Vector::to_array ).collect::< Vec< f32 > >(), gl::DYNAMIC_DRAW );
 
@@ -255,8 +249,7 @@ fn run() -> Result< (), gl::WebglError >
       // Draw points
       gl.use_program( Some( &point_program ) );
       gl.bind_vertex_array( Some( &points_vao ) );
-      // `NUM_POINTS` is a small compile-time constant (500); always fits i32.
-      #[ allow( clippy::cast_possible_truncation, clippy::cast_possible_wrap ) ]
+      #[ allow( clippy::cast_possible_truncation, clippy::cast_possible_wrap, reason = "NUM_POINTS is a small compile-time constant (500); always fits i32" ) ]
       gl.draw_arrays( gl::POINTS, 0, NUM_POINTS as i32 );
 
       match settings.borrow().search.as_str()
@@ -291,5 +284,5 @@ fn run() -> Result< (), gl::WebglError >
 
 fn main()
 {
-  run().unwrap();
+  app_run().unwrap();
 }

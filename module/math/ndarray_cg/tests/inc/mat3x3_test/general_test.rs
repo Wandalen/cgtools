@@ -16,7 +16,7 @@ use the_module::
 
 // `determinant` on these small-integer-valued matrices only sums/subtracts products of
 // exactly-representable integers — no rounding is possible, so exact equality is correct.
-#[ allow( clippy::float_cmp ) ]
+#[ expect( clippy::float_cmp, reason = "assertions check exact expected values; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
 fn test_determinant_generic< Descriptor : mat::Descriptor > ()
 where
   Mat3< f32, Descriptor > :
@@ -140,6 +140,43 @@ fn test_truncate_column_major()
   test_truncate_generic::< mat::DescriptorOrderColumnMajor >();
 }
 
+// test_kind: bug_reproducer(BUG-287)
+/// ## Root Cause
+/// `Mat3::truncate()`'s doc comment ("Convertes this matrix into the 3x3 matrix") was copy-pasted
+/// from `Mat4::truncate()` (a real 4x4 -> 3x3 conversion, where that text is correct) without
+/// updating it for this type's own 3x3 -> 2x2 conversion -- the doc claimed the wrong output shape
+/// while the signature, and the runtime behavior already covered by `test_truncate_generic` above,
+/// always returned `Mat<2,2,...>` correctly.
+/// ## Why Not Caught
+/// `test_truncate_row_major`/`test_truncate_column_major` above already assert the correct 2x2
+/// runtime behavior, but none of them read the doc comment itself -- a doc string carries zero
+/// compiler enforcement, so a behaviorally-correct function can carry an arbitrarily wrong
+/// description indefinitely with every runtime test still green.
+/// ## Fix Applied
+/// Reworded the doc comment to "Converts this matrix into the 2x2 matrix, dropping the last row
+/// and column" (`d2/mat3x3/general.rs`); no behavioral change.
+/// ## Prevention
+/// For any method whose doc was copy-pasted from a sibling (same method name, different type),
+/// diff the doc text against the actual return type in the signature, not just re-check the
+/// sibling's own correctness.
+/// ## Pitfall
+/// This class of bug is invisible to every runtime test, however thorough -- only a check that
+/// reads the source text itself (as this test does via `include_str!`) or a human doc review
+/// can catch it.
+#[ test ]
+fn truncate_doc_matches_2x2_output()
+{
+  let src = include_str!( "../../../src/d2/mat3x3/general.rs" );
+  let fn_pos = src.find( "pub fn truncate" ).expect( "Mat3::truncate must exist" );
+  let preceding = &src[ ..fn_pos ];
+  let doc_line = preceding.lines().rev()
+    .find( | line | line.trim_start().starts_with( "///" ) )
+    .expect( "truncate() must have a doc comment" );
+
+  assert!( doc_line.contains( "2x2" ), "doc comment must describe the actual 2x2 return shape, got: {doc_line:?}" );
+  assert!( !doc_line.contains( "3x3" ), "doc comment must not claim a 3x3 return shape (BUG-287), got: {doc_line:?}" );
+}
+
 fn test_from_quat_generic< Descriptor >()
 where
   Descriptor : mat::Descriptor + PartialEq,
@@ -222,7 +259,7 @@ fn test_identity_column_major()
 
 // `to_homogenous` only copies existing elements and inserts exact 0.0/1.0 padding — no
 // arithmetic, so the result is bit-identical to the literal arrays compared against.
-#[ allow( clippy::float_cmp ) ]
+#[ expect( clippy::float_cmp, reason = "assertions check exact expected values; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
 fn test_to_homogenous_generic< Descriptor : mat::Descriptor >()
 where
   Mat4< f32, Descriptor > :

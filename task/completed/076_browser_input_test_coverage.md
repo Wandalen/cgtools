@@ -10,7 +10,7 @@
 - **round:** 1
 - **state:** ✅ (Completed)
 - **closes:** null
-- **unit_type:** crate
+- **unit_type:** module
 - **unit:** module/helper/browser_input
 - **verified_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
 - **verification_date:** 2026-08-10
@@ -29,6 +29,48 @@ Per-test procedure (uniform across the 035 decomposition):
    second copy.
 3. Verify with `longrun .launch dir::<workspace root> -- cargo test -p browser_input --all-features` —
    all green before and after each relocation batch.
+
+## In Scope
+
+- `module/helper/browser_input` (crate `browser_input`): relocate the 6 inline `#[ test ]` fns in
+  `src/input.rs` — covering `PointerType::from_dom_str` (mouse/touch/pen strings, empty-string,
+  unrecognised-string, all → `Unknown`) and the `Unknown` default — into a new
+  `tests/pointer_type_test.rs`
+- Unify the crate's `tests/` directory convention: create `tests/readme.md` (Responsibility
+  Table, triggered by reaching 3 entries) and update the stale `last_pointer_type` doc comment to
+  reference the new test location
+
+## Out of Scope
+
+- `tests/active_pointers_test.rs`'s existing 7 pointer-tracking tests — pre-existing coverage in
+  a distinct domain, left untouched
+- Keeping any test inline as a "documented exception" — not needed here since the entire tested
+  surface (`PointerType` enum, `from_dom_str` fn) is public (zero exceptions, zero consolidations)
+
+## Verification
+
+### Checklist
+
+- [x] C1 — Are all 6 inline tests genuinely relocated (zero remaining in `src/`)? `grep -rn "#\[ test \]" src/` → 0 hits; `grep -c "mod tests" src/input.rs` → 0.
+- [x] C2 — Does `tests/pointer_type_test.rs` contain exactly the 6 claimed tests (mouse/touch/pen, empty-string, unrecognised-string, and the `Unknown` default), bodies verbatim? Read in full: 6 `#[ test ]` fns — `from_dom_str_mouse`, `from_dom_str_touch`, `from_dom_str_pen`, `from_dom_str_empty_string_is_unknown`, `from_dom_str_unrecognised_is_unknown`, `default_is_unknown` — plus a module doc comment stating "Relocated from `src/input.rs` by task 076 ( bodies verbatim )".
+- [x] C3 — Was `tests/readme.md` genuinely created (the directory-reaching-3-entries trigger)? File exists with a Responsibility Table listing exactly 3 rows: `active_pointers_test.rs`, `manual/`, `pointer_type_test.rs`.
+- [x] C4 — Was the `last_pointer_type` doc comment updated to point at the new test location? `src/input.rs`'s doc comment above `pub fn last_pointer_type` reads "The string-to-variant mapping is covered by the `from_dom_str` pins in `tests/pointer_type_test.rs`."
+- [x] C5 — Did the relocation genuinely run natively, resolving the draft's own "wasm-leaning crate, confirm native runnability" open question? Confirmed by this session's own `cargo test -p browser_input --all-features` run: `pointer_type_test` executed and passed as a plain native binary (`running 6 tests` / `test result: ok. 6 passed`), no wasm32 target involved.
+
+### Measurements
+
+- [x] M1 — Inline `#[test]` count in `src/`: `0` (was: `6`, per the Goal's own pickup census) — confirmed both by `grep -rn "#\[ test \]" src/` (0 hits) and by this session's test run reporting `running 0 tests` for `unittests src/lib.rs`.
+- [x] M2 — `tests/` directory entries tracked in its Responsibility Table: `3` (was: `1`, `active_pointers_test.rs` alone per the Goal's census) — `tests/pointer_type_test.rs` and `tests/readme.md` both new.
+
+### Invariants
+
+- [x] I1 — Test suite (crate-scoped): `cargo test -p browser_input --all-features` → exit 0; unittests 0/0 (module genuinely emptied), `active_pointers_test` 7/7, `pointer_type_test` 6/6, doc-tests 0/0.
+- [x] I2 — Compiler/lints clean: `cargo clippy -p browser_input --all-targets --all-features -- -D warnings` → exit 0, zero warnings.
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against a future contributor re-adding an inline `#[cfg(test)] mod tests` block in `src/input.rs` that duplicates `pointer_type_test.rs`'s coverage instead of extending the relocated file: re-running C1's grep for `#[ test ]`/`mod tests` under `src/` after any future `input.rs` edit must still return 0.
+- [x] AF2 — Guards against `tests/readme.md`'s Responsibility Table silently drifting out of sync with `tests/`'s actual file contents (a new test file added with no row, or a row surviving a deleted file): the table's 2 file rows (excluding `manual/`) must always equal `ls tests/*.rs | wc -l`, currently `2` on both sides.
 
 ## History
 

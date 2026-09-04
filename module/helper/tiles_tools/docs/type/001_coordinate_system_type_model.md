@@ -33,18 +33,28 @@ Every grid coordinate type in `tiles_tools` is a thin wrapper around integer fie
 - **Two conflicting, independently-documented Y-axis conventions coexist.** `src/coordinates/pixel.rs:8`: *"It is assumed that the Y-axis points downwards"* (screen-space convention). `src/coordinates/square.rs:56`: *"y increases upward (mathematical convention)"* for `square::Coordinate`'s own axis. Both comments are deliberate, explicit design statements, not oversights in isolation — but nothing in the type system flags the boundary where a value crosses from one convention to the other (e.g. a `square::Coordinate` converted `to_pixel`/`to_screen`). A caller composing grid-space and pixel-space Y values directly (rather than through a provided conversion) can silently invert vertical direction.
 - **The phantom-type pattern only prevents *cross-topology* mixing.** It says nothing about whether a given coordinate's *field values* are individually valid — that is a per-type, per-invariant question. `triangular::Coordinate` is the one type in this table with a real field-value constraint (see `invariant/001`); the other four types accept any `i32` pair/values their constructors are given.
 
-### Invariants
-
-| File | Relationship |
-|------|--------------|
-| [invariant/001_triangular_coordinate_sum_constraint.md](../invariant/001_triangular_coordinate_sum_constraint.md) | The one field-value constraint among these five types, and how it interacts with the type's own constructors |
-
 ### Algorithms
 
 | File | Relationship |
 |------|--------------|
 | [algorithm/001_coordinate_distance_and_neighbor_formulas.md](../algorithm/001_coordinate_distance_and_neighbor_formulas.md) | `Distance`/`Neighbors` trait impls operate per-type on the marker combinations listed above |
+| [algorithm/002_generic_astar_pathfinding.md](../algorithm/002_generic_astar_pathfinding.md) | `C: Distance + Neighbors` bound is satisfied by any type in this table |
+| [algorithm/004_hexagon_geometry_generation.md](../algorithm/004_hexagon_geometry_generation.md) | Not a direct dependency — these generators take no coordinate-type parameter from this table; positioning with any type here is entirely the caller's responsibility |
 | [algorithm/005_coordinate_system_conversion.md](../algorithm/005_coordinate_system_conversion.md) | `Convert`/`ApproximateConvert` move values between these types (and to/from `Pixel`); the Y-axis conflict above is most visible at this boundary |
+
+### Data Structures
+
+| File | Relationship |
+|------|--------------|
+| [data_structure/001_grid2d_dense_hex_bounded_storage.md](../data_structure/001_grid2d_dense_hex_bounded_storage.md) | `Grid2D`'s `System`/`Orientation` parameters select among this table's hexagonal marker combinations only — not usable with any non-hexagonal type here |
+| [data_structure/002_spatial_quadtree.md](../data_structure/002_spatial_quadtree.md) | `SpatialCoordinate`'s two implementors ((i32, i32), `square::Coordinate<T>`) are a small subset of this table's full coordinate-type list |
+
+### Invariants
+
+| File | Relationship |
+|------|--------------|
+| [invariant/001_triangular_coordinate_sum_constraint.md](../invariant/001_triangular_coordinate_sum_constraint.md) | The one field-value constraint among these five types, and how it interacts with the type's own constructors |
+| [invariant/002_lattice_address_primacy.md](../invariant/002_lattice_address_primacy.md) | The phantom-typed coordinate families defined here are the typed lattice addresses that invariant requires as the sole storage authority |
 
 ### Types
 

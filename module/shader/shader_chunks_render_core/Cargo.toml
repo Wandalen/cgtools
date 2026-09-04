@@ -1,0 +1,18 @@
+[package]
+name = "shader_chunks_render_core"
+version = "0.1.0"
+edition = "2024"
+description = "Headless GPU rendering of shader-chunk preview bundles to raw RGBA pixels — one static frame of what the browser preview shows live"
+
+[dependencies]
+shader_chunks_preview_core.workspace = true
+minwgpu.workspace = true
+wgpu.workspace = true
+pollster.workspace = true
+mod_interface.workspace = true
+
+[dev-dependencies]
+shader_chunks_core = { workspace = true }
+
+[lints]
+workspace = true
