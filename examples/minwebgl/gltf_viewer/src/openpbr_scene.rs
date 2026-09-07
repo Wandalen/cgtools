@@ -56,6 +56,10 @@ pub fn sphere_with_surface( gl : &gl::WebGl2RenderingContext, surface : &OpenPbr
   let material = gltf.materials.first().cloned().expect( "sphere material exists" );
   let mut configured = PbrMaterial::new( gl );
   configured.openpbr_surface_apply( surface );
+  // The icosphere is a closed, outward-wound surface: cull its back faces so
+  // back-facing fragments don't z-fight / sparkle at the silhouette contour.
+  configured.cull_mode = Some( renderer::webgl::material::CullMode::Back );
+  configured.double_sided = false;
   *material.borrow_mut() = Box::new( configured );
 
   gltf
