@@ -13,7 +13,8 @@ use gl::wasm_bindgen::{ prelude::Closure, JsValue };
 use gl::js_sys::{ Object, Reflect };
 use renderer::webgl::
 {
-  post_processing::{ self, Pass, SwapFramebuffer }, Camera, Renderer, Scene
+  post_processing::{ self, Pass, SwapFramebuffer }, Camera, DirectLight, Light, Node, Object3D, PointLight,
+  Renderer, Scene, SpotLight
 };
 use renderer::webgl::loaders::openpbr_mtlx::openpbr_surfaces_from_mtlx;
 use renderer::webgl::material::OpenPbrSurface;
@@ -105,6 +106,15 @@ fn scene_fit_to_view( scene : &Rc< RefCell< Scene > > )
   scene.world_matrix_update();
 }
 
+/// Wraps a light in a node and adds it to the scene.
+fn light_add( scene : &Rc< RefCell< Scene > >, light : Light ) -> Rc< RefCell< Node > >
+{
+  let node = Rc::new( RefCell::new( Node::new() ) );
+  node.borrow_mut().object = Object3D::Light( light );
+  scene.borrow_mut().children.push( node.clone() );
+  node
+}
+
 /// (Re)loads whatever `state.choice` selects into `state.scene`.
 async fn scene_load
 (
@@ -118,10 +128,30 @@ async fn scene_load
   if choice.mode == MODE_OPENPBR
   {
     // OpenPBR test mode — render the icosphere with a real `.mtlx` surface
-    // through the OpenPbrSurface → PbrMaterial runtime bridge.
+    // through the OpenPbrSurface → PbrMaterial runtime bridge, lit by a small
+    // studio rig ( no env reflection, so the material's own response is easy
+    // to read ).
     let surface = openpbr_material_surface( &choice.material );
     let gltf = openpbr_scene::sphere_with_surface( gl, &surface );
+
+    if let Some( material ) = gltf.materials.first()
+    {
+      let mut material = renderer::webgl::cast_unchecked_material_to_ref_mut::< renderer::webgl::material::PbrMaterial >( material.borrow_mut() );
+      material.need_use_ibl_set( false );
+    }
+
     let scene = gltf.scenes.into_iter().next().expect( "sphere scene exists" );
+
+    // Key + rim directional.
+    light_add( &scene, Light::Direct( DirectLight { direction : gl::math::F32x3::from( [ 0.6, 0.75, 0.3 ] ).normalize(), color : [ 1.0, 1.0, 1.0 ].into(), strength : 2.5 } ) );
+    light_add( &scene, Light::Direct( DirectLight { direction : gl::math::F32x3::from( [ -0.5, 0.4, -0.8 ] ).normalize(), color : [ 0.5, 0.6, 1.0 ].into(), strength : 1.0 } ) );
+    // Overhead point light.
+    light_add( &scene, Light::Point( PointLight { position : [ 0.0, 1.6, 1.0 ].into(), color : [ 1.0, 1.0, 1.0 ].into(), strength : 25.0, range : 4.0 } ) );
+    // Warm accent spot aimed at the origin.
+    let spot_pos = gl::math::F32x3::from( [ 1.6, 0.9, 1.4 ] );
+    let origin = gl::math::F32x3::from( [ 0.0, 0.0, 0.0 ] );
+    light_add( &scene, Light::Spot( SpotLight { position : spot_pos, direction : ( origin - spot_pos ).normalize(), color : [ 1.0, 0.85, 0.6 ].into(), strength : 30.0, range : 10.0, inner_cone_angle : 25.0_f32.to_radians(), outer_cone_angle : 45.0_f32.to_radians(), use_light_map : false } ) );
+
     scene_fit_to_view( &scene );
     *state.scene.borrow_mut() = Some( scene );
     return Ok( () );
