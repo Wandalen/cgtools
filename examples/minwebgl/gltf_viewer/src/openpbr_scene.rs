@@ -14,7 +14,8 @@ use renderer::webgl::{ cast_unchecked_material_to_ref_mut, loaders::gltf::GLTF, 
 /// the position ).
 fn icosphere_attributes( radius : f32 ) -> AttributesData
 {
-  let ( raw_positions, indices ) = primitive_generation::solid::icosphere();
+  // 4 subdivisions → 2562 vertices / 5120 faces: a smooth unit sphere.
+  let ( raw_positions, indices ) = primitive_generation::solid::icosphere_subdivided( 4 );
 
   let positions : Vec< [ f32; 3 ] > = raw_positions.iter()
   .map( | p | [ p[ 0 ] * radius, p[ 1 ] * radius, p[ 2 ] * radius ] )

@@ -171,6 +171,13 @@ mod private
   #[ must_use ]
   pub fn icosphere() -> ( Vec< [ f32; 3 ] >, Vec< u32 > )
   {
+    icosahedron_unit()
+  }
+
+  /// Base unit icosahedron shared by [`icosphere`] and
+  /// [`icosphere_subdivided`]: 12 vertices on the unit sphere, 20 faces.
+  fn icosahedron_unit() -> ( Vec< [ f32; 3 ] >, Vec< u32 > )
+  {
     let phi = ( 1.0 + 5.0f32.sqrt() ) * 0.5;
     let raw : [ [ f32; 3 ]; 12 ] =
     [
@@ -192,6 +199,74 @@ mod private
 
     ( positions, indices )
   }
+
+  /// Returns the index of the midpoint vertex of edge `(a, b)`, inserting a
+  /// unit-length vertex on the sphere if this edge is seen for the first time.
+  fn edge_midpoint
+  (
+    cache : &mut std::collections::HashMap< ( u32, u32 ), u32 >,
+    positions : &mut Vec< [ f32; 3 ] >,
+    a : u32,
+    b : u32
+  ) -> u32
+  {
+    let key = if a < b { ( a, b ) } else { ( b, a ) };
+    if let Some( &existing ) = cache.get( &key )
+    {
+      return existing;
+    }
+
+    let pa = positions[ a as usize ];
+    let pb = positions[ b as usize ];
+    let m = [ ( pa[ 0 ] + pb[ 0 ] ) * 0.5, ( pa[ 1 ] + pb[ 1 ] ) * 0.5, ( pa[ 2 ] + pb[ 2 ] ) * 0.5 ];
+    let len = ( m[ 0 ] * m[ 0 ] + m[ 1 ] * m[ 1 ] + m[ 2 ] * m[ 2 ] ).sqrt();
+    let mid = if len > 1e-9 { [ m[ 0 ] / len, m[ 1 ] / len, m[ 2 ] / len ] } else { m };
+
+    let index = positions.len() as u32;
+    positions.push( mid );
+    cache.insert( key, index );
+    index
+  }
+
+  /// One 1-to-4 subdivision pass: every triangular face is split at its edge
+  /// midpoints, so the face count quadruples and vertices stay on the unit
+  /// sphere.
+  fn subdivide_step( positions : &mut Vec< [ f32; 3 ] >, indices : &[ u32 ] ) -> Vec< u32 >
+  {
+    let mut cache = std::collections::HashMap::new();
+    let mut out = Vec::with_capacity( indices.len() * 4 );
+
+    for tri in indices.chunks_exact( 3 )
+    {
+      let a = tri[ 0 ];
+      let b = tri[ 1 ];
+      let c = tri[ 2 ];
+      let ab = edge_midpoint( &mut cache, positions, a, b );
+      let bc = edge_midpoint( &mut cache, positions, b, c );
+      let ca = edge_midpoint( &mut cache, positions, c, a );
+
+      out.extend_from_slice( &[ a, ab, ca, ab, b, bc, ca, bc, c, ab, bc, ca ] );
+    }
+
+    out
+  }
+
+  /// Unit-radius, loop-subdivided icosphere - a smooth sphere approximation.
+  ///
+  /// Vertex/face counts grow by `×4` faces per subdivision from the base
+  /// icosahedron ( `12` vertices / `20` faces ): subdivision `1` → `42`/`80`,
+  /// `2` → `162`/`320`, `3` → `642`/`1280`, `4` → `2562`/`5120`. Every vertex
+  /// lies on the unit sphere, so per-vertex normals equal the position.
+  #[ must_use ]
+  pub fn icosphere_subdivided( subdivisions : u8 ) -> ( Vec< [ f32; 3 ] >, Vec< u32 > )
+  {
+    let ( mut positions, mut indices ) = icosahedron_unit();
+    for _ in 0 .. subdivisions
+    {
+      indices = subdivide_step( &mut positions, &indices );
+    }
+    ( positions, indices )
+  }
 }
 
 crate::mod_interface!
@@ -202,5 +277,6 @@ crate::mod_interface!
     cylinder_mesh,
     torus_mesh,
     icosphere,
+    icosphere_subdivided
   };
 }
