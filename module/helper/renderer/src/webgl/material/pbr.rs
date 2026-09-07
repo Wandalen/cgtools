@@ -447,6 +447,53 @@ mod private
       self.need_use_ibl
     }
 
+    /// Replaces the OpenPBR extension carriers wholesale, refreshing the
+    /// shader-selection defines and marking the program for recompile.
+    pub fn openpbr_params_set( &mut self, params : OpenPbrParams )
+    {
+      self.openpbr_params = params;
+      self.defines_cache_rebuild();
+      self.needs_recompile.set( true );
+      self.needs_update.set( true );
+    }
+
+    /// Applies a canonical [`OpenPbrSurface`] ( from the native `.mtlx`/`.usda`
+    /// lane ) to this material so it renders through the existing `USE_OPENPBR`
+    /// path — the runtime inverse of the glTF-carrier read. Fields with no
+    /// glTF-shaped sink ( subsurface, transmission/volume, thin-film,
+    /// dispersion, emission luminance ) are left at their defaults until the
+    /// corresponding pipeline step lands ( see the crate adoption plan ).
+    pub fn openpbr_surface_apply( &mut self, surface : &crate::webgl::material::OpenPbrSurface )
+    {
+      let runtime = crate::webgl::material::openpbr_to_runtime( surface );
+
+      self.base_color_factor = gl::F32x4::from( runtime.base_color_rgba );
+      self.metallic_factor = runtime.base_metalness.clamp( 0.0, 1.0 );
+      self.roughness_factor = runtime.specular_roughness.clamp( 0.0, 1.0 );
+
+      // KHR specular / clearcoat / sheen toggles: `Some` only when the surface
+      // actually deviates ( setters refresh the defines either way ).
+      self.specular_factor_set( runtime.specular_weight );
+      self.specular_color_factor_set( runtime.specular_color.map( gl::F32x3::from ) );
+      self.set_clearcoat_factor( runtime.coat_weight );
+      self.set_clearcoat_roughness_factor( runtime.coat_roughness );
+
+      let mut params = OpenPbrParams::default();
+      if let Some( ior ) = runtime.specular_ior
+      {
+        params.ior = Some( ior );
+      }
+      if let Some( color ) = runtime.fuzz_color
+      {
+        params.sheen_color_factor = Some( color );
+      }
+      if let Some( roughness ) = runtime.fuzz_roughness
+      {
+        params.sheen_roughness_factor = Some( roughness );
+      }
+      self.openpbr_params_set( params );
+    }
+
     /// Sets the base color texture.
     pub fn base_color_texture_set( &mut self, value : Option< TextureInfo > )
     {

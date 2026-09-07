@@ -367,3 +367,59 @@ camera/lighting.
   energy gap: white-furnace total ≈ 1 for rough white surfaces, and rough-metal
   brightness/saturation matches offline Arnold renders of the ASWF metal `.mtlx`
   (gold/copper) rather than reading too dark.
+
+---
+
+## 6. Deferred / skipped — register (do not lose)
+
+Work consciously set aside during the current pass. Revisit when the item's
+prerequisite (named in brackets) is in place.
+
+### Formats & ingestion
+- **Full `openusd` Stage reader (N3 full)** — reads inline/embedded MaterialX
+  nodegraphs and real USD composition (references/payloads), which the N3-lite
+  `.usda` text resolver (§2.3) does **not** cover. Wasm spike passed (§2.2);
+  requires adding `openusd` + `openusd-schemas` (`shade`) as an optional
+  `native-formats` feature. [Prereq: none — next large format task]
+- **`mtlx_target` prim selection** — the N3-lite resolver returns each USD
+  material's `</…>` target, but the loader still parses the whole referenced
+  `.mtlx` (doc order) rather than selecting the surface named by that target.
+- **USD geometry / scene import** — the renderer is glTF-based; OpenPBR USD
+  scenes (meshes in `assets/*.usd`) are not imported. Only materials are read.
+  Browser display of full USD scenes needs a geometry lane or the N4 converter.
+- **`.usdc` / `.usdz` runtime** — binary layers and USDZ archives are offline /
+  `openusd`-only, not in the wasm path yet. [Prereq: N3 full]
+- **N4 authoring converter** — glTF+`KHR_materials_*` export (with the private
+  `OPENPBR_materials` JSON extension for non-KHR parameters) for DCC round-trips.
+
+### Shading / pipeline (from §3)
+- **Texture maps for the lobes** (§3.1) — `sheenColorTexture`,
+  `transmissionTexture`, `thicknessTexture`, `iridescence*`, diffuse-transmission
+  textures; also `geometry_normal`/`coat`/`tangent` map inputs encountered in
+  real `.mtlx` are skipped today (kept at defaults).
+- **Thin-film iridescence** (§3.2), **transmission/refraction pass** (§3.3),
+  **volume thickness + Beer–Lambert** (§3.4), **subsurface diffusion** (§3.5),
+  **dispersion** (§3.6) — all blocked/deferred as described in their sections.
+- **Kulla–Conty LUT** (§3.7) — designed + references recorded; not implemented.
+  Direct-light energy still uses single-scatter.
+- **Emission luminance** — glTF/KHR has no photometric carrier, so
+  `emission_luminance` is not mapped from glTF (OpenPBR spec default kept);
+  `KHR_materials_emissive_strength` only scales existing emission.
+- **Colour-space metadata** — `.mtlx` `colorspace="acescg"`/`lin_rec709`/
+  `Raw` attributes are parsed-and-ignored; no gamut conversion is applied
+  (values pass through as authored).
+- **OpenPBR lobes beyond the current shader subset** — the `USE_OPENPBR` shader
+  consumes glTF-shaped factors (base/MR + ior + fuzz + coat + emissive strength);
+  `OpenPbrSurface` fields without a glTF-shaped sink (subsurface, transmission
+  depth/scatter, thin-film, dispersion, `coat_darkening`, `base_diffuse_roughness`,
+  `geometry_thin_walled`) are parsed/stored but not yet evaluated.
+
+### Runtime / consumption
+- **`OpenPbrSurface → PbrMaterial` runtime mapping — DONE**:
+  `openpbr_to_runtime` (pure reduction, `tests/openpbr_runtime_mapping_test.rs`)
+  + `PbrMaterial::openpbr_surface_apply`, so a surface loaded from `.mtlx`/
+  `.usda` can render through the existing `USE_OPENPBR` path. **Still open**: a
+  browser-visible example/loader that brings a real geometry + material onto
+  the screen (asset or procedural-geometry decision pending).
+- **Browser/CI shader + visual gates** — `USE_OPENPBR` compile cases and
+  `browsee` pixel checks are not runnable in this environment; CI is the gate.

@@ -56,4 +56,5 @@
 | openpbr_mtlx_test.rs | Tests the MaterialX (`.mtlx`) OpenPBR Surface reader — ASWF example fixtures, defaults, multiple surfaces, error handling |
 | openpbr_gltf_mapping_test.rs | Tests the glTF-carrier → `OpenPbrSurface` mapping — factor correspondences, fixed-IOR clearcoat, implicit fuzz weight, clamping |
 | openpbr_usda_test.rs | Tests the `.usda` → `.mtlx` asset-reference resolver — OpenPBRShaderPlayground pattern, multiple refs per material, non-material ignoring |
+| openpbr_runtime_mapping_test.rs | Tests the `OpenPbrSurface → PbrMaterial` runtime reduction — conditional carriers, IOR-1.5 elision, disabled-layer handling |
 | unreal_bloom_tests.rs | Structural browser tests: `UnrealBloomPass` renders via the real `SwapFramebuffer`-bound pass cycle |

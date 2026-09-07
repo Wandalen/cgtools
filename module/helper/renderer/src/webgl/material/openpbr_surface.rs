@@ -388,6 +388,65 @@ mod private
 
     surface
   }
+
+  /// Runtime-facing factors that [`openpbr_to_runtime`] derives from a
+  /// canonical [`OpenPbrSurface`], shaped so a glTF-material consumer (
+  /// [`PbrMaterial`](crate::webgl::material::PbrMaterial) ) can render the
+  /// surface through the existing `USE_OPENPBR` path. `None`/default values are
+  /// left out so the consumer keeps its own defaults ( e.g. an OpenPBR surface
+  /// at IOR 1.5 needs no override — the legacy glTF F0 of 0.04 is the same
+  /// Fresnel ).
+  #[ derive( Clone, Debug, PartialEq ) ]
+  pub struct OpenPbrRuntime
+  {
+    /// `base_color` RGB + `geometry_opacity` as alpha ( linear RGBA ).
+    pub base_color_rgba : [ f32; 4 ],
+    /// `base_metalness`.
+    pub base_metalness : f32,
+    /// `specular_roughness`.
+    pub specular_roughness : f32,
+    /// `specular_ior` when it differs from the glTF/legacy default `1.5`.
+    pub specular_ior : Option< f32 >,
+    /// `specular_weight` when it differs from `1.0`.
+    pub specular_weight : Option< f32 >,
+    /// `specular_color` when it differs from white.
+    pub specular_color : Option< [ f32; 3 ] >,
+    /// `coat_weight` when the coat layer is enabled ( > 0 ).
+    pub coat_weight : Option< f32 >,
+    /// `coat_roughness` when the coat layer is enabled.
+    pub coat_roughness : Option< f32 >,
+    /// `fuzz_color` when the fuzz layer is enabled ( `fuzz_weight` > 0 ).
+    pub fuzz_color : Option< [ f32; 3 ] >,
+    /// `fuzz_roughness` when the fuzz layer is enabled.
+    pub fuzz_roughness : Option< f32 >,
+  }
+
+  /// Reduces a canonical [`OpenPbrSurface`] to the factors the runtime material
+  /// model can express today ( glTF-shaped base + KHR specular/clearcoat/sheen
+  /// carriers ). Lobes without a runtime sink ( subsurface, transmission/volume,
+  /// thin-film, dispersion, emission luminance, `base_diffuse_roughness`,
+  /// `coat_darkening` ) are omitted — they stay unimplemented until the
+  /// corresponding §3 pipeline step lands.
+  #[ must_use ]
+  pub fn openpbr_to_runtime( surface : &OpenPbrSurface ) -> OpenPbrRuntime
+  {
+    let near = | a : f32, b : f32 | ( a - b ).abs() <= 1e-4;
+    let not_white = | c : &[ f32; 3 ] | !( near( c[ 0 ], 1.0 ) && near( c[ 1 ], 1.0 ) && near( c[ 2 ], 1.0 ) );
+
+    OpenPbrRuntime
+    {
+      base_color_rgba : [ surface.base_color[ 0 ], surface.base_color[ 1 ], surface.base_color[ 2 ], surface.geometry_opacity ],
+      base_metalness : surface.base_metalness,
+      specular_roughness : surface.specular_roughness,
+      specular_ior : ( ( surface.specular_ior - 1.5 ).abs() > 1e-4 ).then_some( surface.specular_ior ),
+      specular_weight : ( ( surface.specular_weight - 1.0 ).abs() > 1e-4 ).then_some( surface.specular_weight ),
+      specular_color : not_white( &surface.specular_color ).then_some( surface.specular_color ),
+      coat_weight : ( surface.coat_weight > 1e-3 ).then_some( surface.coat_weight ),
+      coat_roughness : ( surface.coat_weight > 1e-3 ).then_some( surface.coat_roughness ),
+      fuzz_color : ( surface.fuzz_weight > 1e-3 ).then_some( surface.fuzz_color ),
+      fuzz_roughness : ( surface.fuzz_weight > 1e-3 ).then_some( surface.fuzz_roughness ),
+    }
+  }
 }
 
 crate::mod_interface!
@@ -396,7 +455,9 @@ crate::mod_interface!
   {
     OpenPbrSurface,
     OpenPbrFromGltf,
+    OpenPbrRuntime,
     openpbr_input_apply,
-    openpbr_from_gltf
+    openpbr_from_gltf,
+    openpbr_to_runtime
   };
 }
