@@ -107,10 +107,12 @@ Introduce a native parameter surface holding the full OpenPBR set (41 params:
   implementation** that reads/writes `.usda`, `.usdc`, and `.usdz`, ships a
   composed `Stage` and opt-in typed schema views including **`UsdShade`**
   (`Material::compute_surface_source` → shader id / nodegraph). Caveats: active
-  development with **no API stability below 1.0**, and wasm compatibility is
-  **unverified** — needs a compile spike before commitment. (C++ pxr bindings
-  such as `usd`/`usd-rs`, `rust-usd`, `pxr_sys` are native-only and rejected for
-  the wasm runtime path.)
+  development with **no API stability below 1.0**. **Wasm spike: PASSED
+  (2026-09)** — core `openusd` and `openusd-schemas` (feature `shade`) both
+  compile for `wasm32-unknown-unknown` (Stage open/traverse, typed
+  `Material::compute_surface_source`); runtime behaviour on real assets is still
+  unverified. (C++ pxr bindings such as `usd`/`usd-rs`, `rust-usd`, `pxr_sys`
+  are native-only and rejected for the wasm runtime path.)
 - Native binary **`.usdc`/`.usdz`** stays feasible only via `openusd` (above); if
   the wasm spike fails, they fall back to offline conversion (§2.3 N4).
 - Purpose-built readers for the **OpenPBR subset** mapping onto `OpenPbrSurface`
@@ -136,13 +138,13 @@ are still open.
   of `open_pbr_surface.mtlx` from their `<input name="…" value="…">` wiring;
   texture inputs deferred to the §3.1 texture plumbing; unresolvable graphs are
   reported, never silently dropped.
-- **N3** — USD reader. If the `openusd` wasm spike (compile under
-  `wasm32-unknown-unknown`) passes, layer it as an optional
-  `native-formats` feature and read `.usda`/`.usdc`/`.usdz`: walk `Material`
-  prims → `compute_surface_source` → extract the OpenPBR/MaterialX surface
-  inputs via the shared N2 parameter core. On spike failure, fall back to a
-  hand-rolled `.usda` text-subset reader, with `.usdz`/`.usdc` offline-only
-  (§2.3 N4).
+- **N3** — USD reader. The `openusd` wasm spike **passed** (see §2.2), so layer
+  `openusd` + `openusd-schemas` (`shade`) as an optional `native-formats`
+  feature and read `.usda`/`.usdc`/`.usdz`: walk `Material` prims →
+  `compute_surface_source` → extract the OpenPBR/MaterialX surface inputs via
+  the shared N2 parameter core. Should real-asset runtime behaviour fail, fall
+  back to a hand-rolled `.usda` text-subset reader, with `.usdz`/`.usdc`
+  offline-only (§2.3 N4).
 - **N4** — authoring/converter path for real content: export the same material
   to glTF + `KHR_materials_*` for the browser runtime, and keep parameters with
   no KHR carrier in a private `OPENPBR_materials` JSON extension on the glTF
