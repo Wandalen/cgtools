@@ -13,7 +13,7 @@ use gl::wasm_bindgen::{ prelude::Closure, JsValue };
 use gl::js_sys::{ Object, Reflect };
 use renderer::webgl::
 {
-  post_processing::{ self, Pass, SwapFramebuffer }, Camera, Renderer, Scene
+  post_processing::{ self, Pass, SwapFramebuffer }, Camera, Renderer, Scene, DirectLight, Light, Node, Object3D
 };
 
 mod lil_gui;
@@ -92,6 +92,33 @@ async fn scene_load
     // OpenPBR test mode — step 1: solid-colour sphere ( geometry check ).
     let gltf = openpbr_scene::solid_color_icosphere( gl, [ 0.2, 0.55, 1.0, 1.0 ] );
     let scene = gltf.scenes.into_iter().next().expect( "sphere scene exists" );
+
+    // DIAGNOSTIC: kill IBL and light the sphere with a single directional light
+    // + matte roughness so shading is a clean diffuse gradient. If the bright
+    // quadrilateral that shows up under env lighting is a *flipped normal* it
+    // will still show here; if it vanishes, it was environment reflection.
+    if let Some( material ) = gltf.materials.first()
+    {
+      let mut material = renderer::webgl::cast_unchecked_material_to_ref_mut::< renderer::webgl::material::PbrMaterial >( material.borrow_mut() );
+      material.need_use_ibl_set( false );
+      material.roughness_factor = 0.8;
+      material.metallic_factor = 0.0;
+    }
+    let key_light = Rc::new( RefCell::new( Node::new() ) );
+    key_light.borrow_mut().object = Object3D::Light
+    (
+      Light::Direct
+      (
+        DirectLight
+        {
+          direction : gl::math::F32x3::from( [ 0.45, 0.8, 0.4 ] ).normalize(),
+          color : gl::math::F32x3::from( [ 1.0, 1.0, 1.0 ] ),
+          strength : 2.0,
+        }
+      )
+    );
+    scene.borrow_mut().children.push( key_light );
+
     scene_fit_to_view( &scene );
     *state.scene.borrow_mut() = Some( scene );
     return Ok( () );
