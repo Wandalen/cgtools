@@ -57,17 +57,23 @@ struct ViewerState
 }
 
 /// Normalizes a scene's scale/position so its bounding-box diagonal is 1 and
-/// it sits at the origin ( matches the fixed camera framing ).
+/// it sits at the origin ( matches the fixed camera framing ). Procedural
+/// scenes may leave attribute bounding boxes at the inverted default
+/// ( `min=+∞, max=−∞` ), which would produce a `∞` diagonal and a `NaN` center —
+/// those are treated as "no box" and left untransformed.
 fn scene_fit_to_view( scene : &Rc< RefCell< Scene > > )
 {
   let scene_bounding_box = scene.borrow().bounding_box();
-  let diagonal = ( scene_bounding_box.max - scene_bounding_box.min ).mag();
   let center = scene_bounding_box.center();
-  let norm_scale = if diagonal > 0.0 { 1.0 / diagonal } else { 1.0 };
+  let diagonal = ( scene_bounding_box.max - scene_bounding_box.min ).mag();
+
+  let has_box = diagonal.is_finite() && diagonal > 0.0 && center.mag().is_finite();
+  let norm_scale = if has_box { 1.0 / diagonal } else { 1.0 };
+  let translation = if has_box { center * -norm_scale } else { gl::math::F32x3::splat( 0.0 ) };
 
   let mut scene = scene.borrow_mut();
   scene.scale_set( gl::math::F32x3::splat( norm_scale ) );
-  scene.translation_set( center * -norm_scale );
+  scene.translation_set( translation );
   scene.world_matrix_update();
 }
 
