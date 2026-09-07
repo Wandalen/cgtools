@@ -1198,7 +1198,7 @@ void main()
   float geometricVariance = max( dot( dNdx, dNdx ), dot( dNdy, dNdy ) );
   float kernelRoughnessSq = clamp( 2.0 * geometricVariance, 0.0, 0.5 );
   material.roughness = sqrt( clamp( material.roughness * material.roughness + kernelRoughnessSq, 0.0, 1.0 ) );
-  material.roughness = max( material.roughness, 0.0525 );
+  material.roughness = max( material.roughness, 0.089 );
 
   #ifdef USE_KHR_materials_anisotropy
     #ifdef USE_OPENPBR
