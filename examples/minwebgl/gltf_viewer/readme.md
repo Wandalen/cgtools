@@ -1,10 +1,17 @@
 # glTF Viewer
 
-**Keywords:** glTF, PBR, 3D Models, WebGL2
+**Keywords:** glTF, PBR, 3D Models, WebGL2, OpenPBR
 
-This demo is a comprehensive glTF 2.0 viewer implementing physically-based rendering (PBR) in WebGL2. It loads and displays 3D models with industry-standard materials, including metallic-roughness workflow, normal mapping, and image-based lighting.
+This demo is a comprehensive glTF 2.0 viewer implementing physically-based rendering (PBR) in WebGL2. It loads and displays 3D models with industry-standard materials, including metallic-roughness workflow, normal mapping, and image-based lighting. It doubles as the interactive test bench for the renderer's OpenPBR adoption.
 
 glTF is the standard format for 3D content on the web. This example provides a production-ready viewer with full PBR material support, suitable for e-commerce, education, and 3D asset preview.
+
+## Debug UI
+
+The **Debug** panel lets you drive the viewer without editing code:
+
+- **Mode** — `glTF model viewer` (load a model from the list below) or `OpenPBR test` (procedural scenes used to validate the OpenPBR material work — step 1 is a solid-colour icosphere to check geometry).
+- **Model** — a dropdown of the bundled glTF assets; switching reloads the scene and re-frames the camera.
 
 ![image](./showcase.webp)
 

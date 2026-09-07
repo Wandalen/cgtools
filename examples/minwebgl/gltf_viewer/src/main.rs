@@ -1,18 +1,103 @@
-//! Renders GLTF files using postprocess effects.
+//! Interactive PBR viewer: switch the loaded model at runtime from a debug
+//! list, and toggle between the plain glTF viewer mode and the OpenPBR test
+//! mode ( procedurally built scenes, starting with a solid-colour sphere ).
+
 #![ doc( html_root_url = "https://docs.rs/gltf_viewer/latest/gltf_viewer/" ) ]
 #![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
-#![ cfg_attr( not( doc ), doc = "Renders GLTF files using postprocess effects" ) ]
+#![ cfg_attr( not( doc ), doc = "Interactive glTF / OpenPBR material viewer" ) ]
 
 use std::{ cell::RefCell, rc::Rc };
-use minwebgl as gl;
 
+use minwebgl as gl;
+use gl::wasm_bindgen::{ prelude::Closure, JsValue };
+use gl::js_sys::{ Object, Reflect };
 use renderer::webgl::
 {
-  post_processing::{self, Pass, SwapFramebuffer}, Camera, Renderer
+  post_processing::{ self, Pass, SwapFramebuffer }, Camera, Renderer, Scene
 };
 
 mod lil_gui;
 mod gui_setup;
+mod openpbr_scene;
+
+/// Viewer modes.
+const MODE_GLTF : &str = "gltf";
+const MODE_OPENPBR : &str = "openpbr";
+
+/// Model registry: ( display name, static path ). Kept in sync with the
+/// `data-trunk rel="copy-file"` entries in `index.html`.
+const MODELS : &[ ( &str, &str ) ] =
+&[
+  ( "Dodge Challenger", "static/dodge-challenger/gltf/scene.gltf" ),
+  ( "AV-8B Harrier II", "static/av-8b_harrier_ii.glb" ),
+  ( "Dae Crib", "static/dae_crib_-_tommys_garage.glb" ),
+  ( "Gambeson", "static/gambeson.glb" ),
+  ( "Low Poly Kids Playground", "static/low_poly_kids_playground.glb" ),
+  ( "Bike", "static/bike.glb" ),
+  ( "Nissan Titan 2017 (transparent)", "static/nissan_titan_2017_transparent.glb" ),
+  ( "Old Rusty Car", "static/old_rusty_car.glb" ),
+  ( "Transparent Cubes (OIT)", "static/transparent_cubes_oit_rendering_test_model.glb" ),
+  ( "Watchman of Doom", "static/watchman_of_doom_2.0_special.glb" ),
+];
+
+/// What the viewer is currently showing.
+#[ derive( Clone ) ]
+struct ViewerChoice
+{
+  /// One of `MODE_GLTF` / `MODE_OPENPBR`.
+  mode : String,
+  /// glTF model path ( used only in glTF mode ).
+  model : String,
+}
+
+struct ViewerState
+{
+  choice : RefCell< ViewerChoice >,
+  scene : RefCell< Option< Rc< RefCell< Scene > > > >,
+}
+
+/// Normalizes a scene's scale/position so its bounding-box diagonal is 1 and
+/// it sits at the origin ( matches the fixed camera framing ).
+fn scene_fit_to_view( scene : &Rc< RefCell< Scene > > )
+{
+  let scene_bounding_box = scene.borrow().bounding_box();
+  let diagonal = ( scene_bounding_box.max - scene_bounding_box.min ).mag();
+  let center = scene_bounding_box.center();
+  let norm_scale = if diagonal > 0.0 { 1.0 / diagonal } else { 1.0 };
+
+  let mut scene = scene.borrow_mut();
+  scene.scale_set( gl::math::F32x3::splat( norm_scale ) );
+  scene.translation_set( center * -norm_scale );
+  scene.world_matrix_update();
+}
+
+/// (Re)loads whatever `state.choice` selects into `state.scene`.
+async fn scene_load
+(
+  state : &Rc< ViewerState >,
+  document : &gl::web_sys::Document,
+  gl : &gl::WebGl2RenderingContext
+) -> Result< (), gl::WebglError >
+{
+  let choice = state.choice.borrow().clone();
+
+  if choice.mode == MODE_OPENPBR
+  {
+    // OpenPBR test mode — step 1: solid-colour sphere ( geometry check ).
+    let gltf = openpbr_scene::solid_color_icosphere( gl, [ 0.2, 0.55, 1.0, 1.0 ] );
+    let scene = gltf.scenes.into_iter().next().expect( "sphere scene exists" );
+    scene_fit_to_view( &scene );
+    *state.scene.borrow_mut() = Some( scene );
+    return Ok( () );
+  }
+
+  let gltf = renderer::webgl::loaders::gltf::load( document, &choice.model, gl ).await?;
+  let scene = gltf.scenes.into_iter().next().expect( "gltf has one scene" );
+  scene_fit_to_view( &scene );
+  *state.scene.borrow_mut() = Some( scene );
+
+  Ok( () )
+}
 
 fn canvas_size( canvas : &gl::web_sys::HtmlCanvasElement ) -> ( u32, u32 )
 {
@@ -20,12 +105,89 @@ fn canvas_size( canvas : &gl::web_sys::HtmlCanvasElement ) -> ( u32, u32 )
   let dpr = window.device_pixel_ratio();
   let css_w = f64::from( canvas.client_width() );
   let css_h = f64::from( canvas.client_height() );
-  // Canvas dimensions are always non-negative and far below `u32::MAX`, so casting to `u32`
-  // cannot lose sign; the fractional part is intentionally floored to get an integer
-  // backing-store pixel count.
   let w = ( css_w * dpr ) as u32;
   let h = ( css_h * dpr ) as u32;
   ( w.max( 1 ), h.max( 1 ) )
+}
+
+/// Spawns a reload of the current selection.
+fn reload
+(
+  state : &Rc< ViewerState >,
+  document : &gl::web_sys::Document,
+  gl : &gl::WebGl2RenderingContext
+)
+{
+  let state = state.clone();
+  let document = document.clone();
+  let gl = gl.clone();
+  gl::spawn_local( async move { let _ = scene_load( &state, &document, &gl ).await; } );
+}
+
+/// Wires the "Debug" folder: model list + viewer mode, both of which reload
+/// the scene.
+fn debug_ui_setup
+(
+  state : &Rc< ViewerState >,
+  document : &gl::web_sys::Document,
+  gl : &gl::WebGl2RenderingContext
+)
+{
+  let js_object = Object::new();
+  Reflect::set( &js_object, &JsValue::from_str( "model" ), &JsValue::from_str( &state.choice.borrow().model ) ).unwrap();
+  Reflect::set( &js_object, &JsValue::from_str( "mode" ), &JsValue::from_str( &state.choice.borrow().mode ) ).unwrap();
+
+  let gui = lil_gui::gui_new();
+  let folder = lil_gui::folder_add( &gui, "Debug" );
+
+  // Viewer mode ( glTF viewer / OpenPBR test ).
+  let mode_map = Object::new();
+  Reflect::set( &mode_map, &JsValue::from_str( "glTF model viewer" ), &JsValue::from_str( MODE_GLTF ) ).unwrap();
+  Reflect::set( &mode_map, &JsValue::from_str( "OpenPBR test" ), &JsValue::from_str( MODE_OPENPBR ) ).unwrap();
+  let mode_gui = lil_gui::dropdown_add( &folder, &js_object, "mode", &mode_map );
+  let callback =
+  {
+    let state = state.clone();
+    let document = document.clone();
+    let gl = gl.clone();
+    Closure::new( move | value : JsValue |
+    {
+      state.choice.borrow_mut().mode = value.as_string().unwrap_or_else( || MODE_GLTF.to_string() );
+      reload( &state, &document, &gl );
+    } )
+  };
+  lil_gui::on_finish_change( &mode_gui, &callback );
+  callback.forget();
+
+  // Model list ( glTF mode ).
+  let catalog_map = Object::new();
+  for ( name, path ) in MODELS
+  {
+    Reflect::set( &catalog_map, &JsValue::from_str( name ), &JsValue::from_str( path ) ).unwrap();
+  }
+  let catalog_gui = lil_gui::dropdown_add( &folder, &js_object, "model", &catalog_map );
+  let callback =
+  {
+    let state = state.clone();
+    let document = document.clone();
+    let gl = gl.clone();
+    Closure::new( move | value : JsValue |
+    {
+      if state.choice.borrow().mode != MODE_GLTF
+      {
+        return;
+      }
+      if let Some( path ) = value.as_string()
+      {
+        state.choice.borrow_mut().model = path;
+        reload( &state, &document, &gl );
+      }
+    } )
+  };
+  lil_gui::on_finish_change( &catalog_gui, &callback );
+  callback.forget();
+
+  lil_gui::show( &gui );
 }
 
 async fn app_run() -> Result< (), gl::WebglError >
@@ -49,44 +211,22 @@ async fn app_run() -> Result< (), gl::WebglError >
   canvas.set_width( pixel_w );
   canvas.set_height( pixel_h );
 
-  let gltf_path = "static/dodge-challenger/gltf/scene.gltf";
-  // let gltf_path = "gambeson.glb";
-  // let gltf_path = "old_rusty_car.glb";
-  // let gltf_path = "sponza.glb";
-  // let gltf_path = "nissan_titan_2017_transparent.glb";
-  // let gltf_path = "transparent_cubes_oit_rendering_test_model.glb";
-  // let gltf_path = "model.glb";
-  // let gltf_path = "untitled.glb";
-  // let gltf_path = "av-8b_harrier_ii.glb";
-  // let gltf_path = "dae_crib_-_tommys_garage.glb";
-  // let gltf_path = "low_poly_kids_playground.glb";
-  // let gltf_path = "watchman_of_doom_2.0_special.glb";
-
-  let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
-  let scenes = gltf.scenes;
-
-  let scene_bounding_box = scenes[ 0 ].borrow().bounding_box();
-  let diagonal = ( scene_bounding_box.max - scene_bounding_box.min ).mag();
-  let center = scene_bounding_box.center();
-
-  let norm_scale = if diagonal > 0.0 { 1.0 / diagonal } else { 1.0 };
-  {
-    let mut scene = scenes[ 0 ].borrow_mut();
-    scene.scale_set( gl::math::F32x3::splat( norm_scale ) );
-    scene.translation_set( center * -norm_scale );
-    scene.world_matrix_update();
-  }
-
-  let eye = gl::math::F32x3::from( [ 0.0, 0.7, 0.7 ] );
-  let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
-  let center = gl::math::F32x3::splat( 0.0 );
+  let default_model = MODELS[ 0 ].1;
+  let state = Rc::new
+  (
+    ViewerState
+    {
+      choice : RefCell::new( ViewerChoice { mode : MODE_GLTF.to_string(), model : default_model.to_string() } ),
+      scene : RefCell::new( None ),
+    }
+  );
 
   let fov = 70.0f32.to_radians();
   let near = 0.01;
   let far = 100.0;
   let aspect_ratio = pixel_w as f32 / pixel_h as f32;
 
-  let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far )?;
+  let mut camera = Camera::new( [ 0.0, 0.7, 0.7 ].into(), [ 0.0, 1.0, 0.0 ].into(), [ 0.0; 3 ].into(), aspect_ratio, fov, near, far )?;
   camera.window_size_set( [ pixel_w as f32, pixel_h as f32 ].into() );
   camera.controls_bind( &canvas );
 
@@ -95,7 +235,6 @@ async fn app_run() -> Result< (), gl::WebglError >
 
   let equirect = gl.create_texture().ok_or( gl::WebglError::FailedToAllocateResource( "HDR equirect texture" ) )?;
   renderer::webgl::loaders::hdr_texture::load_to_mip_d2( &gl, Some( &equirect ), 0, "static/venice_sunset_1k.hdr" ).await;
-
   let ibl = renderer::webgl::loaders::pmrem::generate( &gl, &equirect, 512 )?;
   renderer.ibl_set( ibl );
   renderer.clear_color_set( gl::math::F32x3::from( [ 0.01, 0.01, 0.01 ] ) );
@@ -103,12 +242,13 @@ async fn app_run() -> Result< (), gl::WebglError >
 
   let renderer = Rc::new( RefCell::new( renderer ) );
 
-  let mut swap_buffer = SwapFramebuffer::new( &gl, pixel_w, pixel_h );
+  gui_setup::setup( &renderer );
+  debug_ui_setup( &state, &document, &gl );
+  reload( &state, &document, &gl );
 
+  let mut swap_buffer = SwapFramebuffer::new( &gl, pixel_w, pixel_h );
   let tonemapping = post_processing::ToneMappingPass::< post_processing::ToneMappingAces >::new( &gl )?;
   let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
-
-  gui_setup::setup( &renderer );
 
   let prev_size : Rc< RefCell< ( u32, u32 ) > > = Rc::new( RefCell::new( ( pixel_w, pixel_h ) ) );
 
@@ -116,6 +256,7 @@ async fn app_run() -> Result< (), gl::WebglError >
   {
     let canvas = canvas.clone();
     let prev_size = prev_size.clone();
+    let state = state.clone();
     move | _t : f64 |
     {
       let ( w, h ) = canvas_size( &canvas );
@@ -137,7 +278,11 @@ async fn app_run() -> Result< (), gl::WebglError >
         *prev = ( w, h );
       }
 
-      renderer.borrow_mut().render( &gl, &mut scenes[ 0 ].borrow_mut(), &camera ).expect( "Failed to render" );
+      if let Some( scene ) = state.scene.borrow().as_ref()
+      {
+        let mut scene = scene.borrow_mut();
+        renderer.borrow_mut().render( &gl, &mut scene, &camera ).expect( "Failed to render" );
+      }
 
       swap_buffer.reset();
       swap_buffer.bind( &gl );
@@ -145,7 +290,6 @@ async fn app_run() -> Result< (), gl::WebglError >
 
       let t = tonemapping.render( &gl, swap_buffer.input_get(), swap_buffer.output_get() )
       .expect( "Failed to render tonemapping pass" );
-
       swap_buffer.output_set( t );
       swap_buffer.swap();
 
