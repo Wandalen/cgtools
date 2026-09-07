@@ -14,7 +14,7 @@ use gl::js_sys::{ Object, Reflect };
 use renderer::webgl::
 {
   post_processing::{ self, Pass, SwapFramebuffer }, Camera, DirectLight, Light, Node, Object3D, PointLight,
-  Renderer, Scene, SpotLight
+  Renderer, Scene
 };
 use renderer::webgl::loaders::openpbr_mtlx::openpbr_surfaces_from_mtlx;
 use renderer::webgl::material::OpenPbrSurface;
@@ -202,15 +202,13 @@ async fn scene_load
 
     let scene = gltf.scenes.into_iter().next().expect( "sphere scene exists" );
 
-    // Key + rim directional.
-    light_add( &scene, Light::Direct( DirectLight { direction : gl::math::F32x3::from( [ 0.6, 0.75, 0.3 ] ).normalize(), color : [ 1.0, 1.0, 1.0 ].into(), strength : 2.5 } ) );
-    light_add( &scene, Light::Direct( DirectLight { direction : gl::math::F32x3::from( [ -0.5, 0.4, -0.8 ] ).normalize(), color : [ 0.5, 0.6, 1.0 ].into(), strength : 1.0 } ) );
-    // Overhead point light.
-    light_add( &scene, Light::Point( PointLight { position : [ 0.0, 1.6, 1.0 ].into(), color : [ 1.0, 1.0, 1.0 ].into(), strength : 25.0, range : 4.0 } ) );
-    // Warm accent spot aimed at the origin.
-    let spot_pos = gl::math::F32x3::from( [ 1.6, 0.9, 1.4 ] );
-    let origin = gl::math::F32x3::from( [ 0.0, 0.0, 0.0 ] );
-    light_add( &scene, Light::Spot( SpotLight { position : spot_pos, direction : ( origin - spot_pos ).normalize(), color : [ 1.0, 0.85, 0.6 ].into(), strength : 30.0, range : 10.0, inner_cone_angle : 25.0_f32.to_radians(), outer_cone_angle : 45.0_f32.to_radians(), use_light_map : false } ) );
+    // Hemisphere-ish ambient: two opposite direct lights whose diffuse
+    // contribution scales with NoL ( top = cool sky, bottom = warm ground
+    // bounce ), which blends smoothly over the sphere.
+    light_add( &scene, Light::Direct( DirectLight { direction : gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] ), color : [ 0.8, 0.85, 1.0 ].into(), strength : 0.55 } ) );
+    light_add( &scene, Light::Direct( DirectLight { direction : gl::math::F32x3::from( [ 0.0, -1.0, 0.0 ] ), color : [ 0.3, 0.24, 0.2 ].into(), strength : 0.2 } ) );
+    // Single key point light.
+    light_add( &scene, Light::Point( PointLight { position : [ 1.5, 1.2, 1.6 ].into(), color : [ 1.0, 1.0, 1.0 ].into(), strength : 25.0, range : 8.0 } ) );
 
     scene_fit_to_view( &scene );
     *state.scene.borrow_mut() = Some( scene );
