@@ -7,7 +7,7 @@ A **feature** instance documents one cohesive slice of the crate's public API. E
 - **Purpose**: Navigational hubs for `renderer`'s major subsystems, tying each to its sources, invariants, and pitfalls.
 - **Responsibility**: Document what each subsystem does today, at the level not reconstructible from any single source file.
 - **In Scope**: The PBR rendering core, image-based lighting, and shadow mapping.
-- **Out of Scope**: Guarantees the subsystems uphold (see `invariant/`); environment traps (see `pitfall/`); forward-looking work (crate has no committed roadmap file — future scope is workspace-level, see the repository root `docs/`).
+- **Out of Scope**: Guarantees the subsystems uphold (see `invariant/`); environment traps (see `pitfall/`); forward-looking work (tracked in [`../openpbr_adoption_plan.md`](../openpbr_adoption_plan.md)).
 
 ### Overview Table
 

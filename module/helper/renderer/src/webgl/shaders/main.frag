@@ -49,6 +49,10 @@ struct PhysicalMaterial
     float ab;
     float anisotropyStrength;
   #endif
+  #ifdef USE_OPENPBR
+    vec3 sheenColorFactor;
+    float sheenRoughness;
+  #endif
 };
 
 struct ReflectedLight
@@ -59,6 +63,9 @@ struct ReflectedLight
   vec3 directSpecular;
   #ifdef USE_KHR_materials_clearcoat
     vec3 clearcoatSpecular;
+  #endif
+  #ifdef USE_OPENPBR
+    vec3 sheenSpecular;
   #endif
 };
 
@@ -154,6 +161,17 @@ uniform vec4 baseColorFactor; // Default: [1, 1, 1, 1]
   uniform float engravingRoughness;
   // How much the groove darkens the base albedo / specular color (0 = no change).
   uniform float engravingDarkening;
+#endif
+#ifdef USE_OPENPBR
+  // OpenPBR Surface ( ASWF ) scalar carriers selected by `PbrMaterial`. Defaults kept in
+  // sync with the Rust upload side ( ior = 1.5, fuzz/sheen disabled ), so a material that
+  // enables USE_OPENPBR for one carrier always has sane values for the rest.
+  uniform float ior;                 // OpenPBR `specular_ior`, default 1.5
+  uniform vec3 sheenColorFactor;     // OpenPBR `fuzz_color`, default [0, 0, 0]
+  uniform float sheenRoughnessFactor; // OpenPBR `fuzz_roughness`, default 0.0
+#endif
+#ifdef USE_KHR_materials_emissive_strength
+  uniform float emissiveStrength;    // KHR_materials_emissive_strength, default 1.0
 #endif
 #ifdef USE_MR_TEXTURE
   // Roughness is sampled from the G channel
@@ -330,6 +348,67 @@ float V_GGX_anisotropic
 }
 #endif
 
+#ifdef USE_OPENPBR
+// OpenPBR Surface ( https://academysoftwarefoundation.github.io/OpenPBR/ ) opaque-path core.
+// The spec's energy-preserving per-axis roughness mapping
+//   alpha_t = r^2 * sqrt( 2 / ( 1 + (1-a)^2 ) ),  alpha_b = (1-a) * alpha_t
+// ( `r` = roughness, `a` = anisotropy ) is folded into material.at / material.ab in main().
+
+// Smith joint-anisotropic lambda ( spec § Microfacet model ):
+//   Lambda(v) = sqrt( 1 + ( (v.T)^2 * alpha_t^2 + (v.B)^2 * alpha_b^2 ) / (v.N)^2 )
+float openpbr_lambda
+(
+  const in float dotTN,
+  const in float dotBN,
+  const in float dotN,
+  const in float at,
+  const in float ab
+)
+{
+  float dotN2 = max( dotN * dotN, 1e-6 );
+  return sqrt( 1.0 + ( pow2( dotTN ) * pow2( at ) + pow2( dotBN ) * pow2( ab ) ) / dotN2 );
+}
+
+// Smith joint-anisotropic visibility:
+//   V(L,V) = 0.5 / ( NoL * Lambda(V) + NoV * Lambda(L) ), denominator clamped to 1e-5.
+float V_OpenPBR_anisotropic
+(
+  const in float dotNL, const in float dotNV,
+  const in float dotTL, const in float dotBL,
+  const in float dotTV, const in float dotBV,
+  const in float at, const in float ab
+)
+{
+  float lambdaV = openpbr_lambda( dotTV, dotBV, dotNV, at, ab );
+  float lambdaL = openpbr_lambda( dotTL, dotBL, dotNL, at, ab );
+  return clamp( 0.5 / max( dotNL * lambdaV + dotNV * lambdaL, 1e-5 ), 0.0, 1.0 );
+}
+
+// Isotropic reduction of the same term: for a unit vector, (v.T)^2 + (v.B)^2 = 1 - (v.N)^2.
+float V_OpenPBR_isotropic( const in float dotNL, const in float dotNV, const in float alpha )
+{
+  float lambdaV = sqrt( 1.0 + pow2( alpha ) * max( 1.0 - pow2( dotNV ), 0.0 ) / max( pow2( dotNV ), 1e-6 ) );
+  float lambdaL = sqrt( 1.0 + pow2( alpha ) * max( 1.0 - pow2( dotNL ), 0.0 ) / max( pow2( dotNL ), 1e-6 ) );
+  return clamp( 0.5 / max( dotNL * lambdaV + dotNV * lambdaL, 1e-5 ), 0.0, 1.0 );
+}
+
+// Fuzz ( microfiber / sheen ) lobe — the Charlie NDF + Ashikhmin-Premoze visibility pair
+// used by the glTF KHR_materials_sheen reference renderers as the real-time stand-in for
+// the OpenPBR `fuzz` microflake layer. The sheen color encodes the layer's reflectivity,
+// so no separate Fresnel factor is applied.
+float D_Charlie( const in float alpha, const in float dotNH )
+{
+  float invAlpha = 1.0 / alpha;
+  float sin2h = max( 1.0 - dotNH * dotNH, 0.0078125 );
+  return ( 2.0 + invAlpha ) * pow( sin2h, 0.5 * invAlpha ) * RECIPROCAL_PI2;
+}
+
+float V_Ashikhmin( const in float dotNL, const in float dotNV )
+{
+  return clamp( 0.25 / max( dotNL + dotNV - dotNL * dotNV, 1e-5 ), 0.0, 1.0 );
+}
+#endif
+
 #ifdef USE_KHR_materials_clearcoat
 // The clearcoat layer is modeled as a fixed-IOR (1.5) dielectric coat, using the same
 // isotropic GGX D/V terms as the base layer but with its own normal and roughness.
@@ -364,24 +443,43 @@ void applyLightContribution
   float dotVH = clamp( dot( viewDir, halfDir ), 0.0, 1.0 );
   float dotLH = clamp( dot( lightDir, halfDir ), 0.0, 1.0 );
 
+  #ifdef USE_OPENPBR
+    // OpenPBR specular: the energy-preserving roughness→alpha mapping is already folded
+    // into material.at / material.ab ( main() ); joint-visibility V replaces the legacy
+    // Smith-correlated V, the GGX NDF itself is shared.
+    #ifdef USE_KHR_materials_anisotropy
+      float dotTL = dot( material.anisotropicT, lightDir );
+      float dotBL = dot( material.anisotropicB, lightDir );
+      float dotTV = dot( material.anisotropicT, viewDir );
+      float dotBV = dot( material.anisotropicB, viewDir );
+      float dotTH = dot( material.anisotropicT, halfDir );
+      float dotBH = dot( material.anisotropicB, halfDir );
+      float V = V_OpenPBR_anisotropic( dotNL, dotNV, dotTL, dotBL, dotTV, dotBV, material.at, material.ab );
+      float D = D_GGX_anisotropic( dotNH, dotTH, dotBH, material.at, material.ab );
+    #else
+      float V = V_OpenPBR_isotropic( dotNL, dotNV, alpha );
+      float D = D_GGX( alpha, dotNH );
+    #endif
+  #else
+    #ifdef USE_KHR_materials_anisotropy
+      float dotTL = dot( material.anisotropicT, lightDir );
+      float dotBL = dot( material.anisotropicB, lightDir );
+      float dotTV = dot( material.anisotropicT, viewDir );
+      float dotBV = dot( material.anisotropicB, viewDir );
+      float dotTH = dot( material.anisotropicT, halfDir );
+      float dotBH = dot( material.anisotropicB, halfDir );
+      float V = V_GGX_anisotropic( dotNL, dotNV, dotBV, dotTV, dotTL, dotBL, material.at, material.ab );
+      float D = D_GGX_anisotropic( dotNH, dotTH, dotBH, material.at, material.ab );
+    #else
+      float V = V_GGX_SmithCorrelated( alpha, dotNL, dotNV );
+      float D = D_GGX( alpha, dotNH );
+    #endif
+  #endif
+
   // Fresnel
   vec3 Fs = F_Schlick( material.f0, material.f90, dotVH );
   // Diffuse BRDF (Burley)
   vec3 Fd = Fd_Barley( alpha, dotNV, dotNL, dotLH );
-  // Visibility Geometry function and Normal distribution function
-  #ifdef USE_KHR_materials_anisotropy
-    float dotTL = dot( material.anisotropicT, lightDir );
-    float dotBL = dot( material.anisotropicB, lightDir );
-    float dotTV = dot( material.anisotropicT, viewDir );
-    float dotBV = dot( material.anisotropicB, viewDir );
-    float dotTH = dot( material.anisotropicT, halfDir );
-    float dotBH = dot( material.anisotropicB, halfDir );
-    float V = V_GGX_anisotropic( dotNL, dotNV, dotBV, dotTV, dotTL, dotBL, material.at, material.ab );
-    float D = D_GGX_anisotropic( dotNH, dotTH, dotBH, material.at, material.ab );
-  #else
-    float V = V_GGX_SmithCorrelated( alpha, dotNL, dotNV );
-    float D = D_GGX( alpha, dotNH );
-  #endif
 
   vec3 irradiance = lightColor * lightIntensity * dotNL;
   vec3 diffuseColor = material.diffuseColor * irradiance;
@@ -396,6 +494,17 @@ void applyLightContribution
     float ccDotNH = clamp( dot( material.clearcoatNormal, halfDir ), 0.0, 1.0 );
     float ccDotVH = clamp( dot( viewDir, halfDir ), 0.0, 1.0 );
     reflectedLight.clearcoatSpecular += BRDF_Clearcoat( ccDotNL, ccDotNV, ccDotNH, ccDotVH, material.clearcoatRoughness ) * lightColor * lightIntensity;
+  #endif
+
+  #ifdef USE_OPENPBR
+    // Fuzz ( OpenPBR `fuzz` ) layer on top of the coated substrate: accumulated separately
+    // and added over the final color in main(). Enabled per-lobe only when its color is
+    // non-zero ( the sheen/`fuzz_color` disabled default is black ).
+    if( max_value( material.sheenColorFactor ) > 0.0 )
+    {
+      float sheenAlpha = clamp( material.sheenRoughness, 1e-3, 1.0 );
+      reflectedLight.sheenSpecular += material.sheenColorFactor * D_Charlie( sheenAlpha, dotNH ) * V_Ashikhmin( dotNL, dotNV ) * lightColor * lightIntensity * dotNL;
+    }
   #endif
 }
 
@@ -474,21 +583,38 @@ void computeSpotLight
   float dotVH = clamp( dot( viewDir, halfDir ), 0.0, 1.0 );
   float dotLH = clamp( dot( lightDir, halfDir ), 0.0, 1.0 );
 
+  #ifdef USE_OPENPBR
+    #ifdef USE_KHR_materials_anisotropy
+      float dotTL = dot( material.anisotropicT, lightDir );
+      float dotBL = dot( material.anisotropicB, lightDir );
+      float dotTV = dot( material.anisotropicT, viewDir );
+      float dotBV = dot( material.anisotropicB, viewDir );
+      float dotTH = dot( material.anisotropicT, halfDir );
+      float dotBH = dot( material.anisotropicB, halfDir );
+      float V = V_OpenPBR_anisotropic( dotNL, dotNV, dotTL, dotBL, dotTV, dotBV, material.at, material.ab );
+      float D = D_GGX_anisotropic( dotNH, dotTH, dotBH, material.at, material.ab );
+    #else
+      float V = V_OpenPBR_isotropic( dotNL, dotNV, alpha );
+      float D = D_GGX( alpha, dotNH );
+    #endif
+  #else
+    #ifdef USE_KHR_materials_anisotropy
+      float dotTL = dot( material.anisotropicT, lightDir );
+      float dotBL = dot( material.anisotropicB, lightDir );
+      float dotTV = dot( material.anisotropicT, viewDir );
+      float dotBV = dot( material.anisotropicB, viewDir );
+      float dotTH = dot( material.anisotropicT, halfDir );
+      float dotBH = dot( material.anisotropicB, halfDir );
+      float V = V_GGX_anisotropic( dotNL, dotNV, dotBV, dotTV, dotTL, dotBL, material.at, material.ab );
+      float D = D_GGX_anisotropic( dotNH, dotTH, dotBH, material.at, material.ab );
+    #else
+      float V = V_GGX_SmithCorrelated( alpha, dotNL, dotNV );
+      float D = D_GGX( alpha, dotNH );
+    #endif
+  #endif
+
   vec3 Fs = F_Schlick( material.f0, material.f90, dotVH );
   vec3 Fd = Fd_Barley( alpha, dotNV, dotNL, dotLH );
-  #ifdef USE_KHR_materials_anisotropy
-    float dotTL = dot( material.anisotropicT, lightDir );
-    float dotBL = dot( material.anisotropicB, lightDir );
-    float dotTV = dot( material.anisotropicT, viewDir );
-    float dotBV = dot( material.anisotropicB, viewDir );
-    float dotTH = dot( material.anisotropicT, halfDir );
-    float dotBH = dot( material.anisotropicB, halfDir );
-    float V = V_GGX_anisotropic( dotNL, dotNV, dotBV, dotTV, dotTL, dotBL, material.at, material.ab );
-    float D = D_GGX_anisotropic( dotNH, dotTH, dotBH, material.at, material.ab );
-  #else
-    float V = V_GGX_SmithCorrelated( alpha, dotNL, dotNV );
-    float D = D_GGX( alpha, dotNH );
-  #endif
 
   vec3 irradiance = light.color * attenuation * dotNL;
   vec3 diffuseColor = material.diffuseColor * irradiance;
@@ -496,6 +622,14 @@ void computeSpotLight
 
   reflectedLight.directDiffuse += ( 1.0 - Fs ) * Fd * diffuseColor;
   reflectedLight.directSpecular += Fs * specularColor;
+
+  #ifdef USE_OPENPBR
+    if( max_value( material.sheenColorFactor ) > 0.0 )
+    {
+      float sheenAlpha = clamp( material.sheenRoughness, 1e-3, 1.0 );
+      reflectedLight.sheenSpecular += material.sheenColorFactor * D_Charlie( sheenAlpha, dotNH ) * V_Ashikhmin( dotNL, dotNV ) * light.color * attenuation * dotNL;
+    }
+  #endif
 
   #ifdef USE_KHR_materials_clearcoat
     float ccDotNL = clamp( dot( material.clearcoatNormal, lightDir ), 0.0, 1.0 );
@@ -629,6 +763,15 @@ float ditherNoise( vec2 fragCoord )
       float lodc = min( material.clearcoatRoughness * u_max_lod, u_max_lod );
       reflectedLight.clearcoatSpecular += textureLod( prefilterEnvMap, Rc, lodc ).xyz;
     #endif
+
+    // Fuzz ( OpenPBR `fuzz` ) environment term: the microflake lobe is wide, so the diffuse
+    // irradiance sample along N is a reasonable stand-in for its environment response.
+    #ifdef USE_OPENPBR
+      if( max_value( material.sheenColorFactor ) > 0.0 )
+      {
+        reflectedLight.sheenSpecular += material.sheenColorFactor * irradiance;
+      }
+    #endif
   }
 
 #endif
@@ -683,6 +826,9 @@ void main()
   #ifdef USE_KHR_materials_clearcoat
     reflectedLight.clearcoatSpecular = vec3( 0.0 );
   #endif
+  #ifdef USE_OPENPBR
+    reflectedLight.sheenSpecular = vec3( 0.0 );
+  #endif
 
   float alpha = 1.0;
 
@@ -713,8 +859,13 @@ void main()
 
   //Specular part
   // https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_specular/README.md
-  // 0.04 - reflectance of the Glass
-  material.f0 = vec3( 0.04 );
+  // The dielectric F0 comes from the IOR under OpenPBR ( specular_ior,
+  // default 1.5 → F0 = 0.04 ), the glTF/three.js default otherwise.
+  #ifdef USE_OPENPBR
+    material.f0 = vec3( pow2( ior - 1.0 ) / pow2( ior + 1.0 ) );
+  #else
+    material.f0 = vec3( 0.04 );
+  #endif
   material.f90 = vec3( 1.0 );
   #ifdef USE_KHR_materials_specular
     float sf = specularFactor;
@@ -892,6 +1043,13 @@ void main()
     material.anisotropyStrength = anisotropyMagnitude;
   #endif
 
+  #ifdef USE_OPENPBR
+    // Fuzz ( OpenPBR `fuzz` ) layer inputs; the uniforms carry the disabled default
+    // ( black color ) when the KHR_materials_sheen extension is absent.
+    material.sheenColorFactor = sheenColorFactor;
+    material.sheenRoughness = sheenRoughnessFactor;
+  #endif
+
   // Geometric Specular Anti-Aliasing (Tokuyoshi & Kaplanyan 2019)
   // Increases roughness where screen-space normal derivatives are large (geometry edges),
   // which selects blurrier environment map mip levels and prevents specular aliasing.
@@ -902,9 +1060,18 @@ void main()
   material.roughness = max( material.roughness, 0.0525 );
 
   #ifdef USE_KHR_materials_anisotropy
-    float anisotropyBaseAlpha = pow2( material.roughness );
-    material.at = mix( anisotropyBaseAlpha, 1.0, pow2( material.anisotropyStrength ) );
-    material.ab = clamp( anisotropyBaseAlpha, 0.001, 1.0 );
+    #ifdef USE_OPENPBR
+      // OpenPBR energy-preserving per-axis alpha mapping ( spec § Microfacet model ):
+      //   alpha_t = r^2 * sqrt( 2 / ( 1 + (1-a)^2 ) ),  alpha_b = (1-a) * alpha_t
+      float openpbr_r = max( material.roughness, 0.001 );
+      float openpbr_a = min( material.anisotropyStrength, 0.999 );
+      material.at = openpbr_r * openpbr_r * sqrt( 2.0 / ( 1.0 + pow2( 1.0 - openpbr_a ) ) );
+      material.ab = ( 1.0 - openpbr_a ) * material.at;
+    #else
+      float anisotropyBaseAlpha = pow2( material.roughness );
+      material.at = mix( anisotropyBaseAlpha, 1.0, pow2( material.anisotropyStrength ) );
+      material.ab = clamp( anisotropyBaseAlpha, 0.001, 1.0 );
+    #endif
   #endif
 
   vec3 color = vec3( 0.0 );
@@ -931,6 +1098,9 @@ void main()
   #ifdef USE_EMISSION_TEXTURE
     emissive_color.xyz *= SrgbToLinear( texture( emissiveTexture, vEmissionUv ).rgb );
   #endif
+  #ifdef USE_KHR_materials_emissive_strength
+    emissive_color.xyz *= emissiveStrength;
+  #endif
 
 
   color = reflectedLight.indirectDiffuse +
@@ -946,6 +1116,11 @@ void main()
     vec3 clearcoatWeight = clamp( material.clearcoatFactor * clearcoatFresnel, 0.0, 1.0 );
     color = mix( color, reflectedLight.clearcoatSpecular, clearcoatWeight );
     emissive_color.rgb *= ( 1.0 - clearcoatWeight );
+  #endif
+
+  // OpenPBR `fuzz` sits on top of the ( coated ) substrate: add its accumulated lobe.
+  #ifdef USE_OPENPBR
+    color += reflectedLight.sheenSpecular;
   #endif
 
   // Exposure is applied uniformly to the whole lit result here ( the tone mapping

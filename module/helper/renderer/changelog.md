@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- **OpenPBR Surface ingestion (loader stage)**: the glTF loader now reads the scalar/color factors of the `KHR_materials_*` extensions that transport ASWF OpenPBR Surface parameters (`KHR_materials_ior`, `KHR_materials_sheen`, `KHR_materials_transmission`, `KHR_materials_volume`, `KHR_materials_iridescence`, `KHR_materials_emissive_strength`, `KHR_materials_dispersion`, `KHR_materials_diffuse_transmission`) into the new `PbrMaterial::openpbr_params` field (`OpenPbrParams`), via the pure off-GPU `loaders::gltf::material_openpbr_params_read` (native-tested in `gltf_material_extensions_test.rs`). Parsed-and-stored only: the lobes' shader evaluation and texture maps are deferred follow-ups, so rendering behavior is unchanged.
+- **OpenPBR Surface shading (opaque path)**: a material carrying any OpenPBR-carrying extension now selects the spec's opaque layered evaluation in `main.frag` behind the `USE_OPENPBR` define — IOR-driven dielectric Fresnel (`specular_ior` → F0), the energy-preserving per-axis `alpha_t`/`alpha_b` mapping plus Smith joint-visibility GGX (per the OpenPBR spec's microfacet model), a fuzz/sheen lobe (`KHR_materials_sheen`, Charlie NDF + Ashikhmin-Premoze visibility, direct + IBL), and KHR_materials_emissive_strength scaling (also enabled on the legacy path). Materials without those extensions keep the legacy glTF metallic-roughness shader unchanged. Refraction (transmission / volume / subsurface), thin-film iridescence, dispersion and the textured lobe carriers remain deferred.
+
 ### Changed
 
 - **IBL multiple-scattering energy compensation**: indirect specular now adds the multi-scatter term (`Fms * Ems` weighted by irradiance) on top of the single-scatter prefiltered reflection, matching three.js `computeMultiscattering()`. Without it, rough metals/plastics read as pure mirrors and the overall specular is too dim.

@@ -237,6 +237,27 @@ When implementing the `Material` trait for custom materials:
 - IBL textures occupy units starting from `ibl_base_texture_unit()` (3 consecutive units). Custom materials should avoid those units.
 - **`as_any()` / `as_any_mut()`** let calling code downcast a `Box<dyn Material>` back to its concrete type — used by the engraving system to reach `PbrMaterial`-specific setters after resolving a node by name.
 
+### OpenPBR Surface adoption (loader + shading stages)
+OpenPBR Surface is the ASWF-standard über-shader (see the [OpenPBR spec]); it has **no glTF extension of its own** — real-time assets carry its parameters through Khronos' ratified `KHR_materials_*` set. This crate is adopting it that way, in stages. **Loader stage (done):** the glTF loader reads the scalar/color factors of the OpenPBR-carrying extensions into `PbrMaterial::openpbr_params` (a `OpenPbrParams` type) via the pure, off-GPU `loaders::gltf::material_openpbr_params_read`. **Shading stage (partial):** a material carrying any of those extensions selects the spec's opaque layered evaluation inside `main.frag` via the `USE_OPENPBR` define — IOR-driven dielectric Fresnel (`specular_ior`), the energy-preserving roughness→`alpha_t`/`alpha_b` mapping and Smith joint-visibility GGX, fuzz (`KHR_materials_sheen`) via a Charlie/Ashikhmin lobe, Kulla-Conty multi-scatter in IBL, and `KHR_materials_emissive_strength` scaling (also honored by the legacy path). **Not done yet:** refraction — transmission / volume / subsurface need a scene-transmission pass (thin-film iridescence and dispersion included) — plus the textured carriers of these lobes. Materials carrying none of the OpenPBR extensions keep the legacy glTF metallic-roughness path byte-for-byte.
+
+| OpenPBR Surface parameter | glTF transport | Loader | Shader |
+|---|---|---|---|---|
+| `base_color`, `base_metalness`, `specular_roughness` | core `pbrMetallicRoughness` | done | legacy path |
+| `specular_weight`, `specular_color` | [KHR_materials_specular] | done | legacy path |
+| `specular_roughness_anisotropy`, `geometry_tangent` | [KHR_materials_anisotropy] | done | legacy + OpenPBR energy mapping |
+| `coat_weight`, `coat_roughness`, `geometry_coat_normal` | [KHR_materials_clearcoat] | done | legacy path; note `coat_ior` has no carrier — glTF fixes clearcoat IOR at 1.5 |
+| `specular_ior` | [KHR_materials_ior] `ior` | done (`openpbr_params.ior`, default 1.5) | `USE_OPENPBR` (IOR-driven F0) |
+| `fuzz_weight`, `fuzz_color`, `fuzz_roughness` | [KHR_materials_sheen] | done (`sheen_*`, sheen ≈ fuzz microfiber lobe) | `USE_OPENPBR` (Charlie/Ashikhmin) |
+| `transmission_weight` | [KHR_materials_transmission] | done (`transmission_factor`) | stored only — refraction pass pending |
+| `transmission_depth`, medium absorption | [KHR_materials_volume] | done (`volume_*`, approximate) | stored only — refraction pass pending |
+| `thin_film_weight`, `thin_film_thickness`, `thin_film_ior` | [KHR_materials_iridescence] | done (`iridescence_*`) | stored only — deferred |
+| emission luminance scale | [KHR_materials_emissive_strength] | done (`emissive_strength`) | legacy + `USE_OPENPBR` |
+| `transmission_dispersion_scale` (20 / Abbe) | [KHR_materials_dispersion] | done (`dispersion`) | stored only — deferred |
+| translucent-base scattering | [KHR_materials_diffuse_transmission] | done (`diffuse_transmission_*`) | stored only — refraction pass pending |
+| `geometry_opacity`, `geometry_normal` | core `alphaMode`/`alphaCutoff`, `normalTexture` | done | both |
+
+Correspondences marked "approximate" share a lobe's *meaning* but not always its exact physical parametrization (e.g. glTF volume `thicknessFactor`/`attenuationDistance` vs OpenPBR `transmission_depth`; `sheenColorFactor` vs `fuzz_color`) — see the `OpenPbrParams` field docs and the [OpenPBR spec]'s parameter tables for the authoritative defaults. Presence semantics: a field is `Some` only while its extension is present, defaulted to the extension's schema default when the key is omitted. The staged roadmap, blocker list, and test/reference-model plan live in [`docs/openpbr_adoption_plan.md`](docs/openpbr_adoption_plan.md).
+
 ### Dynamic Text Engraving
 `src/webgl/engraving/` maps glTF node names to an engraving zone (a dedicated UV channel, aspect ratio, character limit and font whitelist — see `engraving_config.schema.json`), and wires user-supplied text all the way to the GPU:
 
@@ -291,6 +312,17 @@ feature hubs for the PBR core, image-based lighting, and shadow mapping.
 
 #### KHR Extensions
 - [KHR_materials_specular]
+- [KHR_materials_clearcoat]
+- [KHR_materials_anisotropy]
+- [KHR_materials_ior]
+- [KHR_materials_sheen]
+- [KHR_materials_transmission]
+- [KHR_materials_volume]
+- [KHR_materials_iridescence]
+- [KHR_materials_emissive_strength]
+- [KHR_materials_dispersion]
+- [KHR_materials_diffuse_transmission]
+- [OpenPBR spec]
 
 [Real Shading in Unreal Engine 4]: https://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
 [Background: Physics and Math of Shading]: https://blog.selfshadow.com/publications/s2013-shading-course/hoffman/s2013_pbs_physics_math_notes.pdf
@@ -310,5 +342,16 @@ feature hubs for the PBR core, image-based lighting, and shadow mapping.
 [Normal Mapping Without Precomputed Tangents]: http://www.thetenthplanet.de/archives/1180
 
 [KHR_materials_specular]:  https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_specular/README.md
+[KHR_materials_clearcoat]:  https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_clearcoat/README.md
+[KHR_materials_anisotropy]:  https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_anisotropy/README.md
+[KHR_materials_ior]:  https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_ior/README.md
+[KHR_materials_sheen]:  https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_sheen/README.md
+[KHR_materials_transmission]:  https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_transmission/README.md
+[KHR_materials_volume]:  https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_volume/README.md
+[KHR_materials_iridescence]:  https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_iridescence/README.md
+[KHR_materials_emissive_strength]:  https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_emissive_strength/README.md
+[KHR_materials_dispersion]:  https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_dispersion/README.md
+[KHR_materials_diffuse_transmission]:  https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_diffuse_transmission/README.md
+[OpenPBR spec]: https://academysoftwarefoundation.github.io/OpenPBR/
 [Vulkan-glTF-PBR]: https://github.com/SaschaWillems/Vulkan-glTF-PBR/blob/master/data/shaders/genbrdflut.frag
 [Image Based Lighting with Multiple Scattering]: https://bruop.github.io/ibl/

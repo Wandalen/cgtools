@@ -91,10 +91,121 @@ mod private
     "engravingStrength",
     "engravingRoughness",
     "engravingDarkening",
+    // OpenPBR Surface carriers ( USE_OPENPBR / USE_KHR_materials_emissive_strength )
+    "ior",
+    "sheenColorFactor",
+    "sheenRoughnessFactor",
+    "emissiveStrength",
     // Luminosity
     "alphaCutoff",
     "exposure"
   );
+
+  /// Scalar/color factors of the ratified `KHR_materials_*` glTF extensions that
+  /// carry parameters of the ASWF OpenPBR Surface shading model
+  /// ( https://academysoftwarefoundation.github.io/OpenPBR/ ) — the glTF
+  /// transport encoding OpenPBR content ships in for real-time pipelines. One
+  /// `Option` per parameter : `Some` only while the extension named in the
+  /// field's doc comment is present on the glTF material, already defaulted to
+  /// the extension's own schema default when the extension omits the key
+  /// ( `volume_attenuation_distance` alone keeps `None` for its `+inf` schema
+  /// default, which has no finite carrier ).
+  ///
+  /// This captures the scalar/color factor carriers only. Texture maps that
+  /// vary these lobes per-texel ( e.g. `sheenColorTexture` ), and shader
+  /// evaluation of the lobes themselves, are deferred to the shading steps
+  /// that consume them — glTF texture upload already exists via the loader's
+  /// `TextureInfo` slots. Field names follow the KHR JSON keys; the OpenPBR
+  /// parameter each one transports is named in the field docs. See the crate
+  /// `readme.md` "OpenPBR adoption" section for the full correspondence table.
+  #[ derive( Default, Clone, Debug, PartialEq ) ]
+  pub struct OpenPbrParams
+  {
+    /// Dielectric index of refraction — carries OpenPBR `specular_ior`
+    /// ( `KHR_materials_ior.ior`, schema default `1.5` ).
+    pub ior : Option< f32 >,
+    /// Microfiber ( sheen ) layer color — carries OpenPBR `fuzz_color`
+    /// ( `KHR_materials_sheen.sheenColorFactor`, schema default `[0, 0, 0]`,
+    /// i.e. the sheen layer is disabled ).
+    pub sheen_color_factor : Option< [ f32; 3 ] >,
+    /// Microfiber ( sheen ) layer roughness — carries OpenPBR `fuzz_roughness`
+    /// ( `KHR_materials_sheen.sheenRoughnessFactor`, schema default `0.0` ).
+    pub sheen_roughness_factor : Option< f32 >,
+    /// Fraction of light transmitted through the surface — carries OpenPBR
+    /// `transmission_weight` ( `KHR_materials_transmission.transmissionFactor`,
+    /// schema default `0.0` ).
+    pub transmission_factor : Option< f32 >,
+    /// Volumetric slab thickness beneath the surface — the glTF carrier of the
+    /// OpenPBR `transmission_depth` length scale
+    /// ( `KHR_materials_volume.thicknessFactor`, schema default `0.0`, i.e.
+    /// thin-walled ).
+    pub volume_thickness_factor : Option< f32 >,
+    /// Distance over which `volume_attenuation_color` is reached — glTF-side
+    /// absorption mean free path ( `KHR_materials_volume.attenuationDistance` ).
+    /// `None` when omitted ( schema default `+inf` : non-absorbing ).
+    pub volume_attenuation_distance : Option< f32 >,
+    /// Color white light turns into after one attenuation distance
+    /// ( `KHR_materials_volume.attenuationColor`, schema default `[1, 1, 1]` ).
+    pub volume_attenuation_color : Option< [ f32; 3 ] >,
+    /// Thin-film ( iridescence ) intensity — carries OpenPBR `thin_film_weight`
+    /// ( `KHR_materials_iridescence.iridescenceFactor`, schema default `0.0` ).
+    pub iridescence_factor : Option< f32 >,
+    /// Thin-film index of refraction — carries OpenPBR `thin_film_ior`
+    /// ( `KHR_materials_iridescence.iridescenceIor`, schema default `1.3` ).
+    pub iridescence_ior : Option< f32 >,
+    /// Thin-film thickness at texture value `0.0` / minimum, in nanometers
+    /// ( `KHR_materials_iridescence.iridescenceThicknessMinimum`, schema
+    /// default `100.0` ).
+    pub iridescence_thickness_minimum : Option< f32 >,
+    /// Thin-film thickness at texture value `1.0` / maximum, in nanometers
+    /// ( `KHR_materials_iridescence.iridescenceThicknessMaximum`, schema
+    /// default `400.0` ).
+    pub iridescence_thickness_maximum : Option< f32 >,
+    /// Emissive intensity multiplier on the core `emissiveFactor` — the glTF
+    /// carrier of OpenPBR emission luminance scale
+    /// ( `KHR_materials_emissive_strength.emissiveStrength`, schema default
+    /// `1.0` ).
+    pub emissive_strength : Option< f32 >,
+    /// Chromatic-dispersion strength, stored as `20 / Abbe_number` — the glTF
+    /// carrier of OpenPBR `transmission_dispersion_scale`
+    /// ( `KHR_materials_dispersion.dispersion`, schema default `0.0` ).
+    pub dispersion : Option< f32 >,
+    /// Diffuse-transmission ( translucency ) factor — the glTF carrier of the
+    /// OpenPBR translucent-base scattering weight
+    /// ( `KHR_materials_diffuse_transmission.diffuseTransmissionFactor`,
+    /// schema default `0.0` ).
+    pub diffuse_transmission_factor : Option< f32 >,
+    /// Color modulating the diffusely transmitted light
+    /// ( `KHR_materials_diffuse_transmission.diffuseTransmissionColorFactor`,
+    /// schema default `[1, 1, 1]` ).
+    pub diffuse_transmission_color_factor : Option< [ f32; 3 ] >,
+  }
+
+  impl OpenPbrParams
+  {
+    /// Returns `true` when no OpenPBR-carrying extension is present, i.e. the
+    /// material should keep the legacy glTF metallic-roughness shading path
+    /// ( no `USE_OPENPBR` define, no OpenPBR-only uniforms uploaded ).
+    #[ must_use ]
+    pub fn is_empty( &self ) -> bool
+    {
+      self.ior.is_none()
+      && self.sheen_color_factor.is_none()
+      && self.sheen_roughness_factor.is_none()
+      && self.transmission_factor.is_none()
+      && self.volume_thickness_factor.is_none()
+      && self.volume_attenuation_distance.is_none()
+      && self.volume_attenuation_color.is_none()
+      && self.iridescence_factor.is_none()
+      && self.iridescence_ior.is_none()
+      && self.iridescence_thickness_minimum.is_none()
+      && self.iridescence_thickness_maximum.is_none()
+      && self.emissive_strength.is_none()
+      && self.dispersion.is_none()
+      && self.diffuse_transmission_factor.is_none()
+      && self.diffuse_transmission_color_factor.is_none()
+    }
+  }
 
   /// Represents the visual properties of a surface.
   #[ derive( Former, Debug ) ]
@@ -158,6 +269,13 @@ mod private
     pub anisotropy_rotation : f32,
     /// Optional texture providing the anisotropy direction (RG) and strength (B). (KHR_materials_anisotropy extension)
     anisotropy_texture : Option< TextureInfo >,
+
+    /// OpenPBR Surface parameters carried by the ratified `KHR_materials_*`
+    /// extensions. Filled by the glTF loader via
+    /// `loaders::gltf::material_openpbr_params_read` — a wholesale capture of
+    /// the scalar/color factor carriers; the lobes' shader consumption is a
+    /// separate step ( see the field type's own docs ).
+    pub openpbr_params : OpenPbrParams,
 
     /// Optional engraving mask texture: white text on a black background in the R channel,
     /// sampled at `vUv_{uv_position}` and bounds-checked against `[0, 1]` in the shader. This is
@@ -294,6 +412,7 @@ mod private
         anisotropy_strength,
         anisotropy_rotation,
         anisotropy_texture,
+        openpbr_params : OpenPbrParams::default(),
         engraving_texture,
         engraving_strength,
         engraving_roughness,
@@ -802,6 +921,24 @@ mod private
         add_texture( &mut defines, "USE_ENGRAVING", "vEngravingUv", self.engraving_texture.as_ref() );
       }
 
+      // OpenPBR Surface adoption — shading stage. `USE_OPENPBR` selects the spec's opaque
+      // layered evaluation ( IOR-driven Fresnel, energy-preserving roughness→alpha mapping,
+      // joint-visibility GGX, fuzz/sheen lobe, Kulla-Conty multi-scatter ) in `main.frag`;
+      // the legacy glTF metallic-roughness path is kept for materials carrying none of the
+      // OpenPBR-carrying extensions. `emissiveStrength` keeps its own define so the legacy
+      // path can honour KHR_materials_emissive_strength as well.
+      let use_openpbr = !self.openpbr_params.is_empty();
+      let use_khr_materials_emissive_strength = self.openpbr_params.emissive_strength.is_some();
+
+      if use_openpbr
+      {
+        defines.push_str( "#define USE_OPENPBR\n" );
+      }
+      if use_khr_materials_emissive_strength
+      {
+        defines.push_str( "#define USE_KHR_materials_emissive_strength\n" );
+      }
+
       // Shared tangent/bitangent/normal matrix, needed by normal mapping, clearcoat normal
       // mapping, anisotropy and engraving alike.
       if use_tbn
@@ -993,6 +1130,21 @@ mod private
         gl::uniform::upload( gl, locations.get( "engravingDarkening" ).unwrap().clone(), &self.engraving_darkening )?;
       }
 
+      // OpenPBR Surface carriers — uploaded only while their define is on ( so the shader
+      // declares the uniform and the location exists ). Missing params fall back to the
+      // shader-side schema default, keeping e.g. a sheen-only material's IOR at 1.5.
+      if !self.openpbr_params.is_empty()
+      {
+        upload( "ior", Some( self.openpbr_params.ior.unwrap_or( 1.5 ) ) )?;
+        upload( "sheenRoughnessFactor", Some( self.openpbr_params.sheen_roughness_factor.unwrap_or( 0.0 ) ) )?;
+        let sheen_color = self.openpbr_params.sheen_color_factor.unwrap_or( [ 0.0, 0.0, 0.0 ] );
+        upload_array( "sheenColorFactor", Some( &sheen_color ) )?;
+      }
+      if let Some( strength ) = self.openpbr_params.emissive_strength
+      {
+        upload( "emissiveStrength", Some( strength ) )?;
+      }
+
       Ok( () )
     }
 
@@ -1131,6 +1283,7 @@ mod private
         anisotropy_strength : self.anisotropy_strength,
         anisotropy_rotation : self.anisotropy_rotation,
         anisotropy_texture : self.anisotropy_texture.clone(),
+        openpbr_params : self.openpbr_params.clone(),
         engraving_texture : self.engraving_texture.clone(),
         engraving_strength : self.engraving_strength,
         engraving_roughness : self.engraving_roughness,
@@ -1156,6 +1309,7 @@ crate::mod_interface!
     MAX_DIRECT_LIGHTS,
     MAX_SPOT_LIGHTS,
     PBRShader,
-    PbrMaterial
+    PbrMaterial,
+    OpenPbrParams
   };
 }
