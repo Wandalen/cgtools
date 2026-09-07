@@ -6,7 +6,7 @@
   <open_pbr_surface name="open_pbr_surface_surfaceshader" type="surfaceshader">
     <input name="base_color" type="color3" value="0.55, 0.56, 0.6" />
     <input name="base_metalness" type="float" value="1.0" />
-    <input name="specular_roughness" type="float" value="0.25" />
+    <input name="specular_roughness" type="float" value="0.6" />
     <input name="thin_film_weight" type="float" value="1.0" />
     <input name="thin_film_thickness" type="float" value="0.45" />
     <input name="thin_film_ior" type="float" value="1.4" />
