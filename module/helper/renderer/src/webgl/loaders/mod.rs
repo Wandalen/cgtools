@@ -11,6 +11,9 @@ crate::mod_interface!
   /// OpenPBR Surface loader from MaterialX (`.mtlx`) documents
   layer openpbr_mtlx;
 
+  /// OpenPBR `.usda` → `.mtlx` asset-reference resolver
+  layer openpbr_usda;
+
   /// IBL textures loader
   layer ibl;
 

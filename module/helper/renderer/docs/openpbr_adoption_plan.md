@@ -125,11 +125,15 @@ Introduce a native parameter surface holding the full OpenPBR set (41 params:
 
 ### 2.3 Phased plan
 
-Status: **N1 complete, N2 landed** — `OpenPbrSurface` (type, spec defaults,
-glTF-carrier mapping) in `src/webgl/material/openpbr_surface.rs`; the `.mtlx`
-reader in `src/webgl/loaders/openpbr_mtlx.rs`; native tests in
-`tests/openpbr_mtlx_test.rs` and `tests/openpbr_gltf_mapping_test.rs`. N3/N4
-are still open.
+Status: **N1 complete, N2 landed, N3-lite landed** — `OpenPbrSurface` (type,
+spec defaults, glTF-carrier mapping) in `src/webgl/material/openpbr_surface.rs`;
+the `.mtlx` reader in `src/webgl/loaders/openpbr_mtlx.rs` (verified against all
+54 real `.mtlx` of OpenPBRShaderPlayground, 2026-09); the `.usda` → `.mtlx`
+asset-reference resolver (`N3-lite`) in `src/webgl/loaders/openpbr_usda.rs`
+(verified end-to-end on the real `iceCube.usda` + its `.mtlx`). Native tests in
+`tests/openpbr_mtlx_test.rs`, `tests/openpbr_gltf_mapping_test.rs` and
+`tests/openpbr_usda_test.rs`. The full `openusd` Stage reader (§2.2, wasm spike
+passed) and N4 are still open.
 
 - **N1** — `OpenPbrSurface` type + mapping from the existing glTF carriers;
   keep `OpenPbrParams` presence semantics for glTF, add native defaults for the
