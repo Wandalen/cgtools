@@ -51,8 +51,11 @@ mod private
   }
 
   /// Applies one `<input>` element's `name`/`type`/`value` attributes to an
-  /// in-progress surface. Scalar inputs that fail to parse are hard errors;
-  /// non-scalar ( texture / geometry-map ) inputs are ignored by design.
+  /// in-progress surface. Only literal scalar values are applied: an input
+  /// wired to an upstream node ( `nodename` attribute, no `value` ) or left
+  /// unset is skipped here — its value is driven by the texture/graph step
+  /// ( §3.1 ) or by the nodedef default, which the surface already starts
+  /// from. A *present* scalar value that cannot be parsed is a hard error.
   fn apply_input( surface : &mut OpenPbrSurface, start : &BytesStart< '_ > ) -> Result< (), MtlxError >
   {
     let mut name = String::new();
@@ -71,10 +74,17 @@ mod private
     }
     if is_scalar_type( &type_name )
     {
-      let applied = openpbr_input_apply( surface, &name, &type_name, &value );
+      let value = value.trim();
+      if value.is_empty()
+      {
+        // Connected ( nodename ) or unset input — resolve via defaults / the
+        // texture step, never mis-apply an empty string.
+        return Ok( () );
+      }
+      let applied = openpbr_input_apply( surface, &name, &type_name, value );
       if !applied
       {
-        return Err( MtlxError::Input { name, type_name, value } );
+        return Err( MtlxError::Input { name, type_name, value : value.to_string() } );
       }
     }
     Ok( () )

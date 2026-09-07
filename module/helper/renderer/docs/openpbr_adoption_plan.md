@@ -156,6 +156,14 @@ are still open.
 - MaterialX: `AcademySoftwareFoundation/OpenPBR` `examples/open_pbr_*.mtlx`
   (native import once N2 lands; offline render in Arnold / MaterialX Viewer as
   ground truth meanwhile).
+- **Digital Production Example Library `OpenPBRShaderPlayground`**
+  ( <https://github.com/DigitalProductionExampleLibrary/OpenPBRShaderPlayground> )
+  — ~40 real production materials shipped as `.usda`/`.mtlx` pairs plus
+  reference PNG/EXR renders. Verified shape (2026-09): USD `Material` prims
+  reference **external `.mtlx` files** (`prepend references =
+  @./<name>.mtlx@</MaterialX/Materials/<name>>`), and the `.mtlx` wires many
+  scalars to texture nodes (`nodename`) — so the N3 USD lane resolves to the N2
+  `.mtlx` reader, and texture-driven inputs stay at defaults until §3.1.
 - USD/OpenPBR: Omniverse OpenPBR material library (OpenUSD + MaterialX);
   Physically Based / MaterialX libraries that publish `.mtlx` or USD variants.
 - Cross-format suites: the same material authored as `.mtlx`, `.usda`, and glTF

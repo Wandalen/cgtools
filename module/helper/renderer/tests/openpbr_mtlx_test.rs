@@ -263,3 +263,31 @@ fn unknown_scalar_parameter_is_a_hard_error_not_silent()
 
   assert!( openpbr_surfaces_from_mtlx( fixture ).is_err() );
 }
+
+#[ test ]
+fn connected_or_unset_inputs_are_skipped_literal_scalars_applied()
+{
+  // Mirrors real content ( e.g. OpenPBRShaderPlayground `iceCube.mtlx` ):
+  // scalar inputs wired to upstream texture nodes carry `nodename` and no
+  // `value`, and must not error — only literal scalar values are extracted,
+  // everything else stays at the spec default until the texture step.
+  let fixture = r#"<materialx version="1.39" colorspace="lin_rec709">
+  <image name="Roughness" type="float">
+    <input name="file" type="filename" colorspace="Raw" value="../textures/iceCube_rougness.tif" />
+  </image>
+  <open_pbr_surface name="s" type="surfaceshader">
+    <input name="specular_roughness" type="float" nodename="Roughness" />
+    <input name="specular_roughness_anisotropy" type="float" value="0.5" />
+    <input name="geometry_normal" type="vector3" nodename="normalmap1" />
+    <input name="base_weight" type="float" value="" />
+  </open_pbr_surface>
+</materialx>"#;
+
+  let surfaces = openpbr_surfaces_from_mtlx( fixture ).expect( "connected inputs parse without error" );
+
+  assert_eq!( surfaces.len(), 1 );
+  // Connected roughness stays at the spec default; the literal scalar applied.
+  assert_eq!( surfaces[ 0 ].specular_roughness, 0.3 );
+  assert_eq!( surfaces[ 0 ].specular_roughness_anisotropy, 0.5 );
+  assert_eq!( surfaces[ 0 ].base_weight, 1.0 );
+}
