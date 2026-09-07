@@ -344,6 +344,9 @@ crate::mod_interface!
   /// PBR Material
   layer pbr;
 
+  /// Canonical OpenPBR Surface parameter model ( native formats lane )
+  layer openpbr_surface;
+
   orphan use
   {
     AlphaMode,

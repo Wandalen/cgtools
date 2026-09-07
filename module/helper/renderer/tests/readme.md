@@ -53,4 +53,5 @@
 | webgl_renderer_pass_cycle_test.rs | Live-context test: legacy `Renderer::render()` completes on an opaque PBR primitive and an empty scene |
 | gltf_extensions_required_test.rs | Tests glTF loader rejects assets requiring unsupported extensions |
 | gltf_material_extensions_test.rs | Tests glTF loader's OpenPBR Surface ingestion — KHR_materials_* scalar/color factor carriers and their per-extension schema defaults |
+| openpbr_mtlx_test.rs | Tests the MaterialX (`.mtlx`) OpenPBR Surface reader — ASWF example fixtures, defaults, multiple surfaces, error handling |
 | unreal_bloom_tests.rs | Structural browser tests: `UnrealBloomPass` renders via the real `SwapFramebuffer`-bound pass cycle |

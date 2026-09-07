@@ -99,17 +99,36 @@ Introduce a native parameter surface holding the full OpenPBR set (41 params:
 
 ### 2.2 Feasibility & blockers
 
-- The **USD** (Pixar) and **MaterialX** (ASWF) runtimes are large C++ codebases,
-  not hostable in wasm; no mature, wasm-ready full parser exists in the Rust
-  ecosystem.
-- Native binary **`.usdc`/`.usdz`** (Crate archive + binary USD layer) is out of
-  scope for a runtime path — offline conversion only.
-- Feasible natively: purpose-built readers for the **OpenPBR subset of the text
-  formats** — `.mtlx` is XML, `.usda` is ASCII — mapping onto `OpenPbrSurface`.
-  These are off-GPU and natively testable.
+- The **USD** (Pixar) and **MaterialX** (ASWF) C++ runtimes are not hostable in
+  wasm. **MaterialX** additionally has **no usable Rust crate** on crates.io
+  (`materialx` / `materialx-sys` are v0.0.0 placeholder bindings) — a `.mtlx`
+  reader must be purpose-built (the format is XML).
+- **USD** has `openusd` (github.com/mxpv/openusd, v0.7): a **pure-Rust, no-C++
+  implementation** that reads/writes `.usda`, `.usdc`, and `.usdz`, ships a
+  composed `Stage` and opt-in typed schema views including **`UsdShade`**
+  (`Material::compute_surface_source` → shader id / nodegraph). Caveats: active
+  development with **no API stability below 1.0**, and wasm compatibility is
+  **unverified** — needs a compile spike before commitment. (C++ pxr bindings
+  such as `usd`/`usd-rs`, `rust-usd`, `pxr_sys` are native-only and rejected for
+  the wasm runtime path.)
+- Native binary **`.usdc`/`.usdz`** stays feasible only via `openusd` (above); if
+  the wasm spike fails, they fall back to offline conversion (§2.3 N4).
+- Purpose-built readers for the **OpenPBR subset** mapping onto `OpenPbrSurface`
+  remain the core work and are off-GPU + natively testable. USD materials that
+  carry OpenPBR surface as an embedded MaterialX nodegraph (`UsdMtlx`) or a
+  referenced `.mtlx` asset still resolve to the **same MaterialX parameter
+  vocabulary** — so one shared OpenPBR-parameter extraction core serves both the
+  standalone `.mtlx` reader (N2) and the USD reader (N3).
 - Record an ADR (root `docs/adr/`) for the runtime-vs-offline split before N2.
 
 ### 2.3 Phased plan
+
+Status: **N1 type + N2 `.mtlx` reader have landed** — `OpenPbrSurface` in
+`src/webgl/material/openpbr_surface.rs`, the reader in
+`src/webgl/loaders/openpbr_mtlx.rs`, native tests in
+`tests/openpbr_mtlx_test.rs` (verbatim ASWF `open_pbr_default/gold/glass/velvet`
+fixtures). The remaining N1 half — mapping the existing glTF carriers into
+`OpenPbrSurface` — and N3/N4 are still open.
 
 - **N1** — `OpenPbrSurface` type + mapping from the existing glTF carriers;
   keep `OpenPbrParams` presence semantics for glTF, add native defaults for the
@@ -118,9 +137,13 @@ Introduce a native parameter surface holding the full OpenPBR set (41 params:
   of `open_pbr_surface.mtlx` from their `<input name="…" value="…">` wiring;
   texture inputs deferred to the §3.1 texture plumbing; unresolvable graphs are
   reported, never silently dropped.
-- **N3** — `.usda` reader (text subset) resolving the OpenPBR/MaterialX surface
-  a layer's materials reference. `.usdz`/`.usdc` route through the offline
-  converter only.
+- **N3** — USD reader. If the `openusd` wasm spike (compile under
+  `wasm32-unknown-unknown`) passes, layer it as an optional
+  `native-formats` feature and read `.usda`/`.usdc`/`.usdz`: walk `Material`
+  prims → `compute_surface_source` → extract the OpenPBR/MaterialX surface
+  inputs via the shared N2 parameter core. On spike failure, fall back to a
+  hand-rolled `.usda` text-subset reader, with `.usdz`/`.usdc` offline-only
+  (§2.3 N4).
 - **N4** — authoring/converter path for real content: export the same material
   to glTF + `KHR_materials_*` for the browser runtime, and keep parameters with
   no KHR carrier in a private `OPENPBR_materials` JSON extension on the glTF

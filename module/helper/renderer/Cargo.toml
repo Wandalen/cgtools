@@ -42,6 +42,7 @@ enabled = [
   "dep:rustc-hash",
   "dep:serde",
   "dep:serde_json",
+  "dep:quick-xml",
   "dep:wasm-bindgen-futures"
 ]
 default = [ "enabled", "webgl" ]
@@ -81,6 +82,9 @@ former = { workspace = true, optional = true }
 uuid = { version = "1.20.0", features = ["v4", "js"], optional = true }
 serde = { workspace = true, features = [ "derive" ], optional = true }
 serde_json = { workspace = true, optional = true }
+# Streaming XML reader for the MaterialX (`.mtlx`) OpenPBR surface lane
+# (`loaders/openpbr_mtlx.rs`). Pure Rust, wasm-safe, reused from the workspace.
+quick-xml = { workspace = true, optional = true }
 wasm-bindgen-futures = { workspace = true, optional = true }
 
 [dependencies.web-sys]

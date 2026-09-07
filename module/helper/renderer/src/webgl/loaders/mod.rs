@@ -8,6 +8,9 @@ crate::mod_interface!
   /// Gltf loader
   layer gltf;
 
+  /// OpenPBR Surface loader from MaterialX (`.mtlx`) documents
+  layer openpbr_mtlx;
+
   /// IBL textures loader
   layer ibl;
 
