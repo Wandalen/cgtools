@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<materialx version="1.39" colorspace="acescg">
+  <surfacematerial name="Iridescent" type="material">
+    <input name="surfaceshader" type="surfaceshader" nodename="open_pbr_surface_surfaceshader" />
+  </surfacematerial>
+  <open_pbr_surface name="open_pbr_surface_surfaceshader" type="surfaceshader">
+    <input name="base_color" type="color3" value="0.55, 0.56, 0.6" />
+    <input name="base_metalness" type="float" value="1.0" />
+    <input name="specular_roughness" type="float" value="0.25" />
+    <input name="thin_film_weight" type="float" value="1.0" />
+    <input name="thin_film_thickness" type="float" value="0.45" />
+    <input name="thin_film_ior" type="float" value="1.4" />
+  </open_pbr_surface>
+</materialx>

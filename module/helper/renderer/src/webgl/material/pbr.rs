@@ -95,6 +95,9 @@ mod private
     "ior",
     "sheenColorFactor",
     "sheenRoughnessFactor",
+    "iridescenceFactor",
+    "iridescenceIor",
+    "iridescenceThickness",
     "emissiveStrength",
     // Luminosity
     "alphaCutoff",
@@ -471,26 +474,15 @@ mod private
       self.metallic_factor = runtime.base_metalness.clamp( 0.0, 1.0 );
       self.roughness_factor = runtime.specular_roughness.clamp( 0.0, 1.0 );
 
-      // KHR specular / clearcoat / sheen toggles: `Some` only when the surface
+      // KHR specular / clearcoat toggles: `Some` only when the surface
       // actually deviates ( setters refresh the defines either way ).
       self.specular_factor_set( runtime.specular_weight );
       self.specular_color_factor_set( runtime.specular_color.map( gl::F32x3::from ) );
       self.set_clearcoat_factor( runtime.coat_weight );
       self.set_clearcoat_roughness_factor( runtime.coat_roughness );
 
-      let mut params = OpenPbrParams::default();
-      if let Some( ior ) = runtime.specular_ior
-      {
-        params.ior = Some( ior );
-      }
-      if let Some( color ) = runtime.fuzz_color
-      {
-        params.sheen_color_factor = Some( color );
-      }
-      if let Some( roughness ) = runtime.fuzz_roughness
-      {
-        params.sheen_roughness_factor = Some( roughness );
-      }
+      // IOR / fuzz / thin-film carriers ( the `USE_OPENPBR` shader inputs ).
+      let params = crate::webgl::material::openpbr_params_from_surface( surface );
       self.openpbr_params_set( params );
     }
 
@@ -981,6 +973,10 @@ mod private
       {
         defines.push_str( "#define USE_OPENPBR\n" );
       }
+      if self.openpbr_params.iridescence_factor.is_some()
+      {
+        defines.push_str( "#define USE_OPENPBR_IRIDESCENCE\n" );
+      }
       if use_khr_materials_emissive_strength
       {
         defines.push_str( "#define USE_KHR_materials_emissive_strength\n" );
@@ -1186,6 +1182,15 @@ mod private
         upload( "sheenRoughnessFactor", Some( self.openpbr_params.sheen_roughness_factor.unwrap_or( 0.0 ) ) )?;
         let sheen_color = self.openpbr_params.sheen_color_factor.unwrap_or( [ 0.0, 0.0, 0.0 ] );
         upload_array( "sheenColorFactor", Some( &sheen_color ) )?;
+
+        if self.openpbr_params.iridescence_factor.is_some()
+        {
+          upload( "iridescenceFactor", Some( self.openpbr_params.iridescence_factor.unwrap_or( 1.0 ) ) )?;
+          upload( "iridescenceIor", Some( self.openpbr_params.iridescence_ior.unwrap_or( 1.4 ) ) )?;
+          let min = self.openpbr_params.iridescence_thickness_minimum.unwrap_or( 0.0 );
+          let max = self.openpbr_params.iridescence_thickness_maximum.unwrap_or( 0.0 );
+          upload( "iridescenceThickness", Some( ( min + max ) * 0.5 ) )?;
+        }
       }
       if let Some( strength ) = self.openpbr_params.emissive_strength
       {

@@ -447,6 +447,39 @@ mod private
       fuzz_roughness : ( surface.fuzz_weight > 1e-3 ).then_some( surface.fuzz_roughness ),
     }
   }
+
+  /// Builds the glTF-shaped extension carriers ( [`OpenPbrParams`] ) that make
+  /// the runtime `USE_OPENPBR` path evaluate `surface`: specular IOR, the fuzz
+  /// ( sheen ) layer and the thin-film ( iridescence ) layer. OpenPBR
+  /// `thin_film_thickness` is in micrometres; the glTF-carrier iridescence
+  /// thickness is in nanometres ( `×1000` ).
+  #[ must_use ]
+  pub fn openpbr_params_from_surface( surface : &OpenPbrSurface ) -> crate::webgl::material::OpenPbrParams
+  {
+    let mut params = crate::webgl::material::OpenPbrParams::default();
+
+    if ( surface.specular_ior - 1.5 ).abs() > 1e-4
+    {
+      params.ior = Some( surface.specular_ior );
+    }
+
+    if surface.fuzz_weight > 1e-3
+    {
+      params.sheen_color_factor = Some( surface.fuzz_color );
+      params.sheen_roughness_factor = Some( surface.fuzz_roughness );
+    }
+
+    if surface.thin_film_weight > 1e-3
+    {
+      let thickness_nm = surface.thin_film_thickness * 1000.0;
+      params.iridescence_factor = Some( surface.thin_film_weight );
+      params.iridescence_ior = Some( surface.thin_film_ior );
+      params.iridescence_thickness_minimum = Some( thickness_nm );
+      params.iridescence_thickness_maximum = Some( thickness_nm );
+    }
+
+    params
+  }
 }
 
 crate::mod_interface!
@@ -458,6 +491,7 @@ crate::mod_interface!
     OpenPbrRuntime,
     openpbr_input_apply,
     openpbr_from_gltf,
-    openpbr_to_runtime
+    openpbr_to_runtime,
+    openpbr_params_from_surface
   };
 }

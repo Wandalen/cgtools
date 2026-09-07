@@ -4,7 +4,7 @@
 //! material path. Pure data reduction, natively testable; the consuming
 //! `PbrMaterial::openpbr_surface_apply` method applies the same factors.
 
-use renderer::webgl::material::{ OpenPbrRuntime, OpenPbrSurface, openpbr_to_runtime };
+use renderer::webgl::material::{ OpenPbrParams, OpenPbrRuntime, OpenPbrSurface, openpbr_params_from_surface, openpbr_to_runtime };
 
 /// A default surface reduces to the runtime defaults ( no overrides ).
 #[ test ]
@@ -106,4 +106,39 @@ fn unsupported_lobes_are_not_reduced()
   // beyond the fact that it reduced to the ( base-only ) factors.
   assert_eq!( runtime.base_color_rgba[ 3 ], 1.0 );
   assert_eq!( runtime.fuzz_color, None );
+}
+
+/// `openpbr_params_from_surface` carries thin-film iridescence + fuzz + IOR
+/// into the glTF-shaped shader carriers.
+#[ test ]
+fn params_from_surface_maps_thin_film_fuzz_and_ior()
+{
+  let mut surface = OpenPbrSurface::spec_default();
+  surface.specular_ior = 1.52;
+  surface.fuzz_weight = 0.5;
+  surface.fuzz_color = [ 0.3, 0.2, 0.4 ];
+  surface.fuzz_roughness = 0.6;
+  surface.thin_film_weight = 0.8;
+  surface.thin_film_thickness = 0.45; // µm
+  surface.thin_film_ior = 1.4;
+
+  let params = openpbr_params_from_surface( &surface );
+
+  assert_eq!( params.ior, Some( 1.52 ) );
+  assert_eq!( params.sheen_color_factor, Some( [ 0.3, 0.2, 0.4 ] ) );
+  assert_eq!( params.sheen_roughness_factor, Some( 0.6 ) );
+  assert_eq!( params.iridescence_factor, Some( 0.8 ) );
+  assert_eq!( params.iridescence_ior, Some( 1.4 ) );
+  assert_eq!( params.iridescence_thickness_minimum, Some( 450.0 ) );
+  assert_eq!( params.iridescence_thickness_maximum, Some( 450.0 ) );
+}
+
+/// Defaults ( no thin film / fuzz / non-default IOR ) leave the carriers empty,
+/// so the material keeps the legacy path.
+#[ test ]
+fn params_from_surface_default_surface_yields_empty_params()
+{
+  let params = openpbr_params_from_surface( &OpenPbrSurface::spec_default() );
+
+  assert_eq!( params, OpenPbrParams::default() );
 }

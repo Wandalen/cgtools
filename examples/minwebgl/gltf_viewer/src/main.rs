@@ -63,6 +63,7 @@ const OPENPBR_MATERIALS : &[ ( &str, &str ) ] =
   ( "Velvet (fuzz)", "velvet" ),
   ( "Gold (metal)", "gold" ),
   ( "Glass (ior / transmission)", "glass" ),
+  ( "Iridescent metal (thin film)", "iridescent" ),
 ];
 
 /// Parses the embedded `.mtlx` for `key` into a canonical surface.
@@ -73,6 +74,7 @@ fn openpbr_material_surface( key : &str ) -> OpenPbrSurface
   {
     "gold" => include_str!( "../materials/open_pbr_gold.mtlx" ),
     "glass" => include_str!( "../materials/open_pbr_glass.mtlx" ),
+    "iridescent" => include_str!( "../materials/open_pbr_iridescent.mtlx" ),
     _ => include_str!( "../materials/open_pbr_velvet.mtlx" ),
   };
   let mut surfaces = openpbr_surfaces_from_mtlx( xml ).expect( "embedded OpenPBR material parses" );

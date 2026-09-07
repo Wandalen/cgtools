@@ -169,6 +169,13 @@ uniform vec4 baseColorFactor; // Default: [1, 1, 1, 1]
   uniform float ior;                 // OpenPBR `specular_ior`, default 1.5
   uniform vec3 sheenColorFactor;     // OpenPBR `fuzz_color`, default [0, 0, 0]
   uniform float sheenRoughnessFactor; // OpenPBR `fuzz_roughness`, default 0.0
+  #ifdef USE_OPENPBR_IRIDESCENCE
+    // OpenPBR `thin_film_*` layer: weight, film IOR and thickness in nanometres
+    // ( single value = mean of the glTF min/max, since no thickness texture ).
+    uniform float iridescenceFactor;
+    uniform float iridescenceIor;
+    uniform float iridescenceThickness;
+  #endif
 #endif
 #ifdef USE_KHR_materials_emissive_strength
   uniform float emissiveStrength;    // KHR_materials_emissive_strength, default 1.0
@@ -409,6 +416,123 @@ float V_Ashikhmin( const in float dotNL, const in float dotNV )
 }
 #endif
 
+#ifdef USE_OPENPBR_IRIDESCENCE
+// OpenPBR `thin_film_*` ( iridescence ) layer — the analytic thin-film
+// interference model of Belcour ( 2017 ), as shipped by three.js. The film sits
+// on the substrate ( `baseF0` = the underlying specular F0 ), with an air
+// interface above. cosTheta1 is the cosine of the angle of incidence at the
+// top interface ( dot( N, V ) ).
+// Reference: https://belcour.github.io/blog/research/2017/05/01/brdf-thin-film.html
+const mat3 XYZ_TO_REC709 = mat3
+(
+  3.2404542, -0.9692660, 0.0556434,
+  -1.5371385, 1.8760108, -0.2040259,
+  -0.4985314, 0.0415560, 1.0572252
+);
+
+vec3 fresnel0_to_ior( vec3 f0 )
+{
+  vec3 sqrtF0 = sqrt( f0 );
+  return ( vec3( 1.0 ) + sqrtF0 ) / max( vec3( 1.0 ) - sqrtF0, vec3( 1e-6 ) );
+}
+
+vec3 ior_to_fresnel0( vec3 transmittedIor, float incidentIor )
+{
+  return pow2( ( transmittedIor - vec3( incidentIor ) ) / max( transmittedIor + vec3( incidentIor ), vec3( 1e-6 ) ) );
+}
+
+float ior_to_fresnel0( float transmittedIor, float incidentIor )
+{
+  return pow2( ( transmittedIor - incidentIor ) / max( transmittedIor + incidentIor, 1e-6 ) );
+}
+
+float fresnel_schlick_scalar( const in float f0, const in float cosTheta )
+{
+  return f0 + ( 1.0 - f0 ) * pow( clamp( 1.0 - cosTheta, 0.0, 1.0 ), 5.0 );
+}
+
+// Evaluation of the XYZ colour-matching sensitivity curves in Fourier space.
+vec3 evalSensitivity( float OPD, vec3 shift )
+{
+  float phase = 2.0 * PI * OPD * 1.0e-9;
+  vec3 val = vec3( 5.4856e-13, 4.4201e-13, 5.2481e-13 );
+  vec3 pos = vec3( 1.6810e+06, 1.7953e+06, 2.2084e+06 );
+  vec3 var = vec3( 4.3278e+09, 9.3046e+09, 6.6121e+09 );
+
+  vec3 xyz = val * sqrt( 2.0 * PI * var ) * cos( pos * phase + shift ) * exp( -pow2( phase ) * var );
+  xyz.x += 9.7470e-14 * sqrt( 2.0 * PI * 4.5282e+09 ) * cos( 2.2399e+06 * phase + shift[ 0 ] ) * exp( -4.5282e+09 * pow2( phase ) );
+  xyz /= 1.0685e-7;
+
+  return XYZ_TO_REC709 * xyz;
+}
+
+vec3 evalIridescence
+(
+  const in float outsideIOR,
+  const in float eta2,
+  const in float cosTheta1,
+  const in float thinFilmThickness,
+  const in vec3 baseF0
+)
+{
+  vec3 I;
+
+  // Force iridescenceIOR -> outsideIOR when thinFilmThickness -> 0.0.
+  float iridescenceIOR = mix( outsideIOR, eta2, smoothstep( 0.0, 0.03, thinFilmThickness ) );
+  // cosTheta at the base layer ( Snell ).
+  float sinTheta2Sq = pow2( outsideIOR / max( iridescenceIOR, 1e-6 ) ) * ( 1.0 - pow2( cosTheta1 ) );
+
+  // Handle total internal reflection.
+  float cosTheta2Sq = 1.0 - sinTheta2Sq;
+  if( cosTheta2Sq < 0.0 )
+  {
+    return vec3( 1.0 );
+  }
+  float cosTheta2 = sqrt( cosTheta2Sq );
+
+  // First interface ( film top ).
+  float R0 = ior_to_fresnel0( iridescenceIOR, outsideIOR );
+  float R12 = fresnel_schlick_scalar( R0, cosTheta1 );
+  float T121 = 1.0 - R12;
+  float phi12 = 0.0;
+  if( iridescenceIOR < outsideIOR ) { phi12 = PI; }
+  float phi21 = PI - phi12;
+
+  // Second interface ( film bottom, on the substrate ).
+  vec3 baseIOR = fresnel0_to_ior( clamp( baseF0, vec3( 0.0 ), vec3( 0.9999 ) ) );
+  vec3 R1 = ior_to_fresnel0( baseIOR, iridescenceIOR );
+  vec3 R23 = F_Schlick( R1, vec3( 1.0 ), cosTheta2 );
+  vec3 phi23 = vec3( 0.0 );
+  if( baseIOR[ 0 ] < iridescenceIOR ) { phi23[ 0 ] = PI; }
+  if( baseIOR[ 1 ] < iridescenceIOR ) { phi23[ 1 ] = PI; }
+  if( baseIOR[ 2 ] < iridescenceIOR ) { phi23[ 2 ] = PI; }
+
+  // Phase shift.
+  float OPD = 2.0 * iridescenceIOR * thinFilmThickness * cosTheta2;
+  vec3 phi = vec3( phi21 ) + phi23;
+
+  // Compound terms.
+  vec3 R123 = clamp( R12 * R23, 1e-5, 0.9999 );
+  vec3 r123 = sqrt( R123 );
+  vec3 Rs = pow2( T121 ) * R23 / max( vec3( 1.0 ) - R123, vec3( 1e-6 ) );
+
+  // Reflectance for m = 0 ( DC term ).
+  vec3 C0 = R12 + Rs;
+  I = C0;
+
+  // Reflectance for m > 0 ( pairs of diracs ).
+  vec3 Cm = Rs - vec3( T121 );
+  for( int m = 1; m <= 2; ++m )
+  {
+    Cm *= r123;
+    vec3 Sm = 2.0 * evalSensitivity( float( m ) * OPD, float( m ) * phi );
+    I += Cm * Sm;
+  }
+
+  return max( I, vec3( 0.0 ) );
+}
+#endif
+
 #ifdef USE_KHR_materials_clearcoat
 // The clearcoat layer is modeled as a fixed-IOR (1.5) dielectric coat, using the same
 // isotropic GGX D/V terms as the base layer but with its own normal and roughness.
@@ -478,6 +602,11 @@ void applyLightContribution
 
   // Fresnel
   vec3 Fs = F_Schlick( material.f0, material.f90, dotVH );
+  #ifdef USE_OPENPBR_IRIDESCENCE
+    // Thin-film ( iridescence ) layer: mix in the interference reflectance of
+    // the film on the substrate ( view-based angle of incidence ).
+    Fs = mix( Fs, evalIridescence( 1.0, iridescenceIor, dotNV, iridescenceThickness, material.f0 ), iridescenceFactor );
+  #endif
   // Diffuse BRDF (Burley)
   vec3 Fd = Fd_Barley( alpha, dotNV, dotNL, dotLH );
 
@@ -614,6 +743,11 @@ void computeSpotLight
   #endif
 
   vec3 Fs = F_Schlick( material.f0, material.f90, dotVH );
+  #ifdef USE_OPENPBR_IRIDESCENCE
+    // Thin-film ( iridescence ) layer: mix in the interference reflectance of
+    // the film on the substrate ( view-based angle of incidence ).
+    Fs = mix( Fs, evalIridescence( 1.0, iridescenceIor, dotNV, iridescenceThickness, material.f0 ), iridescenceFactor );
+  #endif
   vec3 Fd = Fd_Barley( alpha, dotNV, dotNL, dotLH );
 
   vec3 irradiance = light.color * attenuation * dotNL;
