@@ -1188,12 +1188,16 @@ void main()
   #endif
 
   // Geometric Specular Anti-Aliasing (Tokuyoshi & Kaplanyan 2019)
-  // Increases roughness where screen-space normal derivatives are large (geometry edges),
-  // which selects blurrier environment map mip levels and prevents specular aliasing.
+  // Increases roughness where screen-space normal derivatives are large
+  // ( silhouette / grazing angles ), widening the lobe so it no longer aliases
+  // into single bright pixels. The per-axis *maximum* variance ( rather than
+  // the sum ) with a 2x weight matches the reference; capped so distant edges
+  // don't over-blur.
   vec3 dNdx = dFdx( normal );
   vec3 dNdy = dFdy( normal );
-  float geometricVariance = dot( dNdx, dNdx ) + dot( dNdy, dNdy );
-  material.roughness = sqrt( clamp( material.roughness * material.roughness + 0.5 * geometricVariance, 0.0, 1.0 ) );
+  float geometricVariance = max( dot( dNdx, dNdx ), dot( dNdy, dNdy ) );
+  float kernelRoughnessSq = clamp( 2.0 * geometricVariance, 0.0, 0.5 );
+  material.roughness = sqrt( clamp( material.roughness * material.roughness + kernelRoughnessSq, 0.0, 1.0 ) );
   material.roughness = max( material.roughness, 0.0525 );
 
   #ifdef USE_KHR_materials_anisotropy
