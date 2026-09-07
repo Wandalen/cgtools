@@ -264,6 +264,130 @@ mod private
       _ => false
     }
   }
+
+  /// Scalar factor carriers that the glTF transport ( core `pbrMetallicRoughness`
+  /// plus the ratified `KHR_materials_*` set ) can express for an OpenPBR
+  /// Surface. This is the authoring/lossy bridge into the canonical model
+  /// ( adoption-plan N1 remainder ) : factors with a faithful OpenPBR
+  /// equivalent are carried, while lobes that glTF has **no** scalar carrier
+  /// for ( subsurface, volume, dispersion, iridescence, emission luminance )
+  /// are left to the OpenPBR spec default by [`openpbr_from_gltf`] rather than
+  /// guessed. Values follow glTF factor semantics and defaults; the mapping in
+  /// [`openpbr_from_gltf`] clamps to the OpenPBR ranges.
+  #[ derive( Clone, Debug, PartialEq ) ]
+  pub struct OpenPbrFromGltf
+  {
+    /// `baseColorFactor` RGBA in linear space ( alpha feeds
+    /// `geometry_opacity` ).
+    pub base_color : [ f32; 4 ],
+    /// `metallicFactor` → `base_metalness` ( glTF default `1.0` ).
+    pub base_metalness : f32,
+    /// `roughnessFactor` → `specular_roughness` ( glTF default `1.0` ).
+    pub specular_roughness : f32,
+    /// `KHR_materials_ior.ior` → `specular_ior` ( default `1.5` ).
+    pub specular_ior : f32,
+    /// `KHR_materials_specular.specularFactor` → `specular_weight`.
+    pub specular_weight : Option< f32 >,
+    /// `KHR_materials_specular.specularColorFactor` → `specular_color`.
+    pub specular_color : Option< [ f32; 3 ] >,
+    /// `KHR_materials_anisotropy.anisotropyStrength` →
+    /// `specular_roughness_anisotropy`.
+    pub specular_roughness_anisotropy : Option< f32 >,
+    /// `KHR_materials_clearcoat.clearcoatFactor` → `coat_weight`.
+    pub coat_weight : Option< f32 >,
+    /// `KHR_materials_clearcoat.clearcoatRoughnessFactor` → `coat_roughness`.
+    pub coat_roughness : Option< f32 >,
+    /// Presence of `KHR_materials_sheen` → `fuzz_weight` ( KHR sheen carries
+    /// no separate weight, so presence maps to weight `1.0` ).
+    pub fuzz_present : bool,
+    /// `KHR_materials_sheen.sheenColorFactor` → `fuzz_color`.
+    pub fuzz_color : Option< [ f32; 3 ] >,
+    /// `KHR_materials_sheen.sheenRoughnessFactor` → `fuzz_roughness`.
+    pub fuzz_roughness : Option< f32 >,
+    /// `KHR_materials_transmission.transmissionFactor` → `transmission_weight`.
+    pub transmission_weight : Option< f32 >,
+  }
+
+  impl Default for OpenPbrFromGltf
+  {
+    /// The glTF specification defaults ( a fully rough, white metal with no
+    /// extensions ), ready to be overridden by the actual asset values.
+    fn default() -> Self
+    {
+      Self
+      {
+        base_color : [ 1.0, 1.0, 1.0, 1.0 ],
+        base_metalness : 1.0,
+        specular_roughness : 1.0,
+        specular_ior : 1.5,
+        specular_weight : None,
+        specular_color : None,
+        specular_roughness_anisotropy : None,
+        coat_weight : None,
+        coat_roughness : None,
+        fuzz_present : false,
+        fuzz_color : None,
+        fuzz_roughness : None,
+        transmission_weight : None,
+      }
+    }
+  }
+
+  /// Maps the glTF factor carriers onto the canonical OpenPBR Surface.
+  ///
+  /// Starts from [`OpenPbrSurface::spec_default`] and overrides only what glTF
+  /// can express ( see [`OpenPbrFromGltf`] for the correspondence ). Notable
+  /// approximations: glTF clearcoat is a fixed-IOR `1.5` dielectric, so
+  /// `coat_ior` is set to `1.5` ( OpenPBR spec default is `1.6` ) whenever a
+  /// coat is present; KHR sheen has no separate weight, so `fuzz_weight` is
+  /// `1.0` when the extension is present ( its black default colour disables
+  /// the layer ).
+  #[ must_use ]
+  pub fn openpbr_from_gltf( input : &OpenPbrFromGltf ) -> OpenPbrSurface
+  {
+    let mut surface = OpenPbrSurface::spec_default();
+
+    surface.base_color = [ input.base_color[ 0 ], input.base_color[ 1 ], input.base_color[ 2 ] ];
+    surface.base_metalness = input.base_metalness.clamp( 0.0, 1.0 );
+    surface.specular_roughness = input.specular_roughness.clamp( 0.0, 1.0 );
+    surface.specular_ior = input.specular_ior.max( 1.0 );
+    surface.geometry_opacity = input.base_color[ 3 ].clamp( 0.0, 1.0 );
+
+    if let Some( weight ) = input.specular_weight
+    {
+      surface.specular_weight = weight.clamp( 0.0, 1.0 );
+    }
+    if let Some( color ) = input.specular_color
+    {
+      surface.specular_color = color;
+    }
+    if let Some( anisotropy ) = input.specular_roughness_anisotropy
+    {
+      surface.specular_roughness_anisotropy = anisotropy.clamp( 0.0, 1.0 );
+    }
+
+    if input.coat_weight.is_some()
+    {
+      surface.coat_weight = input.coat_weight.unwrap_or( 0.0 ).clamp( 0.0, 1.0 );
+      surface.coat_roughness = input.coat_roughness.unwrap_or( 0.0 ).clamp( 0.0, 1.0 );
+      // glTF models the clearcoat as a fixed-IOR ( 1.5 ) dielectric.
+      surface.coat_ior = 1.5;
+    }
+
+    if input.fuzz_present
+    {
+      surface.fuzz_weight = 1.0;
+      surface.fuzz_color = input.fuzz_color.unwrap_or( [ 1.0, 1.0, 1.0 ] );
+      surface.fuzz_roughness = input.fuzz_roughness.unwrap_or( 0.5 ).clamp( 0.0, 1.0 );
+    }
+
+    if let Some( transmission ) = input.transmission_weight
+    {
+      surface.transmission_weight = transmission.clamp( 0.0, 1.0 );
+    }
+
+    surface
+  }
 }
 
 crate::mod_interface!
@@ -271,6 +395,8 @@ crate::mod_interface!
   orphan use
   {
     OpenPbrSurface,
-    openpbr_input_apply
+    OpenPbrFromGltf,
+    openpbr_input_apply,
+    openpbr_from_gltf
   };
 }

@@ -123,12 +123,11 @@ Introduce a native parameter surface holding the full OpenPBR set (41 params:
 
 ### 2.3 Phased plan
 
-Status: **N1 type + N2 `.mtlx` reader have landed** — `OpenPbrSurface` in
-`src/webgl/material/openpbr_surface.rs`, the reader in
-`src/webgl/loaders/openpbr_mtlx.rs`, native tests in
-`tests/openpbr_mtlx_test.rs` (verbatim ASWF `open_pbr_default/gold/glass/velvet`
-fixtures). The remaining N1 half — mapping the existing glTF carriers into
-`OpenPbrSurface` — and N3/N4 are still open.
+Status: **N1 complete, N2 landed** — `OpenPbrSurface` (type, spec defaults,
+glTF-carrier mapping) in `src/webgl/material/openpbr_surface.rs`; the `.mtlx`
+reader in `src/webgl/loaders/openpbr_mtlx.rs`; native tests in
+`tests/openpbr_mtlx_test.rs` and `tests/openpbr_gltf_mapping_test.rs`. N3/N4
+are still open.
 
 - **N1** — `OpenPbrSurface` type + mapping from the existing glTF carriers;
   keep `OpenPbrParams` presence semantics for glTF, add native defaults for the
