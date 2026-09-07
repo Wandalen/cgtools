@@ -1,20 +1,21 @@
 //! OpenPBR test scenes built procedurally — no external assets.
 //!
-//! Step 1 goal: a correct, well-lit solid-colour sphere so geometry can be
-//! verified before any OpenPBR shading is applied.
+//! Step 1: a correct, well-lit sphere ( geometry verified ).
+//! Step 2: apply a real `.mtlx` OpenPBR surface to that sphere via the
+//! `OpenPbrSurface → PbrMaterial` runtime bridge.
 
 use std::{ cell::RefCell, rc::Rc };
 
 use minwebgl as gl;
 use primitive_generation::{ AttributesData, PrimitiveData, Transform, primitives_data_to_gltf };
-use renderer::webgl::{ cast_unchecked_material_to_ref_mut, loaders::gltf::GLTF, material::PbrMaterial };
+use renderer::webgl::material::{ OpenPbrSurface, PbrMaterial };
+use renderer::webgl::loaders::gltf::GLTF;
 
-/// A unit-radius icosphere at the origin, scaled to `radius`, with per-vertex
-/// normals derived from the vertex direction ( normals of a sphere point along
-/// the position ).
+/// A unit icosphere subdivided `4` times ( 2562 vertices / 5120 faces ),
+/// scaled to `radius`, with radial normals ( a sphere's normal is its own
+/// position ).
 fn icosphere_attributes( radius : f32 ) -> AttributesData
 {
-  // 4 subdivisions → 2562 vertices / 5120 faces: a smooth unit sphere.
   let ( raw_positions, indices ) = primitive_generation::solid::icosphere_subdivided( 4 );
 
   let positions : Vec< [ f32; 3 ] > = raw_positions.iter()
@@ -32,11 +33,11 @@ fn icosphere_attributes( radius : f32 ) -> AttributesData
   AttributesData { positions, indices, normals }
 }
 
-/// Builds a renderer `GLTF` scene containing a single solid-colour icosphere
-/// ( no textures, plain `PbrMaterial` base colour ) — the geometry-verification
-/// step of the OpenPBR test mode.
+/// Builds a renderer `GLTF` scene containing a single icosphere whose material
+/// is driven by a parsed OpenPBR surface ( from the `.mtlx` lane ) through
+/// `PbrMaterial::openpbr_surface_apply` — the `USE_OPENPBR` shading path.
 #[ must_use ]
-pub fn solid_color_icosphere( gl : &gl::WebGl2RenderingContext, color : [ f32; 4 ] ) -> GLTF
+pub fn sphere_with_surface( gl : &gl::WebGl2RenderingContext, surface : &OpenPbrSurface ) -> GLTF
 {
   let attributes = Rc::new( RefCell::new( icosphere_attributes( 0.5 ) ) );
 
@@ -45,20 +46,17 @@ pub fn solid_color_icosphere( gl : &gl::WebGl2RenderingContext, color : [ f32; 4
     name : Some( Box::from( "openpbr_sphere" ) ),
     parent : None,
     attributes : Some( attributes ),
-    color : gl::F32x4::from( color ),
+    color : gl::F32x4::from( [ 1.0, 1.0, 1.0, 1.0 ] ),
     transform : Transform::default(),
   };
 
   let gltf = primitives_data_to_gltf( gl, &[ primitive ] );
 
-  // Solid colour: override the generated fallback material.
-  if let Some( material ) = gltf.materials.first()
-  {
-    let mut material = cast_unchecked_material_to_ref_mut::< PbrMaterial >( material.borrow_mut() );
-    material.base_color_factor = gl::F32x4::from( color );
-    material.metallic_factor = 0.0;
-    material.roughness_factor = 0.4;
-  }
+  // Swap the generated fallback material for one configured from the surface.
+  let material = gltf.materials.first().cloned().expect( "sphere material exists" );
+  let mut configured = PbrMaterial::new( gl );
+  configured.openpbr_surface_apply( surface );
+  *material.borrow_mut() = Box::new( configured );
 
   gltf
 }

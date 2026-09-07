@@ -13,8 +13,10 @@ use gl::wasm_bindgen::{ prelude::Closure, JsValue };
 use gl::js_sys::{ Object, Reflect };
 use renderer::webgl::
 {
-  post_processing::{ self, Pass, SwapFramebuffer }, Camera, Renderer, Scene, DirectLight, Light, Node, Object3D
+  post_processing::{ self, Pass, SwapFramebuffer }, Camera, Renderer, Scene
 };
+use renderer::webgl::loaders::openpbr_mtlx::openpbr_surfaces_from_mtlx;
+use renderer::webgl::material::OpenPbrSurface;
 
 mod lil_gui;
 mod gui_setup;
@@ -48,6 +50,32 @@ struct ViewerChoice
   mode : String,
   /// glTF model path ( used only in glTF mode ).
   model : String,
+  /// OpenPBR material key ( used only in OpenPBR mode ), see
+  /// [`OPENPBR_MATERIALS`].
+  material : String,
+}
+
+/// OpenPBR test materials: ( display name, key ) — each is an embedded ASWF
+/// `open_pbr_*.mtlx` sample.
+const OPENPBR_MATERIALS : &[ ( &str, &str ) ] =
+&[
+  ( "Velvet (fuzz)", "velvet" ),
+  ( "Gold (metal)", "gold" ),
+  ( "Glass (ior / transmission)", "glass" ),
+];
+
+/// Parses the embedded `.mtlx` for `key` into a canonical surface.
+#[ must_use ]
+fn openpbr_material_surface( key : &str ) -> OpenPbrSurface
+{
+  let xml = match key
+  {
+    "gold" => include_str!( "../materials/open_pbr_gold.mtlx" ),
+    "glass" => include_str!( "../materials/open_pbr_glass.mtlx" ),
+    _ => include_str!( "../materials/open_pbr_velvet.mtlx" ),
+  };
+  let mut surfaces = openpbr_surfaces_from_mtlx( xml ).expect( "embedded OpenPBR material parses" );
+  surfaces.pop().expect( "material file contains one surface" )
 }
 
 struct ViewerState
@@ -89,36 +117,11 @@ async fn scene_load
 
   if choice.mode == MODE_OPENPBR
   {
-    // OpenPBR test mode — step 1: solid-colour sphere ( geometry check ).
-    let gltf = openpbr_scene::solid_color_icosphere( gl, [ 0.2, 0.55, 1.0, 1.0 ] );
+    // OpenPBR test mode — render the icosphere with a real `.mtlx` surface
+    // through the OpenPbrSurface → PbrMaterial runtime bridge.
+    let surface = openpbr_material_surface( &choice.material );
+    let gltf = openpbr_scene::sphere_with_surface( gl, &surface );
     let scene = gltf.scenes.into_iter().next().expect( "sphere scene exists" );
-
-    // DIAGNOSTIC: kill IBL and light the sphere with a single directional light
-    // + matte roughness so shading is a clean diffuse gradient. If the bright
-    // quadrilateral that shows up under env lighting is a *flipped normal* it
-    // will still show here; if it vanishes, it was environment reflection.
-    if let Some( material ) = gltf.materials.first()
-    {
-      let mut material = renderer::webgl::cast_unchecked_material_to_ref_mut::< renderer::webgl::material::PbrMaterial >( material.borrow_mut() );
-      material.need_use_ibl_set( false );
-      material.roughness_factor = 0.8;
-      material.metallic_factor = 0.0;
-    }
-    let key_light = Rc::new( RefCell::new( Node::new() ) );
-    key_light.borrow_mut().object = Object3D::Light
-    (
-      Light::Direct
-      (
-        DirectLight
-        {
-          direction : gl::math::F32x3::from( [ 0.45, 0.8, 0.4 ] ).normalize(),
-          color : gl::math::F32x3::from( [ 1.0, 1.0, 1.0 ] ),
-          strength : 2.0,
-        }
-      )
-    );
-    scene.borrow_mut().children.push( key_light );
-
     scene_fit_to_view( &scene );
     *state.scene.borrow_mut() = Some( scene );
     return Ok( () );
@@ -168,6 +171,7 @@ fn debug_ui_setup
 {
   let js_object = Object::new();
   Reflect::set( &js_object, &JsValue::from_str( "model" ), &JsValue::from_str( &state.choice.borrow().model ) ).unwrap();
+  Reflect::set( &js_object, &JsValue::from_str( "material" ), &JsValue::from_str( &state.choice.borrow().material ) ).unwrap();
   Reflect::set( &js_object, &JsValue::from_str( "mode" ), &JsValue::from_str( &state.choice.borrow().mode ) ).unwrap();
 
   let gui = lil_gui::gui_new();
@@ -220,6 +224,34 @@ fn debug_ui_setup
   lil_gui::on_finish_change( &catalog_gui, &callback );
   callback.forget();
 
+  // OpenPBR material ( OpenPBR test mode ).
+  let material_map = Object::new();
+  for ( name, key ) in OPENPBR_MATERIALS
+  {
+    Reflect::set( &material_map, &JsValue::from_str( name ), &JsValue::from_str( key ) ).unwrap();
+  }
+  let material_gui = lil_gui::dropdown_add( &folder, &js_object, "material", &material_map );
+  let callback =
+  {
+    let state = state.clone();
+    let document = document.clone();
+    let gl = gl.clone();
+    Closure::new( move | value : JsValue |
+    {
+      if state.choice.borrow().mode != MODE_OPENPBR
+      {
+        return;
+      }
+      if let Some( key ) = value.as_string()
+      {
+        state.choice.borrow_mut().material = key;
+        reload( &state, &document, &gl );
+      }
+    } )
+  };
+  lil_gui::on_finish_change( &material_gui, &callback );
+  callback.forget();
+
   lil_gui::show( &gui );
 }
 
@@ -249,7 +281,15 @@ async fn app_run() -> Result< (), gl::WebglError >
   (
     ViewerState
     {
-      choice : RefCell::new( ViewerChoice { mode : MODE_GLTF.to_string(), model : default_model.to_string() } ),
+      choice : RefCell::new
+      (
+        ViewerChoice
+        {
+          mode : MODE_GLTF.to_string(),
+          model : default_model.to_string(),
+          material : "velvet".to_string(),
+        }
+      ),
       scene : RefCell::new( None ),
     }
   );
