@@ -81,10 +81,63 @@ fn openpbr_material_surface( key : &str ) -> OpenPbrSurface
   surfaces.pop().expect( "material file contains one surface" )
 }
 
+/// The renderer's shared material cell ( `Rc<RefCell<Box<dyn Material>>>` ).
+type DynMaterial = Rc< RefCell< Box< dyn renderer::webgl::material::Material > > >;
+
 struct ViewerState
 {
   choice : RefCell< ViewerChoice >,
   scene : RefCell< Option< Rc< RefCell< Scene > > > >,
+  /// Live-editable OpenPBR surface ( OpenPBR test mode ).
+  surface : RefCell< Option< OpenPbrSurface > >,
+  /// The material currently driving the sphere ( OpenPBR test mode ).
+  material : RefCell< Option< DynMaterial > >,
+}
+
+/// Re-applies the edited surface to the live material ( marks uniforms for
+/// re-upload ).
+fn surface_apply( state : &Rc< ViewerState > )
+{
+  let material = state.material.borrow().clone();
+  let surface = state.surface.borrow().clone();
+  if let ( Some( material ), Some( surface ) ) = ( material, surface )
+  {
+    let mut m = renderer::webgl::cast_unchecked_material_to_ref_mut::< renderer::webgl::material::PbrMaterial >( material.borrow_mut() );
+    m.openpbr_surface_apply( &surface );
+  }
+}
+
+/// Adds one slider that edits a scalar field of the live OpenPBR surface.
+/// `range` is `( min, max, step )`.
+fn surface_slider
+(
+  state : &Rc< ViewerState >,
+  js_object : &Object,
+  gui : &JsValue,
+  name : &str,
+  default : f32,
+  range : ( f64, f64, f64 ),
+  set : fn( &mut OpenPbrSurface, f32 )
+)
+{
+  let ( min, max, step ) = range;
+  Reflect::set( js_object, &JsValue::from_str( name ), &JsValue::from_f64( f64::from( default ) ) ).unwrap();
+
+  let prop = lil_gui::slider_add( gui, js_object, name, min, max, step );
+  let callback =
+  {
+    let state = state.clone();
+    Closure::new( move | value : f32 |
+    {
+      if let Some( surface ) = state.surface.borrow_mut().as_mut()
+      {
+        set( surface, value );
+      }
+      surface_apply( &state );
+    } )
+  };
+  lil_gui::on_change( &prop, &callback );
+  callback.forget();
 }
 
 /// Normalizes a scene's scale/position so its bounding-box diagonal is 1 and
@@ -138,8 +191,13 @@ async fn scene_load
 
     if let Some( material ) = gltf.materials.first()
     {
-      let mut material = renderer::webgl::cast_unchecked_material_to_ref_mut::< renderer::webgl::material::PbrMaterial >( material.borrow_mut() );
-      material.need_use_ibl_set( false );
+      let material_rc = material.clone();
+      {
+        let mut material = renderer::webgl::cast_unchecked_material_to_ref_mut::< renderer::webgl::material::PbrMaterial >( material_rc.borrow_mut() );
+        material.need_use_ibl_set( false );
+      }
+      *state.material.borrow_mut() = Some( material_rc );
+      *state.surface.borrow_mut() = Some( surface );
     }
 
     let scene = gltf.scenes.into_iter().next().expect( "sphere scene exists" );
@@ -162,6 +220,8 @@ async fn scene_load
   let gltf = renderer::webgl::loaders::gltf::load( document, &choice.model, gl ).await?;
   let scene = gltf.scenes.into_iter().next().expect( "gltf has one scene" );
   scene_fit_to_view( &scene );
+  *state.material.borrow_mut() = None;
+  *state.surface.borrow_mut() = None;
   *state.scene.borrow_mut() = Some( scene );
 
   Ok( () )
@@ -284,6 +344,19 @@ fn debug_ui_setup
   lil_gui::on_finish_change( &material_gui, &callback );
   callback.forget();
 
+  // Live OpenPBR surface parameters ( only active in OpenPBR test mode ).
+  let params_folder = lil_gui::folder_add( &folder, "material params" );
+  surface_slider( state, &js_object, &params_folder, "roughness", 1.0, ( 0.0, 1.0, 0.01 ), | s, v | s.specular_roughness = v );
+  surface_slider( state, &js_object, &params_folder, "metalness", 0.0, ( 0.0, 1.0, 0.01 ), | s, v | s.base_metalness = v );
+  surface_slider( state, &js_object, &params_folder, "specularIor", 1.5, ( 1.0, 2.5, 0.01 ), | s, v | s.specular_ior = v );
+  surface_slider( state, &js_object, &params_folder, "clearcoat", 0.0, ( 0.0, 1.0, 0.01 ), | s, v | s.coat_weight = v );
+  surface_slider( state, &js_object, &params_folder, "clearcoatRoughness", 0.0, ( 0.0, 1.0, 0.01 ), | s, v | s.coat_roughness = v );
+  surface_slider( state, &js_object, &params_folder, "fuzzWeight", 0.5, ( 0.0, 1.0, 0.01 ), | s, v | s.fuzz_weight = v );
+  surface_slider( state, &js_object, &params_folder, "fuzzRoughness", 0.5, ( 0.0, 1.0, 0.01 ), | s, v | s.fuzz_roughness = v );
+  surface_slider( state, &js_object, &params_folder, "thinFilmWeight", 0.0, ( 0.0, 1.0, 0.01 ), | s, v | s.thin_film_weight = v );
+  surface_slider( state, &js_object, &params_folder, "thinFilmThicknessNm", 450.0, ( 100.0, 1000.0, 5.0 ), | s, v | s.thin_film_thickness = v / 1000.0 );
+  surface_slider( state, &js_object, &params_folder, "thinFilmIor", 1.4, ( 1.0, 2.0, 0.01 ), | s, v | s.thin_film_ior = v );
+
   lil_gui::show( &gui );
 }
 
@@ -323,6 +396,8 @@ async fn app_run() -> Result< (), gl::WebglError >
         }
       ),
       scene : RefCell::new( None ),
+      surface : RefCell::new( None ),
+      material : RefCell::new( None ),
     }
   );
 
