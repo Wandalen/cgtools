@@ -90,7 +90,7 @@ async fn scene_load
   if choice.mode == MODE_OPENPBR
   {
     // OpenPBR test mode — step 1: solid-colour sphere ( geometry check ).
-    let gltf = openpbr_scene::solid_color_icosphere( gl, [ 0.2, 0.55, 1.0, 1.0 ] );
+    let gltf = openpbr_scene::solid_color_sphere( gl, [ 0.2, 0.55, 1.0, 1.0 ] );
     let scene = gltf.scenes.into_iter().next().expect( "sphere scene exists" );
     scene_fit_to_view( &scene );
     *state.scene.borrow_mut() = Some( scene );
