@@ -318,7 +318,10 @@ float V_GGX_SmithCorrelated( const in float alpha, const in float dotNL, const i
   float a2 = pow2( alpha );
   float gv = dotNL * sqrt( a2 + ( 1.0 - a2 ) * pow2( dotNV ) );
   float gl = dotNV * sqrt( a2 + ( 1.0 - a2 ) * pow2( dotNL ) );
-  return 0.5 / max( gv + gl, 1e-6 );
+  // Upper clamp: at grazing angles gv + gl -> 0, and the unclamped reciprocal
+  // spikes to ~1e6, producing bright firefly pixels along the silhouette near
+  // a specular highlight ( V = G / ( 4 NoV NoL ) must be bounded by 1 ).
+  return clamp( 0.5 / max( gv + gl, 1e-6 ), 0.0, 1.0 );
 }
 
 // Normal distribution function
