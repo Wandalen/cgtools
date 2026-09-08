@@ -162,11 +162,15 @@ uniform vec4 baseColorFactor; // Default: [1, 1, 1, 1]
   // How much the groove darkens the base albedo / specular color (0 = no change).
   uniform float engravingDarkening;
 #endif
+#ifdef USE_OPENPBR_IOR
+  // Base dielectric IOR → F0 ( OpenPBR `specular_ior`, default 1.5 ); a
+  // base-level feature, so it lives outside the full OpenPBR surface path.
+  uniform float ior;
+#endif
 #ifdef USE_OPENPBR
   // OpenPBR Surface ( ASWF ) scalar carriers selected by `PbrMaterial`. Defaults kept in
   // sync with the Rust upload side ( ior = 1.5, fuzz/sheen disabled ), so a material that
   // enables USE_OPENPBR for one carrier always has sane values for the rest.
-  uniform float ior;                 // OpenPBR `specular_ior`, default 1.5
   uniform vec3 sheenColorFactor;     // OpenPBR `fuzz_color`, default [0, 0, 0]
   uniform float sheenRoughnessFactor; // OpenPBR `fuzz_roughness`, default 0.0
   #ifdef USE_OPENPBR_IRIDESCENCE
@@ -969,9 +973,9 @@ void main()
 
   //Specular part
   // https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_specular/README.md
-  // The dielectric F0 comes from the IOR under OpenPBR ( specular_ior,
-  // default 1.5 → F0 = 0.04 ), the glTF/three.js default otherwise.
-  #ifdef USE_OPENPBR
+  // The dielectric F0 comes from the IOR ( OpenPBR `specular_ior`, default 1.5
+  // → F0 = 0.04 ), the glTF/three.js default otherwise.
+  #ifdef USE_OPENPBR_IOR
     material.f0 = vec3( pow2( ior - 1.0 ) / pow2( ior + 1.0 ) );
   #else
     material.f0 = vec3( 0.04 );

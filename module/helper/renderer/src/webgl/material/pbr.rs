@@ -961,20 +961,36 @@ mod private
         add_texture( &mut defines, "USE_ENGRAVING", "vEngravingUv", self.engraving_texture.as_ref() );
       }
 
-      // OpenPBR Surface adoption — shading stage. `USE_OPENPBR` selects the spec's opaque
-      // layered evaluation ( IOR-driven Fresnel, energy-preserving roughness→alpha mapping,
-      // joint-visibility GGX, fuzz/sheen lobe, Kulla-Conty multi-scatter ) in `main.frag`;
-      // the legacy glTF metallic-roughness path is kept for materials carrying none of the
-      // OpenPBR-carrying extensions. `emissiveStrength` keeps its own define so the legacy
-      // path can honour KHR_materials_emissive_strength as well.
-      let use_openpbr = !self.openpbr_params.is_empty();
-      let use_khr_materials_emissive_strength = self.openpbr_params.emissive_strength.is_some();
+      // OpenPBR Surface adoption — shading stage. `USE_OPENPBR` selects the
+      // spec's opaque layered evaluation ( fuzz/sheen lobe, thin-film
+      // iridescence, Kulla-Conty multi-scatter ) for materials carrying those
+      // OpenPBR-only lobes; the legacy glTF metallic-roughness path is kept
+      // otherwise. `specular_ior` is NOT an OpenPBR-only feature — it is a
+      // base-level F0 that also matters on the legacy path — so it keeps its
+      // own `USE_OPENPBR_IOR` define instead of forcing the whole OpenPBR path.
+      let p = &self.openpbr_params;
+      let use_openpbr_ior = p.ior.is_some();
+      let use_openpbr = p.sheen_color_factor.is_some()
+      || p.sheen_roughness_factor.is_some()
+      || p.iridescence_factor.is_some()
+      || p.transmission_factor.is_some()
+      || p.volume_thickness_factor.is_some()
+      || p.volume_attenuation_distance.is_some()
+      || p.volume_attenuation_color.is_some()
+      || p.dispersion.is_some()
+      || p.diffuse_transmission_factor.is_some()
+      || p.diffuse_transmission_color_factor.is_some();
+      let use_khr_materials_emissive_strength = p.emissive_strength.is_some();
 
+      if use_openpbr_ior
+      {
+        defines.push_str( "#define USE_OPENPBR_IOR\n" );
+      }
       if use_openpbr
       {
         defines.push_str( "#define USE_OPENPBR\n" );
       }
-      if self.openpbr_params.iridescence_factor.is_some()
+      if p.iridescence_factor.is_some()
       {
         defines.push_str( "#define USE_OPENPBR_IRIDESCENCE\n" );
       }
@@ -1175,23 +1191,26 @@ mod private
       }
 
       // OpenPBR Surface carriers — uploaded only while their define is on ( so the shader
-      // declares the uniform and the location exists ). Missing params fall back to the
-      // shader-side schema default, keeping e.g. a sheen-only material's IOR at 1.5.
-      if !self.openpbr_params.is_empty()
+      // declares the uniform and the location exists ). `ior` is uploaded for the
+      // `USE_OPENPBR_IOR` path; sheen/fuzz for `USE_OPENPBR`; iridescence for
+      // `USE_OPENPBR_IRIDESCENCE`.
+      if self.openpbr_params.ior.is_some()
       {
         upload( "ior", Some( self.openpbr_params.ior.unwrap_or( 1.5 ) ) )?;
+      }
+      if self.openpbr_params.sheen_color_factor.is_some() || self.openpbr_params.sheen_roughness_factor.is_some()
+      {
         upload( "sheenRoughnessFactor", Some( self.openpbr_params.sheen_roughness_factor.unwrap_or( 0.0 ) ) )?;
         let sheen_color = self.openpbr_params.sheen_color_factor.unwrap_or( [ 0.0, 0.0, 0.0 ] );
         upload_array( "sheenColorFactor", Some( &sheen_color ) )?;
-
-        if self.openpbr_params.iridescence_factor.is_some()
-        {
-          upload( "iridescenceFactor", Some( self.openpbr_params.iridescence_factor.unwrap_or( 1.0 ) ) )?;
-          upload( "iridescenceIor", Some( self.openpbr_params.iridescence_ior.unwrap_or( 1.4 ) ) )?;
-          let min = self.openpbr_params.iridescence_thickness_minimum.unwrap_or( 0.0 );
-          let max = self.openpbr_params.iridescence_thickness_maximum.unwrap_or( 0.0 );
-          upload( "iridescenceThickness", Some( ( min + max ) * 0.5 ) )?;
-        }
+      }
+      if self.openpbr_params.iridescence_factor.is_some()
+      {
+        upload( "iridescenceFactor", Some( self.openpbr_params.iridescence_factor.unwrap_or( 1.0 ) ) )?;
+        upload( "iridescenceIor", Some( self.openpbr_params.iridescence_ior.unwrap_or( 1.4 ) ) )?;
+        let min = self.openpbr_params.iridescence_thickness_minimum.unwrap_or( 0.0 );
+        let max = self.openpbr_params.iridescence_thickness_maximum.unwrap_or( 0.0 );
+        upload( "iridescenceThickness", Some( ( min + max ) * 0.5 ) )?;
       }
       if let Some( strength ) = self.openpbr_params.emissive_strength
       {
