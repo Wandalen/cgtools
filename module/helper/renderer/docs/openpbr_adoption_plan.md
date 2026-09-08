@@ -249,6 +249,13 @@ compensation (OpenPBR spec § Microfacet model cites Kulla 2017):
 - **Independent** of §3.1–3.6 — can land anytime, benefits rough metals /
   dielectrics immediately.
 
+Status: **landed for direct lights** — `loaders::kulla_conty` generates
+`E(μ,α)`/`E_avg` (GGX VNDF importance sampling, native-tested), the `Renderer`
+binds the LUT to `USE_OPENPBR` programs (`USE_KULLA_CONTY`), and `main.frag`
+adds `f_ms = (1−E(μ_o))·(1−E(μ_i))/(π(1−E_avg))` Fresnel-averaged per direct
+light. IBL keeps its existing Fdez-Agüera split-sum compensation (also a
+multi-scatter approximation); unifying IBL onto this LUT is a possible follow-up.
+
 ### Sequencing
 1. 3.7 Kulla–Conty LUT is independent — land before/along 3.1–3.6 (energy
    correctness is a prerequisite for meaningful visual comparisons).
