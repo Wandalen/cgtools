@@ -618,7 +618,10 @@ void applyLightContribution
   vec3 specularColor = D * V * irradiance;
 
   reflectedLight.directDiffuse += ( 1.0 - Fs ) * Fd * diffuseColor;
-  reflectedLight.directSpecular += Fs * specularColor;
+  // Fade specular at grazing angles so the silhouette rim doesn't read as a
+  // hard "contour light" ( the aliased bright edge on smooth surfaces ).
+  float grazingFade = smoothstep( 0.0, 0.15, dotNV );
+  reflectedLight.directSpecular += Fs * specularColor * grazingFade;
 
   #ifdef USE_KHR_materials_clearcoat
     float ccDotNL = clamp( dot( material.clearcoatNormal, lightDir ), 0.0, 1.0 );
@@ -758,7 +761,10 @@ void computeSpotLight
   vec3 specularColor = D * V * irradiance;
 
   reflectedLight.directDiffuse += ( 1.0 - Fs ) * Fd * diffuseColor;
-  reflectedLight.directSpecular += Fs * specularColor;
+  // Fade specular at grazing angles so the silhouette rim doesn't read as a
+  // hard "contour light" ( the aliased bright edge on smooth surfaces ).
+  float grazingFade = smoothstep( 0.0, 0.15, dotNV );
+  reflectedLight.directSpecular += Fs * specularColor * grazingFade;
 
   #ifdef USE_OPENPBR
     if( max_value( material.sheenColorFactor ) > 0.0 )
