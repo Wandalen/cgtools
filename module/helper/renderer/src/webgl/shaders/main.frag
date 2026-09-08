@@ -1193,6 +1193,26 @@ void main()
     material.sheenRoughness = sheenRoughnessFactor;
   #endif
 
+  // -------------------------------------------------------------------------
+  // Specular aliasing at grazing angles — why it happens and the layered fix.
+  //
+  // A near-mirror surface ( tiny roughness ) lit by a small analytic light
+  // produces a specular band that, near the silhouette, is foreshortened to
+  // *less than a pixel*. A sub-pixel GGX lobe cannot be resolved per pixel, so
+  // its intensity jumps between a huge spike and ~0 across pixel boundaries,
+  // aliasing into isolated bright dots along the contour. Fresnel reflectance
+  // -> 1 at grazing makes the rim the brightest part, which concentrates the
+  // sparkle there. Mitigations, in order:
+  //   1. V_GGX_SmithCorrelated is clamped to [0,1] ( kills 1/0 fireflies ).
+  //   2. a minimum-roughness floor keeps lobes at least a few pixels wide.
+  //   3. Tokuyoshi & Kaplanyan GSAA ( below ) widens roughness from the
+  //      screen-space normal variance.
+  //   4. direct specular fades out at grazing ( smoothstep on dotNV, in
+  //      applyLightContribution / computeSpotLight ) so the rim no longer
+  //      reads as a hard "contour light".
+  // Residual single-pixel sparkle is accepted; a soft area/environment light
+  // would remove sub-pixel highlights at the source rather than post-fading.
+  // -------------------------------------------------------------------------
   // Geometric Specular Anti-Aliasing (Tokuyoshi & Kaplanyan 2019)
   // Increases roughness where screen-space normal derivatives are large
   // ( silhouette / grazing angles ), widening the lobe so it no longer aliases
