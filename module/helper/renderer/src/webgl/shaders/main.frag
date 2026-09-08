@@ -363,49 +363,6 @@ float V_GGX_anisotropic
 #endif
 
 #ifdef USE_OPENPBR
-// OpenPBR Surface ( https://academysoftwarefoundation.github.io/OpenPBR/ ) opaque-path core.
-// The spec's energy-preserving per-axis roughness mapping
-//   alpha_t = r^2 * sqrt( 2 / ( 1 + (1-a)^2 ) ),  alpha_b = (1-a) * alpha_t
-// ( `r` = roughness, `a` = anisotropy ) is folded into material.at / material.ab in main().
-
-// Smith joint-anisotropic lambda ( spec § Microfacet model ):
-//   Lambda(v) = sqrt( 1 + ( (v.T)^2 * alpha_t^2 + (v.B)^2 * alpha_b^2 ) / (v.N)^2 )
-float openpbr_lambda
-(
-  const in float dotTN,
-  const in float dotBN,
-  const in float dotN,
-  const in float at,
-  const in float ab
-)
-{
-  float dotN2 = max( dotN * dotN, 1e-6 );
-  return sqrt( 1.0 + ( pow2( dotTN ) * pow2( at ) + pow2( dotBN ) * pow2( ab ) ) / dotN2 );
-}
-
-// Smith joint-anisotropic visibility:
-//   V(L,V) = 0.5 / ( NoL * Lambda(V) + NoV * Lambda(L) ), denominator clamped to 1e-5.
-float V_OpenPBR_anisotropic
-(
-  const in float dotNL, const in float dotNV,
-  const in float dotTL, const in float dotBL,
-  const in float dotTV, const in float dotBV,
-  const in float at, const in float ab
-)
-{
-  float lambdaV = openpbr_lambda( dotTV, dotBV, dotNV, at, ab );
-  float lambdaL = openpbr_lambda( dotTL, dotBL, dotNL, at, ab );
-  return clamp( 0.5 / max( dotNL * lambdaV + dotNV * lambdaL, 1e-5 ), 0.0, 1.0 );
-}
-
-// Isotropic reduction of the same term: for a unit vector, (v.T)^2 + (v.B)^2 = 1 - (v.N)^2.
-float V_OpenPBR_isotropic( const in float dotNL, const in float dotNV, const in float alpha )
-{
-  float lambdaV = sqrt( 1.0 + pow2( alpha ) * max( 1.0 - pow2( dotNV ), 0.0 ) / max( pow2( dotNV ), 1e-6 ) );
-  float lambdaL = sqrt( 1.0 + pow2( alpha ) * max( 1.0 - pow2( dotNL ), 0.0 ) / max( pow2( dotNL ), 1e-6 ) );
-  return clamp( 0.5 / max( dotNL * lambdaV + dotNV * lambdaL, 1e-5 ), 0.0, 1.0 );
-}
-
 // Fuzz ( microfiber / sheen ) lobe — the Charlie NDF + Ashikhmin-Premoze visibility pair
 // used by the glTF KHR_materials_sheen reference renderers as the real-time stand-in for
 // the OpenPBR `fuzz` microflake layer. The sheen color encodes the layer's reflectivity,
@@ -591,37 +548,18 @@ void applyLightContribution
   float dotVH = clamp( dot( viewDir, halfDir ), 0.0, 1.0 );
   float dotLH = clamp( dot( lightDir, halfDir ), 0.0, 1.0 );
 
-  #ifdef USE_OPENPBR
-    // OpenPBR specular: the energy-preserving roughness→alpha mapping is already folded
-    // into material.at / material.ab ( main() ); joint-visibility V replaces the legacy
-    // Smith-correlated V, the GGX NDF itself is shared.
-    #ifdef USE_KHR_materials_anisotropy
-      float dotTL = dot( material.anisotropicT, lightDir );
-      float dotBL = dot( material.anisotropicB, lightDir );
-      float dotTV = dot( material.anisotropicT, viewDir );
-      float dotBV = dot( material.anisotropicB, viewDir );
-      float dotTH = dot( material.anisotropicT, halfDir );
-      float dotBH = dot( material.anisotropicB, halfDir );
-      float V = V_OpenPBR_anisotropic( dotNL, dotNV, dotTL, dotBL, dotTV, dotBV, material.at, material.ab );
-      float D = D_GGX_anisotropic( dotNH, dotTH, dotBH, material.at, material.ab );
-    #else
-      float V = V_OpenPBR_isotropic( dotNL, dotNV, alpha );
-      float D = D_GGX( alpha, dotNH );
-    #endif
+  #ifdef USE_KHR_materials_anisotropy
+    float dotTL = dot( material.anisotropicT, lightDir );
+    float dotBL = dot( material.anisotropicB, lightDir );
+    float dotTV = dot( material.anisotropicT, viewDir );
+    float dotBV = dot( material.anisotropicB, viewDir );
+    float dotTH = dot( material.anisotropicT, halfDir );
+    float dotBH = dot( material.anisotropicB, halfDir );
+    float V = V_GGX_anisotropic( dotNL, dotNV, dotBV, dotTV, dotTL, dotBL, material.at, material.ab );
+    float D = D_GGX_anisotropic( dotNH, dotTH, dotBH, material.at, material.ab );
   #else
-    #ifdef USE_KHR_materials_anisotropy
-      float dotTL = dot( material.anisotropicT, lightDir );
-      float dotBL = dot( material.anisotropicB, lightDir );
-      float dotTV = dot( material.anisotropicT, viewDir );
-      float dotBV = dot( material.anisotropicB, viewDir );
-      float dotTH = dot( material.anisotropicT, halfDir );
-      float dotBH = dot( material.anisotropicB, halfDir );
-      float V = V_GGX_anisotropic( dotNL, dotNV, dotBV, dotTV, dotTL, dotBL, material.at, material.ab );
-      float D = D_GGX_anisotropic( dotNH, dotTH, dotBH, material.at, material.ab );
-    #else
-      float V = V_GGX_SmithCorrelated( alpha, dotNL, dotNV );
-      float D = D_GGX( alpha, dotNH );
-    #endif
+    float V = V_GGX_SmithCorrelated( alpha, dotNL, dotNV );
+    float D = D_GGX( alpha, dotNH );
   #endif
 
   // Fresnel
@@ -751,34 +689,18 @@ void computeSpotLight
   float dotVH = clamp( dot( viewDir, halfDir ), 0.0, 1.0 );
   float dotLH = clamp( dot( lightDir, halfDir ), 0.0, 1.0 );
 
-  #ifdef USE_OPENPBR
-    #ifdef USE_KHR_materials_anisotropy
-      float dotTL = dot( material.anisotropicT, lightDir );
-      float dotBL = dot( material.anisotropicB, lightDir );
-      float dotTV = dot( material.anisotropicT, viewDir );
-      float dotBV = dot( material.anisotropicB, viewDir );
-      float dotTH = dot( material.anisotropicT, halfDir );
-      float dotBH = dot( material.anisotropicB, halfDir );
-      float V = V_OpenPBR_anisotropic( dotNL, dotNV, dotTL, dotBL, dotTV, dotBV, material.at, material.ab );
-      float D = D_GGX_anisotropic( dotNH, dotTH, dotBH, material.at, material.ab );
-    #else
-      float V = V_OpenPBR_isotropic( dotNL, dotNV, alpha );
-      float D = D_GGX( alpha, dotNH );
-    #endif
+  #ifdef USE_KHR_materials_anisotropy
+    float dotTL = dot( material.anisotropicT, lightDir );
+    float dotBL = dot( material.anisotropicB, lightDir );
+    float dotTV = dot( material.anisotropicT, viewDir );
+    float dotBV = dot( material.anisotropicB, viewDir );
+    float dotTH = dot( material.anisotropicT, halfDir );
+    float dotBH = dot( material.anisotropicB, halfDir );
+    float V = V_GGX_anisotropic( dotNL, dotNV, dotBV, dotTV, dotTL, dotBL, material.at, material.ab );
+    float D = D_GGX_anisotropic( dotNH, dotTH, dotBH, material.at, material.ab );
   #else
-    #ifdef USE_KHR_materials_anisotropy
-      float dotTL = dot( material.anisotropicT, lightDir );
-      float dotBL = dot( material.anisotropicB, lightDir );
-      float dotTV = dot( material.anisotropicT, viewDir );
-      float dotBV = dot( material.anisotropicB, viewDir );
-      float dotTH = dot( material.anisotropicT, halfDir );
-      float dotBH = dot( material.anisotropicB, halfDir );
-      float V = V_GGX_anisotropic( dotNL, dotNV, dotBV, dotTV, dotTL, dotBL, material.at, material.ab );
-      float D = D_GGX_anisotropic( dotNH, dotTH, dotBH, material.at, material.ab );
-    #else
-      float V = V_GGX_SmithCorrelated( alpha, dotNL, dotNV );
-      float D = D_GGX( alpha, dotNH );
-    #endif
+    float V = V_GGX_SmithCorrelated( alpha, dotNL, dotNV );
+    float D = D_GGX( alpha, dotNH );
   #endif
 
   vec3 Fs = F_Schlick( material.f0, material.f90, dotVH );
