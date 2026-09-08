@@ -61,11 +61,11 @@ mod tests
     let gl = init_gl().await;
     let mut material = PbrMaterial::new( &gl );
     material.set_engraving_texture( Some( dummy_texture_info() ) );
-    material.set_normal_texture( Some( dummy_texture_info() ) );
+    material.normal_texture_set( Some( dummy_texture_info() ) );
     // Mirrors what the gltf loader does when a TANGENT attribute is present, exercising the
     // real-tangent TBN branch (shared between normal mapping and engraving) instead of the
     // screen-space-derivative fallback.
-    material.add_define( "USE_TANGENTS", "" );
+    material.define_add( "USE_TANGENTS", "" );
     assert_compiles( &gl, &material, false, "engraving + base normal map sharing a real-tangent TBN" );
   }
 

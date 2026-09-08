@@ -22,6 +22,17 @@ mod private
   /// Max spot light sources count
   pub const MAX_SPOT_LIGHTS : usize = 8;
 
+  /// Emits the `USE_<name>` define plus the `<uv_name> -> vUv_<channel>` alias
+  /// for an enabled texture slot. Shared by `PbrMaterial::local_defines` and
+  /// `PbrMaterial::openpbr_defines`; `info` must be `Some` (the call sites gate
+  /// on `is_some()`).
+  fn add_texture( defines : &mut String, name : &str, uv_name : &str, info : Option< &TextureInfo > )
+  {
+    let _ = writeln!( defines, "#define {name}" );
+    let uv_position = info.unwrap().uv_position;
+    let _ = writeln!( defines, "#define {uv_name} vUv_{uv_position}" );
+  }
+
   // A Physically Based Rendering (PBR) shader.
   impl_locations!
   (
@@ -67,6 +78,9 @@ mod private
     "clearcoatRoughnessTexture",
     "clearcoatNormalTexture",
     "anisotropyTexture",
+    "sheenColorTexture",
+    "sheenRoughnessTexture",
+    "iridescenceTexture",
     "kullaConty",
     //// IBL uniform locations
     "irradianceTexture",
@@ -274,6 +288,13 @@ mod private
     /// Optional texture providing the anisotropy direction (RG) and strength (B). (KHR_materials_anisotropy extension)
     anisotropy_texture : Option< TextureInfo >,
 
+    /// Optional texture providing the sheen (fuzz) layer color in the RGB channels. (KHR_materials_sheen extension, OpenPBR `fuzz_color`)
+    sheen_color_texture : Option< TextureInfo >,
+    /// Optional texture providing the sheen (fuzz) layer roughness in the A channel. (KHR_materials_sheen extension, OpenPBR `fuzz_roughness`)
+    sheen_roughness_texture : Option< TextureInfo >,
+    /// Optional texture providing the thin-film (iridescence) weight in the A channel. (KHR_materials_iridescence extension, OpenPBR `thin_film_weight`)
+    iridescence_texture : Option< TextureInfo >,
+
     /// OpenPBR Surface parameters carried by the ratified `KHR_materials_*`
     /// extensions. Filled by the glTF loader via
     /// `loaders::gltf::material_openpbr_params_read` — a wholesale capture of
@@ -366,6 +387,10 @@ mod private
       let anisotropy_rotation = 0.0;
       let anisotropy_texture = Default::default();
 
+      let sheen_color_texture = None;
+      let sheen_roughness_texture = None;
+      let iridescence_texture = None;
+
       let engraving_texture = Default::default();
       let engraving_strength = 1.0;
       let engraving_roughness = 0.7;
@@ -416,6 +441,9 @@ mod private
         anisotropy_strength,
         anisotropy_rotation,
         anisotropy_texture,
+        sheen_color_texture,
+        sheen_roughness_texture,
+        iridescence_texture,
         openpbr_params : OpenPbrParams::default(),
         engraving_texture,
         engraving_strength,
@@ -697,6 +725,51 @@ mod private
       self.anisotropy_texture.as_ref()
     }
 
+    /// Sets the sheen ( fuzz ) color texture. Its presence alone enables the OpenPBR
+    /// shading path ( `USE_OPENPBR` ), mirroring how `set_engraving_texture` is the sole
+    /// gate for engraving. Per `KHR_materials_sheen`, an omitted `sheenColorFactor`
+    /// defaults to white when the texture is present ( see `upload` ).
+    pub fn set_sheen_color_texture( &mut self, value : Option< TextureInfo > )
+    {
+      self.sheen_color_texture = value;
+      self.defines_cache_rebuild();
+      self.needs_recompile.set( true );
+    }
+
+    /// Returns the sheen ( fuzz ) color texture.
+    pub fn sheen_color_texture( &self ) -> Option< &TextureInfo >
+    {
+      self.sheen_color_texture.as_ref()
+    }
+
+    /// Sets the sheen ( fuzz ) roughness texture ( A channel ).
+    pub fn set_sheen_roughness_texture( &mut self, value : Option< TextureInfo > )
+    {
+      self.sheen_roughness_texture = value;
+      self.defines_cache_rebuild();
+      self.needs_recompile.set( true );
+    }
+
+    /// Returns the sheen ( fuzz ) roughness texture.
+    pub fn sheen_roughness_texture( &self ) -> Option< &TextureInfo >
+    {
+      self.sheen_roughness_texture.as_ref()
+    }
+
+    /// Sets the thin-film ( iridescence ) weight texture ( A channel ).
+    pub fn set_iridescence_texture( &mut self, value : Option< TextureInfo > )
+    {
+      self.iridescence_texture = value;
+      self.defines_cache_rebuild();
+      self.needs_recompile.set( true );
+    }
+
+    /// Returns the thin-film ( iridescence ) weight texture.
+    pub fn iridescence_texture( &self ) -> Option< &TextureInfo >
+    {
+      self.iridescence_texture.as_ref()
+    }
+
     /// Sets the engraving mask texture. `Some` is what enables the `USE_ENGRAVING` shader
     /// define and everything gated behind it (bevel/normal perturbation, groove roughness and
     /// darkening) — there is no separate "engraving factor" toggle, since a mask-less engraving
@@ -861,13 +934,6 @@ mod private
       defines.push_str( format!( "#define MAX_DIRECT_LIGHTS {MAX_DIRECT_LIGHTS}\n" ).as_str() );
       defines.push_str( format!( "#define MAX_SPOT_LIGHTS {MAX_SPOT_LIGHTS}\n" ).as_str() );
 
-      let add_texture = | defines : &mut String, name : &str, uv_name : &str, info : Option< &TextureInfo > |
-      {
-        let _ = writeln!( defines, "#define {name}" );
-        let uv_position = info.unwrap().uv_position;
-        let _ = writeln!( defines, "#define {uv_name} vUv_{uv_position}" );
-      };
-
       // Base color texture related
       if use_base_color_texture
       {
@@ -961,43 +1027,9 @@ mod private
         add_texture( &mut defines, "USE_ENGRAVING", "vEngravingUv", self.engraving_texture.as_ref() );
       }
 
-      // OpenPBR Surface adoption — shading stage. `USE_OPENPBR` selects the
-      // spec's opaque layered evaluation ( fuzz/sheen lobe, thin-film
-      // iridescence, Kulla-Conty multi-scatter ) for materials carrying those
-      // OpenPBR-only lobes; the legacy glTF metallic-roughness path is kept
-      // otherwise. `specular_ior` is NOT an OpenPBR-only feature — it is a
-      // base-level F0 that also matters on the legacy path — so it keeps its
-      // own `USE_OPENPBR_IOR` define instead of forcing the whole OpenPBR path.
-      let p = &self.openpbr_params;
-      let use_openpbr_ior = p.ior.is_some();
-      let use_openpbr = p.sheen_color_factor.is_some()
-      || p.sheen_roughness_factor.is_some()
-      || p.iridescence_factor.is_some()
-      || p.transmission_factor.is_some()
-      || p.volume_thickness_factor.is_some()
-      || p.volume_attenuation_distance.is_some()
-      || p.volume_attenuation_color.is_some()
-      || p.dispersion.is_some()
-      || p.diffuse_transmission_factor.is_some()
-      || p.diffuse_transmission_color_factor.is_some();
-      let use_khr_materials_emissive_strength = p.emissive_strength.is_some();
-
-      if use_openpbr_ior
-      {
-        defines.push_str( "#define USE_OPENPBR_IOR\n" );
-      }
-      if use_openpbr
-      {
-        defines.push_str( "#define USE_OPENPBR\n" );
-      }
-      if p.iridescence_factor.is_some()
-      {
-        defines.push_str( "#define USE_OPENPBR_IRIDESCENCE\n" );
-      }
-      if use_khr_materials_emissive_strength
-      {
-        defines.push_str( "#define USE_KHR_materials_emissive_strength\n" );
-      }
+      // OpenPBR Surface defines ( carriers + §3.1 lobe textures + emissive
+      // strength ) live in their own helper to keep this function readable.
+      self.openpbr_defines( &mut defines );
 
       // Shared tangent/bitangent/normal matrix, needed by normal mapping, clearcoat normal
       // mapping, anisotropy and engraving alike.
@@ -1007,6 +1039,69 @@ mod private
       }
 
       defines
+    }
+
+    /// Generates the OpenPBR Surface part of the `#define` set.
+    ///
+    /// `USE_OPENPBR` selects the spec's opaque layered evaluation ( fuzz/sheen
+    /// lobe, thin-film iridescence, Kulla-Conty multi-scatter ) for materials
+    /// carrying those OpenPBR-only lobes; the legacy glTF metallic-roughness
+    /// path is kept otherwise. `specular_ior` is NOT an OpenPBR-only feature —
+    /// it is a base-level F0 that also matters on the legacy path — so it keeps
+    /// its own `USE_OPENPBR_IOR` define instead of forcing the whole OpenPBR
+    /// path. Textured lobe carriers ( adoption plan §3.1 subset ) activate their
+    /// layer on texture presence alone, mirroring the glTF rule that a factor
+    /// omitted while its texture is present means full strength.
+    fn openpbr_defines( &self, defines : &mut String )
+    {
+      let p = &self.openpbr_params;
+      let use_openpbr_ior = p.ior.is_some();
+      let use_sheen_color_texture = self.sheen_color_texture.is_some();
+      let use_sheen_roughness_texture = self.sheen_roughness_texture.is_some();
+      let use_iridescence_texture = self.iridescence_texture.is_some();
+      // Iridescence follows §3.2 ( thin-film layer ); the weight texture gates it too.
+      let use_openpbr_iridescence = p.iridescence_factor.is_some() || use_iridescence_texture;
+      let use_openpbr = p.sheen_color_factor.is_some()
+      || p.sheen_roughness_factor.is_some()
+      || use_sheen_color_texture
+      || use_sheen_roughness_texture
+      || use_openpbr_iridescence
+      || p.transmission_factor.is_some()
+      || p.volume_thickness_factor.is_some()
+      || p.volume_attenuation_distance.is_some()
+      || p.volume_attenuation_color.is_some()
+      || p.dispersion.is_some()
+      || p.diffuse_transmission_factor.is_some()
+      || p.diffuse_transmission_color_factor.is_some();
+
+      if use_openpbr_ior
+      {
+        defines.push_str( "#define USE_OPENPBR_IOR\n" );
+      }
+      if use_openpbr
+      {
+        defines.push_str( "#define USE_OPENPBR\n" );
+        if use_sheen_color_texture
+        {
+          add_texture( defines, "USE_SHEEN_COLOR_TEXTURE", "vSheenColorUv", self.sheen_color_texture.as_ref() );
+        }
+        if use_sheen_roughness_texture
+        {
+          add_texture( defines, "USE_SHEEN_ROUGHNESS_TEXTURE", "vSheenRoughnessUv", self.sheen_roughness_texture.as_ref() );
+        }
+      }
+      if use_openpbr_iridescence
+      {
+        defines.push_str( "#define USE_OPENPBR_IRIDESCENCE\n" );
+        if use_iridescence_texture
+        {
+          add_texture( defines, "USE_IRIDESCENCE_TEXTURE", "vIridescenceUv", self.iridescence_texture.as_ref() );
+        }
+      }
+      if p.emissive_strength.is_some()
+      {
+        defines.push_str( "#define USE_KHR_materials_emissive_strength\n" );
+      }
     }
 
     /// Returns an immutable reference to the local vertex defines map
@@ -1090,6 +1185,12 @@ mod private
       gl.uniform1i( locations.get( "anisotropyTexture" ).expect( "PBRShader::impl_locations! missing \"anisotropyTexture\"" ).clone().as_ref() , 11 );
       // 12: engraving relief texture (USE_ENGRAVING).
       gl.uniform1i( locations.get( "engravingTexture" ).expect( "PBRShader::impl_locations! missing \"engravingTexture\"" ).clone().as_ref() , 12 );
+      // OpenPBR lobe textures ( adoption plan §3.1 subset ). Units 13-15 are the
+      // vertex-stage skinning/morph slots ( see `skeleton` ), 16-18 IBL and 19 the
+      // Kulla-Conty LUT, so the fragment lobe samplers start at 20.
+      gl.uniform1i( locations.get( "sheenColorTexture" ).expect( "PBRShader::impl_locations! missing \"sheenColorTexture\"" ).clone().as_ref() , 20 );
+      gl.uniform1i( locations.get( "sheenRoughnessTexture" ).expect( "PBRShader::impl_locations! missing \"sheenRoughnessTexture\"" ).clone().as_ref() , 21 );
+      gl.uniform1i( locations.get( "iridescenceTexture" ).expect( "PBRShader::impl_locations! missing \"iridescenceTexture\"" ).clone().as_ref() , 22 );
     }
 
     fn upload
@@ -1199,12 +1300,17 @@ mod private
         upload( "ior", Some( self.openpbr_params.ior.unwrap_or( 1.5 ) ) )?;
       }
       if self.openpbr_params.sheen_color_factor.is_some() || self.openpbr_params.sheen_roughness_factor.is_some()
+      || self.sheen_color_texture.is_some() || self.sheen_roughness_texture.is_some()
       {
-        upload( "sheenRoughnessFactor", Some( self.openpbr_params.sheen_roughness_factor.unwrap_or( 0.0 ) ) )?;
-        let sheen_color = self.openpbr_params.sheen_color_factor.unwrap_or( [ 0.0, 0.0, 0.0 ] );
+        // glTF TextureInfo semantics: a factor omitted while its texture is present
+        // defaults to full strength ( 1 ), not the no-texture schema default.
+        let rough_default = if self.sheen_roughness_texture.is_some() { 1.0 } else { 0.0 };
+        upload( "sheenRoughnessFactor", Some( self.openpbr_params.sheen_roughness_factor.unwrap_or( rough_default ) ) )?;
+        let color_default = if self.sheen_color_texture.is_some() { [ 1.0, 1.0, 1.0 ] } else { [ 0.0, 0.0, 0.0 ] };
+        let sheen_color = self.openpbr_params.sheen_color_factor.unwrap_or( color_default );
         upload_array( "sheenColorFactor", Some( &sheen_color ) )?;
       }
-      if self.openpbr_params.iridescence_factor.is_some()
+      if self.openpbr_params.iridescence_factor.is_some() || self.iridescence_texture.is_some()
       {
         upload( "iridescenceFactor", Some( self.openpbr_params.iridescence_factor.unwrap_or( 1.0 ) ) )?;
         upload( "iridescenceIor", Some( self.openpbr_params.iridescence_ior.unwrap_or( 1.4 ) ) )?;
@@ -1244,6 +1350,9 @@ mod private
       bind( &self.clearcoat_normal_texture, 10 );
       bind( &self.anisotropy_texture, 11 );
       bind( &self.engraving_texture, 12 );
+      bind( &self.sheen_color_texture, 20 );
+      bind( &self.sheen_roughness_texture, 21 );
+      bind( &self.iridescence_texture, 22 );
     }
 
     fn defines_str( &self ) -> &str
@@ -1355,6 +1464,9 @@ mod private
         anisotropy_strength : self.anisotropy_strength,
         anisotropy_rotation : self.anisotropy_rotation,
         anisotropy_texture : self.anisotropy_texture.clone(),
+        sheen_color_texture : self.sheen_color_texture.clone(),
+        sheen_roughness_texture : self.sheen_roughness_texture.clone(),
+        iridescence_texture : self.iridescence_texture.clone(),
         openpbr_params : self.openpbr_params.clone(),
         engraving_texture : self.engraving_texture.clone(),
         engraving_strength : self.engraving_strength,

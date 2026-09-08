@@ -53,6 +53,11 @@ struct PhysicalMaterial
     vec3 sheenColorFactor;
     float sheenRoughness;
   #endif
+  #ifdef USE_OPENPBR_IRIDESCENCE
+    // Iridescence weight after per-texel modulation by `iridescenceTexture`
+    // ( the uniform alone is the scalar factor ).
+    float iridescenceWeight;
+  #endif
 };
 
 struct ReflectedLight
@@ -173,12 +178,24 @@ uniform vec4 baseColorFactor; // Default: [1, 1, 1, 1]
   // enables USE_OPENPBR for one carrier always has sane values for the rest.
   uniform vec3 sheenColorFactor;     // OpenPBR `fuzz_color`, default [0, 0, 0]
   uniform float sheenRoughnessFactor; // OpenPBR `fuzz_roughness`, default 0.0
+  #ifdef USE_SHEEN_COLOR_TEXTURE
+    // vSheenColorUv ; RGB = per-texel multiplier for sheenColorFactor
+    uniform sampler2D sheenColorTexture;
+  #endif
+  #ifdef USE_SHEEN_ROUGHNESS_TEXTURE
+    // vSheenRoughnessUv ; A = per-texel multiplier for sheenRoughnessFactor
+    uniform sampler2D sheenRoughnessTexture;
+  #endif
   #ifdef USE_OPENPBR_IRIDESCENCE
     // OpenPBR `thin_film_*` layer: weight, film IOR and thickness in nanometres
     // ( single value = mean of the glTF min/max, since no thickness texture ).
     uniform float iridescenceFactor;
     uniform float iridescenceIor;
     uniform float iridescenceThickness;
+    #ifdef USE_IRIDESCENCE_TEXTURE
+      // vIridescenceUv ; A = per-texel multiplier for iridescenceFactor
+      uniform sampler2D iridescenceTexture;
+    #endif
   #endif
 #endif
 #ifdef USE_KHR_materials_emissive_strength
@@ -571,7 +588,7 @@ void applyLightContribution
   #ifdef USE_OPENPBR_IRIDESCENCE
     // Thin-film ( iridescence ) layer: mix in the interference reflectance of
     // the film on the substrate ( view-based angle of incidence ).
-    Fs = mix( Fs, evalIridescence( 1.0, iridescenceIor, dotNV, iridescenceThickness, material.f0 ), iridescenceFactor );
+      Fs = mix( Fs, evalIridescence( 1.0, iridescenceIor, dotNV, iridescenceThickness, material.f0 ), material.iridescenceWeight );
   #endif
   // Diffuse BRDF (Burley)
   vec3 Fd = Fd_Barley( alpha, dotNV, dotNL, dotLH );
@@ -711,7 +728,7 @@ void computeSpotLight
   #ifdef USE_OPENPBR_IRIDESCENCE
     // Thin-film ( iridescence ) layer: mix in the interference reflectance of
     // the film on the substrate ( view-based angle of incidence ).
-    Fs = mix( Fs, evalIridescence( 1.0, iridescenceIor, dotNV, iridescenceThickness, material.f0 ), iridescenceFactor );
+      Fs = mix( Fs, evalIridescence( 1.0, iridescenceIor, dotNV, iridescenceThickness, material.f0 ), material.iridescenceWeight );
   #endif
   vec3 Fd = Fd_Barley( alpha, dotNV, dotNL, dotLH );
 
@@ -1159,9 +1176,22 @@ void main()
 
   #ifdef USE_OPENPBR
     // Fuzz ( OpenPBR `fuzz` ) layer inputs; the uniforms carry the disabled default
-    // ( black color ) when the KHR_materials_sheen extension is absent.
+    // ( black color ) when the KHR_materials_sheen extension is absent. Textures,
+    // when present, are per-texel multipliers of the factors ( glTF semantics ).
     material.sheenColorFactor = sheenColorFactor;
     material.sheenRoughness = sheenRoughnessFactor;
+    #ifdef USE_SHEEN_COLOR_TEXTURE
+      material.sheenColorFactor *= texture( sheenColorTexture, vSheenColorUv ).rgb;
+    #endif
+    #ifdef USE_SHEEN_ROUGHNESS_TEXTURE
+      material.sheenRoughness *= texture( sheenRoughnessTexture, vSheenRoughnessUv ).a;
+    #endif
+    #ifdef USE_OPENPBR_IRIDESCENCE
+      material.iridescenceWeight = iridescenceFactor;
+      #ifdef USE_IRIDESCENCE_TEXTURE
+        material.iridescenceWeight *= texture( iridescenceTexture, vIridescenceUv ).a;
+      #endif
+    #endif
   #endif
 
   // -------------------------------------------------------------------------

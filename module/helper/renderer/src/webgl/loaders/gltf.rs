@@ -848,12 +848,15 @@ mod private
         }
       }
 
+      // KHR_materials_sheen / KHR_materials_iridescence textures ( adoption plan §3.1 subset ).
+      lobe_textures_apply( &mut material, &gltf_m, &parse_ext_texture_info );
+
       // OpenPBR Surface adoption ( ASWF OpenPBR → ratified KHR_materials_* ):
       // capture the scalar/color factor carriers of the remaining extensions
-      // wholesale. Shader consumption of these lobes is a follow-up step — the
-      // renderer keeps degrading gracefully to the core metallic-roughness
-      // model meanwhile ( nothing here raises a define or binds a uniform ).
-      material.openpbr_params = material_openpbr_params_read( &gltf_m );
+      // wholesale. Goes through the setter so the defines cache is rebuilt -
+      // a direct field assign would leave `USE_OPENPBR` out of the cache for
+      // materials that raise no later texture define.
+      material.openpbr_params_set( material_openpbr_params_read( &gltf_m ) );
 
       if let Some( n ) = gltf_m.normal_texture()
       {
@@ -930,11 +933,14 @@ mod private
       params.ior = Some( scalar( ext, "ior", 1.5 ) );
     }
 
-    // KHR_materials_sheen → OpenPBR `fuzz_*` lobe.
+    // KHR_materials_sheen → OpenPBR `fuzz_*` lobe. glTF `TextureInfo` semantics :
+    // a factor omitted while its texture is present defaults to full strength.
     if let Some( ext ) = gltf_m.extension_value( "KHR_materials_sheen" )
     {
-      params.sheen_color_factor = Some( color( ext, "sheenColorFactor", [ 0.0, 0.0, 0.0 ] ) );
-      params.sheen_roughness_factor = Some( scalar( ext, "sheenRoughnessFactor", 0.0 ) );
+      let color_default = if ext.get( "sheenColorTexture" ).is_some() { [ 1.0, 1.0, 1.0 ] } else { [ 0.0, 0.0, 0.0 ] };
+      let roughness_default = if ext.get( "sheenRoughnessTexture" ).is_some() { 1.0 } else { 0.0 };
+      params.sheen_color_factor = Some( color( ext, "sheenColorFactor", color_default ) );
+      params.sheen_roughness_factor = Some( scalar( ext, "sheenRoughnessFactor", roughness_default ) );
     }
 
     // KHR_materials_transmission → OpenPBR `transmission_weight`.
@@ -954,10 +960,12 @@ mod private
       params.volume_attenuation_color = Some( color( ext, "attenuationColor", [ 1.0, 1.0, 1.0 ] ) );
     }
 
-    // KHR_materials_iridescence → OpenPBR `thin_film_*` lobe.
+    // KHR_materials_iridescence → OpenPBR `thin_film_*` lobe. `iridescenceFactor`
+    // follows the same texture-defaults-to-one rule as the sheen factors above.
     if let Some( ext ) = gltf_m.extension_value( "KHR_materials_iridescence" )
     {
-      params.iridescence_factor = Some( scalar( ext, "iridescenceFactor", 0.0 ) );
+      let factor_default = if ext.get( "iridescenceTexture" ).is_some() { 1.0 } else { 0.0 };
+      params.iridescence_factor = Some( scalar( ext, "iridescenceFactor", factor_default ) );
       params.iridescence_ior = Some( scalar( ext, "iridescenceIor", 1.3 ) );
       params.iridescence_thickness_minimum = Some( scalar( ext, "iridescenceThicknessMinimum", 100.0 ) );
       params.iridescence_thickness_maximum = Some( scalar( ext, "iridescenceThicknessMaximum", 400.0 ) );
@@ -983,6 +991,36 @@ mod private
     }
 
     params
+  }
+
+  /// Wires the textured lobe carriers ( adoption plan §3.1 subset :
+  /// `KHR_materials_sheen` color/roughness textures and
+  /// `KHR_materials_iridescence` weight texture ) from raw extension JSON into
+  /// a [`PbrMaterial`]. Split out of `materials_create` ( at the clippy
+  /// function-length budget ); `parse_ext_texture_info` is the shared
+  /// `TextureInfo` resolver over the document's texture list.
+  fn lobe_textures_apply< F >( material : &mut PbrMaterial, gltf_m : &gltf::Material< '_ >, parse_ext_texture_info : &F )
+  where
+    F : Fn( &Value ) -> Option< TextureInfo >
+  {
+    if let Some( sh ) = gltf_m.extension_value( "KHR_materials_sheen" )
+    {
+      if let Some( t ) = sh.get( "sheenColorTexture" )
+      {
+        material.set_sheen_color_texture( parse_ext_texture_info( t ) );
+      }
+      if let Some( t ) = sh.get( "sheenRoughnessTexture" )
+      {
+        material.set_sheen_roughness_texture( parse_ext_texture_info( t ) );
+      }
+    }
+    if let Some( ir ) = gltf_m.extension_value( "KHR_materials_iridescence" )
+    {
+      if let Some( t ) = ir.get( "iridescenceTexture" )
+      {
+        material.set_iridescence_texture( parse_ext_texture_info( t ) );
+      }
+    }
   }
 
   /// Computes a vertex attribute's [`gl::BufferDescriptor`] from its glTF

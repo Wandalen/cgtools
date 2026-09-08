@@ -128,6 +128,61 @@ fn sheen_present_but_omitted_keys_take_schema_defaults()
 }
 
 #[ test ]
+fn sheen_texture_present_flips_omitted_factor_defaults()
+{
+  // glTF `TextureInfo` semantics : when a lobe texture is supplied and its
+  // factor key is omitted, the factor defaults to full strength ( 1 ), not the
+  // no-texture schema default ( 0 ) - otherwise a textured sheen layer would
+  // be multiplied by zero and vanish.
+  let fixture = r#"
+  {
+    "asset": { "version": "2.0" },
+    "materials": [ { "extensions": { "KHR_materials_sheen": {
+      "sheenColorTexture": { "index": 0 },
+      "sheenRoughnessTexture": { "index": 0 }
+    } } } ]
+  }
+  "#;
+
+  let params = params_from_material_json( fixture );
+
+  assert_eq!( params.sheen_color_factor, Some( [ 1.0, 1.0, 1.0 ] ), "color factor defaults to white with its texture" );
+  assert_eq!( params.sheen_roughness_factor, Some( 1.0 ), "roughness factor defaults to 1 with its texture" );
+
+  // An explicit factor must still win over the texture-driven default.
+  let explicit = r#"
+  {
+    "asset": { "version": "2.0" },
+    "materials": [ { "extensions": { "KHR_materials_sheen": {
+      "sheenColorFactor": [ 0.2, 0.2, 0.2 ],
+      "sheenColorTexture": { "index": 0 }
+    } } } ]
+  }
+  "#;
+
+  let params = params_from_material_json( explicit );
+  assert_eq!( params.sheen_color_factor, Some( [ 0.2, 0.2, 0.2 ] ), "explicit factor overrides the texture default" );
+  assert_eq!( params.sheen_roughness_factor, Some( 0.0 ), "no roughness texture - schema default stays 0" );
+}
+
+#[ test ]
+fn iridescence_texture_present_flips_factor_default()
+{
+  let fixture = r#"
+  {
+    "asset": { "version": "2.0" },
+    "materials": [ { "extensions": { "KHR_materials_iridescence": {
+      "iridescenceTexture": { "index": 0 }
+    } } } ]
+  }
+  "#;
+
+  let params = params_from_material_json( fixture );
+
+  assert_eq!( params.iridescence_factor, Some( 1.0 ), "iridescence weight defaults to 1 with its texture" );
+}
+
+#[ test ]
 fn transmission_reads_factor()
 {
   let fixture = r#"

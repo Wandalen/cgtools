@@ -62,10 +62,10 @@ The two-stage strategy per lane — **load**, then **shade** — is tracked belo
 | Volume (`transmission_depth`, absorption) | `KHR_materials_volume` | **Blocked** — needs thickness (back-face depth or `thicknessTexture`) + refracted path length for Beer–Lambert. |
 | Dispersion (20 / Abbe) | `KHR_materials_dispersion` | **Blocked** — per-channel refraction (3× the transmission pass). |
 | Subsurface / translucent scattering | `KHR_materials_diffuse_transmission` | **Blocked** — needs a diffusion pass (per-RGB radius profile). |
-| Thin-film iridescence | `KHR_materials_iridescence` | **Not blocked** (pure per-fragment spectral Fresnel) — deferred scope only. |
-| Kulla–Conty multi-scatter energy compensation (LUT) | n/a (model fidelity) | **Not blocked** — planned (§3.7); today only the Fdez-Agüera IBL approximation exists, so rough surfaces still lose energy on direct lights. |
-| Textured lobe carriers (sheen/transmission/thickness/iridescence/diffuseTransmission color) | all of the above | **Not blocked** (pure plumbing) — deferred scope only. |
-| Native OpenPBR content import (MaterialX `.mtlx`, USD `.usda/.usdc/.usdz`) | format lane (§2) | **Not started** — most OpenPBR content ships here, not as glTF; USD/MaterialX runtimes are C++/heavy and not wasm-hostable, so a subset-reader + offline-converter strategy is needed (see §2). |
+| Thin-film iridescence | `KHR_materials_iridescence` | **Landed (§3.2)** — `USE_OPENPBR_IRIDESCENCE` spectral Fresnel in `main.frag`. Known model limit: on a near-perfect mirror substrate the interference terms cancel (`R23 ≈ 1 ⇒ Cm = Rs−T121 ≈ 0`) and the film only lifts `F_s` toward 1 — visible color needs low-reflectance bases. |
+| Kulla–Conty multi-scatter energy compensation (LUT) | n/a (model fidelity) | **Landed for direct lights (§3.7)** — `loaders::kulla_conty` LUT, `USE_KULLA_CONTY`; IBL still uses the Fdez-Agüera split-sum (unifying it onto the same LUT is a follow-up). |
+| Textured lobe carriers (sheen/transmission/thickness/iridescence/diffuseTransmission color) | all of the above | **Subset landed (§3.1), browser-untested** — sheen color/roughness + iridescence weight textures wired at fragment units 20–22 (native loader tests pass; `openpbr_lobe_texture_test.rs` awaits a wasm browser run). Remaining carriers ride the §3.3 transmission pass. |
+| Native OpenPBR content import (MaterialX `.mtlx`, USD `.usda/.usdc/.usdz`) | format lane (§2) | **N2 + N3-lite landed** (`.mtlx` reader, `.usda`→`.mtlx` resolver, `openpbr_surface_apply` runtime bridge). **N3 full** — `openusd` Stage reader incl. USD scene/geometry import — is the next format task. |
 
 Blockers are architectural, not mathematical: the renderer is a single-pass
 forward shader (`main.frag`) with weighted-blended OIT for transparency; nothing
@@ -190,8 +190,24 @@ Plumbing only. Add `Option<TextureInfo>` slots for
 `diffuseTransmissionTexture`, `diffuseTransmissionColorTexture`; parse them in
 the loader (reuse the generic `parse_ext_texture_info`), add sampler uniforms +
 UV defines + `configure()` unit assignment + `bind()` unit binds. Texture-unit
-headroom: units 0–12 are used; IBL starts at 16 (`ibl_base_texture_unit`), so
-13–15 are free.
+headroom ( corrected 2026-09 — the original note that "13–15 are free" was wrong ):
+units 0–12 are material textures, **13–15 are the vertex-stage skinning/morph
+slots** ( `skeleton::{GLOBAL_MATRICES_SLOT, INVERSE_MATRICES_SLOT, DISPLACEMENTS_SLOT}` ),
+IBL takes 16–18 and the Kulla-Conty LUT 19, so the new fragment lobe samplers
+occupy **20–22**.
+
+Status: **subset landed, browser-untested (2026-09)** —
+`sheenColorTexture` + `sheenRoughnessTexture` ( units 20/21 ) and
+`iridescenceTexture` ( unit 22 ) are wired end to end: `PbrMaterial` slots +
+setters, loader parsing ( `lobe_textures_apply` ), `USE_SHEEN_COLOR_TEXTURE` /
+`USE_SHEEN_ROUGHNESS_TEXTURE` / `USE_IRIDESCENCE_TEXTURE` defines gated on
+texture presence alone, shader RGB/A multiplication of the factors with glTF
+"factor omitted + texture present ⇒ 1" defaults. Native loader tests pass;
+`tests/openpbr_lobe_texture_test.rs` ( gating + headless compile ) still needs
+a wasm browser run. The remaining carriers ( `transmissionTexture`,
+`thicknessTexture`, `iridescenceThicknessTexture`,
+`diffuseTransmission*Texture` ) are deferred — their lobes need the §3.3
+transmission pass to consume them meaningfully anyway.
 
 ### 3.2 Thin-film iridescence (unblocked — can land independently)
 In-fragment spectral Fresnel (Airy/etalon `Δφ = 2π·2·d·n₂·cosθ₂/λ`, thickness
@@ -400,15 +416,22 @@ prerequisite (named in brackets) is in place.
   `OPENPBR_materials` JSON extension for non-KHR parameters) for DCC round-trips.
 
 ### Shading / pipeline (from §3)
-- **Texture maps for the lobes** (§3.1) — `sheenColorTexture`,
-  `transmissionTexture`, `thicknessTexture`, `iridescence*`, diffuse-transmission
-  textures; also `geometry_normal`/`coat`/`tangent` map inputs encountered in
-  real `.mtlx` are skipped today (kept at defaults).
+- **Texture maps for the lobes** (§3.1) — sheen color/roughness + iridescence
+  weight landed 2026-09 ( browser verification pending ). Still deferred:
+  `transmissionTexture`, `thicknessTexture`, `iridescenceThicknessTexture`,
+  diffuse-transmission textures; also `geometry_normal`/`coat`/`tangent` map
+  inputs encountered in real `.mtlx` are skipped today (kept at defaults).
 - **Thin-film iridescence** (§3.2), **transmission/refraction pass** (§3.3),
   **volume thickness + Beer–Lambert** (§3.4), **subsurface diffusion** (§3.5),
   **dispersion** (§3.6) — all blocked/deferred as described in their sections.
-- **Kulla–Conty LUT** (§3.7) — designed + references recorded; not implemented.
-  Direct-light energy still uses single-scatter.
+- **Kulla–Conty LUT** (§3.7) — landed for direct lights. Open: unify the IBL
+  term onto the same LUT ( it still uses the older Fdez-Agüera split-sum
+  approximation ), and gate the compensation on actual roughness rather than
+  always-on for `USE_OPENPBR`.
+- **Thin-film on mirror metals** — per the reference model, a film on a
+  near-perfect mirror ( gold f0 ≈ 0.93 ) collapses to `F_s ≈ 1` with no
+  visible color ( interference `Cm` terms cancel ). Faithful to Khronos;
+  departing from it ( tinted film over metal ) is an open shader-design item.
 - **Emission luminance** — glTF/KHR has no photometric carrier, so
   `emission_luminance` is not mapped from glTF (OpenPBR spec default kept);
   `KHR_materials_emissive_strength` only scales existing emission.
