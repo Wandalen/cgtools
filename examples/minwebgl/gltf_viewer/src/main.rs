@@ -102,8 +102,10 @@ fn surface_apply( state : &Rc< ViewerState > )
   let surface = state.surface.borrow().clone();
   if let ( Some( material ), Some( surface ) ) = ( material, surface )
   {
+    gl::info!( "surface_apply: metalness={} ior={} rough={}", surface.base_metalness, surface.specular_ior, surface.specular_roughness );
     let mut m = renderer::webgl::cast_unchecked_material_to_ref_mut::< renderer::webgl::material::PbrMaterial >( material.borrow_mut() );
     m.openpbr_surface_apply( &surface );
+    gl::info!( "  -> metallic_factor={} rough={}", m.metallic_factor, m.roughness_factor );
   }
 }
 
