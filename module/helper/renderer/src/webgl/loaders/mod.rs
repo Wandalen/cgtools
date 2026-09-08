@@ -14,6 +14,9 @@ crate::mod_interface!
   /// OpenPBR `.usda` → `.mtlx` asset-reference resolver
   layer openpbr_usda;
 
+  /// Kulla–Conty multi-scatter energy-compensation table generation
+  layer kulla_conty;
+
   /// IBL textures loader
   layer ibl;
 
