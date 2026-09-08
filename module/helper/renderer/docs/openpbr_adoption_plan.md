@@ -173,11 +173,20 @@ passed) and N4 are still open.
       alpha-mode/ior routing ) , `usd_scene_load` ( nodes + shared-material
       cache + hierarchy wiring + `Scene` ) . Needs a `gltf_viewer`-style
       integration / wasm run before it can be called verified.
+    - Browser feed : `usd_scene_load_http` ( async — fetches the `.usda`,
+      discovers its `@./x.mtlx@` references with the N3-lite scanner, fetches
+      those too ) and `usd_scene_from_texts` ( synchronous, from embedded /
+      in-memory strings — what the viewer uses ). `gltf_viewer` gained a
+      **USD scene** mode : a procedural icosphere serialized to `.usda` text +
+      the selected embedded `.mtlx`, run through the full `loaders::usd`
+      pipeline under the same studio rig. **Awaiting first browser run** (
+      `action/run gltf_viewer` ) — until then the whole GL assembly path
+      remains visually unverified.
     Still open for N3: USD texture channels (`UsdUVTexture` → `TextureInfo`
     slots — both material lanes currently drop texture connections ),
     `mtlx_target` named-surface selection ( the usd lane takes the first
-    surface, same gap as the N3-lite loader ), camera / lights ingestion,
-    `metersPerUnit` / non-Y `upAxis`, and the browser-side fetch-and-feed glue.
+    surface, same gap as the N3-lite loader ), camera / lights ingestion and
+    `metersPerUnit` / non-Y `upAxis`.
 - **N4** — authoring/converter path for real content: export the same material
   to glTF + `KHR_materials_*` for the browser runtime, and keep parameters with
   no KHR carrier in a private `OPENPBR_materials` JSON extension on the glTF
@@ -437,9 +446,12 @@ prerequisite (named in brackets) is in place.
   MaterialX nodegraphs authored as USD shader primitives. Wasm spike passed (§2.2).
 - **`usd_scene_load` GL half is browser-untested** — the CPU→VAO/material/`Node`
   assembly compiles ( native + wasm32 ) and the pure `usd_scene_analyze` that
-  feeds it is native-tested, but no GL run has happened yet : needs a viewer
-  wiring + `cargo test --target wasm32-unknown-unknown` pass ( same status class
-  as the §3.1 lobe-texture browser suite ).
+  feeds it is native-tested, but no GL run has happened yet. The viewer wiring
+  is now in place ( `gltf_viewer` "USD scene" mode, embedded `.usda` + `.mtlx`
+  through `usd_scene_from_texts` ) — verification is a single
+  `action/run gltf_viewer` away ( same status class as the §3.1 lobe-texture
+  browser suite ; also validates `usd_scene_load_http` 's sibling-fetch path if
+  pointed at served files ).
 - **USD textures** — `UsdUVTexture` inputs surface in
   `shade::Channel::Texture( path )` today but are ignored by
   `usd_preview_surface_to_material`; routing them into `PbrMaterial`

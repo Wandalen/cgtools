@@ -932,6 +932,103 @@ mod private
     m
   }
 
+  /// The directory prefix of an asset path ( everything up to and including the
+  /// last `/` ), used to resolve `@./sibling@` references relative to the
+  /// referencing file. Empty for a bare filename.
+  #[ must_use ]
+  fn asset_dir( path : &str ) -> &str
+  {
+    match path.rfind( '/' )
+    {
+      Some( i ) => &path[ ..=i ],
+      None => "",
+    }
+  }
+
+  /// Browser feed : fetches a `.usda` scene ( and the external `.mtlx` assets it
+  /// references, discovered via the N3-lite `usda_mtlx_references` scanner ) over
+  /// HTTP with `gl::file::load`, then assembles a renderer [`Scene`] through
+  /// [`usd_scene_from_texts`] - the same pipeline the native tests exercise.
+  ///
+  /// `.usdc` / `.usdz` roots are fetched too ( `openusd` sniffs the format ), but
+  /// their references are only discovered for `.usda` text ( the scanner is a
+  /// text tool ); a binary root therefore loads its own layer but not sibling
+  /// `.mtlx` files until their references are readable - a known N3 gap.
+  ///
+  /// # Errors
+  ///
+  /// [`UsdError::Malformed`] on a fetch failure, UTF-8 error, or GL/analysis
+  /// error ( the underlying cause is `Debug`-formatted into the message ).
+  pub async fn usd_scene_load_http( gl : &gl::WebGl2RenderingContext, root_path : &str ) -> Result< Rc< RefCell< Scene > >, UsdError >
+  {
+    let fetch = | path : String | async move
+    {
+      gl::file::load( &path ).await
+      .map_err( | e | UsdError::Malformed( format!( "usd fetch '{path}': {e:?}" ) ) )
+      .map( | bytes | ( path, bytes ) )
+    };
+
+    // 1. root scene.
+    let ( root_key, root_bytes ) = fetch( root_path.to_string() ).await?;
+    let root_text = std::str::from_utf8( &root_bytes ).map_err( | e | UsdError::Malformed( format!( "usd root not utf-8: {e}" ) ) )?.to_string();
+
+    // 2. referenced `.mtlx` assets, resolved relative to the scene's folder.
+    //    Kept in a separate store from the stage's resolver : `.mtlx` is not a
+    //    USD layer, so handing it to the stage resolver would make composition
+    //    try ( and fail ) to parse it as USDA - analyze reads it as text instead.
+    let dir = asset_dir( &root_key );
+    let mut assets : Vec< ( String, String ) > = Vec::new();
+    let is_text_usda = root_key.rsplit_once( '.' ).is_some_and( | ( _, ext ) | ext.eq_ignore_ascii_case( "usda" ) );
+    if is_text_usda
+    {
+      for reference in crate::webgl::loaders::openpbr_usda::usda_mtlx_references( &root_text )
+      {
+        // `mtlx_asset` is the authored `@…@` token, e.g. `./iceCube.mtlx`.
+        let joined = if reference.mtlx_asset.starts_with( '/' )
+        {
+          reference.mtlx_asset.clone()
+        }
+        else
+        {
+          format!( "{dir}{}", normalize_asset_path( &reference.mtlx_asset ) )
+        };
+        let ( _, bytes ) = fetch( joined ).await?;
+        let text = String::from_utf8( bytes ).map_err( | e | UsdError::Malformed( format!( "usd asset not utf-8: {e}" ) ) )?;
+        assets.push( ( reference.mtlx_asset.clone(), text ) );
+      }
+    }
+
+    let asset_refs : Vec< ( &str, &str ) > = assets.iter().map( | ( p, t ) | ( p.as_str(), t.as_str() ) ).collect();
+    usd_scene_from_texts( gl, &root_key, &root_text, &asset_refs )
+  }
+
+  /// Assembles a [`Scene`] from in-memory texts : the `.usda` root plus any
+  /// assets ( `.mtlx` etc. ) that bound materials reference. The root goes to
+  /// the stage's own resolver; the `assets` form a separate [`UsdAssetProvider`]
+  /// store for the `.mtlx` lane ( see [`usd_scene_load_http`] - same reason :
+  /// MaterialX is not a USD layer and must never reach composition ). No
+  /// filesystem, no network : works in the browser with embedded strings and
+  /// natively in tests.
+  ///
+  /// # Errors
+  ///
+  /// [`UsdError`] from stage composition / analysis, or a GL error ( as
+  /// `Malformed` ) from geometry upload.
+  pub fn usd_scene_from_texts( gl : &gl::WebGl2RenderingContext, root_path : &str, root_text : &str, assets : &[ ( &str, &str ) ] ) -> Result< Rc< RefCell< Scene > >, UsdError >
+  {
+    let mut stage_store = UsdInMemoryResolver::new();
+    stage_store.insert( root_path, root_text.as_bytes() );
+
+    let mut provider = UsdInMemoryResolver::new();
+    for ( path, text ) in assets
+    {
+      provider.insert( *path, text.as_bytes() );
+    }
+
+    let stage = usd_stage_open( root_path, stage_store )?;
+    usd_scene_load( gl, &stage, Some( &provider ) )
+  }
+
   /// Analyzes `stage` and assembles a renderer [`Scene`] : a `Node` per renderable
   /// prim, `Mesh` leaves with uploaded geometry + materials, transforms wired via
   /// each prim's authored local matrix ( the renderer composes world matrices ).
@@ -1040,6 +1137,8 @@ crate::mod_interface!
     usd_material_from_mtlx,
     usd_geometry_create,
     usd_material_apply,
-    usd_scene_load
+    usd_scene_load,
+    usd_scene_load_http,
+    usd_scene_from_texts
   };
 }

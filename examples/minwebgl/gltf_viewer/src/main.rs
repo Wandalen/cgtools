@@ -26,6 +26,10 @@ mod openpbr_scene;
 /// Viewer modes.
 const MODE_GLTF : &str = "gltf";
 const MODE_OPENPBR : &str = "openpbr";
+/// Scene built procedurally into `.usda` text and loaded through the real
+/// `loaders::usd` pipeline ( composition + GL assembly ), with the material
+/// arriving through a referenced `.mtlx` ( native OpenPBR lane ).
+const MODE_USD : &str = "usd";
 
 /// Model registry: ( display name, static path ). Kept in sync with the
 /// `data-trunk rel="copy-file"` entries in `index.html`.
@@ -66,17 +70,24 @@ const OPENPBR_MATERIALS : &[ ( &str, &str ) ] =
   ( "Iridescent metal (thin film)", "iridescent" ),
 ];
 
-/// Parses the embedded `.mtlx` for `key` into a canonical surface.
+/// Embedded `.mtlx` text for `key`.
 #[ must_use ]
-fn openpbr_material_surface( key : &str ) -> OpenPbrSurface
+fn openpbr_material_mtlx( key : &str ) -> &'static str
 {
-  let xml = match key
+  match key
   {
     "gold" => include_str!( "../materials/open_pbr_gold.mtlx" ),
     "glass" => include_str!( "../materials/open_pbr_glass.mtlx" ),
     "iridescent" => include_str!( "../materials/open_pbr_iridescent.mtlx" ),
     _ => include_str!( "../materials/open_pbr_velvet.mtlx" ),
-  };
+  }
+}
+
+/// Parses the embedded `.mtlx` for `key` into a canonical surface.
+#[ must_use ]
+fn openpbr_material_surface( key : &str ) -> OpenPbrSurface
+{
+  let xml = openpbr_material_mtlx( key );
   let mut surfaces = openpbr_surfaces_from_mtlx( xml ).expect( "embedded OpenPBR material parses" );
   surfaces.pop().expect( "material file contains one surface" )
 }
@@ -179,6 +190,17 @@ fn kulla_conty_setup( renderer : &mut Renderer, gl : &gl::WebGl2RenderingContext
   Ok( () )
 }
 
+/// The OpenPBR / USD test rig: hemisphere-ish ambient ( two opposite direct
+/// lights whose diffuse contribution scales with NoL — top = cool sky, bottom
+/// = warm ground bounce, blending smoothly over the sphere ) plus a single key
+/// point light. No env reflection, so the material's own response is readable.
+fn studio_rig_add( scene : &Rc< RefCell< Scene > > )
+{
+  light_add( scene, Light::Direct( DirectLight { direction : gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] ), color : [ 0.8, 0.85, 1.0 ].into(), strength : 0.55 } ) );
+  light_add( scene, Light::Direct( DirectLight { direction : gl::math::F32x3::from( [ 0.0, -1.0, 0.0 ] ), color : [ 0.3, 0.24, 0.2 ].into(), strength : 0.2 } ) );
+  light_add( scene, Light::Point( PointLight { position : [ 1.5, 1.2, 1.6 ].into(), color : [ 1.0, 1.0, 1.0 ].into(), strength : 25.0, range : 8.0 } ) );
+}
+
 /// (Re)loads whatever `state.choice` selects into `state.scene`.
 async fn scene_load
 (
@@ -188,6 +210,53 @@ async fn scene_load
 ) -> Result< (), gl::WebglError >
 {
   let choice = state.choice.borrow().clone();
+
+  if choice.mode == MODE_USD
+  {
+    // USD mode — the real `loaders::usd` pipeline : a procedural icosphere
+    // serialized to `.usda` text + the selected embedded `.mtlx`, fed through
+    // the in-memory resolver ( the same shape `usd_scene_load_http` builds
+    // from HTTP fetches ), stage composition, mtlx-bound material resolution
+    // and GL scene assembly included. Studio rig, no env reflection.
+    let root = openpbr_scene::usd_sphere_scene( 0.5 );
+    let scene = renderer::webgl::loaders::usd::usd_scene_from_texts
+    (
+      gl,
+      "scene.usda",
+      &root,
+      &[ ( "./mat.mtlx", openpbr_material_mtlx( &choice.material ) ) ],
+    )
+    .map_err( | e |
+    {
+      gl::browser::error!( "USD scene load failed: {e:?}" );
+      gl::WebglError::Other( "Failed to load USD scene" )
+    })?;
+
+    // The USD materials never went through `openpbr_surface_apply`'s IBL opt-out;
+    // disable env sampling on every mesh material, like the OpenPBR mode does.
+    let mut disable_ibl = | node : Rc< RefCell< Node > > | -> Result< (), gl::WebglError >
+    {
+      if let Object3D::Mesh( mesh ) = &node.borrow().object
+      {
+        for primitive in &mesh.borrow().primitives
+        {
+          let material_rc = primitive.borrow().material.clone();
+          let mut m = renderer::webgl::cast_unchecked_material_to_ref_mut::< renderer::webgl::material::PbrMaterial >( material_rc.borrow_mut() );
+          m.need_use_ibl_set( false );
+        }
+      }
+      Ok( () )
+    };
+    scene.borrow().traverse( &mut disable_ibl )?;
+    studio_rig_add( &scene );
+    scene_fit_to_view( &scene );
+    // No live-parameter surface binding yet ( the material lives behind the
+    // usd assembly ); the sliders are re-enabled per mode in `gui_setup`.
+    *state.material.borrow_mut() = None;
+    *state.surface.borrow_mut() = None;
+    *state.scene.borrow_mut() = Some( scene );
+    return Ok( () );
+  }
 
   if choice.mode == MODE_OPENPBR
   {
@@ -211,13 +280,7 @@ async fn scene_load
 
     let scene = gltf.scenes.into_iter().next().expect( "sphere scene exists" );
 
-    // Hemisphere-ish ambient: two opposite direct lights whose diffuse
-    // contribution scales with NoL ( top = cool sky, bottom = warm ground
-    // bounce ), which blends smoothly over the sphere.
-    light_add( &scene, Light::Direct( DirectLight { direction : gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] ), color : [ 0.8, 0.85, 1.0 ].into(), strength : 0.55 } ) );
-    light_add( &scene, Light::Direct( DirectLight { direction : gl::math::F32x3::from( [ 0.0, -1.0, 0.0 ] ), color : [ 0.3, 0.24, 0.2 ].into(), strength : 0.2 } ) );
-    // Single key point light.
-    light_add( &scene, Light::Point( PointLight { position : [ 1.5, 1.2, 1.6 ].into(), color : [ 1.0, 1.0, 1.0 ].into(), strength : 25.0, range : 8.0 } ) );
+    studio_rig_add( &scene );
 
     scene_fit_to_view( &scene );
     *state.scene.borrow_mut() = Some( scene );
@@ -280,6 +343,7 @@ fn debug_ui_setup
   let mode_map = Object::new();
   Reflect::set( &mode_map, &JsValue::from_str( "glTF model viewer" ), &JsValue::from_str( MODE_GLTF ) ).unwrap();
   Reflect::set( &mode_map, &JsValue::from_str( "OpenPBR test" ), &JsValue::from_str( MODE_OPENPBR ) ).unwrap();
+  Reflect::set( &mode_map, &JsValue::from_str( "USD scene ( loaders::usd )" ), &JsValue::from_str( MODE_USD ) ).unwrap();
   let mode_gui = lil_gui::dropdown_add( &folder, &js_object, "mode", &mode_map );
   let callback =
   {

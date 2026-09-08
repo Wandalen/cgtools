@@ -10,7 +10,8 @@ glTF is the standard format for 3D content on the web. This example provides a p
 
 The **Debug** panel lets you drive the viewer without editing code:
 
-- **Mode** — `glTF model viewer` (load a model from the list below) or `OpenPBR test` (procedural scenes used to validate the OpenPBR material work — step 1 is a solid-colour icosphere to check geometry).
+- **Mode** — `glTF model viewer` (load a model from the list below), `OpenPBR test` (procedural scenes used to validate the OpenPBR material work — step 1 is a solid-colour icosphere to check geometry), or `USD scene ( loaders::usd )` (the same icosphere serialized to `.usda` text with a referenced `.mtlx` material, run through the full USD pipeline — composition, mesh extraction, mtlx binding, GL assembly).
+- **Material** — in `OpenPBR test` / `USD scene` modes: pick the embedded `.mtlx` (velvet / gold / glass / iridescent).
 - **Model** — a dropdown of the bundled glTF assets; switching reloads the scene and re-frames the camera.
 
 ![image](./showcase.webp)
