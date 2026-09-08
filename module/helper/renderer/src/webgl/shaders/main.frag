@@ -1187,18 +1187,17 @@ void main()
     material.sheenRoughness = sheenRoughnessFactor;
   #endif
 
-  // Geometric Specular Anti-Aliasing (Tokuyoshi & Kaplanyan 2019).
-  // Widen roughness by the screen-space footprint of the normal, projected
-  // into *slope* space ( / dot(N,V)^2 ). At grazing angles dot(N,V) -> 0, so the
-  // slope variance blows up and the lobe fattens enough to cover the limb —
-  // without this foreshortening term the grazing Fresnel rim stays sub-pixel
-  // and aliases into a hard bright line at the silhouette.
+  // Geometric Specular Anti-Aliasing (Tokuyoshi & Kaplanyan 2019)
+  // Increases roughness where screen-space normal derivatives are large
+  // ( silhouette / grazing angles ), widening the lobe so it no longer aliases
+  // into single bright pixels. The per-axis *maximum* variance ( rather than
+  // the sum ) with a 2x weight matches the reference; capped so distant edges
+  // don't over-blur.
   vec3 dNdx = dFdx( normal );
   vec3 dNdy = dFdy( normal );
-  float normalVariance = dot( dNdx, dNdx ) + dot( dNdy, dNdy );
-  float nv = clamp( dot( normal, normalize( cameraPosition - vWorldPos ) ), 0.0, 1.0 );
-  float slopeVariance = normalVariance / max( nv * nv, 1e-4 );
-  material.roughness = sqrt( clamp( material.roughness * material.roughness + 0.5 * slopeVariance, 0.0, 1.0 ) );
+  float geometricVariance = max( dot( dNdx, dNdx ), dot( dNdy, dNdy ) );
+  float kernelRoughnessSq = clamp( 2.0 * geometricVariance, 0.0, 0.5 );
+  material.roughness = sqrt( clamp( material.roughness * material.roughness + kernelRoughnessSq, 0.0, 1.0 ) );
   material.roughness = max( material.roughness, 0.089 );
 
   #ifdef USE_KHR_materials_anisotropy
