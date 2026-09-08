@@ -620,7 +620,7 @@ void applyLightContribution
   reflectedLight.directDiffuse += ( 1.0 - Fs ) * Fd * diffuseColor;
   // Fade specular at grazing angles so the silhouette rim doesn't read as a
   // hard "contour light" ( the aliased bright edge on smooth surfaces ).
-  float grazingFade = smoothstep( 0.0, 0.15, dotNV );
+  float grazingFade = smoothstep( 0.0, 0.25, dotNV );
   reflectedLight.directSpecular += Fs * specularColor * grazingFade;
 
   #ifdef USE_KHR_materials_clearcoat
@@ -763,7 +763,7 @@ void computeSpotLight
   reflectedLight.directDiffuse += ( 1.0 - Fs ) * Fd * diffuseColor;
   // Fade specular at grazing angles so the silhouette rim doesn't read as a
   // hard "contour light" ( the aliased bright edge on smooth surfaces ).
-  float grazingFade = smoothstep( 0.0, 0.15, dotNV );
+  float grazingFade = smoothstep( 0.0, 0.25, dotNV );
   reflectedLight.directSpecular += Fs * specularColor * grazingFade;
 
   #ifdef USE_OPENPBR
