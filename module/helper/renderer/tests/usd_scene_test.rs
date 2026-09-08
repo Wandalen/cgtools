@@ -12,7 +12,7 @@
 //! covered here.
 #![ allow( clippy::float_cmp, reason = "usda fixtures round-trip exactly-representable binary literals ( deterministic f64-parse -> f32-cast ); exact comparison is the point - eps tolerance would hide real regressions" ) ]
 
-use renderer::webgl::loaders::usd::{ UsdError, UsdInMemoryResolver, UsdPrimData, usd_local_to_world, usd_mesh_extract, usd_scene_analyze, usd_stage_open };
+use renderer::webgl::loaders::usd::{ UsdAssetProvider, UsdError, UsdInMemoryResolver, UsdPrimData, usd_local_to_world, usd_mesh_extract, usd_scene_analyze, usd_stage_open };
 use openusd_schemas::geom;
 
 /// A unit quad in the XY plane at z=0 : CCW from +Z, two triangles after fan
@@ -300,7 +300,7 @@ def Xform "World" (
 fn analyze_keeps_geometry_groups_and_meshes()
 {
   let stage = stage_with( &[ ( "scene.usda", SCENE_USDA ) ] );
-  let prims = usd_scene_analyze( &stage ).expect( "scene analyzes" );
+  let prims = usd_scene_analyze( &stage, None ).expect( "scene analyzes" );
 
   let world = prim( &prims, "/World" ).expect( "/World group kept" );
   assert!( world.mesh.is_none(), "Xform groups carry no geometry" );
@@ -317,7 +317,7 @@ fn analyze_keeps_geometry_groups_and_meshes()
 fn analyze_skips_the_shading_subtree()
 {
   let stage = stage_with( &[ ( "scene.usda", SCENE_USDA ) ] );
-  let prims = usd_scene_analyze( &stage ).expect( "scene analyzes" );
+  let prims = usd_scene_analyze( &stage, None ).expect( "scene analyzes" );
 
   assert!( prim( &prims, "/World/Looks/BrickMat" ).is_none(), "Material prim must not render" );
   assert!( prims.iter().all( | p | !p.path.contains( "Surface" ) ), "shader children must not render" );
@@ -328,7 +328,7 @@ fn analyze_skips_the_shading_subtree()
 fn analyze_resolves_bound_material_via_api_and_inheritance()
 {
   let stage = stage_with( &[ ( "scene.usda", SCENE_USDA ) ] );
-  let prims = usd_scene_analyze( &stage ).expect( "scene analyzes" );
+  let prims = usd_scene_analyze( &stage, None ).expect( "scene analyzes" );
 
   // Direct binding on /World/Bound.
   let bound = prim( &prims, "/World/Bound" ).expect( "bound mesh kept" );
@@ -349,7 +349,7 @@ fn analyze_resolves_bound_material_via_api_and_inheritance()
 fn analyze_drops_invisible_and_proxy_prims()
 {
   let stage = stage_with( &[ ( "scene.usda", SCENE_USDA ) ] );
-  let prims = usd_scene_analyze( &stage ).expect( "scene analyzes" );
+  let prims = usd_scene_analyze( &stage, None ).expect( "scene analyzes" );
 
   assert!( prim( &prims, "/World/Hidden" ).is_none(), "invisible mesh dropped" );
   assert!( prim( &prims, "/World/Proxy" ).is_none(), "proxy-purpose mesh dropped" );
@@ -359,7 +359,7 @@ fn analyze_drops_invisible_and_proxy_prims()
 fn analyze_converts_transform_to_column_major_f32()
 {
   let stage = stage_with( &[ ( "scene.usda", QUAD_USDA ) ] );
-  let prims = usd_scene_analyze( &stage ).expect( "analyzes" );
+  let prims = usd_scene_analyze( &stage, None ).expect( "analyzes" );
   let world = prim( &prims, "/World" ).expect( "World group" );
   // gf row-vector translate (2,0,0) : elements 12..14 ; fed unchanged to
   // `F32x4x4::from_column_major` this is the column-vector translation column.
@@ -368,4 +368,103 @@ fn analyze_converts_transform_to_column_major_f32()
   let quad = prim( &prims, "/World/Quad" ).expect( "Quad mesh" );
   assert_eq!( quad.local_to_parent[ 12 ], 0.0 );
   assert_eq!( quad.local_to_parent[ 0 ], 1.0 );
+}
+
+// ---------------------------------------------------------------------------
+// .mtlx-bound materials ( the native OpenPBR content lane )
+// ---------------------------------------------------------------------------
+
+/// Same surface as the gltf_viewer's embedded `open_pbr_gold.mtlx`.
+const GOLD_MTLX : &str = r#"<?xml version="1.0"?>
+<materialx version="1.39" colorspace="acescg">
+  <surfacematerial name="Gold" type="material">
+    <input name="surfaceshader" type="surfaceshader" nodename="open_pbr_surface_surfaceshader" />
+  </surfacematerial>
+  <open_pbr_surface name="open_pbr_surface_surfaceshader" type="surfaceshader">
+    <input name="base_color" type="color3" value="0.929, 0.788, 0.374" />
+    <input name="base_metalness" type="float" value="1.0" />
+    <input name="specular_color" type="color3" value="0.987, 1.013, 0.997" />
+    <input name="specular_roughness" type="float" value="0.02" />
+  </open_pbr_surface>
+</materialx>
+"#;
+
+/// A Material whose only content is an external `.mtlx` reference ( the
+/// OpenPBRShaderPlayground pattern ). The stage store deliberately lacks
+/// `gold.mtlx` ( unresolved reference = diagnostic, the prim keeps its
+/// `references` metadata ); the *asset provider* passed to analyze holds it.
+const MTLX_SCENE_USDA : &str = r#"#usda 1.0
+def Xform "World"
+{
+    def Material "Gold" (
+        prepend references = @./gold.mtlx@</MaterialX/Materials/Gold>
+    )
+    {
+    }
+
+    def Mesh "Ball" (
+        apiSchemas = [ "MaterialBindingAPI" ]
+    )
+    {
+        rel material:binding = </World/Gold>
+        uniform int[] faceVertexCounts = [ 3 ]
+        uniform int[] faceVertexIndices = [ 0, 1, 2 ]
+        uniform point3f[] points = [ ( 0, 0, 0 ), ( 1, 0, 0 ), ( 0, 1, 0 ) ]
+    }
+}
+"#;
+
+#[ test ]
+fn material_from_mtlx_carries_surface_and_reduction()
+{
+  let data = renderer::webgl::loaders::usd::usd_material_from_mtlx( GOLD_MTLX ).expect( "gold.mtlx parses" );
+  let surface = data.surface.expect( "full OpenPbrSurface captured" );
+  assert_eq!( surface.base_color, [ 0.929, 0.788, 0.374 ] );
+  assert_eq!( surface.base_metalness, 1.0 );
+  assert_eq!( surface.specular_roughness, 0.02 );
+  // The glTF-shaped reduction mirrors the surface.
+  assert_eq!( data.base_color_rgba[ .. 3 ], [ 0.929, 0.788, 0.374 ] );
+  assert_eq!( data.metallic, Some( 1.0 ) );
+  assert_eq!( data.roughness, Some( 0.02 ) );
+}
+
+#[ test ]
+fn analyze_resolves_mtlx_referenced_material_via_provider()
+{
+  let mut provider = UsdInMemoryResolver::new();
+  provider.insert( "gold.mtlx", GOLD_MTLX.as_bytes().to_vec() );
+
+  let stage = stage_with( &[ ( "scene.usda", MTLX_SCENE_USDA ) ] );
+  let prims = usd_scene_analyze( &stage, Some( &provider ) ).expect( "analyzes with mtlx provider" );
+
+  let ball = prim( &prims, "/World/Ball" ).expect( "mesh kept" );
+  assert_eq!( ball.material_path.as_deref(), Some( "/World/Gold" ), "binding resolved to the Material prim" );
+  let m = ball.material.as_ref().expect( "material data present" );
+  let surface = m.surface.as_ref().expect( "mtlx lane: full surface resolved through the provider" );
+  assert_eq!( surface.base_color, [ 0.929, 0.788, 0.374 ] );
+  assert_eq!( surface.base_metalness, 1.0 );
+}
+
+#[ test ]
+fn analyze_without_provider_falls_back_but_keeps_binding()
+{
+  // Same scene, no asset provider : the reference cannot be read, but the
+  // binding path is still reported and the material is the neutral default.
+  let stage = stage_with( &[ ( "scene.usda", MTLX_SCENE_USDA ) ] );
+  let prims = usd_scene_analyze( &stage, None ).expect( "analyzes without provider" );
+  let ball = prim( &prims, "/World/Ball" ).expect( "mesh kept" );
+  assert_eq!( ball.material_path.as_deref(), Some( "/World/Gold" ) );
+  let m = ball.material.as_ref().expect( "default material" );
+  assert!( m.surface.is_none(), "no provider -> no surface lane" );
+}
+
+#[ test ]
+fn resolver_serves_asset_text_for_the_provider_trait()
+{
+  let mut resolver = UsdInMemoryResolver::new();
+  resolver.insert( "./gold.mtlx", GOLD_MTLX.as_bytes().to_vec() );
+  // normalized lookups agree across `./` spellings
+  let text = UsdAssetProvider::asset_text( &resolver, "gold.mtlx" ).expect( "provider reads normalized asset" );
+  assert!( text.contains( "open_pbr_surface" ) );
+  assert!( UsdAssetProvider::asset_text( &resolver, "missing.mtlx" ).is_none() );
 }

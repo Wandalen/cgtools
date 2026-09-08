@@ -32,7 +32,8 @@ mod private
   use std::cell::RefCell;
   use std::rc::Rc;
   use minwebgl as gl;
-  use crate::webgl::{ AttributeInfo, Geometry, IndexInfo, Material, Mesh, Node, Object3D, Primitive, Scene, material::PbrMaterial };
+  use crate::webgl::{ AttributeInfo, Geometry, IndexInfo, Material, Mesh, Node, Object3D, Primitive, Scene, material::{ OpenPbrSurface, PbrMaterial } };
+  use crate::webgl::loaders::openpbr_mtlx::openpbr_surfaces_from_mtlx;
 
   /// Shared, ref-counted material handle ( same shape as the glTF loader uses ).
   type SharedMaterial = Rc< RefCell< Box< dyn Material > > >;
@@ -481,10 +482,12 @@ mod private
   // Scene analysis ( pure, off-GPU )
   // ---------------------------------------------------------------------------
 
-  /// Runtime material factors resolved from a bound `UsdPreviewSurface`, in the
-  /// shape the GL layer stamps onto a `PbrMaterial`. Texture-connected channels
-  /// are ignored for now ( kept at their scalar / default value ) - wiring USD
-  /// textures to the `TextureInfo` slots is a follow-up ( adoption plan register ).
+  /// Runtime material factors resolved from a bound `UsdPreviewSurface` ( or a
+  /// full OpenPBR `Surface`, when the bound material references an external
+  /// `.mtlx` / embeds a MaterialX nodegraph ), in the shape the GL layer
+  /// stamps onto a `PbrMaterial`. Preview-surface texture channels are ignored
+  /// for now ( kept at their scalar / default value ) - wiring USD textures to
+  /// the `TextureInfo` slots is a follow-up ( adoption plan register ).
   #[ derive( Clone, Debug, PartialEq ) ]
   pub struct UsdMaterialData
   {
@@ -498,6 +501,9 @@ mod private
     pub emissive : Option< [ f32 ; 3 ] >,
     /// Index of refraction ( `ior` ), default 1.5.
     pub ior : Option< f32 >,
+    /// Full OpenPBR parameter surface ( the native `.mtlx` / nodegraph lane ).
+    /// Takes precedence over the preview-surface factors when present.
+    pub surface : Option< OpenPbrSurface >,
   }
 
   impl Default for UsdMaterialData
@@ -511,6 +517,7 @@ mod private
         roughness : None,
         emissive : None,
         ior : None,
+        surface : None,
       }
     }
   }
@@ -582,6 +589,25 @@ mod private
     data
   }
 
+  /// A source of USD-referenced text assets ( the `.mtlx` files a `Material`
+  /// prim points at via `references = @./x.mtlx@` ), addressed by the authored
+  /// asset-path token. [`UsdInMemoryResolver`] implements it; the browser lane
+  /// supplies HTTP-fetched bytes through the same resolver.
+  pub trait UsdAssetProvider
+  {
+    /// Returns the UTF-8 text of `path` ( as authored inside a `@…@` token ),
+    /// if this source knows it.
+    fn asset_text( &self, path : &str ) -> Option< String >;
+  }
+
+  impl UsdAssetProvider for UsdInMemoryResolver
+  {
+    fn asset_text( &self, path : &str ) -> Option< String >
+    {
+      self.get( path ).and_then( | bytes | std::str::from_utf8( bytes ).ok() ).map( ToString::to_string )
+    }
+  }
+
   /// `true` if `type_name` marks a shading prim ( a `Material` or a node-graph
   /// building block ) that must not become a renderable scene node.
   fn is_shading_type( type_name : Option< &str > ) -> bool
@@ -589,9 +615,53 @@ mod private
     matches!( type_name, Some( "Material" | "Shader" | "NodeGraph" | "Look" ) )
   }
 
+  /// The first `.mtlx`-suffixed `references` asset path authored on `path`
+  /// ( any list-op flavour ), as authored. This is the OpenPBR content pattern :
+  /// `def Material "x" ( prepend references = @./x.mtlx@</…> )`.
+  fn mtlx_reference( stage : &usd::Stage, path : &sdf::Path ) -> Result< Option< String >, UsdError >
+  {
+    let prim = stage.prim( path.clone() )?;
+    let Some( sdf::Value::ReferenceListOp( op ) ) = prim.get_metadata::<sdf::Value>( "references" )? else
+    {
+      return Ok( None );
+    };
+    let found = op.explicit_items.iter()
+    .chain( op.prepended_items.iter() )
+    .chain( op.appended_items.iter() )
+    .chain( op.added_items.iter() )
+    .map( | r | &r.asset_path )
+    .find( | a | a.rsplit_once( '.' ).is_some_and( | ( _, ext ) | ext.eq_ignore_ascii_case( "mtlx" ) ) )
+    .cloned();
+    Ok( found )
+  }
+
+  /// Parses a referenced `.mtlx` into the richest [`UsdMaterialData`] the
+  /// renderer can consume : the full [`OpenPbrSurface`] ( preferred by the GL
+  /// layer via `openpbr_surface_apply` ) plus its glTF-shaped reduction.
+  /// Selection is the first `open_pbr_surface` in document order ( named
+  /// `mtlx_target` selection is a known register gap ).
+  #[ must_use ]
+  pub fn usd_material_from_mtlx( xml : &str ) -> Option< UsdMaterialData >
+  {
+    let surfaces = openpbr_surfaces_from_mtlx( xml ).ok()?;
+    let surface = surfaces.into_iter().next()?;
+    let runtime = crate::webgl::material::openpbr_to_runtime( &surface );
+    Some( UsdMaterialData
+    {
+      base_color_rgba : runtime.base_color_rgba,
+      metallic : Some( runtime.base_metalness ),
+      roughness : Some( runtime.specular_roughness ),
+      emissive : None,
+      ior : runtime.specular_ior,
+      surface : Some( surface ),
+    } )
+  }
+
   /// Resolves the material bound to `path` ( or inherited from an ancestor ),
-  /// returning its path and preview-surface factors if readable.
-  fn resolve_bound_material( stage : &usd::Stage, path : &sdf::Path ) -> Result< Option< ( String, UsdMaterialData ) >, UsdError >
+  /// returning its path and factors. A `UsdPreviewSurface` reads directly;
+  /// otherwise a referenced `.mtlx` is fetched from `assets` ( when supplied )
+  /// and parsed through the N2 reader.
+  fn resolve_bound_material( stage : &usd::Stage, path : &sdf::Path, assets : Option< &dyn UsdAssetProvider > ) -> Result< Option< ( String, UsdMaterialData ) >, UsdError >
   {
     let mut current = Some( path.clone() );
     while let Some( p ) = current
@@ -600,8 +670,24 @@ mod private
       {
         if let Some( mat_path ) = api.compute_bound_material( "" )?
         {
-          let surface = shade::read_preview_surface( stage, &mat_path )?;
-          let data = surface.as_ref().map( usd_preview_surface_to_material ).unwrap_or_default();
+          let data = if let Some( ps ) = shade::read_preview_surface( stage, &mat_path )?
+          {
+            usd_preview_surface_to_material( &ps )
+          }
+          else
+          {
+            // Not a UsdPreviewSurface : the native OpenPBR lane ( external
+            // `.mtlx` reference or embedded MaterialX nodegraph ).
+            let mut data = UsdMaterialData::default();
+            if let ( Some( assets ), Some( asset ) ) = ( assets, mtlx_reference( stage, &mat_path )? )
+            {
+              if let Some( xml ) = assets.asset_text( &asset )
+              {
+                data = usd_material_from_mtlx( &xml ).unwrap_or_default();
+              }
+            }
+            data
+          };
           return Ok( Some( ( mat_path.to_string(), data ) ) );
         }
       }
@@ -611,10 +697,10 @@ mod private
   }
 
   /// Reads a mesh's bound material and `doubleSided` flag.
-  fn mesh_material_and_sidedness( stage : &usd::Stage, mesh : &geom::Mesh ) -> Result< ( Option< String >, Option< UsdMaterialData >, bool ), UsdError >
+  fn mesh_material_and_sidedness( stage : &usd::Stage, mesh : &geom::Mesh, assets : Option< &dyn UsdAssetProvider > ) -> Result< ( Option< String >, Option< UsdMaterialData >, bool ), UsdError >
   {
     let double_sided = mesh.double_sided_attr().get::<bool>()?.unwrap_or( false );
-    match resolve_bound_material( stage, mesh.path() )?
+    match resolve_bound_material( stage, mesh.path(), assets )?
     {
       Some( ( path, data ) ) => Ok( ( Some( path ), Some( data ), double_sided ) ),
       None => Ok( ( None, None, double_sided ) ),
@@ -634,7 +720,7 @@ mod private
   /// # Errors
   ///
   /// Propagates [`UsdError`] from the underlying composed reads.
-  pub fn usd_scene_analyze( stage : &usd::Stage ) -> Result< Vec< UsdPrimData >, UsdError >
+  pub fn usd_scene_analyze( stage : &usd::Stage, assets : Option< &dyn UsdAssetProvider > ) -> Result< Vec< UsdPrimData >, UsdError >
   {
     let mut paths : Vec< sdf::Path > = Vec::new();
     stage.traverse( usd::PrimPredicate::ALL, | p | paths.push( p.clone() ) )?;
@@ -706,7 +792,7 @@ mod private
           continue;
         }
         let data = usd_mesh_extract( &mesh )?;
-        let ( material_path, material, double_sided ) = mesh_material_and_sidedness( stage, &mesh )?;
+        let ( material_path, material, double_sided ) = mesh_material_and_sidedness( stage, &mesh, assets )?;
         out.push( UsdPrimData { path : path.to_string(), parent, name, local_to_parent, mesh : Some( data ), material_path, material, double_sided } );
       }
       else
@@ -806,24 +892,37 @@ mod private
     Ok( geometry )
   }
 
-  /// Stamps [`UsdMaterialData`] onto a fresh `PbrMaterial` ( base color /
-  /// opacity -> alpha mode, metallic, roughness, emissive, IOR ). Pure aside
-  /// from the `PbrMaterial::new` `&GL` handle it borrows.
+  /// Stamps [`UsdMaterialData`] onto a fresh `PbrMaterial`. When the data
+  /// carries a full [`OpenPbrSurface`] ( the native `.mtlx` / MaterialX lane )
+  /// it is applied through `openpbr_surface_apply`, which also sets the
+  /// specular / clearcoat / fuzz / thin-film carriers. Otherwise the
+  /// `UsdPreviewSurface` factors are stamped directly ( base color / opacity ->
+  /// alpha mode, metallic, roughness, emissive, IOR ). Pure aside from the
+  /// `PbrMaterial::new` `&GL` handle it borrows.
   #[ must_use ]
   pub fn usd_material_apply( gl : &gl::WebGl2RenderingContext, data : &UsdMaterialData, double_sided : bool ) -> PbrMaterial
   {
     let mut m = PbrMaterial::new( gl );
-    m.base_color_factor = gl::F32x4::from( data.base_color_rgba );
-    m.metallic_factor = data.metallic.unwrap_or( 0.0 );
-    m.roughness_factor = data.roughness.unwrap_or( 0.5 );
     m.double_sided = double_sided;
-    if let Some( e ) = data.emissive
+    if let Some( surface ) = &data.surface
     {
-      m.emissive_factor = gl::F32x3::from( e );
+      // Richest lane : full OpenPBR parameter surface. Opacity still rides the
+      // alpha-mode toggle below ( surface carries no geometry_opacity here ).
+      m.openpbr_surface_apply( surface );
     }
-    if let Some( ior ) = data.ior.filter( | v | ( *v - 1.5 ).abs() > f32::EPSILON )
+    else
     {
-      m.openpbr_params_set( crate::webgl::material::OpenPbrParams { ior : Some( ior ), ..Default::default() } );
+      m.base_color_factor = gl::F32x4::from( data.base_color_rgba );
+      m.metallic_factor = data.metallic.unwrap_or( 0.0 );
+      m.roughness_factor = data.roughness.unwrap_or( 0.5 );
+      if let Some( e ) = data.emissive
+      {
+        m.emissive_factor = gl::F32x3::from( e );
+      }
+      if let Some( ior ) = data.ior.filter( | v | ( *v - 1.5 ).abs() > f32::EPSILON )
+      {
+        m.openpbr_params_set( crate::webgl::material::OpenPbrParams { ior : Some( ior ), ..Default::default() } );
+      }
     }
     // Sub-1 opacity means a blended transparent pass ( not opaque ).
     if data.base_color_rgba[ 3 ] < 1.0
@@ -843,9 +942,9 @@ mod private
   /// # Errors
   ///
   /// [`UsdError`] from analysis, or a GL error from geometry upload.
-  pub fn usd_scene_load( gl : &gl::WebGl2RenderingContext, stage : &usd::Stage ) -> Result< Rc< RefCell< Scene > >, UsdError >
+  pub fn usd_scene_load( gl : &gl::WebGl2RenderingContext, stage : &usd::Stage, assets : Option< &dyn UsdAssetProvider > ) -> Result< Rc< RefCell< Scene > >, UsdError >
   {
-    let prims = usd_scene_analyze( stage )?;
+    let prims = usd_scene_analyze( stage, assets )?;
 
     let mut nodes_by_path : HashMap< String, usize > = HashMap::new();
     let mut nodes : Vec< Rc< RefCell< Node > > > = Vec::with_capacity( prims.len() );
@@ -927,6 +1026,7 @@ crate::mod_interface!
   own use
   {
     UsdInMemoryResolver,
+    UsdAssetProvider,
     UsdError,
     usd_stage_open,
     UsdMeshData,
@@ -937,6 +1037,7 @@ crate::mod_interface!
     usd_scene_analyze,
     gf_matrix_to_column_major,
     usd_preview_surface_to_material,
+    usd_material_from_mtlx,
     usd_geometry_create,
     usd_material_apply,
     usd_scene_load
