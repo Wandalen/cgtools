@@ -65,7 +65,7 @@ The two-stage strategy per lane — **load**, then **shade** — is tracked belo
 | Thin-film iridescence | `KHR_materials_iridescence` | **Landed (§3.2)** — `USE_OPENPBR_IRIDESCENCE` spectral Fresnel in `main.frag`. Known model limit: on a near-perfect mirror substrate the interference terms cancel (`R23 ≈ 1 ⇒ Cm = Rs−T121 ≈ 0`) and the film only lifts `F_s` toward 1 — visible color needs low-reflectance bases. |
 | Kulla–Conty multi-scatter energy compensation (LUT) | n/a (model fidelity) | **Landed for direct lights (§3.7)** — `loaders::kulla_conty` LUT, `USE_KULLA_CONTY`; IBL still uses the Fdez-Agüera split-sum (unifying it onto the same LUT is a follow-up). |
 | Textured lobe carriers (sheen/transmission/thickness/iridescence/diffuseTransmission color) | all of the above | **Subset landed (§3.1), browser-untested** — sheen color/roughness + iridescence weight textures wired at fragment units 20–22 (native loader tests pass; `openpbr_lobe_texture_test.rs` awaits a wasm browser run). Remaining carriers ride the §3.3 transmission pass. |
-| Native OpenPBR content import (MaterialX `.mtlx`, USD `.usda/.usdc/.usdz`) | format lane (§2) | **N2 + N3-lite landed** (`.mtlx` reader, `.usda`→`.mtlx` resolver, `openpbr_surface_apply` runtime bridge). **N3 full** — `openusd` Stage reader incl. USD scene/geometry import — is the next format task. |
+| Native OpenPBR content import (MaterialX `.mtlx`, USD `.usda/.usdc/.usdz`) | format lane (§2) | **N2 + N3-lite landed; N3 scene slice in progress** — `loaders::usd` (`native-formats`) ships the pure resolver / mesh-extract / `usd_scene_analyze` core (14 native tests) + a thin GL `usd_scene_load` (**browser-untested**). Open: USD `UsdUVTexture` channels, `.mtlx`-bound USD materials, cameras/lights, the browser fetch glue. |
 
 Blockers are architectural, not mathematical: the renderer is a single-pass
 forward shader (`main.frag`) with weighted-blended OIT for transparency; nothing
@@ -149,17 +149,30 @@ passed) and N4 are still open.
   the shared N2 parameter core. Should real-asset runtime behaviour fail, fall
   back to a hand-rolled `.usda` text-subset reader, with `.usdz`/`.usdc`
   offline-only (§2.3 N4).
-  Status ( 2026-09 ): **first slice landed** — `loaders::usd` ( feature
-  `native-formats` ) ships the pure off-GPU/off-filesystem core:
-  `UsdInMemoryResolver` ( `ar::Resolver` over a `path -> bytes` map — the
-  browser feed ), `usd_stage_open`, `usd_mesh_extract` ( fan triangulation +
-  vertex/faceVarying/indexed primvar corner resolution for `normals`,
-  `primvars:st`, `primvars:displayColor` ) and `usd_local_to_world`
-  ( `Xform` chain composition, row-vector `gf::Matrix4d` ). 9 native tests in
-  `tests/usd_scene_test.rs`. Still open for N3: GL scene assembly
-  ( `UsdMeshData` → `Geometry`, `Xform` → `Node` ), material binding →
-  `PbrMaterial` via `read_preview_surface` / referenced `.mtlx` through the N2
-  reader, and the viewer feed.
+   Status ( 2026-09 ): **second slice landed, browser-untested** —
+   `loaders::usd` ( feature `native-formats` ) ships:
+   - Pure, native-tested core ( 14 cases in `tests/usd_scene_test.rs` ) :
+     `UsdInMemoryResolver` ( `ar::Resolver` over a `path -> bytes` map — the
+     browser feed ), `usd_stage_open`, `usd_mesh_extract` ( fan triangulation +
+     vertex/faceVarying/indexed primvar corner resolution for `normals`,
+     `primvars:st`, `primvars:displayColor` ), `usd_local_to_world`, and
+     `usd_scene_analyze` — the whole scene pass resolved off-GPU :
+     hierarchy with parent links, shading-subtree ( `Material`/`Shader`/
+     `NodeGraph` ) skipping, visibility/purpose filtering, material binding
+     resolution with ancestor inheritance, `UsdPreviewSurface` →
+     `UsdMaterialData` mapping, and the row-vector → column-major f32 matrix
+     bridge ( `gf_matrix_to_column_major` ).
+   - Thin GL assembly ( **NOT YET RUN against a real GL context** ) :
+     `usd_geometry_create` ( CPU `UsdMeshData` → VAO + buffers, slots 0/1/2
+     matching `main.vert` ) , `usd_material_apply` ( factors → `PbrMaterial` +
+     alpha-mode/ior routing ) , `usd_scene_load` ( nodes + shared-material
+     cache + hierarchy wiring + `Scene` ) . Needs a `gltf_viewer`-style
+     integration / wasm run before it can be called verified.
+   Still open for N3: USD texture channels (`UsdUVTexture` → `TextureInfo`
+   slots), referenced-`.mtlx` material resolution ( the N3-lite
+   `usda_mtlx_references` + `openpbr_mtlx` pair exists; `usd_scene_analyze`
+   currently only handles `UsdPreviewSurface` ), camera / lights ingestion,
+   `metersPerUnit` / non-Y `upAxis`, and the browser-side fetch-and-feed glue.
 - **N4** — authoring/converter path for real content: export the same material
   to glTF + `KHR_materials_*` for the browser runtime, and keep parameters with
   no KHR carrier in a private `OPENPBR_materials` JSON extension on the glTF
@@ -410,19 +423,35 @@ Work consciously set aside during the current pass. Revisit when the item's
 prerequisite (named in brackets) is in place.
 
 ### Formats & ingestion
-- **Full `openusd` Stage reader (N3 full)** — reads inline/embedded MaterialX
-  nodegraphs and real USD composition (references/payloads), which the N3-lite
-  `.usda` text resolver (§2.3) does **not** cover. Wasm spike passed (§2.2);
-  requires adding `openusd` + `openusd-schemas` (`shade`) as an optional
-  `native-formats` feature. [Prereq: none — next large format task]
+- **Full `openusd` Stage reader (N3 full)** — **partly done**: the scene slice now
+  reads real composed USD via `openusd` + `openusd-schemas` ( `native-formats`
+  feature ). Still missing: inline/embedded MaterialX nodegraphs ( only
+  `UsdPreviewSurface` is mapped today; `.mtlx`-bound materials should route
+  through the N3-lite `usda_mtlx_references` + N2 reader inside
+  `resolve_bound_material` ). Wasm spike passed (§2.2).
+- **`usd_scene_load` GL half is browser-untested** — the CPU→VAO/material/`Node`
+  assembly compiles ( native + wasm32 ) and the pure `usd_scene_analyze` that
+  feeds it is native-tested, but no GL run has happened yet : needs a viewer
+  wiring + `cargo test --target wasm32-unknown-unknown` pass ( same status class
+  as the §3.1 lobe-texture browser suite ).
+- **USD textures** — `UsdUVTexture` inputs surface in
+  `shade::Channel::Texture( path )` today but are ignored by
+  `usd_preview_surface_to_material`; routing them into `PbrMaterial`
+  `TextureInfo` slots ( with the browser resolver feed for image bytes ) is
+  open.
+- **USD scene metadata / extras** — `metersPerUnit` scaling, non-`Y` `upAxis`
+  flip, `def`-group prims carrying `xformOp:*` ( untyped groups contribute
+  identity — author scenes as `def Xform` ), analytic gprims ( `Cube`/`Sphere`
+  … not tessellated ), subdivision-surface meshes ( coarse cage only ),
+  instancing ( `PointInstancer` / instanceable prototypes ) and cameras /
+  lights are all unhandled.
 - **`mtlx_target` prim selection** — the N3-lite resolver returns each USD
   material's `</…>` target, but the loader still parses the whole referenced
   `.mtlx` (doc order) rather than selecting the surface named by that target.
-- **USD geometry / scene import** — the renderer is glTF-based; OpenPBR USD
-  scenes (meshes in `assets/*.usd`) are not imported. Only materials are read.
-  Browser display of full USD scenes needs a geometry lane or the N4 converter.
-- **`.usdc` / `.usdz` runtime** — binary layers and USDZ archives are offline /
-  `openusd`-only, not in the wasm path yet. [Prereq: N3 full]
+- **`.usdc` / `.usdz` runtime** — binary layers and USDZ archives are handled by
+  `openusd` through the same `UsdInMemoryResolver` feed ( `ar::Asset` is seekable
+  `Cursor< Vec< u8 > >` ), but only `.usda` text fixtures are exercised in tests;
+  real binary/USDZ assets need a browser run to confirm ( [Prereq: viewer glue] ).
 - **N4 authoring converter** — glTF+`KHR_materials_*` export (with the private
   `OPENPBR_materials` JSON extension for non-KHR parameters) for DCC round-trips.
 

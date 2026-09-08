@@ -1,14 +1,18 @@
 //! Native tests for the USD scene ingestion lane ( OpenPBR adoption plan
-//! §2.3 N3 first slice ) : the in-memory `ar::Resolver` + stage open, and the
+//! §2.3 N3 first slice ) : the in-memory `ar::Resolver` + stage open, the
 //! pure `usd_mesh_extract` conversion ( fan triangulation, primvar corner
-//! resolution ) plus `usd_local_to_world` composition. Runs entirely off-GPU
-//! and off-filesystem - fixtures are inline `.usda` text served through
-//! [`UsdInMemoryResolver`], which is exactly how the browser lane will feed
-//! HTTP-fetched bytes. Gated behind the crate's `native-formats` feature ( see
-//! `required-features` in `Cargo.toml` ).
+//! resolution ), `usd_local_to_world` composition, and the pure scene pass
+//! `usd_scene_analyze` ( hierarchy, shading-subtree skipping, material binding
+//! + preview-surface mapping, visibility/purpose filtering ). Runs entirely
+//! off-GPU and off-filesystem - fixtures are inline `.usda` text served
+//! through [`UsdInMemoryResolver`], which is exactly how the browser lane will
+//! feed HTTP-fetched bytes. Gated behind the crate's `native-formats` feature
+//! ( see `required-features` in `Cargo.toml` ). The GL half
+//! ( `usd_geometry_create` / `usd_scene_load` ) needs a browser and is not
+//! covered here.
+#![ allow( clippy::float_cmp, reason = "usda fixtures round-trip exactly-representable binary literals ( deterministic f64-parse -> f32-cast ); exact comparison is the point - eps tolerance would hide real regressions" ) ]
 
-use renderer::webgl::loaders::usd::{ UsdError, UsdInMemoryResolver, usd_local_to_world, usd_mesh_extract, usd_stage_open };
-use openusd::sdf;
+use renderer::webgl::loaders::usd::{ UsdError, UsdInMemoryResolver, UsdPrimData, usd_local_to_world, usd_mesh_extract, usd_scene_analyze, usd_stage_open };
 use openusd_schemas::geom;
 
 /// A unit quad in the XY plane at z=0 : CCW from +Z, two triangles after fan
@@ -56,8 +60,7 @@ fn only_mesh( stage : &openusd::usd::Stage ) -> geom::Mesh
   let mut paths = Vec::new();
   stage.traverse( openusd::usd::PrimPredicate::DEFAULT_PROXIES, | p | paths.push( p.clone() ) ).unwrap();
   paths.into_iter()
-    .filter_map( | p | geom::Mesh::get( stage, p ).ok().flatten() )
-    .next()
+    .find_map( | p | geom::Mesh::get( stage, p ).ok().flatten() )
     .expect( "fixture defines one Mesh prim" )
 }
 
@@ -214,4 +217,155 @@ def Mesh "BadIndex"
   let mesh = only_mesh( &stage );
   let err = usd_mesh_extract( &mesh ).unwrap_err();
   assert!( matches!( err, UsdError::Malformed( _ ) ), "expected Malformed, got {err:?}" );
+}
+
+// ---------------------------------------------------------------------------
+// usd_scene_analyze
+// ---------------------------------------------------------------------------
+
+/// Finds one analyzed prim by path.
+fn prim<'a>( prims : &'a [ UsdPrimData ], path : &str ) -> Option< &'a UsdPrimData >
+{
+  prims.iter().find( | p | p.path == path )
+}
+
+/// One triangle mesh bound to a `UsdPreviewSurface` material under a `Looks`
+/// scope, plus an invisible mesh and a proxy-purpose mesh that analyze must
+/// drop. Also exercises ancestor-inherited material binding ( `/World/Tri`
+/// has no own binding - its parent Xform does ).
+const SCENE_USDA : &str = r#"#usda 1.0
+(
+    defaultPrim = "World"
+)
+
+def Xform "World" (
+    apiSchemas = [ "MaterialBindingAPI" ]
+)
+{
+    rel material:binding = </World/Looks/BrickMat>
+
+    def "Looks"
+    {
+        def Material "BrickMat"
+        {
+            token outputs:surface.connect = </World/Looks/BrickMat/Surface.outputs:surface>
+
+            def Shader "Surface"
+            {
+                uniform token info:id = "UsdPreviewSurface"
+                color3f inputs:diffuseColor = ( 0.8, 0.3, 0.1 )
+                float inputs:metallic = 1.0
+                float inputs:roughness = 0.25
+                token outputs:surface
+            }
+        }
+    }
+
+    def Mesh "Tri"
+    {
+        uniform int[] faceVertexCounts = [ 3 ]
+        uniform int[] faceVertexIndices = [ 0, 1, 2 ]
+        uniform point3f[] points = [ ( 0, 0, 0 ), ( 1, 0, 0 ), ( 0, 1, 0 ) ]
+    }
+
+    def Mesh "Bound" (
+        apiSchemas = [ "MaterialBindingAPI" ]
+    )
+    {
+        rel material:binding = </World/Looks/BrickMat>
+        uniform int[] faceVertexCounts = [ 3 ]
+        uniform int[] faceVertexIndices = [ 0, 1, 2 ]
+        uniform point3f[] points = [ ( 0, 0, 0 ), ( 2, 0, 0 ), ( 0, 2, 0 ) ]
+    }
+
+    def Mesh "Hidden"
+    {
+        uniform token visibility = "invisible"
+        uniform int[] faceVertexCounts = [ 3 ]
+        uniform int[] faceVertexIndices = [ 0, 1, 2 ]
+        uniform point3f[] points = [ ( 0, 0, 0 ), ( 1, 0, 0 ), ( 0, 1, 0 ) ]
+    }
+
+    def Mesh "Proxy"
+    {
+        uniform token purpose = "proxy"
+        uniform int[] faceVertexCounts = [ 3 ]
+        uniform int[] faceVertexIndices = [ 0, 1, 2 ]
+        uniform point3f[] points = [ ( 0, 0, 0 ), ( 1, 0, 0 ), ( 0, 1, 0 ) ]
+    }
+}
+"#;
+
+#[ test ]
+fn analyze_keeps_geometry_groups_and_meshes()
+{
+  let stage = stage_with( &[ ( "scene.usda", SCENE_USDA ) ] );
+  let prims = usd_scene_analyze( &stage ).expect( "scene analyzes" );
+
+  let world = prim( &prims, "/World" ).expect( "/World group kept" );
+  assert!( world.mesh.is_none(), "Xform groups carry no geometry" );
+  assert_eq!( world.parent, None, "/World is a scene root ( parent is abs root )" );
+
+  let tri = prim( &prims, "/World/Tri" ).expect( "/World/Tri mesh kept" );
+  let data = tri.mesh.as_ref().expect( "mesh data" );
+  assert_eq!( data.positions.len(), 3 );
+  assert_eq!( data.indices, vec![ 0, 1, 2 ] );
+  assert_eq!( tri.parent.as_deref(), Some( "/World" ), "parent link by path" );
+}
+
+#[ test ]
+fn analyze_skips_the_shading_subtree()
+{
+  let stage = stage_with( &[ ( "scene.usda", SCENE_USDA ) ] );
+  let prims = usd_scene_analyze( &stage ).expect( "scene analyzes" );
+
+  assert!( prim( &prims, "/World/Looks/BrickMat" ).is_none(), "Material prim must not render" );
+  assert!( prims.iter().all( | p | !p.path.contains( "Surface" ) ), "shader children must not render" );
+  assert!( prims.iter().any( | p | p.path == "/World/Looks" ), "the Looks container itself is a harmless group" );
+}
+
+#[ test ]
+fn analyze_resolves_bound_material_via_api_and_inheritance()
+{
+  let stage = stage_with( &[ ( "scene.usda", SCENE_USDA ) ] );
+  let prims = usd_scene_analyze( &stage ).expect( "scene analyzes" );
+
+  // Direct binding on /World/Bound.
+  let bound = prim( &prims, "/World/Bound" ).expect( "bound mesh kept" );
+  assert_eq!( bound.material_path.as_deref(), Some( "/World/Looks/BrickMat" ) );
+  let m = bound.material.as_ref().expect( "preview surface resolved" );
+  assert_eq!( m.base_color_rgba, [ 0.8, 0.3, 0.1, 1.0 ] );
+  assert_eq!( m.metallic, Some( 1.0 ) );
+  assert_eq!( m.roughness, Some( 0.25 ) );
+  assert_eq!( m.emissive, None );
+
+  // Inherited binding : /World/Tri has no own MaterialBindingAPI - the walk
+  // up to /World must find the binding authored there.
+  let tri = prim( &prims, "/World/Tri" ).expect( "tri mesh kept" );
+  assert_eq!( tri.material_path.as_deref(), Some( "/World/Looks/BrickMat" ), "binding inherited from ancestor Xform" );
+}
+
+#[ test ]
+fn analyze_drops_invisible_and_proxy_prims()
+{
+  let stage = stage_with( &[ ( "scene.usda", SCENE_USDA ) ] );
+  let prims = usd_scene_analyze( &stage ).expect( "scene analyzes" );
+
+  assert!( prim( &prims, "/World/Hidden" ).is_none(), "invisible mesh dropped" );
+  assert!( prim( &prims, "/World/Proxy" ).is_none(), "proxy-purpose mesh dropped" );
+}
+
+#[ test ]
+fn analyze_converts_transform_to_column_major_f32()
+{
+  let stage = stage_with( &[ ( "scene.usda", QUAD_USDA ) ] );
+  let prims = usd_scene_analyze( &stage ).expect( "analyzes" );
+  let world = prim( &prims, "/World" ).expect( "World group" );
+  // gf row-vector translate (2,0,0) : elements 12..14 ; fed unchanged to
+  // `F32x4x4::from_column_major` this is the column-vector translation column.
+  assert_eq!( world.local_to_parent, [ 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 2.0, 0.0, 0.0, 1.0 ] );
+  // The mesh itself has no ops -> identity.
+  let quad = prim( &prims, "/World/Quad" ).expect( "Quad mesh" );
+  assert_eq!( quad.local_to_parent[ 12 ], 0.0 );
+  assert_eq!( quad.local_to_parent[ 0 ], 1.0 );
 }

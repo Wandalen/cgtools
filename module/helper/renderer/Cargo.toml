@@ -46,7 +46,7 @@ enabled = [
   "dep:wasm-bindgen-futures"
 ]
 default = [ "enabled", "webgl" ]
-full = [ "enabled", "webgl", "animation", "webgpu", "native" ]
+full = [ "enabled", "webgl", "animation", "webgpu", "native", "native-formats" ]
 # Fix(BUG-241): must pull in `enabled`'s deps ( minwebgl/web-sys/mingl/gltf/... ) —
 # `src/webgl/**` unconditionally needs them the moment `layer webgl;` is compiled.
 webgl = [ "enabled" ]

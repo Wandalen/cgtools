@@ -27,7 +27,15 @@ mod private
   use openusd::gf;
   use openusd::sdf;
   use openusd::usd::{ self, SchemaBase as _ };
-  use openusd_schemas::geom::{ self, Gprim, PointBased, Xformable };
+  use openusd_schemas::geom::{ self, Gprim, Imageable, PointBased, Xformable };
+  use openusd_schemas::shade::{ self, MaterialBindingAPI };
+  use std::cell::RefCell;
+  use std::rc::Rc;
+  use minwebgl as gl;
+  use crate::webgl::{ AttributeInfo, Geometry, IndexInfo, Material, Mesh, Node, Object3D, Primitive, Scene, material::PbrMaterial };
+
+  /// Shared, ref-counted material handle ( same shape as the glTF loader uses ).
+  type SharedMaterial = Rc< RefCell< Box< dyn Material > > >;
 
   /// Anything that can go wrong while reading a USD scene.
   #[ derive( Debug ) ]
@@ -65,6 +73,11 @@ mod private
   impl From< openusd_schemas::SchemaError > for UsdError
   {
     fn from( value : openusd_schemas::SchemaError ) -> Self { UsdError::Schema( value ) }
+  }
+
+  impl From< sdf::PathParseError > for UsdError
+  {
+    fn from( value : sdf::PathParseError ) -> Self { UsdError::Malformed( value.to_string() ) }
   }
 
   /// `path -> bytes` map implementing [`ar::Resolver`] : the stage root and
@@ -463,6 +476,449 @@ mod private
     }
     Ok( None )
   }
+
+  // ---------------------------------------------------------------------------
+  // Scene analysis ( pure, off-GPU )
+  // ---------------------------------------------------------------------------
+
+  /// Runtime material factors resolved from a bound `UsdPreviewSurface`, in the
+  /// shape the GL layer stamps onto a `PbrMaterial`. Texture-connected channels
+  /// are ignored for now ( kept at their scalar / default value ) - wiring USD
+  /// textures to the `TextureInfo` slots is a follow-up ( adoption plan register ).
+  #[ derive( Clone, Debug, PartialEq ) ]
+  pub struct UsdMaterialData
+  {
+    /// Linear base color + opacity ( diffuseColor RGB, opacity A ).
+    pub base_color_rgba : [ f32 ; 4 ],
+    /// Metallic factor ( UsdPreviewSurface `metallic` ), default 0.
+    pub metallic : Option< f32 >,
+    /// Roughness factor ( `roughness` ), default 0.5 ( USD's own default ).
+    pub roughness : Option< f32 >,
+    /// Emissive color ( `emissiveColor` ).
+    pub emissive : Option< [ f32 ; 3 ] >,
+    /// Index of refraction ( `ior` ), default 1.5.
+    pub ior : Option< f32 >,
+  }
+
+  impl Default for UsdMaterialData
+  {
+    fn default() -> Self
+    {
+      Self
+      {
+        base_color_rgba : [ 0.8, 0.8, 0.8, 1.0 ],
+        metallic : None,
+        roughness : None,
+        emissive : None,
+        ior : None,
+      }
+    }
+  }
+
+  /// A USD geometry/group node, resolved to everything the GL assembly layer
+  /// needs without touching `openusd` types or the GPU.
+  #[ derive( Clone, Debug, PartialEq ) ]
+  pub struct UsdPrimData
+  {
+    /// Composed prim path, e.g. `/World/Model/Mesh`.
+    pub path : String,
+    /// Parent path ( `None` for scene roots / the pseudo-root's direct children ).
+    pub parent : Option< String >,
+    /// Prim name ( last path segment ).
+    pub name : String,
+    /// Local-to-parent transform as a column-major `f32` matrix, ready for
+    /// `gl::F32x4x4::from_column_major` ( see [`gf_matrix_to_column_major`] ).
+    pub local_to_parent : [ f32 ; 16 ],
+    /// `Some` for a `Mesh` prim ( its triangulated data ); `None` for
+    /// grouping prims ( `Xform` / `Scope` / untyped ).
+    pub mesh : Option< UsdMeshData >,
+    /// The bound material's identity path, when a `Mesh` has one.
+    pub material_path : Option< String >,
+    /// Resolved material factors, when a `Mesh` had a readable bound material.
+    pub material : Option< UsdMaterialData >,
+    /// USD `doubleSided` on the mesh gprim.
+    pub double_sided : bool,
+  }
+
+  /// Converts a `gf` row-vector, row-major matrix into the renderer's
+  /// column-major `f32` layout. gf stores `p' = p · M` ( translation in the
+  /// last row, elements 12..14 ); the renderer stores `p' = M · p` ( column
+  /// vectors ). The two are transposes, and a row-vector matrix's raw
+  /// elements are already the correct column-major layout for the equivalent
+  /// column-vector transform, so the conversion is a plain f64→f32 cast with
+  /// no reordering.
+  #[ must_use ]
+  pub fn gf_matrix_to_column_major( m : &gf::Matrix4d ) -> [ f32 ; 16 ]
+  {
+    let mut out = [ 0.0f32 ; 16 ];
+    for ( dst, src ) in out.iter_mut().zip( m.0.iter() )
+    {
+      *dst = *src as f32;
+    }
+    out
+  }
+
+  /// Maps a `UsdPreviewSurface` ( as read by `openusd_schemas::shade` ) onto
+  /// [`UsdMaterialData`]. Pure; texture-connected channels fall back to the
+  /// channel's authored value if any, else the `UsdPreviewSurface` default.
+  #[ must_use ]
+  pub fn usd_preview_surface_to_material( ps : &shade::ReadPreviewSurface ) -> UsdMaterialData
+  {
+    let mut data = UsdMaterialData::default();
+    if let Some( c ) = ps.diffuse_color.value()
+    {
+      data.base_color_rgba[ 0 ] = c.x;
+      data.base_color_rgba[ 1 ] = c.y;
+      data.base_color_rgba[ 2 ] = c.z;
+    }
+    if let Some( o ) = ps.opacity.value()
+    {
+      data.base_color_rgba[ 3 ] = *o;
+    }
+    data.metallic = ps.metallic.value().copied();
+    data.roughness = ps.roughness.value().copied();
+    data.emissive = ps.emissive_color.value().map( | c | [ c.x, c.y, c.z ] );
+    data.ior = ps.ior.value().copied();
+    data
+  }
+
+  /// `true` if `type_name` marks a shading prim ( a `Material` or a node-graph
+  /// building block ) that must not become a renderable scene node.
+  fn is_shading_type( type_name : Option< &str > ) -> bool
+  {
+    matches!( type_name, Some( "Material" | "Shader" | "NodeGraph" | "Look" ) )
+  }
+
+  /// Resolves the material bound to `path` ( or inherited from an ancestor ),
+  /// returning its path and preview-surface factors if readable.
+  fn resolve_bound_material( stage : &usd::Stage, path : &sdf::Path ) -> Result< Option< ( String, UsdMaterialData ) >, UsdError >
+  {
+    let mut current = Some( path.clone() );
+    while let Some( p ) = current
+    {
+      if let Some( api ) = MaterialBindingAPI::get( stage, p.clone() )?
+      {
+        if let Some( mat_path ) = api.compute_bound_material( "" )?
+        {
+          let surface = shade::read_preview_surface( stage, &mat_path )?;
+          let data = surface.as_ref().map( usd_preview_surface_to_material ).unwrap_or_default();
+          return Ok( Some( ( mat_path.to_string(), data ) ) );
+        }
+      }
+      current = p.parent();
+    }
+    Ok( None )
+  }
+
+  /// Reads a mesh's bound material and `doubleSided` flag.
+  fn mesh_material_and_sidedness( stage : &usd::Stage, mesh : &geom::Mesh ) -> Result< ( Option< String >, Option< UsdMaterialData >, bool ), UsdError >
+  {
+    let double_sided = mesh.double_sided_attr().get::<bool>()?.unwrap_or( false );
+    match resolve_bound_material( stage, mesh.path() )?
+    {
+      Some( ( path, data ) ) => Ok( ( Some( path ), Some( data ), double_sided ) ),
+      None => Ok( ( None, None, double_sided ) ),
+    }
+  }
+
+  /// Analyzes a composed USD stage into a flat, renderable prim list : every
+  /// geometry/group prim except the shading subtree, with its local transform,
+  /// triangulated mesh data ( when a `Mesh` ), resolved material, and sidedness.
+  ///
+  /// Invisible prims ( `compute_visibility` == `Invisible` ) are dropped along
+  /// with nothing referencing them; prims whose purpose is not `Default` /
+  /// `Render` ( e.g. `Proxy` / `Guide` ) are dropped too. Cameras / lights are
+  /// out of this slice's scope ( the renderer builds those from glTF / its own
+  /// light rig ).
+  ///
+  /// # Errors
+  ///
+  /// Propagates [`UsdError`] from the underlying composed reads.
+  pub fn usd_scene_analyze( stage : &usd::Stage ) -> Result< Vec< UsdPrimData >, UsdError >
+  {
+    let mut paths : Vec< sdf::Path > = Vec::new();
+    stage.traverse( usd::PrimPredicate::ALL, | p | paths.push( p.clone() ) )?;
+
+    // Shading prim set : a prim is skipped if it or any ancestor is one.
+    let mut shading : std::collections::HashSet< String > = std::collections::HashSet::new();
+    for path in &paths
+    {
+      let prim = stage.prim( path.clone() )?;
+      let type_name = prim.type_name()?;
+      if is_shading_type( type_name.as_ref().map( openusd::tf::Token::as_str ) )
+      {
+        shading.insert( path.to_string() );
+      }
+    }
+
+    let under_shading = | path : &sdf::Path | -> bool
+    {
+      let s = path.to_string();
+      if shading.contains( &s )
+      {
+        return true;
+      }
+      // any ancestor marked as shading
+      let mut cur = path.parent();
+      while let Some( a ) = cur
+      {
+        if shading.contains( &a.to_string() )
+        {
+          return true;
+        }
+        cur = a.parent();
+      }
+      false
+    };
+
+    let mut out : Vec< UsdPrimData > = Vec::new();
+    for path in &paths
+    {
+      if path == &sdf::Path::abs_root()
+      {
+        continue;
+      }
+      if under_shading( path )
+      {
+        continue;
+      }
+
+      let prim = stage.prim( path.clone() )?;
+      let name = path.name().map( ToString::to_string ).unwrap_or_default();
+      let parent = path.parent().filter( | p | p != &sdf::Path::abs_root() ).map( | p | p.to_string() );
+
+      let local_to_parent = match maybe_local_to_parent( stage, path )?
+      {
+        Some( m ) => gf_matrix_to_column_major( &m ),
+        None => gf_matrix_to_column_major( &gf::Matrix4d::IDENTITY ),
+      };
+
+      // Mesh leaf, or a grouping prim.
+      if let Some( mesh ) = geom::Mesh::get( stage, path.clone() )?
+      {
+        // Visibility / purpose gate only meaningful on Imageable geometry.
+        let vis = mesh.compute_visibility()?;
+        let purpose = mesh.compute_purpose()?;
+        let render = vis != geom::Visibility::Invisible
+        && matches!( purpose, geom::Purpose::Default | geom::Purpose::Render );
+        if !render || !prim.is_active()?
+        {
+          continue;
+        }
+        let data = usd_mesh_extract( &mesh )?;
+        let ( material_path, material, double_sided ) = mesh_material_and_sidedness( stage, &mesh )?;
+        out.push( UsdPrimData { path : path.to_string(), parent, name, local_to_parent, mesh : Some( data ), material_path, material, double_sided } );
+      }
+      else
+      {
+        // Grouping prim ( Xform / Scope / untyped ) : carried so child meshes
+        // keep their transform chain. Non-imageable / inactive groups skipped.
+        if !prim.is_active()?
+        {
+          continue;
+        }
+        out.push( UsdPrimData { path : path.to_string(), parent, name, local_to_parent, mesh : None, material_path : None, material : None, double_sided : false } );
+      }
+    }
+
+    Ok( out )
+  }
+
+  // ---------------------------------------------------------------------------
+  // GL assembly ( thin )
+  // ---------------------------------------------------------------------------
+
+  /// Flattens per-vertex `[ f32 ; N ]` rows into a single `f32` buffer.
+  #[ must_use ]
+  fn flatten< const N : usize >( data : &[ [ f32 ; N ] ] ) -> Vec< f32 >
+  {
+    data.iter().flatten().copied().collect()
+  }
+
+  /// Uploads one tightly-packed `f32` attribute buffer for `location = slot`.
+  /// `bb` carries the attribute's bounding box ( meaningful for `positions`;
+  /// pass `BoundedBox::default()` elsewhere ).
+  fn cpu_attribute( gl : &gl::WebGl2RenderingContext, flat : &[ f32 ], dims : i32, slot : u32, bb : gl::geometry::BoundingBox ) -> Result< AttributeInfo, gl::WebglError >
+  {
+    let buffer = gl::buffer::create( gl )?;
+    gl::buffer::upload( gl, &buffer, flat, gl::STATIC_DRAW );
+    let descriptor = gl::BufferDescriptor::new::< f32 >()
+    .vector( gl::VectorDataType::new( gl::DataType::F32, dims, 1 ) );
+    Ok
+    (
+      AttributeInfo
+      {
+        slot,
+        buffer,
+        descriptor,
+        bounding_box : bb,
+      }
+    )
+  }
+
+  /// Axis-aligned bounds of a positions array ( mesh-local space ).
+  #[ must_use ]
+  fn positions_bounding_box( positions : &[ [ f32 ; 3 ] ] ) -> gl::geometry::BoundingBox
+  {
+    let mut bb = gl::geometry::BoundingBox::default();
+    for p in positions
+    {
+      let v = gl::F32x3::from( *p );
+      bb.min = bb.min.min( v );
+      bb.max = bb.max.max( v );
+    }
+    bb
+  }
+
+  /// Builds a [`Geometry`] from CPU [`UsdMeshData`] ( positions always; normals
+  /// and uv when authored ), ready for a `Primitive`.
+  ///
+  /// # Errors
+  ///
+  /// Propagates GL errors from buffer / VAO creation.
+  pub fn usd_geometry_create( gl : &gl::WebGl2RenderingContext, data : &UsdMeshData ) -> Result< Geometry, gl::WebglError >
+  {
+    let mut geometry = Geometry::new( gl )?;
+    geometry.draw_mode = gl::TRIANGLES;
+    geometry.vertex_count = data.positions.len() as u32;
+
+    let bb = positions_bounding_box( &data.positions );
+    geometry.attribute_add( gl, "positions", cpu_attribute( gl, &flatten( &data.positions ), 3, 0, bb )? )?;
+    if let Some( normals ) = &data.normals
+    {
+      geometry.attribute_add( gl, "normals", cpu_attribute( gl, &flatten( normals ), 3, 1, gl::geometry::BoundingBox::default() )? )?;
+    }
+    if let Some( uvs ) = &data.uvs
+    {
+      geometry.attribute_add( gl, "texture_coordinates_2", cpu_attribute( gl, &flatten( uvs ), 2, 2, gl::geometry::BoundingBox::default() )? )?;
+    }
+
+    let index_buffer = gl::buffer::create( gl )?;
+    gl::index::upload( gl, &index_buffer, &data.indices, gl::STATIC_DRAW );
+    geometry.index_add( gl, IndexInfo
+    {
+      buffer : index_buffer,
+      count : data.indices.len() as u32,
+      offset : 0,
+      data_type : gl::UNSIGNED_INT,
+    })?;
+
+    Ok( geometry )
+  }
+
+  /// Stamps [`UsdMaterialData`] onto a fresh `PbrMaterial` ( base color /
+  /// opacity -> alpha mode, metallic, roughness, emissive, IOR ). Pure aside
+  /// from the `PbrMaterial::new` `&GL` handle it borrows.
+  #[ must_use ]
+  pub fn usd_material_apply( gl : &gl::WebGl2RenderingContext, data : &UsdMaterialData, double_sided : bool ) -> PbrMaterial
+  {
+    let mut m = PbrMaterial::new( gl );
+    m.base_color_factor = gl::F32x4::from( data.base_color_rgba );
+    m.metallic_factor = data.metallic.unwrap_or( 0.0 );
+    m.roughness_factor = data.roughness.unwrap_or( 0.5 );
+    m.double_sided = double_sided;
+    if let Some( e ) = data.emissive
+    {
+      m.emissive_factor = gl::F32x3::from( e );
+    }
+    if let Some( ior ) = data.ior.filter( | v | ( *v - 1.5 ).abs() > f32::EPSILON )
+    {
+      m.openpbr_params_set( crate::webgl::material::OpenPbrParams { ior : Some( ior ), ..Default::default() } );
+    }
+    // Sub-1 opacity means a blended transparent pass ( not opaque ).
+    if data.base_color_rgba[ 3 ] < 1.0
+    {
+      m.alpha_mode_set( crate::webgl::AlphaMode::Blend );
+    }
+    m
+  }
+
+  /// Analyzes `stage` and assembles a renderer [`Scene`] : a `Node` per renderable
+  /// prim, `Mesh` leaves with uploaded geometry + materials, transforms wired via
+  /// each prim's authored local matrix ( the renderer composes world matrices ).
+  ///
+  /// This is the browser-visible half of the USD lane : it issues GL calls, so it
+  /// is verified in `gltf_viewer` / a wasm run, not by the native suite.
+  ///
+  /// # Errors
+  ///
+  /// [`UsdError`] from analysis, or a GL error from geometry upload.
+  pub fn usd_scene_load( gl : &gl::WebGl2RenderingContext, stage : &usd::Stage ) -> Result< Rc< RefCell< Scene > >, UsdError >
+  {
+    let prims = usd_scene_analyze( stage )?;
+
+    let mut nodes_by_path : HashMap< String, usize > = HashMap::new();
+    let mut nodes : Vec< Rc< RefCell< Node > > > = Vec::with_capacity( prims.len() );
+    let mut materials : HashMap< String, SharedMaterial > = HashMap::new();
+
+    for ( i, prim ) in prims.iter().enumerate()
+    {
+      nodes_by_path.insert( prim.path.clone(), i );
+
+      let mut node = Node::default();
+      node.name_set( prim.name.clone() );
+      node.local_matrix_set( gl::F32x4x4::from_column_major( prim.local_to_parent ) );
+
+      if let Some( mesh_data ) = &prim.mesh
+      {
+        let geometry = usd_geometry_create( gl, mesh_data ).map_err( | e | UsdError::Malformed( format!( "usd geometry upload: {e:?}" ) ) )?;
+        // Materials sharing one USD binding path share one PbrMaterial instance
+        // ( same shader program, one upload ); unbound meshes get a private default.
+        let material = if let Some( ref key ) = prim.material_path
+        {
+          if let Some( shared ) = materials.get( key ).cloned()
+          {
+            shared
+          }
+          else
+          {
+            let default = UsdMaterialData::default();
+            let data = prim.material.as_ref().unwrap_or( &default );
+            let pbr = usd_material_apply( gl, data, prim.double_sided );
+            let shared : SharedMaterial = Rc::new( RefCell::new( Box::new( pbr ) as Box< dyn Material > ) );
+            materials.insert( key.clone(), shared.clone() );
+            shared
+          }
+        }
+        else
+        {
+          let pbr = usd_material_apply( gl, &UsdMaterialData::default(), prim.double_sided );
+          Rc::new( RefCell::new( Box::new( pbr ) as Box< dyn Material > ) )
+        };
+        let primitive = Primitive
+        {
+          geometry : Rc::new( RefCell::new( geometry ) ),
+          material,
+        };
+        let mut mesh = Mesh::default();
+        mesh.primitive_add( Rc::new( RefCell::new( primitive ) ) );
+        node.object = Object3D::Mesh( Rc::new( RefCell::new( mesh ) ) );
+      }
+
+      nodes.push( Rc::new( RefCell::new( node ) ) );
+    }
+
+    // Wire hierarchy : child -> parent via the authored path strings.
+    let mut scene = Scene::default();
+    for ( i, prim ) in prims.iter().enumerate()
+    {
+      let node = &nodes[ i ];
+      let parent_node = prim.parent.as_ref().and_then( | p | nodes_by_path.get( p ) ).map( | j | &nodes[ *j ] );
+      if let Some( parent ) = parent_node
+      {
+        parent.borrow_mut().child_add( node.clone() );
+        node.borrow_mut().parent_set( Some( parent.clone() ) );
+      }
+      else
+      {
+        // Root ( no parent, or parent filtered out of the scene ).
+        scene.add( node.clone() );
+      }
+    }
+    scene.world_matrix_update();
+
+    Ok( Rc::new( RefCell::new( scene ) ) )
+  }
 }
 
 // Layer exports ( via `mod_interface` ).
@@ -475,6 +931,14 @@ crate::mod_interface!
     usd_stage_open,
     UsdMeshData,
     usd_mesh_extract,
-    usd_local_to_world
+    usd_local_to_world,
+    UsdPrimData,
+    UsdMaterialData,
+    usd_scene_analyze,
+    gf_matrix_to_column_major,
+    usd_preview_surface_to_material,
+    usd_geometry_create,
+    usd_material_apply,
+    usd_scene_load
   };
 }
