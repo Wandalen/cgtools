@@ -411,6 +411,9 @@ mod private
 
     /// Holds the precomputed textures used for Image-Based Lighting.
     ibl : Option< IBL >,
+    /// Kulla–Conty multi-scatter energy-compensation LUT ( `E(μ,α)` / `E_avg` ),
+    /// bound for `USE_OPENPBR` materials for direct-light energy compensation.
+    kulla_lut : Option< gl::web_sys::WebGlTexture >,
     /// If set to true, the renderer will add blur to the original image
     use_emission : bool,
     /// The **framebuffer context** used for multisampling and post-processing. This
@@ -448,6 +451,7 @@ mod private
       let framebuffer_ctx = FramebufferContext::new( gl, width, height, samples );
       let use_emission = false;
       let ibl = None;
+      let kulla_lut = None;
       let mut blend_effect = BlendPass::new( gl )?;
       blend_effect.dst_factor = gl::ONE;
       blend_effect.src_factor = gl::ONE;
@@ -477,6 +481,7 @@ mod private
           compiled_programs : FxHashMap::default(),
           material_program_map : FxHashMap::default(),
           ibl,
+          kulla_lut,
           transparent_nodes : vec![],
           opaque_nodes : vec![],
           use_emission,
@@ -549,6 +554,14 @@ mod private
     pub fn ibl_set( &mut self, ibl : IBL )
     {
       self.ibl = Some( ibl );
+    }
+
+    /// Sets the Kulla–Conty multi-scatter energy-compensation LUT ( `E(μ, α)` /
+    /// `E_avg(α)` ) used by `USE_OPENPBR` materials for direct-light energy
+    /// compensation.
+    pub fn kulla_conty_lut_set( &mut self, texture : gl::web_sys::WebGlTexture )
+    {
+      self.kulla_lut = Some( texture );
     }
 
     /// Sets whether the renderer should use the emission texture for post-processing effects.
@@ -836,7 +849,9 @@ mod private
         // but intentionally omitted from the vertex shader — IBL is fragment-only.
         let defines = material.defines_str();
         let ibl_define = if use_ibl { "#define USE_IBL\n" } else { "" };
-        let full_defines = format!( "{defines}{ibl_define}" );
+        let use_kulla = self.kulla_lut.is_some() && defines.contains( "USE_OPENPBR" );
+        let kulla_define = if use_kulla { "#define USE_KULLA_CONTY\n" } else { "" };
+        let full_defines = format!( "{defines}{ibl_define}{kulla_define}" );
         let cache_key = ( ( **material ).type_id(), full_defines.clone() );
 
         let prog_id = if let Some( &existing_id ) = self.shader_source_registry.get( &cache_key )
@@ -851,7 +866,7 @@ mod private
           // Pitfall: defines_str() remains correct as the cache key (it covers all variants) — only
           //   the per-stage compilation calls must use the stage-specific accessors.
           let vs_src = format!( "#version 300 es\n{}\n{}", material.vertex_defines_str(), material.vertex_shader() );
-          let fs_src = format!( "#version 300 es\n{}\n{}\n{}", material.fragment_defines_str(), ibl_define, material.fragment_shader() );
+          let fs_src = format!( "#version 300 es\n{}\n{}\n{}\n{}", material.fragment_defines_str(), ibl_define, kulla_define, material.fragment_shader() );
           let program = gl::ProgramFromSources::new( &vs_src, &fs_src ).compile_and_link( gl )?;
           let shader_program = material.shader_program_make( gl, &program );
           let new_id = uuid::Uuid::new_v4();
@@ -883,6 +898,17 @@ mod private
                 gl.uniform1f( loc.clone().as_ref(), ( ibl.num_mips.saturating_sub( 1 ) ) as f32 );
               }
             }
+          }
+
+          // Bind the Kulla–Conty LUT for OpenPBR materials ( direct-light
+          // multi-scatter energy compensation ).
+          if use_kulla
+          {
+            let locations = shader_program.locations();
+            let unit : u32 = 19;
+            gl.active_texture( gl::TEXTURE0 + unit );
+            gl.bind_texture( gl::TEXTURE_2D, self.kulla_lut.as_ref() );
+            gl.uniform1i( locations.get( "kullaConty" ).expect( "USE_OPENPBR material missing 'kullaConty' sampler" ).clone().as_ref(), unit as i32 );
           }
 
           self.shader_source_registry.insert( cache_key, new_id );

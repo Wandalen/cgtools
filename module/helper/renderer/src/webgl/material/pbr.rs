@@ -67,6 +67,7 @@ mod private
     "clearcoatRoughnessTexture",
     "clearcoatNormalTexture",
     "anisotropyTexture",
+    "kullaConty",
     //// IBL uniform locations
     "irradianceTexture",
     "prefilterEnvMap",

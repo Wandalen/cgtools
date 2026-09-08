@@ -170,6 +170,15 @@ fn light_add( scene : &Rc< RefCell< Scene > >, light : Light ) -> Rc< RefCell< N
   node
 }
 
+/// Generates the Kulla–Conty energy-compensation LUT and gives it to the
+/// renderer ( used by OpenPBR materials for direct-light multi-scattering ).
+fn kulla_conty_setup( renderer : &mut Renderer, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
+{
+  let lut = renderer::webgl::loaders::kulla_conty::kulla_conty_lut_upload( gl, 32, 32, 512 )?;
+  renderer.kulla_conty_lut_set( lut );
+  Ok( () )
+}
+
 /// (Re)loads whatever `state.choice` selects into `state.scene`.
 async fn scene_load
 (
@@ -415,6 +424,7 @@ async fn app_run() -> Result< (), gl::WebglError >
   renderer::webgl::loaders::hdr_texture::load_to_mip_d2( &gl, Some( &equirect ), 0, "static/venice_sunset_1k.hdr" ).await;
   let ibl = renderer::webgl::loaders::pmrem::generate( &gl, &equirect, 512 )?;
   renderer.ibl_set( ibl );
+  kulla_conty_setup( &mut renderer, &gl )?;
   renderer.clear_color_set( gl::math::F32x3::from( [ 0.01, 0.01, 0.01 ] ) );
   renderer.exposure_set( 0.0 );
 
