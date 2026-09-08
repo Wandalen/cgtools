@@ -637,7 +637,7 @@ void applyLightContribution
     // non-zero ( the sheen/`fuzz_color` disabled default is black ).
     if( max_value( material.sheenColorFactor ) > 0.0 )
     {
-      float sheenAlpha = clamp( material.sheenRoughness, 1e-3, 1.0 );
+      float sheenAlpha = clamp( material.sheenRoughness, 0.1, 1.0 );
       reflectedLight.sheenSpecular += material.sheenColorFactor * D_Charlie( sheenAlpha, dotNH ) * V_Ashikhmin( dotNL, dotNV ) * lightColor * lightIntensity * dotNL;
     }
   #endif
@@ -769,7 +769,7 @@ void computeSpotLight
   #ifdef USE_OPENPBR
     if( max_value( material.sheenColorFactor ) > 0.0 )
     {
-      float sheenAlpha = clamp( material.sheenRoughness, 1e-3, 1.0 );
+      float sheenAlpha = clamp( material.sheenRoughness, 0.1, 1.0 );
       reflectedLight.sheenSpecular += material.sheenColorFactor * D_Charlie( sheenAlpha, dotNH ) * V_Ashikhmin( dotNL, dotNV ) * light.color * attenuation * dotNL;
     }
   #endif
