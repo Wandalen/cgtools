@@ -104,7 +104,6 @@ fn surface_apply( state : &Rc< ViewerState > )
   {
     let mut m = renderer::webgl::cast_unchecked_material_to_ref_mut::< renderer::webgl::material::PbrMaterial >( material.borrow_mut() );
     m.openpbr_surface_apply( &surface );
-    gl::info!( "surface_apply: metal={} ior={:?} metallic_factor={}", surface.base_metalness, surface.specular_ior, m.metallic_factor );
   }
 }
 

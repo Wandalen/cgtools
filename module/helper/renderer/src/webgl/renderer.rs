@@ -849,7 +849,10 @@ mod private
         // but intentionally omitted from the vertex shader — IBL is fragment-only.
         let defines = material.defines_str();
         let ibl_define = if use_ibl { "#define USE_IBL\n" } else { "" };
-        let use_kulla = self.kulla_lut.is_some() && defines.contains( "USE_OPENPBR" );
+        // Exact-token match: `USE_OPENPBR_IOR` must NOT satisfy this — it would
+        // otherwise wrongly enable the Kulla-Conty compensation for IOR-only
+        // materials ( "USE_OPENPBR" is a substring of "USE_OPENPBR_IOR" ).
+        let use_kulla = self.kulla_lut.is_some() && defines.contains( "#define USE_OPENPBR\n" );
         let kulla_define = if use_kulla { "#define USE_KULLA_CONTY\n" } else { "" };
         let full_defines = format!( "{defines}{ibl_define}{kulla_define}" );
         let cache_key = ( ( **material ).type_id(), full_defines.clone() );
