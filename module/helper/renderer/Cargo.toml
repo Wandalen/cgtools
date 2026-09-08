@@ -59,6 +59,11 @@ animation = [ "dep:animation", "dep:clone_dyn_types" ]
 # reach it otherwise. Off by default: nothing a dependent builds changes, and every
 # item behind it is `#[ doc( hidden ) ]` and suffixed `_for_test`.
 test_internals = []
+# Native OpenPBR content formats beyond glTF : the `loaders::usd` scene reader
+# built on the pure-Rust `openusd` / `openusd-schemas` crates ( OpenPBR adoption
+# plan §2.3 N3 ). Optional and heavy : off by default, compiles for wasm too
+# ( spike recorded in docs/openpbr_adoption_plan.md §2.2 ).
+native-formats = [ "dep:openusd", "dep:openusd-schemas" ]
 
 [dependencies]
 
@@ -85,6 +90,10 @@ serde_json = { workspace = true, optional = true }
 # Streaming XML reader for the MaterialX (`.mtlx`) OpenPBR surface lane
 # (`loaders/openpbr_mtlx.rs`). Pure Rust, wasm-safe, reused from the workspace.
 quick-xml = { workspace = true, optional = true }
+# USD scene/geometry/material reader lane ( feature `native-formats`, see above ).
+# Pure-Rust `openusd` core + typed schema views `openusd-schemas` ( geom + shade ).
+openusd = { workspace = true, optional = true }
+openusd-schemas = { workspace = true, optional = true }
 wasm-bindgen-futures = { workspace = true, optional = true }
 
 [dependencies.web-sys]
@@ -156,6 +165,12 @@ required-features = ["native"]
 [[test]]
 name = "gltf_skeleton_displacements_test"
 required-features = ["native"]
+
+# USD scene ingestion lane; needs the optional `openusd` stack ( and its own
+# direct use of it from the test crate ).
+[[test]]
+name = "usd_scene_test"
+required-features = ["native-formats"]
 
 # Build-time-only WGSL→GLSL ES 300 translation for the `webgpu` feature's
 # WebGL override pair ( `build.rs` ) — never becomes part of the compiled

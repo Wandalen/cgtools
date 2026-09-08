@@ -149,6 +149,17 @@ passed) and N4 are still open.
   the shared N2 parameter core. Should real-asset runtime behaviour fail, fall
   back to a hand-rolled `.usda` text-subset reader, with `.usdz`/`.usdc`
   offline-only (§2.3 N4).
+  Status ( 2026-09 ): **first slice landed** — `loaders::usd` ( feature
+  `native-formats` ) ships the pure off-GPU/off-filesystem core:
+  `UsdInMemoryResolver` ( `ar::Resolver` over a `path -> bytes` map — the
+  browser feed ), `usd_stage_open`, `usd_mesh_extract` ( fan triangulation +
+  vertex/faceVarying/indexed primvar corner resolution for `normals`,
+  `primvars:st`, `primvars:displayColor` ) and `usd_local_to_world`
+  ( `Xform` chain composition, row-vector `gf::Matrix4d` ). 9 native tests in
+  `tests/usd_scene_test.rs`. Still open for N3: GL scene assembly
+  ( `UsdMeshData` → `Geometry`, `Xform` → `Node` ), material binding →
+  `PbrMaterial` via `read_preview_surface` / referenced `.mtlx` through the N2
+  reader, and the viewer feed.
 - **N4** — authoring/converter path for real content: export the same material
   to glTF + `KHR_materials_*` for the browser runtime, and keep parameters with
   no KHR carrier in a private `OPENPBR_materials` JSON extension on the glTF

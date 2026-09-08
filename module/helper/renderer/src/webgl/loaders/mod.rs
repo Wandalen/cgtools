@@ -17,6 +17,11 @@ crate::mod_interface!
   /// Kulla–Conty multi-scatter energy-compensation table generation
   layer kulla_conty;
 
+  /// USD ( `.usda` / `.usdc` / `.usdz` ) scene ingestion on the pure-Rust
+  /// `openusd` stack ( OpenPBR adoption plan §2.3 N3 )
+  #[ cfg( feature = "native-formats" ) ]
+  layer usd;
+
   /// IBL textures loader
   layer ibl;
 
