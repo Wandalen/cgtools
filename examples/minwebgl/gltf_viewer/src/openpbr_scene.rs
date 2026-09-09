@@ -66,8 +66,9 @@ pub fn sphere_with_surface( gl : &gl::WebGl2RenderingContext, surface : &OpenPbr
 }
 
 /// Axis-aligned unit cube, 24 vertices ( 4 per face, face-aligned normals so the
-/// corners do NOT need smoothing ), 6 quad faces ( fan-triangulated by the USD
-/// loader ). Returns ( positions, normals, faceVertexIndices 24 entries ).
+/// corners do NOT need smoothing ), authored as 6 genuine quad faces ( 24
+/// corner indices ) - the USD loader fan-triangulates them, exercising the same
+/// quad path real USD assets use.
 #[ must_use ]
 fn cube_attributes( half : f32 ) -> ( Vec< [ f32 ; 3 ] >, Vec< [ f32 ; 3 ] >, Vec< u32 > )
 {
@@ -97,11 +98,16 @@ fn cube_attributes( half : f32 ) -> ( Vec< [ f32 ; 3 ] >, Vec< [ f32 ; 3 ] >, Ve
 }
 
 /// Writes `points` / `normals` ( vertex-interpolated ) / `faceVertexCounts`
-/// ( all tris ) + `faceVertexIndices` lines for one `def Mesh` body, assuming
-/// 8-space indentation ( inside an object `Xform` ).
-fn push_mesh_body( s : &mut String, name : &str, positions : &[ [ f32 ; 3 ] ], normals : &[ [ f32 ; 3 ] ], indices : &[ u32 ], binding : &str )
+/// ( from `counts`, so quads stay quads ) + `faceVertexIndices` lines for one
+/// `def Mesh` body, assuming 8-space indentation ( inside an object `Xform` ).
+fn push_mesh_body( s : &mut String, name : &str, positions : &[ [ f32 ; 3 ] ], normals : &[ [ f32 ; 3 ] ], indices : &[ u32 ], counts : &[ u32 ], binding : &str )
 {
   use std::fmt::Write as _;
+
+  // faceVertexCounts must describe `indices` exactly, otherwise the loader's
+  // fan triangulation spans face boundaries ( the "half a quad lands on the
+  // opposite face" bug ).
+  assert_eq!( counts.iter().sum::< u32 >() as usize, indices.len(), "mesh counts/indices mismatch" );
 
   let mut row = String::new();
   let _ = writeln!( s, "        def Mesh \"{name}\"" );
@@ -109,9 +115,9 @@ fn push_mesh_body( s : &mut String, name : &str, positions : &[ [ f32 ; 3 ] ], n
   let _ = writeln!( s, "            rel material:binding = <{binding}>" );
 
   let _ = write!( s, "            uniform int[] faceVertexCounts = [ " );
-  for i in 0..indices.len() / 3
+  for ( i, c ) in counts.iter().enumerate()
   {
-    let _ = write!( row, "3{0}", if i + 1 == indices.len() / 3 { "" } else { ", " } );
+    let _ = write!( row, "{c}{0}", if i + 1 == counts.len() { "" } else { ", " } );
     if row.len() > 72 { s.push_str( &row ); row.clear(); }
   }
   s.push_str( &row ); row.clear();
@@ -197,6 +203,7 @@ pub fn usd_set_scene_text( objects : &[ UsdSetObject< '_ > ] ) -> String
 
   // Objects : one Xform each ( nesting proves hierarchy composition ).
   let sphere = icosphere_attributes( 0.5 );
+  let sphere_counts = vec![ 3u32 ; sphere.indices.len() / 3 ];
   let ( cube_p, cube_n, cube_i ) = cube_attributes( 0.5 );
   for ( i, o ) in objects.iter().enumerate()
   {
@@ -214,8 +221,8 @@ pub fn usd_set_scene_text( objects : &[ UsdSetObject< '_ > ] ) -> String
     let binding = format!( "/World/Looks/M{i}" );
     match o.mesh
     {
-      "cube" => push_mesh_body( &mut s, "Cube", &cube_p, &cube_n, &cube_i, &binding ),
-      _ => push_mesh_body( &mut s, "Sphere", &sphere.positions, &sphere.normals, &sphere.indices, &binding ),
+      "cube" => push_mesh_body( &mut s, "Cube", &cube_p, &cube_n, &cube_i, &[ 4 ; 6 ], &binding ),
+      _ => push_mesh_body( &mut s, "Sphere", &sphere.positions, &sphere.normals, &sphere.indices, &sphere_counts, &binding ),
     }
     s.push_str( "    }\n\n" );
   }
