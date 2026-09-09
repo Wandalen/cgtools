@@ -252,13 +252,15 @@ mod private
 
   impl Interpolation
   {
+    /// Maps the `interpolation` metadatum; unauthored falls back to `vertex`,
+    /// matching `UsdGeomPrimvar::GetInterpolation`.
     fn from_token( token : Option< &str > ) -> Self
     {
       match token
       {
-        Some( "vertex" ) => Interpolation::Vertex,
+        Some( "faceVarying" ) => Interpolation::FaceVarying,
         Some( "uniform" | "constant" ) => Interpolation::Uniform,
-        _ => Interpolation::FaceVarying,
+        _ => Interpolation::Vertex,
       }
     }
   }
@@ -277,8 +279,12 @@ mod private
 
   fn interpolation_of( attr : &usd::Attribute ) -> Interpolation
   {
-    let token = attr.get_metadata::<String>( "interpolation" ).ok().flatten();
-    Interpolation::from_token( token.as_deref() )
+    // The `interpolation` metadatum is a `token` value; decoding it as `String`
+    // fails with a type-cast error ( silently, once `.ok()` flattens it ), which
+    // would silently downgrade every `vertex` primvar to the faceVarying default
+    // - zero-filling most normals of a shared-vertex mesh ( the dark-sphere bug ).
+    let token = attr.get_metadata::<openusd::tf::Token>( "interpolation" ).ok().flatten();
+    Interpolation::from_token( token.as_ref().map( openusd::tf::Token::as_str ) )
   }
 
   /// Resolves one primvar's value index for the `corner`-th corner of the

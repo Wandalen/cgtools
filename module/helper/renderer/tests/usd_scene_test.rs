@@ -370,6 +370,39 @@ fn analyze_converts_transform_to_column_major_f32()
   assert_eq!( quad.local_to_parent[ 0 ], 1.0 );
 }
 
+#[ test ]
+fn vertex_interpolated_normals_index_by_face_vertex_indices()
+{
+  // The discriminating case the earlier fixtures could not see : two triangles
+  // sharing vertices ( 6 corners ) with FOUR vertex-interpolated normals. If the
+  // `interpolation = "vertex"` metadata is honored, corners dedup to 4 vertices
+  // and every normal is an authored value. If it is silently lost ( fallback to
+  // faceVarying ), 6 vertices are emitted and the 5th/6th normals fall off the
+  // end of the array into [0,0,0] - which is exactly the "dark sphere with
+  // purple triangles" symptom from the viewer's USD mode.
+  let usda = r#"#usda 1.0
+def Mesh "TwoTris"
+{
+    uniform int[] faceVertexCounts = [ 3, 3 ]
+    uniform int[] faceVertexIndices = [ 0, 1, 2, 0, 2, 3 ]
+    uniform point3f[] points = [ ( 0, 0, 0 ), ( 1, 0, 0 ), ( 0, 1, 0 ), ( 1, 1, 0 ) ]
+    uniform normal3f[] normals = [ ( 1, 0, 0 ), ( 0, 1, 0 ), ( 0, 0, 1 ), ( 0, -1, 0 ) ]
+    (
+        interpolation = "vertex"
+    )
+}
+"#;
+  let stage = stage_with( &[ ( "scene.usda", usda ) ] );
+  let mesh = only_mesh( &stage );
+  let data = usd_mesh_extract( &mesh ).expect( "vertex-normal mesh extracts" );
+
+  assert_eq!( data.positions.len(), 4, "shared corners dedup under vertex interpolation" );
+  let normals = data.normals.expect( "normals present" );
+  assert_eq!( normals.len(), 4 );
+  assert_eq!( normals, vec![ [ 1.0, 0.0, 0.0 ], [ 0.0, 1.0, 0.0 ], [ 0.0, 0.0, 1.0 ], [ 0.0, -1.0, 0.0 ] ] );
+  assert!( !normals.iter().any( | n | n == &[ 0.0, 0.0, 0.0 ] ), "no zero-filled fallback normals" );
+}
+
 // ---------------------------------------------------------------------------
 // .mtlx-bound materials ( the native OpenPBR content lane )
 // ---------------------------------------------------------------------------

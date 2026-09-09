@@ -179,9 +179,11 @@ passed) and N4 are still open.
       in-memory strings — what the viewer uses ). `gltf_viewer` gained a
       **USD scene** mode : a procedural icosphere serialized to `.usda` text +
       the selected embedded `.mtlx`, run through the full `loaders::usd`
-      pipeline under the same studio rig. **Awaiting first browser run** (
-      `action/run gltf_viewer` ) — until then the whole GL assembly path
-      remains visually unverified.
+      pipeline under the same studio rig. **First browser run done (2026-09)**:
+      the sphere appears (composition → triangulation → mtlx material → GL
+      assembly all work); it exposed the `interpolation`-as-`String` primvar bug
+      ( see changelog Fixed ) which darkened it via zero-filled normals — fixed +
+      regression-tested; re-run pending final visual confirmation.
     Still open for N3: USD texture channels (`UsdUVTexture` → `TextureInfo`
     slots — both material lanes currently drop texture connections ),
     `mtlx_target` named-surface selection ( the usd lane takes the first
