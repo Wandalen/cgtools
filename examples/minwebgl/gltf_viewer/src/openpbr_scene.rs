@@ -200,14 +200,17 @@ pub fn usd_set_scene_text( objects : &[ UsdSetObject< '_ > ] ) -> String
   let ( cube_p, cube_n, cube_i ) = cube_attributes( 0.5 );
   for ( i, o ) in objects.iter().enumerate()
   {
+    // `xformOp:*` are ordinary attributes : they belong in the prim BODY `{ }`,
+    // not the parenthesized metadata block ( the USDA parser rejects assignments
+    // there - "want: Punctuation('='), got NamespacedIdentifier" ).
     let _ = writeln!( s, "    def Xform \"Obj{i}\"" );
-    s.push_str( "    (\n        double3 xformOp:translate = (" );
+    s.push_str( "    {\n        double3 xformOp:translate = (" );
     let _ = write!( s, " {0}, {1}, {2} ", o.translate[ 0 ], o.translate[ 1 ], o.translate[ 2 ] );
     s.push_str( ")\n        float3 xformOp:rotateXYZ = (" );
     let _ = write!( s, " {0}, {1}, {2} ", o.rotate_deg[ 0 ], o.rotate_deg[ 1 ], o.rotate_deg[ 2 ] );
     s.push_str( ")\n        uniform float3 xformOp:scale = (" );
     let _ = write!( s, " {0}, {0}, {0} ", o.scale );
-    s.push_str( ")\n        uniform token[] xformOpOrder = [ \"xformOp:translate\", \"xformOp:rotateXYZ\", \"xformOp:scale\" ]\n    )\n    {\n" );
+    s.push_str( ")\n        uniform token[] xformOpOrder = [ \"xformOp:translate\", \"xformOp:rotateXYZ\", \"xformOp:scale\" ]\n" );
     let binding = format!( "/World/Looks/M{i}" );
     match o.mesh
     {

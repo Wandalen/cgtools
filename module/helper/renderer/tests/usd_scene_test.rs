@@ -3,8 +3,8 @@
 //! pure `usd_mesh_extract` conversion ( fan triangulation, primvar corner
 //! resolution ), `usd_local_to_world` composition, and the pure scene pass
 //! `usd_scene_analyze` ( hierarchy, shading-subtree skipping, material binding
-//! + preview-surface mapping, visibility/purpose filtering ). Runs entirely
-//! off-GPU and off-filesystem - fixtures are inline `.usda` text served
+//! and preview-surface mapping, visibility/purpose filtering ). Runs entirely
+//! off-GPU and off-filesystem, with inline `.usda` text fixtures served
 //! through [`UsdInMemoryResolver`], which is exactly how the browser lane will
 //! feed HTTP-fetched bytes. Gated behind the crate's `native-formats` feature
 //! ( see `required-features` in `Cargo.toml` ). The GL half
@@ -444,6 +444,120 @@ def Xform "Obj"
   // and the mesh under it exists with 2 quads -> 6 triangles
   let cube = prim( &prims, "/Obj/Cube" ).expect( "cube mesh" );
   assert_eq!( cube.mesh.as_ref().expect( "mesh data" ).indices.len(), 12 );
+}
+
+#[ test ]
+fn analyze_parses_viewer_set_scene_layout()
+{
+  // Exact document LAYOUT the gltf_viewer's `usd_set_scene_text` emits ( ops in
+  // the prim body, `apiSchemas` mesh metadata, quads + tris, Looks scope with
+  // one mtlx-referenced and one inline-preview material ). Guards brace balance
+  // and construct placement end to end : the first version of that generator
+  // put `xformOp:*` assignments into the prim metadata parens, which the USDA
+  // parser rejected only at browser runtime.
+  let usda = r#"#usda 1.0
+(
+    defaultPrim = "World"
+    upAxis = "Y"
+    metersPerUnit = 1.0
+)
+
+def Xform "World"
+{
+    def Scope "Looks"
+    {
+        def Material "M0" ( prepend references = @./gold.mtlx@ )
+        {
+        }
+        def Material "M1"
+        {
+            token outputs:surface.connect = </World/Looks/M1/Surf.outputs:surface>
+
+            def Shader "Surf"
+            {
+                uniform token info:id = "UsdPreviewSurface"
+                color3f inputs:diffuseColor = ( 0.1, 0.6, 0.2 )
+                float inputs:roughness = 0.15
+                token outputs:surface
+            }
+        }
+    }
+
+    def Xform "Obj0"
+    {
+        double3 xformOp:translate = ( -2.4, 0, 0 )
+        float3 xformOp:rotateXYZ = ( 0, 0, 0 )
+        uniform float3 xformOp:scale = ( 1, 1, 1 )
+        uniform token[] xformOpOrder = [ "xformOp:translate", "xformOp:rotateXYZ", "xformOp:scale" ]
+        def Mesh "Sphere"
+        (
+            apiSchemas = [ "MaterialBindingAPI" ]
+        )
+        {
+            rel material:binding = </World/Looks/M0>
+            uniform int[] faceVertexCounts = [ 3 ]
+            uniform int[] faceVertexIndices = [ 0, 1, 2 ]
+            uniform point3f[] points = [ ( 0, 0, 0 ), ( 1, 0, 0 ), ( 0, 1, 0 ) ]
+            uniform normal3f[] normals = [ ( 0, 0, 1 ), ( 0, 0, 1 ), ( 0, 0, 1 ) ]
+            (
+                interpolation = "vertex"
+            )
+            uniform token subdivisionScheme = "none"
+        }
+    }
+
+    def Xform "Obj1"
+    {
+        double3 xformOp:translate = ( 1.4, 0, -0.4 )
+        float3 xformOp:rotateXYZ = ( 0, 0, 18 )
+        uniform float3 xformOp:scale = ( 1, 1, 1 )
+        uniform token[] xformOpOrder = [ "xformOp:translate", "xformOp:rotateXYZ", "xformOp:scale" ]
+        def Mesh "Cube"
+        (
+            apiSchemas = [ "MaterialBindingAPI" ]
+        )
+        {
+            rel material:binding = </World/Looks/M1>
+            uniform int[] faceVertexCounts = [ 4, 4 ]
+            uniform int[] faceVertexIndices = [ 0, 1, 2, 3, 0, 3, 2, 1 ]
+            uniform point3f[] points = [ ( 0, 0, 0 ), ( 1, 0, 0 ), ( 1, 1, 0 ), ( 0, 1, 0 ) ]
+            uniform token subdivisionScheme = "none"
+        }
+    }
+
+}
+"#;
+  let mut provider = UsdInMemoryResolver::new();
+  provider.insert( "./gold.mtlx", GOLD_MTLX.as_bytes().to_vec() );
+
+  let stage = stage_with( &[ ( "scene.usda", usda ) ] );
+  let prims = usd_scene_analyze( &stage, Some( &provider ) ).expect( "viewer-layout scene analyzes" );
+
+  // World + Looks? ( Looks is a Scope - kept as group ) + 2 object Xforms + 2 meshes;
+  // Material/Shader prims skipped.
+  assert!( prim( &prims, "/World" ).is_some() );
+  assert!( prim( &prims, "/World/Looks" ).is_some() );
+  assert!( prim( &prims, "/World/Looks/M0" ).is_none(), "material skipped" );
+  assert!( prim( &prims, "/World/Looks/M1/Surf" ).is_none(), "shader skipped" );
+
+  let sphere = prim( &prims, "/World/Obj0/Sphere" ).expect( "sphere mesh" );
+  assert_eq!( sphere.parent.as_deref(), Some( "/World/Obj0" ) );
+  assert_eq!( sphere.material_path.as_deref(), Some( "/World/Looks/M0" ), "mtlx binding" );
+  assert!( sphere.material.as_ref().unwrap().surface.is_some(), "mtlx lane through the viewer layout" );
+
+  let cube = prim( &prims, "/World/Obj1/Cube" ).expect( "cube mesh" );
+  assert_eq!( cube.mesh.as_ref().expect( "cube data" ).indices.len(), 12, "2 quads -> 6 tris * 2 verts? no: 6 tris" );
+  assert_eq!( cube.material_path.as_deref(), Some( "/World/Looks/M1" ) );
+  // preview lane : green diffuse, no surface carrier
+  let m = cube.material.as_ref().expect( "preview material resolved" );
+  assert!( m.surface.is_none(), "UsdPreviewSurface has no mtlx surface" );
+  assert_eq!( m.base_color_rgba, [ 0.1, 0.6, 0.2, 1.0 ] );
+  assert_eq!( m.roughness, Some( 0.15 ) );
+
+  // The 18-degree rotateXYZ + translate landed on the object Xform ( not identity ).
+  let obj1 = prim( &prims, "/World/Obj1" ).expect( "obj1 group" );
+  assert_eq!( obj1.local_to_parent[ 12 ], 1.4 );
+  assert!( obj1.local_to_parent[ 0 ].abs() < 1.0, "rotated: x row is not pure unit" );
 }
 
 // ---------------------------------------------------------------------------
