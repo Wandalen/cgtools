@@ -478,6 +478,23 @@ mod private
       params.iridescence_thickness_maximum = Some( thickness_nm );
     }
 
+    // Transmission : the weight rides the `KHR_materials_transmission` carrier,
+    // the slab thickness the `KHR_materials_volume` one, and `transmission_color`
+    // maps onto the attenuation-color carrier ( both mean "color imparted to
+    // light passing through" - the exact absorption-vs-tint distinction is §3.4 ).
+    if surface.transmission_weight > 1e-3
+    {
+      params.transmission_factor = Some( surface.transmission_weight );
+      if surface.transmission_depth > 0.0
+      {
+        params.volume_thickness_factor = Some( surface.transmission_depth );
+      }
+      if !( surface.transmission_color[ 0 ] > 0.99 && surface.transmission_color[ 1 ] > 0.99 && surface.transmission_color[ 2 ] > 0.99 )
+      {
+        params.volume_attenuation_color = Some( surface.transmission_color );
+      }
+    }
+
     params
   }
 }

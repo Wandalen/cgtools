@@ -80,6 +80,18 @@ mod private
     pub transparent_accumulate_texture : Option< gl::web_sys::WebGlTexture >,
     /// The 2D texture that calculates total revealage during blending pass.
     pub transparent_revealage_texture : Option< gl::web_sys::WebGlTexture >,
+    /// Transmission target color : a non-multisampled copy of the resolved
+    /// opaque scene image ( color attachment 0 + skybox ), captured after the
+    /// opaque pass so transmissive materials can sample "the scene behind them"
+    /// ( OpenPBR adoption plan §3.3 ). Screen-space; linear filtering for the
+    /// refracted offset fetch.
+    pub transmission_color_texture : Option< gl::web_sys::WebGlTexture >,
+    /// Transmission target depth ( DEPTH24_STENCIL8 sampled as `sampler2D`,
+    /// `.r` in [0, 1 ] ), for the depth-guided parallax correction of the
+    /// refracted sample. Nearest filtering ( depth textures are unfilterable ).
+    pub transmission_depth_texture : Option< gl::web_sys::WebGlTexture >,
+    /// FBO the opaque MSAA buffers are resolved into for the transmission pass.
+    pub transmission_framebuffer : Option< gl::web_sys::WebGlFramebuffer >,
     #[ allow( dead_code, reason = "never read back after attachment; held so the GPU resource outlives the framebuffer" ) ]
     pub depth_renderbuffer : Option< gl::web_sys::WebGlRenderbuffer >,
     /// Texture with equirectangular map
@@ -128,6 +140,25 @@ mod private
     texture
   }
 
+  /// Creates a depth/stencil texture ( `DEPTH24_STENCIL8` ) with the nearest
+  /// filtering depth sampling requires, for the transmission target's parallax
+  /// correction.
+  fn depth_texture_create
+  (
+    gl : &gl::WebGl2RenderingContext,
+    width : u32,
+    height : u32
+  )
+  -> Option< gl::web_sys::WebGlTexture >
+  {
+    let texture = gl.create_texture();
+    gl.bind_texture( gl::TEXTURE_2D, texture.as_ref() );
+    gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::DEPTH24_STENCIL8, width as i32, height as i32 );
+    gl::texture::d2::filter_nearest( gl );
+    gl::texture::d2::wrap_clamp( gl );
+    texture
+  }
+
   impl FramebufferContext
   {
     /// Creates a new `FramebufferContext` instance, initializing all necessary
@@ -171,6 +202,16 @@ mod private
       let emission_texture = texture_2d_create( gl, gl::RGBA16F, width, height );
       let transparent_accumulate_texture = texture_2d_create( gl, gl::RGBA16F, width, height );
       let transparent_revealage_texture = texture_2d_create( gl, gl::R16F, width, height );
+
+      // Transmission target ( §3.3 ) : non-multisampled copies of the opaque
+      // color + depth, captured mid-frame for transmissive materials to sample.
+      let transmission_framebuffer = gl.create_framebuffer();
+      let transmission_color_texture = texture_2d_create( gl, gl::RGBA16F, width, height );
+      let transmission_depth_texture = depth_texture_create( gl, width, height );
+      gl.bind_framebuffer( gl::FRAMEBUFFER, transmission_framebuffer.as_ref() );
+      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, transmission_color_texture.as_ref(), 0 );
+      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::DEPTH_STENCIL_ATTACHMENT, gl::TEXTURE_2D, transmission_depth_texture.as_ref(), 0 );
+      gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
 
       // --- Attach Renderbuffers to Multisample Framebuffer ---
       // Bind the multisample framebuffer to configure its attachments.
@@ -222,6 +263,9 @@ mod private
         emission_texture,
         transparent_accumulate_texture,
         transparent_revealage_texture,
+        transmission_framebuffer,
+        transmission_color_texture,
+        transmission_depth_texture,
         skybox_texture : None
       }
     }
@@ -303,6 +347,41 @@ mod private
       self.resolved_unbind( gl );
     }
 
+    /// Captures the current opaque-scene image + depth from the multisample
+    /// framebuffer into the transmission target ( §3.3 ). Called after the
+    /// opaque pass and before the transmission pass, so transmissive materials
+    /// can sample "the scene behind them" screen-space, with depth-guided
+    /// parallax. Restores the multisample FBO binding afterwards.
+    pub fn transmission_capture( &self, gl : &gl::WebGl2RenderingContext )
+    {
+      gl.bind_framebuffer( gl::READ_FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
+      gl.bind_framebuffer( gl::DRAW_FRAMEBUFFER, self.transmission_framebuffer.as_ref() );
+
+      // Depth/stencil first ( nearest, format-matched DEPTH24_STENCIL8 resolve ),
+      // then the MSAA color resolve into the sampleable RGBA16F texture. The
+      // destination defaults are the right blit targets ( depth attachment /
+      // COLOR_ATTACHMENT0 ), so no draw-buffer selection is needed.
+      gl.read_buffer( gl::DEPTH_STENCIL );
+      gl.blit_framebuffer
+      (
+        0, 0, self.texture_width as i32, self.texture_height as i32,
+        0, 0, self.texture_width as i32, self.texture_height as i32,
+        gl::DEPTH_BUFFER_BIT | gl::STENCIL_BUFFER_BIT, gl::NEAREST
+      );
+
+      gl.read_buffer( gl::COLOR_ATTACHMENT0 );
+      gl.blit_framebuffer
+      (
+        0, 0, self.texture_width as i32, self.texture_height as i32,
+        0, 0, self.texture_width as i32, self.texture_height as i32,
+        gl::COLOR_BUFFER_BIT, gl::LINEAR
+      );
+
+      gl.bind_framebuffer( gl::READ_FRAMEBUFFER, None );
+      gl.bind_framebuffer( gl::DRAW_FRAMEBUFFER, None );
+      self.multisample_bind( gl );
+    }
+
     /// Binds the `multisample_framebuffer` and attaches its renderbuffers.
     ///
     /// This function should be called before rendering operations that require
@@ -379,6 +458,9 @@ mod private
       gl.delete_texture( self.emission_texture.as_ref() );
       gl.delete_texture( self.transparent_accumulate_texture.as_ref() );
       gl.delete_texture( self.transparent_revealage_texture.as_ref() );
+      gl.delete_framebuffer( self.transmission_framebuffer.as_ref() );
+      gl.delete_texture( self.transmission_color_texture.as_ref() );
+      gl.delete_texture( self.transmission_depth_texture.as_ref() );
       gl.delete_texture( self.skybox_texture.as_ref() );
     }
   }
@@ -406,6 +488,10 @@ mod private
     material_program_map : FxHashMap< uuid::Uuid, ( uuid::Uuid, bool ) >,
     /// (node, primitive, primitive_index, program_uuid)
     transparent_nodes : Vec< TransparentNodeEntry >,
+    /// (node, primitive, primitive_index, program_uuid)
+    /// Transmissive primitives ( OpenPBR §3.3 ), drawn in a dedicated pass that
+    /// samples the transmission target captured right after the opaque pass.
+    transmission_nodes : Vec< TransparentNodeEntry >,
     /// (node, primitive, primitive_index, program_uuid, has_emission)
     opaque_nodes : Vec< OpaqueNodeEntry >,
 
@@ -482,8 +568,9 @@ mod private
           material_program_map : FxHashMap::default(),
           ibl,
           kulla_lut,
-          transparent_nodes : vec![],
-          opaque_nodes : vec![],
+      transparent_nodes : vec![],
+      transmission_nodes : vec![],
+      opaque_nodes : vec![],
           use_emission,
           framebuffer_ctx,
           blend_effect,
@@ -742,6 +829,17 @@ mod private
 
       self.per_program_uniforms_upload( gl, camera, &lights )?;
       self.opaque_draw( gl, camera )?;
+
+      // §3.3 transmission pass : capture the just-rendered opaque scene ( color
+      // + depth ), then draw transmissive materials sampling it. Drawn into the
+      // same MSAA main/depth buffers with depth test + write on, so glass sits
+      // correctly among opaque geometry; WBOIT transparent objects draw after.
+      if !self.transmission_nodes.is_empty()
+      {
+        self.framebuffer_ctx.transmission_capture( gl );
+        self.transmission_draw( gl, camera )?;
+      }
+
       if !self.transparent_nodes.is_empty()
       {
         self.transparent_draw( gl )?;
@@ -761,6 +859,7 @@ mod private
     ) -> Result< FxHashMap< LightType, Vec< Light > >, gl::WebglError >
     {
       self.transparent_nodes.clear();
+      self.transmission_nodes.clear();
       self.opaque_nodes.clear();
       let mut lights = FxHashMap::< LightType, Vec< Light > >::default();
 
@@ -924,12 +1023,21 @@ mod private
         prog_id
       };
 
-      // Separate transparent objects for later rendering.
-      match material.alpha_mode()
+      // Routing ( adoption plan §3.3 ) : transmissive materials go to the
+      // dedicated transmission pass ( they sample the captured opaque image ),
+      // alpha-blended materials to the WBOIT pass, everything else opaque.
+      if material.transmission_active()
       {
-        AlphaMode::Blend
-        => self.transparent_nodes.push( ( node.clone(), primitive_rc.clone(), primitive_index, program_uuid ) ),
-        _ => self.opaque_nodes.push( ( node.clone(), primitive_rc.clone(), primitive_index, program_uuid, material.has_emission() ) ),
+        self.transmission_nodes.push( ( node.clone(), primitive_rc.clone(), primitive_index, program_uuid ) );
+      }
+      else
+      {
+        match material.alpha_mode()
+        {
+          AlphaMode::Blend
+          => self.transparent_nodes.push( ( node.clone(), primitive_rc.clone(), primitive_index, program_uuid ) ),
+          _ => self.opaque_nodes.push( ( node.clone(), primitive_rc.clone(), primitive_index, program_uuid, material.has_emission() ) ),
+        }
       }
 
       Ok( () )
@@ -953,7 +1061,12 @@ mod private
       {
         active_program_ids.insert( *pid );
       }
+      for ( _, _, _, pid ) in &self.transmission_nodes
+      {
+        active_program_ids.insert( *pid );
+      }
 
+      let screen_size = gl::F32x2::from( [ self.framebuffer_ctx.texture_width as f32, self.framebuffer_ctx.texture_height as f32 ] );
       for prog_id in &active_program_ids
       {
         if let Some( program ) = self.compiled_programs.get_mut( prog_id )
@@ -964,6 +1077,10 @@ mod private
           if let Some( exposure_loc ) = program.locations().get( "exposure" )
           {
             gl::uniform::upload( gl, exposure_loc.clone(), &self.exposure )?;
+          }
+          if let Some( screen_loc ) = program.locations().get( "uScreenSize" )
+          {
+            gl::uniform::upload( gl, screen_loc.clone(), screen_size.as_slice() )?;
           }
         }
       }
@@ -1060,6 +1177,96 @@ mod private
         self.skybox_draw( gl, camera );
       }
 
+      Ok( () )
+    }
+
+    /// Phase 3a: Draws transmissive primitives ( §3.3 ). They sample the
+    /// transmission target captured from the opaque pass and refract it, and
+    /// write into the same MSAA main/depth buffers with depth test + write
+    /// enabled (so glass occludes like a solid), no blending.
+    fn transmission_draw
+    (
+      &mut self,
+      gl : &GL,
+      _camera : &Camera
+    ) -> Result< (), gl::WebglError >
+    {
+      self.transmission_nodes.sort_by_key( | ( _, _, _, pid ) | *pid );
+
+      gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
+      gl.disable( gl::BLEND );
+      gl.enable( gl::DEPTH_TEST );
+      gl.depth_mask( true );
+      gl.depth_func( gl::LESS );
+
+      let mut current_program_id : Option< uuid::Uuid > = None;
+      let mut last_material_id : Option< uuid::Uuid > = None;
+
+      for ( node_rc, primitive_rc, prim_idx, program_id ) in &self.transmission_nodes
+      {
+        let node_ref = node_rc.borrow();
+        let primitive = primitive_rc.borrow();
+        let material = primitive.material.borrow();
+        let Some( shader_program ) = self.compiled_programs.get( program_id ) else
+        {
+          gl::warn!( "compiled_programs missing {program_id:?} — skipping transmission draw" );
+          continue;
+        };
+
+        if current_program_id != Some( *program_id )
+        {
+          shader_program.bind( gl );
+          current_program_id = Some( *program_id );
+          last_material_id = None;
+        }
+
+        material_depth_properties_enable( gl, &**material );
+        material_face_properties_enable( gl, &**material );
+        material_color_mask_enable( gl, &**material );
+
+        let material_upload_context = MaterialUploadContext
+        {
+          node : &node_ref,
+          primitive_id : Some( *prim_idx ),
+          locations : shader_program.locations()
+        };
+
+        if material.needs_update() || last_material_id != Some( material.id() )
+        {
+          material.upload_on_state_change( gl, &material_upload_context )?;
+          material.needs_update_set( false );
+        }
+        material.upload( gl, &material_upload_context )?;
+        material.bind( gl );
+
+        if let Some( ref ibl ) = self.ibl
+        {
+          if let Some( ibl_base_texture_unit ) = material.ibl_base_texture_unit()
+          {
+            ibl.bind( gl, ibl_base_texture_unit );
+          }
+        }
+
+        // Bind the transmission target after `material.bind` ( which may retarget
+        // active units ) : color at the material's base unit, depth at base+1 —
+        // same contract the IBL bind honors ( see `Material::transmission_texture_unit` ).
+        if let Some( base_unit ) = material.transmission_texture_unit()
+        {
+          gl.active_texture( gl::TEXTURE0 + base_unit );
+          gl.bind_texture( gl::TEXTURE_2D, self.framebuffer_ctx.transmission_color_texture.as_ref() );
+          gl.active_texture( gl::TEXTURE0 + base_unit + 1 );
+          gl.bind_texture( gl::TEXTURE_2D, self.framebuffer_ctx.transmission_depth_texture.as_ref() );
+        }
+
+        last_material_id = Some( material.id() );
+
+        let locations = shader_program.locations();
+        node_ref.upload( gl, locations );
+        primitive.bind( gl );
+        primitive.draw( gl );
+      }
+
+      gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
       Ok( () )
     }
 

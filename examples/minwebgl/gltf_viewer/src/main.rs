@@ -239,6 +239,9 @@ async fn scene_load
       UsdSetObject { mesh: "cube",   material: "./yellowPaint.mtlx", translate: [ 1.4, 0.0, -0.4 ], rotate_deg: [ 0.0, 0.0, 18.0 ], scale: 1.0 },
       UsdSetObject { mesh: "sphere", material: "./velvet.mtlx",      translate: [ 2.4, 0.0, 0.6  ], rotate_deg: [ 0.0, 0.0, 0.0  ], scale: 1.0 },
       UsdSetObject { mesh: "cube",   material: "preview",            translate: [ 1.0, 0.0, 1.6  ], rotate_deg: [ 25.0, 0.0, 0.0 ], scale: 0.7 },
+      // §3.3 transmission test : glass ( transmission_weight = 1 ) IN FRONT of
+      // the row, so it should visibly bend the image of the objects behind it.
+      UsdSetObject { mesh: "sphere", material: "./glass.mtlx",       translate: [ -0.7, 0.0, 1.7 ], rotate_deg: [ 0.0, 0.0, 0.0  ], scale: 1.0 },
     ];
     let root = openpbr_scene::usd_set_scene_text( &objects );
     let assets =
@@ -248,6 +251,7 @@ async fn scene_load
       ( "./straw.mtlx", openpbr_material_mtlx( "straw" ) ),
       ( "./yellowPaint.mtlx", openpbr_material_mtlx( "yellowPaint" ) ),
       ( "./velvet.mtlx", openpbr_material_mtlx( "velvet" ) ),
+      ( "./glass.mtlx", openpbr_material_mtlx( "glass" ) ),
     ];
     let scene = renderer::webgl::loaders::usd::usd_scene_from_texts( gl, "scene.usda", &root, &assets )
     .map_err( | e |

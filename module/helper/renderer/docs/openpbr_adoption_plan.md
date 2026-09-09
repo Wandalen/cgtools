@@ -58,8 +58,8 @@ The two-stage strategy per lane — **load**, then **shade** — is tracked belo
 
 | Feature | Carrier | Status / blocker |
 |---|---|---|
-| Refraction (`transmission_weight`) | `KHR_materials_transmission` | **Blocked** — needs a scene-transmission render target + depth (a forward fragment can't see behind the surface). |
-| Volume (`transmission_depth`, absorption) | `KHR_materials_volume` | **Blocked** — needs thickness (back-face depth or `thicknessTexture`) + refracted path length for Beer–Lambert. |
+| Refraction (`transmission_weight`) | `KHR_materials_transmission` | **3.3a landed — browser-UNTESTED** — dedicated transmission pass + opaque-target capture + thin-plate screen-space refraction (§3.3). Blur, depth parallax, backface/thin-walled still open. |
+| Volume (`transmission_depth`, absorption) | `KHR_materials_volume` | **Partly fed, not evaluated** — the depth now reaches `PbrMaterial` as `transmissionThickness` (drives the refracted offset); Beer–Lambert absorption still needs §3.3b + the already-captured depth texture. |
 | Dispersion (20 / Abbe) | `KHR_materials_dispersion` | **Blocked** — per-channel refraction (3× the transmission pass). |
 | Subsurface / translucent scattering | `KHR_materials_diffuse_transmission` | **Blocked** — needs a diffusion pass (per-RGB radius profile). |
 | Thin-film iridescence | `KHR_materials_iridescence` | **Landed (§3.2)** — `USE_OPENPBR_IRIDESCENCE` spectral Fresnel in `main.frag`. Known model limit: on a near-perfect mirror substrate the interference terms cancel (`R23 ≈ 1 ⇒ Cm = Rs−T121 ≈ 0`) and the film only lifts `F_s` toward 1 — visible color needs low-reflectance bases. |
@@ -300,6 +300,26 @@ Mirror the existing extra-pass pattern (`post_processing/`, `shadow.rs`, PMREM):
    (depth-guided parallax like the three.js `TransmissionPass` approach).
 4. Route `transmission_factor` materials into the transparent pass.
 
+Status: **3.3a landed, browser-UNTESTED (2026-09)** — the dedicated pass exists:
+`FramebufferContext` gained a transmission target ( RGBA16F color + a
+DEPTH24_STENCIL8 *texture* depth, both MSAA-resolved by
+`transmission_capture()` ) captured right after the opaque pass; `Renderer`
+routes weight-gated materials into a new `transmission_draw` pass between
+opaque and WBOIT ( depth test + write on, no blend ), binding color/depth at
+fragment units 23/24 via the new `Material::transmission_active` /
+`transmission_texture_unit` contract; `main.frag` `USE_TRANSMISSION` refracts
+the view through the slab ( thin-plate: enter front, exit back, offset by
+`transmissionThickness` ), projects the exit point to screen uv and replaces
+the diffuse term with the tinted scene tap. Carriers flow from
+`OpenPbrSurface` via `openpbr_params_from_surface` ( weight → `transmission_factor`,
+depth → `volume_thickness_factor`, tint → `volume_attenuation_color` ),
+natively tested. The viewer's USD set scene gained a front glass sphere as the
+verification asset. **Deliberately NOT in 3.3a** ( registered below ): the
+roughness blur / mip chain, the depth-guided parallax correction ( the depth
+texture is captured + bound but not yet sampled ), Beer-Lambert absorption,
+`geometry_thin_walled` mode, backface handling ( single-sided shells show the
+front-plate approximation only ).
+
 ### 3.4 Volume thickness + Beer–Lambert (on top of 3.3)
 - Thickness source: bake/`thicknessTexture`, or render transmissive back faces'
   depth into a thickness target (leverage existing `doubleSided`/`faceDirection`).
@@ -517,9 +537,14 @@ prerequisite (named in brackets) is in place.
   `transmissionTexture`, `thicknessTexture`, `iridescenceThicknessTexture`,
   diffuse-transmission textures; also `geometry_normal`/`coat`/`tangent` map
   inputs encountered in real `.mtlx` are skipped today (kept at defaults).
-- **Thin-film iridescence** (§3.2), **transmission/refraction pass** (§3.3),
-  **volume thickness + Beer–Lambert** (§3.4), **subsurface diffusion** (§3.5),
-  **dispersion** (§3.6) — all blocked/deferred as described in their sections.
+- **Transmission 3.3b+** — refraction-only 3.3a landed ( §3.3 status ). Open :
+  roughness blur / mip chain of the transmission target, depth-guided parallax
+  using the already-captured `transmission_depth_texture`, Beer–Lambert
+  absorption along the refracted path ( §3.4 ), `geometry_thin_walled` mode,
+  backface/second-layer handling, half-resolution transmission target ( the
+  three.js bandwidth trick ), per-material `transmissionTexture` map.
+- **Thin-film iridescence** (§3.2) **landed**; **subsurface diffusion** (§3.5)
+  and **dispersion** (§3.6) — all blocked/deferred as described in their sections.
 - **Kulla–Conty LUT** (§3.7) — landed for direct lights. Open: unify the IBL
   term onto the same LUT ( it still uses the older Fdez-Agüera split-sum
   approximation ), and gate the compensation on actual roughness rather than

@@ -22,6 +22,11 @@ mod private
   /// Max spot light sources count
   pub const MAX_SPOT_LIGHTS : usize = 8;
 
+  /// Fragment texture unit of the transmission target color ( §3.3 ). Placed
+  /// after the lobe carriers ( 20-22 ); depth is bound at the next unit. IBL
+  /// occupies 16-18, the Kulla-Conty LUT 19.
+  pub const TRANSMISSION_TEXTURE_UNIT : u32 = 23;
+
   /// Emits the `USE_<name>` define plus the `<uv_name> -> vUv_<channel>` alias
   /// for an enabled texture slot. Shared by `PbrMaterial::local_defines` and
   /// `PbrMaterial::openpbr_defines`; `info` must be `Some` (the call sites gate
@@ -82,6 +87,14 @@ mod private
     "sheenRoughnessTexture",
     "iridescenceTexture",
     "kullaConty",
+    //// Transmission uniform locations ( §3.3 )
+    "uScreenSize",
+    "transmissionSampler",
+    "transmissionDepthSampler",
+    "transmissionFactor",
+    "transmissionThickness",
+    "transmissionColor",
+    "transmissionIor",
     //// IBL uniform locations
     "irradianceTexture",
     "prefilterEnvMap",
@@ -1098,6 +1111,14 @@ mod private
           add_texture( defines, "USE_IRIDESCENCE_TEXTURE", "vIridescenceUv", self.iridescence_texture.as_ref() );
         }
       }
+      // Weight-gated ( not just carrier presence ) : the define also enables the
+      // refraction block in `main.frag`, whose samplers are only bound in the
+      // transmission pass — a zero-weight material must stay fully in the
+      // opaque/transparent passes ( matching `transmission_active` routing ).
+      if p.transmission_factor.is_some_and( | w | w > 0.0 )
+      {
+        defines.push_str( "#define USE_TRANSMISSION\n" );
+      }
       if p.emissive_strength.is_some()
       {
         defines.push_str( "#define USE_KHR_materials_emissive_strength\n" );
@@ -1132,6 +1153,23 @@ mod private
     fn needs_update_set( &self, value : bool )
     {
       self.needs_update.set( value );
+    }
+
+    fn transmission_active( &self ) -> bool
+    {
+      self.openpbr_params.transmission_factor.is_some_and( | w | w > 0.0 )
+    }
+
+    fn transmission_texture_unit( &self ) -> Option< u32 >
+    {
+      if self.transmission_active()
+      {
+        Some( TRANSMISSION_TEXTURE_UNIT )
+      }
+      else
+      {
+        None
+      }
     }
 
     fn ibl_base_texture_unit( &self ) -> Option< u32 >
@@ -1191,6 +1229,11 @@ mod private
       gl.uniform1i( locations.get( "sheenColorTexture" ).expect( "PBRShader::impl_locations! missing \"sheenColorTexture\"" ).clone().as_ref() , 20 );
       gl.uniform1i( locations.get( "sheenRoughnessTexture" ).expect( "PBRShader::impl_locations! missing \"sheenRoughnessTexture\"" ).clone().as_ref() , 21 );
       gl.uniform1i( locations.get( "iridescenceTexture" ).expect( "PBRShader::impl_locations! missing \"iridescenceTexture\"" ).clone().as_ref() , 22 );
+      // Transmission target ( §3.3 ) : color at unit 23, depth at 24. The
+      // textures themselves are bound once per frame by the Renderer's
+      // transmission pass, not by this material.
+      gl.uniform1i( locations.get( "transmissionSampler" ).expect( "PBRShader::impl_locations! missing \"transmissionSampler\"" ).clone().as_ref(), TRANSMISSION_TEXTURE_UNIT as i32 );
+      gl.uniform1i( locations.get( "transmissionDepthSampler" ).expect( "PBRShader::impl_locations! missing \"transmissionDepthSampler\"" ).clone().as_ref(), TRANSMISSION_TEXTURE_UNIT as i32 + 1 );
     }
 
     fn upload
@@ -1317,6 +1360,18 @@ mod private
         let min = self.openpbr_params.iridescence_thickness_minimum.unwrap_or( 0.0 );
         let max = self.openpbr_params.iridescence_thickness_maximum.unwrap_or( 0.0 );
         upload( "iridescenceThickness", Some( ( min + max ) * 0.5 ) )?;
+      }
+      if self.openpbr_params.transmission_factor.is_some_and( | w | w > 0.0 )
+      {
+        let p = &self.openpbr_params;
+        upload( "transmissionFactor", Some( p.transmission_factor.unwrap_or( 0.0 ).clamp( 0.0, 1.0 ) ) )?;
+        // Slab thickness for the refracted-ray parallax offset; OpenPBR
+        // `transmission_depth` already rode in as `volume_thickness_factor`,
+        // otherwise a mid-sized default keeps the effect visible but mild.
+        upload( "transmissionThickness", Some( p.volume_thickness_factor.filter( | t | *t > 0.0 ).unwrap_or( 0.5 ) ) )?;
+        upload( "transmissionIor", Some( p.ior.filter( | i | *i > 1.0 ).unwrap_or( 1.5 ) ) )?;
+        let tint = p.volume_attenuation_color.unwrap_or( [ 1.0, 1.0, 1.0 ] );
+        upload_array( "transmissionColor", Some( &tint ) )?;
       }
       if let Some( strength ) = self.openpbr_params.emissive_strength
       {

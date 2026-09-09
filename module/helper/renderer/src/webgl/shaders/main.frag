@@ -205,6 +205,21 @@ uniform vec4 baseColorFactor; // Default: [1, 1, 1, 1]
   // Kulla–Conty multi-scatter LUT: E(μ, α) in R, row-constant E_avg(α) in G.
   uniform sampler2D kullaConty;
 #endif
+#ifdef USE_TRANSMISSION
+  // Transmission ( OpenPBR adoption plan §3.3 ). The renderer captures the
+  // opaque pass into `transmissionSampler` ( linear color ) +
+  // `transmissionDepthSampler` ( nearest depth, reserved for the 3.3b parallax
+  // correction ) and binds them at the material's declared units.
+  uniform sampler2D transmissionSampler;
+  uniform sampler2D transmissionDepthSampler;
+  uniform mat4 viewMatrix;
+  uniform mat4 projectionMatrix;
+  uniform float transmissionFactor;    // OpenPBR `transmission_weight`
+  uniform float transmissionThickness; // OpenPBR `transmission_depth`, world units
+  uniform float transmissionIor;       // IOR of the transmissive medium ( 1.5 default )
+  uniform vec3 transmissionColor;      // transmitted-light tint ( OpenPBR `transmission_color` )
+  uniform vec2 uScreenSize;            // framebuffer pixels; only used for the behind-camera fallback tap
+#endif
 #ifdef USE_MR_TEXTURE
   // Roughness is sampled from the G channel
   // Metalness is sampled from the B channel
@@ -1275,6 +1290,42 @@ void main()
   reflectedLight.indirectSpecular +
   reflectedLight.directDiffuse +
   reflectedLight.directSpecular;
+
+  // Transmission ( OpenPBR adoption plan §3.3, refraction-only slice ): the
+  // diffuse response of a transmissive surface is replaced by a sample of the
+  // captured opaque scene taken along the view ray refracted into the medium
+  // and displaced by the slab thickness. Fresnel-weighted so reflective grazing
+  // angles keep the specular / environment term. Roughness blur, depth parallax
+  // ( the captured `transmissionDepthSampler` is already bound for it ) and
+  // Beer-Lambert absorption are the registered 3.3b follow-ups.
+  #ifdef USE_TRANSMISSION
+  {
+    vec3 N = normal;
+    vec3 V = viewDir;
+    float iorRatio = 1.0 / max( transmissionIor, 1.0001 );
+    // enter the front face
+    vec3 tIn = refract( -V, N, iorRatio );
+    // exit the ( parallel ) back face : direction returns to -V with a lateral
+    // offset through the slab ( thin-plate approximation ).
+    vec3 tOut = refract( tIn, -N, 1.0 / max( transmissionIor, 1.0001 ) );
+    vec3 exitDir = any( notEqual( tOut, vec3( 0.0 ) ) ) ? tOut : tIn;
+    vec3 exitPos = vWorldPos + exitDir * transmissionThickness;
+
+    vec4 clip = projectionMatrix * viewMatrix * vec4( exitPos, 1.0 );
+    vec2 refrUv = clip.xy / max( abs( clip.w ), 1e-5 ) * 0.5 + 0.5;
+    // `clip.w` can go <= 0 behind the camera; pin those samples to the pixel.
+    refrUv = clip.w > 0.0 ? refrUv : gl_FragCoord.xy / uScreenSize;
+
+    // linear-filtered single tap ; roughness blur / mip chain is 3.3b
+    vec3 transmitted = texture( transmissionSampler, refrUv ).rgb * transmissionColor;
+
+    // OpenPBR-style: the diffuse response of the transmissive surface is
+    // replaced by the tinted scene sample ( three.js does the same ; specular /
+    // IBL terms stay on top, which already carry the grazing-angle Fresnel ).
+    vec3 diffuseTerm = reflectedLight.indirectDiffuse + reflectedLight.directDiffuse;
+    color = ( color - diffuseTerm ) + mix( diffuseTerm, transmitted, transmissionFactor );
+  }
+  #endif
 
   // KHR_materials_clearcoat: fresnel_mix the base result with the coat lobe. The coat's own
   // Fresnel term is applied once here (not per light / per IBL term), and the emissive

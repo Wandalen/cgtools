@@ -142,3 +142,33 @@ fn params_from_surface_default_surface_yields_empty_params()
 
   assert_eq!( params, OpenPbrParams::default() );
 }
+
+/// Transmission ( §3.3 ): the weight rides `transmission_factor`, the slab
+/// depth `volume_thickness_factor`, and a non-white `transmission_color`
+/// becomes the attenuation-color carrier. Zero weight leaves all three unset.
+#[ test ]
+fn params_from_surface_maps_transmission_carriers()
+{
+  let mut surface = OpenPbrSurface::spec_default();
+  surface.transmission_weight = 1.0;
+  surface.transmission_depth = 0.4;
+  surface.transmission_color = [ 0.9, 0.95, 1.0 ];
+
+  let params = openpbr_params_from_surface( &surface );
+  assert_eq!( params.transmission_factor, Some( 1.0 ) );
+  assert_eq!( params.volume_thickness_factor, Some( 0.4 ) );
+  assert_eq!( params.volume_attenuation_color, Some( [ 0.9, 0.95, 1.0 ] ) );
+
+  // white tint is the default -> no carrier needed
+  surface.transmission_color = [ 1.0, 1.0, 1.0 ];
+  let params = openpbr_params_from_surface( &surface );
+  assert_eq!( params.volume_attenuation_color, None );
+
+  // zero weight -> nothing mapped, stays fully diffuse
+  let mut opaque = OpenPbrSurface::spec_default();
+  opaque.transmission_weight = 0.0;
+  opaque.transmission_depth = 2.0;
+  let params = openpbr_params_from_surface( &opaque );
+  assert_eq!( params.transmission_factor, None );
+  assert_eq!( params.volume_thickness_factor, None );
+}

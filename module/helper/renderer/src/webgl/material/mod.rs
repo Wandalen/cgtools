@@ -154,6 +154,30 @@ mod private
       None
     }
 
+    /// Returns `true` if this material renders as transmissive ( refracts the
+    /// captured opaque scene behind it ). Such primitives are routed to the
+    /// dedicated transmission pass ( OpenPBR adoption plan §3.3 ) between the
+    /// opaque and the transparent-OIT passes.
+    fn transmission_active( &self ) -> bool
+    {
+      false
+    }
+
+    /// Returns the base texture unit for the transmission target, or `None` if
+    /// the material does not sample it. The renderer binds the transmission
+    /// color to this unit and the transmission depth to `unit + 1`, mirroring
+    /// [`Self::ibl_base_texture_unit`]'s contract. Materials returning `Some`
+    /// must declare, under the matching define:
+    ///
+    /// ```glsl
+    /// uniform sampler2D transmissionSampler;
+    /// uniform sampler2D transmissionDepthSampler;
+    /// ```
+    fn transmission_texture_unit( &self ) -> Option< u32 >
+    {
+      None
+    }
+
     /// Returns reference to [`ProgramInfo`](crate::webgl::ProgramInfo) with shader locations and used [`ShaderProgram`]
     fn shader_program_make( &self, gl : &gl::WebGl2RenderingContext, program : &gl::WebGlProgram ) -> Box< dyn ShaderProgram >;
 
