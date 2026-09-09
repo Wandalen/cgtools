@@ -65,7 +65,7 @@ The two-stage strategy per lane — **load**, then **shade** — is tracked belo
 | Thin-film iridescence | `KHR_materials_iridescence` | **Landed (§3.2)** — `USE_OPENPBR_IRIDESCENCE` spectral Fresnel in `main.frag`. Known model limit: on a near-perfect mirror substrate the interference terms cancel (`R23 ≈ 1 ⇒ Cm = Rs−T121 ≈ 0`) and the film only lifts `F_s` toward 1 — visible color needs low-reflectance bases. |
 | Kulla–Conty multi-scatter energy compensation (LUT) | n/a (model fidelity) | **Landed for direct lights (§3.7)** — `loaders::kulla_conty` LUT, `USE_KULLA_CONTY`; IBL still uses the Fdez-Agüera split-sum (unifying it onto the same LUT is a follow-up). |
 | Textured lobe carriers (sheen/transmission/thickness/iridescence/diffuseTransmission color) | all of the above | **Subset landed (§3.1), browser-untested** — sheen color/roughness + iridescence weight textures wired at fragment units 20–22 (native loader tests pass; `openpbr_lobe_texture_test.rs` awaits a wasm browser run). Remaining carriers ride the §3.3 transmission pass. |
-| Native OpenPBR content import (MaterialX `.mtlx`, USD `.usda/.usdc/.usdz`) | format lane (§2) | **N2 + N3-lite landed; N3 scene slice browser-verified** — `loaders::usd` (`native-formats`): pure resolver/mesh-extract/`usd_scene_analyze` core (21 native tests) + GL `usd_scene_load` verified live through `gltf_viewer`'s USD mode (caught + fixed 3 bugs: interpolation Token, xformOp placement, quad counts). Open: USD `UsdUVTexture` channels, `.usdc`/`.usdz` binary roots tested end-to-end, cameras/lights, instancing/subdivision. |
+| Native OpenPBR content import (MaterialX `.mtlx`, USD `.usda/.usdc/.usdz`) | format lane (§2) | **N2 + N3-lite landed; N3 scene slice browser-verified** — `loaders::usd` (`native-formats`): pure resolver/mesh-extract/`usd_scene_analyze` core (21 native tests) + GL `usd_scene_load` verified live through `gltf_viewer`'s USD mode (caught + fixed 3 bugs). **See the "USD lane : what works / unverified / missing" matrix in §2.3 for the full state.** Top gaps: `UsdUVTexture`/mtlx `<image>` textures, binary `.usdc`/`.usdz` untested, cameras/lights, instancing/subdivision. |
 
 Blockers are architectural, not mathematical: the renderer is a single-pass
 forward shader (`main.frag`) with weighted-blended OIT for transparency; nothing
@@ -193,7 +193,37 @@ passed) and N4 are still open.
      surface, same gap as the N3-lite loader ), camera / lights ingestion,
      `metersPerUnit` / non-Y `upAxis`, binary `.usdc`/`.usdz` roots ( supported
      by `openusd` through the same resolver, untested ), analytic gprims,
-     subdivision-surface tessellation and instancing.
+      subdivision-surface tessellation and instancing.
+
+  #### USD lane : what works, what is unverified, what is missing ( 2026-09 )
+
+  A one-glance matrix of the USD reader's real state, so "can we read USD yet?"
+  never needs re-deriving. Verdict up front : **a genuinely useful subset, NOT
+  full USD.** Composed `.usda` scenes with real OpenPBR materials load and render
+  correctly ; production assets that depend on textures or instancing do not yet.
+
+  | State | Item | Notes / why |
+  |---|---|---|
+  | ✅ works, natively + browser-verified | `.usda` stage composition via pure-Rust `openusd` | `UsdInMemoryResolver` + `usd_stage_open` ; no filesystem needed |
+  | ✅ | Mesh topology : triangles AND quads | `usd_mesh_extract` fan-triangulates `faceVertexCounts`/`faceVertexIndices` ( the playground set-scene quads render clean ) |
+  | ✅ | Primvars : `normals`, `primvars:st`, `displayColor`, `vertex`/`faceVarying`/indexed | corner resolution incl. `:indices` indirection ; the `interpolation`-as-`Token` bug is fixed + regression-tested |
+  | ✅ | `Xform` op stacks + hierarchy | translate / rotateXYZ / scale / matrix ops, row-vector → column-major bridge, per-object nesting |
+  | ✅ | Visibility / purpose filtering | `Invisible` / `proxy` / `guide` prims dropped |
+  | ✅ | Material bindings with ancestor inheritance | `MaterialBindingAPI::compute_bound_material` walking up the namespace |
+  | ✅ | Both material lanes | inline `UsdPreviewSurface` → `UsdMaterialData` ; `prepend references = @./x.mtlx@` → N2 reader → `OpenPbrSurface` → `openpbr_surface_apply` ( metal / coat / ior / fuzz / thin-film ) |
+  | ✅ | GL scene assembly | `usd_scene_load` → `Geometry` (VAO slots 0/1/2) + shared-material cache + `Scene` ; verified live in `gltf_viewer` USD mode |
+  | ⚠️ built, **not yet run by you** | `usd_scene_load_http` | async root fetch + `@./x.mtlx@` discovery + sibling fetches ; only the embedded-string path (`usd_scene_from_texts`) has run in a browser — needs a served-file test ( trunk `copy-dir` ) |
+  | ⚠️ built, **not yet run by you** | §3.1 lobe textures ( sheen color/roughness, iridescence weight ) | `openpbr_lobe_texture_test.rs` never executed ( needs wasm browser driver ) ; no texture-driven glTF test asset wired yet ( Khronos *SheenChair* is the candidate ) |
+  | ❌ not implemented | **Textures** — `UsdUVTexture` / mtlx `<image>` channels | both lanes read scalars only and drop texture connections, so the playground's image-driven materials ( iceCube etc. ) look flat. Blocker beyond plumbing : the corpus maps are **`.tif`/`.exr`**, which browsers can't decode natively — needs an `image`-crate (or similar) wasm decode decision or a png/jpg-only first tier |
+  | ❌ not implemented | Binary `.usdc` / `.usdz` roots | `openusd` parses them through the same `ar::Asset` feed in principle, but only `.usda` text fixtures are exercised ; untested end-to-end |
+  | ❌ not implemented | Cameras / lights ingestion | USD `domeLight`/`diskLight`/`Camera` prims ignored — the viewer uses its own studio rig. Needs a `Light`/`Camera` mapping step |
+  | ❌ not implemented | Instancing ( `PointInstancer`, instanceable prototypes ) | meshes referenced many times draw once each ; prototype expansion is unimplemented |
+  | ❌ not implemented | Subdivision surfaces | `catmullClark`/`loop` meshes render as their coarse cage ; needs a tessellator |
+  | ❌ not implemented | Analytic gprims ( `Cube`/`Sphere`/`Cone`/… ) | only `def Mesh` is turned into geometry ; intrinsic shapes need tesselation |
+  | ❌ not implemented | `metersPerUnit`, non-`Y` `upAxis` | scenes authored in mm / Z-up will mis-scale/rotate ; needs a root transform |
+  | ❌ not implemented | Inline ( non-referenced ) MaterialX nodegraphs in USD | `UsdMtlx` shader-prims authored directly into the layer ; only the external-`.mtlx`-reference pattern resolves today |
+  | ❌ not implemented | `mtlx_target` named-surface selection | the USD lane and N3-lite both take the FIRST `open_pbr_surface` in a `.mtlx` ( latent for one-surface-per-file corpora like the playground ; wrong for multi-surface files ) |
+  | ❌ out of scope here | Full OpenPBR evaluation ( subsurface, transmission/volume, dispersion ) | gated on the renderer §3.3/§3.5 passes, not the USD reader — the values are parsed + stored but not yet shaded |
 - **N4** — authoring/converter path for real content: export the same material
   to glTF + `KHR_materials_*` for the browser runtime, and keep parameters with
   no KHR carrier in a private `OPENPBR_materials` JSON extension on the glTF
