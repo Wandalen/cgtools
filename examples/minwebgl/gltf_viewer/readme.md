@@ -10,8 +10,8 @@ glTF is the standard format for 3D content on the web. This example provides a p
 
 The **Debug** panel lets you drive the viewer without editing code:
 
-- **Mode** — `glTF model viewer` (load a model from the list below), `OpenPBR test` (procedural scenes used to validate the OpenPBR material work — step 1 is a solid-colour icosphere to check geometry), or `USD scene ( loaders::usd )` (the same icosphere serialized to `.usda` text with a referenced `.mtlx` material, run through the full USD pipeline — composition, mesh extraction, mtlx binding, GL assembly).
-- **Material** — in `OpenPBR test` / `USD scene` modes: pick the embedded `.mtlx` (velvet / gold / glass / iridescent).
+- **Mode** — `glTF model viewer` (load a model from the list below), `OpenPBR test` (procedural scenes used to validate the OpenPBR material work — step 1 is a solid-colour icosphere to check geometry), or `USD scene ( loaders::usd )` — a six-object set scene (icospheres + cubes under per-object `Xform` stacks with translate/rotate/scale ops) binding five real `.mtlx` materials (metal, coat, high-IOR, paint, fuzz) plus one inline `UsdPreviewSurface`, run through the full USD pipeline: stage composition, mesh triangulation, mtlx-bound material resolution and GL scene assembly.
+- **Material** — in `OpenPBR test` / `USD scene` modes: pick the embedded `.mtlx` (velvet / gold / glass / iridescent, plus the OpenPBR Shader Playground's cord / straw / yellow paint — see `materials/ATTRIBUTION.md` for the ASWF Digital Assets License).
 - **Model** — a dropdown of the bundled glTF assets; switching reloads the scene and re-frames the camera.
 
 ![image](./showcase.webp)

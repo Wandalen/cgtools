@@ -61,16 +61,21 @@ struct ViewerChoice
 }
 
 /// OpenPBR test materials: ( display name, key ) — each is an embedded ASWF
-/// `open_pbr_*.mtlx` sample.
+/// `open_pbr_*.mtlx` sample or a scalar-only file from the OpenPBR Shader
+/// Playground ( see `materials/ATTRIBUTION.md` ).
 const OPENPBR_MATERIALS : &[ ( &str, &str ) ] =
 &[
   ( "Velvet (fuzz)", "velvet" ),
   ( "Gold (metal)", "gold" ),
   ( "Glass (ior / transmission)", "glass" ),
   ( "Iridescent metal (thin film)", "iridescent" ),
+  ( "Cord (coat)", "cord" ),
+  ( "Straw (ior 2.83)", "straw" ),
+  ( "Yellow paint", "yellowPaint" ),
 ];
 
-/// Embedded `.mtlx` text for `key`.
+/// Embedded `.mtlx` text for `key` ( ASWF spec examples + scalar-only material
+/// files from the OpenPBR Shader Playground - see `materials/ATTRIBUTION.md` ).
 #[ must_use ]
 fn openpbr_material_mtlx( key : &str ) -> &'static str
 {
@@ -79,6 +84,9 @@ fn openpbr_material_mtlx( key : &str ) -> &'static str
     "gold" => include_str!( "../materials/open_pbr_gold.mtlx" ),
     "glass" => include_str!( "../materials/open_pbr_glass.mtlx" ),
     "iridescent" => include_str!( "../materials/open_pbr_iridescent.mtlx" ),
+    "cord" => include_str!( "../materials/playground_cord.mtlx" ),
+    "straw" => include_str!( "../materials/playground_straw.mtlx" ),
+    "yellowPaint" => include_str!( "../materials/playground_yellowPaint.mtlx" ),
     _ => include_str!( "../materials/open_pbr_velvet.mtlx" ),
   }
 }
@@ -213,19 +221,35 @@ async fn scene_load
 
   if choice.mode == MODE_USD
   {
-    // USD mode — the real `loaders::usd` pipeline : a procedural icosphere
-    // serialized to `.usda` text + the selected embedded `.mtlx`, fed through
-    // the in-memory resolver ( the same shape `usd_scene_load_http` builds
-    // from HTTP fetches ), stage composition, mtlx-bound material resolution
-    // and GL scene assembly included. Studio rig, no env reflection.
-    let root = openpbr_scene::usd_sphere_scene( 0.5 );
-    let scene = renderer::webgl::loaders::usd::usd_scene_from_texts
-    (
-      gl,
-      "scene.usda",
-      &root,
-      &[ ( "./mat.mtlx", openpbr_material_mtlx( &choice.material ) ) ],
-    )
+    // USD mode — the real `loaders::usd` pipeline on a multi-object set scene :
+    // spheres + cubes under per-object `Xform`s ( translate / rotate / scale ops,
+    // hierarchy composition ), five `.mtlx`-bound materials covering the distinct
+    // OpenPBR carriers ( metal gold, coat cord, ior 2.8 straw, painted yellow,
+    // fuzz velvet ) PLUS an inline `UsdPreviewSurface` - both material lanes in
+    // one file. All fed as in-memory text ( the same shape `usd_scene_load_http`
+    // builds from HTTP fetches ) through stage composition, mtlx binding
+    // resolution and GL scene assembly. Studio rig, no env reflection.
+    use openpbr_scene::UsdSetObject;
+
+    let objects =
+    [
+      UsdSetObject { mesh: "sphere", material: "./gold.mtlx",        translate: [ -2.4, 0.0, 0.0 ], rotate_deg: [ 0.0, 0.0, 0.0  ], scale: 1.0 },
+      UsdSetObject { mesh: "sphere", material: "./cord.mtlx",        translate: [ -1.4, 0.0, 0.5 ], rotate_deg: [ 0.0, 30.0, 0.0 ], scale: 0.8 },
+      UsdSetObject { mesh: "sphere", material: "./straw.mtlx",       translate: [ 0.0, 0.0, 0.0  ], rotate_deg: [ 0.0, 0.0, 0.0  ], scale: 1.2 },
+      UsdSetObject { mesh: "cube",   material: "./yellowPaint.mtlx", translate: [ 1.4, 0.0, -0.4 ], rotate_deg: [ 0.0, 0.0, 18.0 ], scale: 1.0 },
+      UsdSetObject { mesh: "sphere", material: "./velvet.mtlx",      translate: [ 2.4, 0.0, 0.6  ], rotate_deg: [ 0.0, 0.0, 0.0  ], scale: 1.0 },
+      UsdSetObject { mesh: "cube",   material: "preview",            translate: [ 1.0, 0.0, 1.6  ], rotate_deg: [ 25.0, 0.0, 0.0 ], scale: 0.7 },
+    ];
+    let root = openpbr_scene::usd_set_scene_text( &objects );
+    let assets =
+    [
+      ( "./gold.mtlx", openpbr_material_mtlx( "gold" ) ),
+      ( "./cord.mtlx", openpbr_material_mtlx( "cord" ) ),
+      ( "./straw.mtlx", openpbr_material_mtlx( "straw" ) ),
+      ( "./yellowPaint.mtlx", openpbr_material_mtlx( "yellowPaint" ) ),
+      ( "./velvet.mtlx", openpbr_material_mtlx( "velvet" ) ),
+    ];
+    let scene = renderer::webgl::loaders::usd::usd_scene_from_texts( gl, "scene.usda", &root, &assets )
     .map_err( | e |
     {
       gl::browser::error!( "USD scene load failed: {e:?}" );

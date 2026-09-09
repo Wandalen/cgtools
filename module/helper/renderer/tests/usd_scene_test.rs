@@ -403,6 +403,49 @@ def Mesh "TwoTris"
   assert!( !normals.iter().any( | n | n == &[ 0.0, 0.0, 0.0 ] ), "no zero-filled fallback normals" );
 }
 
+#[ test ]
+fn analyze_composes_translate_rotate_scale_ops()
+{
+  // Exercises the exact xform syntax the viewer's set scene authors : a
+  // translate + rotateXYZ + scale stack with an explicit xformOpOrder. Signs
+  // of rotation entries depend on openusd's euler convention, so assert the
+  // invariants : orthonormal axes scaled by 2 and an untouched translation.
+  let usda = r#"#usda 1.0
+def Xform "Obj"
+{
+    double3 xformOp:translate = ( 1, 2, 3 )
+    float3 xformOp:rotateXYZ = ( 0, 90, 0 )
+    uniform float3 xformOp:scale = ( 2, 2, 2 )
+    uniform token[] xformOpOrder = [ "xformOp:translate", "xformOp:rotateXYZ", "xformOp:scale" ]
+
+    def Mesh "Cube"
+    {
+        uniform int[] faceVertexCounts = [ 4, 4 ]
+        uniform int[] faceVertexIndices = [ 0, 1, 2, 3, 0, 3, 2, 1 ]
+        uniform point3f[] points = [ ( 0, 0, 0 ), ( 1, 0, 0 ), ( 1, 1, 0 ), ( 0, 1, 0 ) ]
+    }
+}
+"#;
+  let stage = stage_with( &[ ( "scene.usda", usda ) ] );
+  let prims = usd_scene_analyze( &stage, None ).expect( "analyzes" );
+  let obj = prim( &prims, "/Obj" ).expect( "Xform group kept" );
+  let m = &obj.local_to_parent;
+  // translation survives in the last row ( gf row-vector convention )
+  assert_eq!( [ m[ 12 ], m[ 13 ], m[ 14 ] ], [ 1.0, 2.0, 3.0 ] );
+  // Y axis: rotateY keeps Y, scaled by 2
+  assert!( ( m[ 5 ] - 2.0 ).abs() < 1e-5, "m[5] = {0}", m[ 5 ] );
+  // X and Z rows swap under a 90 degree Y rotation, scaled by 2 ; the third
+  // column of the rotation block picks the magnitude up.
+  let x_row = [ m[ 0 ], m[ 1 ], m[ 2 ] ];
+  let z_row = [ m[ 8 ], m[ 9 ], m[ 10 ] ];
+  assert!( x_row.iter().all( | v | v.abs() < 1e-5 || ( v.abs() - 2.0 ).abs() < 1e-5 ), "x row {x_row:?}" );
+  assert!( z_row.iter().all( | v | v.abs() < 1e-5 || ( v.abs() - 2.0 ).abs() < 1e-5 ), "z row {z_row:?}" );
+  assert!( x_row.iter().any( | v | ( v.abs() - 2.0 ).abs() < 1e-5 ) && z_row.iter().any( | v | ( v.abs() - 2.0 ).abs() < 1e-5 ) );
+  // and the mesh under it exists with 2 quads -> 6 triangles
+  let cube = prim( &prims, "/Obj/Cube" ).expect( "cube mesh" );
+  assert_eq!( cube.mesh.as_ref().expect( "mesh data" ).indices.len(), 12 );
+}
+
 // ---------------------------------------------------------------------------
 // .mtlx-bound materials ( the native OpenPBR content lane )
 // ---------------------------------------------------------------------------
