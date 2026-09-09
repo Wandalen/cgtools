@@ -10,6 +10,7 @@ use minwebgl as gl;
 use primitive_generation::{ AttributesData, PrimitiveData, Transform, primitives_data_to_gltf };
 use renderer::webgl::material::{ OpenPbrSurface, PbrMaterial };
 use renderer::webgl::loaders::gltf::GLTF;
+use renderer::webgl::Node;
 
 /// A unit icosphere subdivided `4` times ( 2562 vertices / 5120 faces ),
 /// scaled to `radius`, with radial normals ( a sphere's normal is its own
@@ -63,6 +64,54 @@ pub fn sphere_with_surface( gl : &gl::WebGl2RenderingContext, surface : &OpenPbr
   *material.borrow_mut() = Box::new( configured );
 
   gltf
+}
+
+/// A row of small opaque dielectric spheres placed BEHIND the OpenPBR test
+/// sphere ( negative Z, the camera's default front is +Z ). With §3.3
+/// transmission they are what the transmissive sphere bends, so refraction is
+/// actually visible instead of an empty studio backdrop. Returns the built
+/// nodes ( already parented to nothing ) to graft into the test scene, and
+/// configures their shared material as a plain dielectric.
+#[ must_use ]
+pub fn backdrop_spheres( gl : &gl::WebGl2RenderingContext ) -> Vec< Rc< RefCell< Node > > >
+{
+  let attributes = Rc::new( RefCell::new( icosphere_attributes( 0.42 ) ) );
+
+  let palette : [ ( f32, [ f32 ; 4 ] ) ; 4 ] =
+  [
+    ( -1.25, [ 0.85, 0.20, 0.20, 1.0 ] ),   // red
+    ( -0.42, [ 0.20, 0.75, 0.30, 1.0 ] ),   // green
+    ( 0.42, [ 0.25, 0.45, 0.90, 1.0 ] ),    // blue
+    ( 1.25, [ 0.92, 0.80, 0.20, 1.0 ] ),    // yellow
+  ];
+
+  let prims : Vec< PrimitiveData > = palette.iter().map( | ( x, color ) | PrimitiveData
+  {
+    name : None,
+    parent : None,
+    attributes : Some( attributes.clone() ),
+    color : gl::F32x4::from( *color ),
+    transform : Transform
+    {
+      translation : gl::F32x3::from( [ *x, 0.0, -1.15 ] ),
+      ..Transform::default()
+    },
+  } ).collect();
+
+  let gltf = primitives_data_to_gltf( gl, &prims );
+
+  // Plain dielectric plastic so the colors read as diffuse, not mirror.
+  if let Some( material ) = gltf.materials.first()
+  {
+    let mut m = PbrMaterial::new( gl );
+    m.metallic_factor = 0.0;
+    m.roughness_factor = 0.35;
+    *material.borrow_mut() = Box::new( m );
+  }
+
+  let scene = gltf.scenes.into_iter().next().expect( "backdrop scene exists" );
+  let nodes = scene.borrow().children_get().to_vec();
+  nodes
 }
 
 /// Axis-aligned unit cube, 24 vertices ( 4 per face, face-aligned normals so the

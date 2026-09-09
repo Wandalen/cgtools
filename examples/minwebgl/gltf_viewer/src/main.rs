@@ -308,6 +308,13 @@ async fn scene_load
 
     let scene = gltf.scenes.into_iter().next().expect( "sphere scene exists" );
 
+    // Opaque colored spheres behind the test sphere (§3.3): a transmissive
+    // surface has to bend *something*, else refraction reads as an empty backdrop.
+    for backdrop_node in openpbr_scene::backdrop_spheres( gl )
+    {
+      scene.borrow_mut().add( backdrop_node );
+    }
+
     studio_rig_add( &scene );
 
     scene_fit_to_view( &scene );
@@ -455,6 +462,12 @@ fn debug_ui_setup
   surface_slider( state, &js_object, &params_folder, "thinFilmWeight", 0.0, ( 0.0, 1.0, 0.01 ), | s, v | s.thin_film_weight = v );
   surface_slider( state, &js_object, &params_folder, "thinFilmThicknessNm", 450.0, ( 100.0, 1000.0, 5.0 ), | s, v | s.thin_film_thickness = v / 1000.0 );
   surface_slider( state, &js_object, &params_folder, "thinFilmIor", 1.4, ( 1.0, 2.0, 0.01 ), | s, v | s.thin_film_ior = v );
+  // §3.3 transmission. Raising the weight re-routes the sphere into the
+  // transmission pass live ( `surface_apply` -> recompile -> `nodes_collect`
+  // sees `transmission_active` ); it then refracts the backdrop spheres behind
+  // it. Depth is the slab thickness driving the refracted-ray offset.
+  surface_slider( state, &js_object, &params_folder, "transmissionWeight", 0.0, ( 0.0, 1.0, 0.01 ), | s, v | s.transmission_weight = v );
+  surface_slider( state, &js_object, &params_folder, "transmissionDepth", 1.5, ( 0.1, 6.0, 0.05 ), | s, v | s.transmission_depth = v );
 
   lil_gui::show( &gui );
 }
@@ -491,7 +504,8 @@ async fn app_run() -> Result< (), gl::WebglError >
         {
           mode : MODE_GLTF.to_string(),
           model : default_model.to_string(),
-          material : "velvet".to_string(),
+          // glass so the OpenPBR test mode opens on the §3.3 transmission path
+          material : "glass".to_string(),
         }
       ),
       scene : RefCell::new( None ),
