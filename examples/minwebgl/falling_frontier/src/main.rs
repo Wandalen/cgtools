@@ -24,7 +24,7 @@ use gl::GL;
 use renderer::webgl::Camera;
 use renderer::webgl::shadow::{ ShadowMap, Light };
 use std::{ cell::{ Cell, RefCell }, rc::Rc };
-use debug::{ GridTuning, setup_grid_tuning_panel, refresh_selection_status };
+use debug::{ GridTuning, setup_grid_tuning_panel, setup_layers_panel, refresh_selection_status };
 use hud::{ setup_hud, refresh_unit_panel, bind_reset_camera };
 use boundary::{ build_boundary_polyline, MAX_BOUNDARY_PTS };
 use hull::HullProgram;
@@ -629,6 +629,8 @@ fn app_run() -> Result< (), gl::WebglError >
     );
   }
 
+  setup_layers_panel( &document, &tuning );
+
   setup_hud( &document, &tuning );
   {
     let ctx = ctx.clone();
@@ -684,11 +686,14 @@ fn app_run() -> Result< (), gl::WebglError >
       let view_proj = camera.projection_matrix_get() * camera.view_matrix_get();
       ctx.latest_view_proj.set( view_proj );
 
-      background.draw( &gl, view_proj, camera.eye_get(), ( t / 1000.0 ) as f32 );
-
       let tuning_snapshot = *tuning.borrow();
       let selected = ctx.selected_id.get();
       let selected_kind = selected.and_then( classify_pick );
+
+      if tuning_snapshot.show_background
+      {
+        background.draw( &gl, view_proj, camera.eye_get() );
+      }
 
       // M7: advance every ship along its patrol path, except whichever one
       // is currently selected - matches `main.js`'s `updateFleetMotion`
@@ -716,7 +721,8 @@ fn app_run() -> Result< (), gl::WebglError >
       // object but leaves the ribbon off).
       let focus_snapshot = match selected_kind
       {
-        Some( PickedKind::Ship( i ) ) => FocusState { active : true, point : ships.position( i ) },
+        Some( PickedKind::Ship( i ) ) if tuning_snapshot.show_view_ribbon =>
+          FocusState { active : true, point : ships.position( i ) },
         _ => FocusState::default(),
       };
 
@@ -750,13 +756,23 @@ fn app_run() -> Result< (), gl::WebglError >
       let mut light = Light::new( shadow_scene_center + light_dir * SHADOW_LIGHT_DISTANCE, -light_dir, shadow_projection, tuning_snapshot.light_size );
       let light_view_proj = light.view_projection();
 
-      shadow_map.bind();
-      shadow_map.clear();
-      for part in asteroids.parts().iter().chain( ships.parts() ).chain( station.parts() )
+      if tuning_snapshot.shadows_enabled
       {
-        shadow_map.mvp_upload( light_view_proj * part.model );
-        gl.bind_vertex_array( Some( &part.vao ) );
-        gl.draw_elements_with_i32( GL::TRIANGLES, part.index_count, GL::UNSIGNED_INT, 0 );
+        shadow_map.bind();
+        shadow_map.clear();
+        // A hidden object (per the Render Layers toggles below) shouldn't
+        // still be casting a shadow onto the rest of the scene, so the same
+        // per-type visibility gates apply here, not just to the visible draw
+        // further down.
+        let asteroid_parts : &[ _ ] = if tuning_snapshot.show_asteroids { asteroids.parts() } else { &[] };
+        let ship_parts : &[ _ ] = if tuning_snapshot.show_ships { ships.parts() } else { &[] };
+        let station_parts : &[ _ ] = if tuning_snapshot.show_station { station.parts() } else { &[] };
+        for part in asteroid_parts.iter().chain( ship_parts ).chain( station_parts )
+        {
+          shadow_map.mvp_upload( light_view_proj * part.model );
+          gl.bind_vertex_array( Some( &part.vao ) );
+          gl.draw_elements_with_i32( GL::TRIANGLES, part.index_count, GL::UNSIGNED_INT, 0 );
+        }
       }
       gl.bind_framebuffer( GL::FRAMEBUFFER, None );
       gl.viewport( 0, 0, w as i32, h as i32 );
@@ -765,22 +781,31 @@ fn app_run() -> Result< (), gl::WebglError >
       hull_program.begin_frame
       (
         &gl, view_proj, camera.eye_get(), light_dir, tuning_snapshot.light_color, tuning_snapshot.light_intensity,
-        light_view_proj, shadow_map.depth_buffer(), tuning_snapshot.shadows_enabled,
+        light_view_proj, shadow_map.depth_buffer(), tuning_snapshot.shadows_enabled, tuning_snapshot.lighting_enabled,
       );
-      for part in asteroids.parts() { hull_program.draw_part( &gl, part, Some( part.pick_id ) == selected ); }
-      for part in ships.parts() { hull_program.draw_part( &gl, part, Some( part.pick_id ) == selected ); }
-      for part in station.parts() { hull_program.draw_part( &gl, part, Some( part.pick_id ) == selected ); }
-
-      starfield.draw( &gl, view_proj );
-
-      if tuning_snapshot.show_trajectories || tuning_snapshot.show_sensor_rings
+      if tuning_snapshot.show_asteroids
       {
-        trajectories.draw
-        (
-          &gl, camera.view_matrix_get(), camera.projection_matrix_get(), [ w as f32, h as f32 ],
-          tuning_snapshot.show_trajectories, tuning_snapshot.show_sensor_rings
-        );
+        for part in asteroids.parts() { hull_program.draw_part( &gl, part, Some( part.pick_id ) == selected ); }
       }
+      if tuning_snapshot.show_ships
+      {
+        for part in ships.parts() { hull_program.draw_part( &gl, part, Some( part.pick_id ) == selected ); }
+      }
+      if tuning_snapshot.show_station
+      {
+        for part in station.parts() { hull_program.draw_part( &gl, part, Some( part.pick_id ) == selected ); }
+      }
+
+      if tuning_snapshot.show_starfield
+      {
+        starfield.draw( &gl, view_proj );
+      }
+
+      trajectories.draw
+      (
+        &gl, camera.view_matrix_get(), camera.projection_matrix_get(), [ w as f32, h as f32 ],
+        tuning_snapshot.show_trajectories
+      );
 
       if tuning_snapshot.show_grid
       {
@@ -794,7 +819,7 @@ fn app_run() -> Result< (), gl::WebglError >
       // M6: the gizmo handle, drawn on top of everything at whatever is
       // currently selected (translate cross or rotate ring, per
       // `ctx.gizmo_mode`).
-      if let Some( kind ) = selected_kind
+      if tuning_snapshot.show_gizmo && let Some( kind ) = selected_kind
       {
         let object_transform = selected_transform( kind, &asteroids, &ships, &station );
         let gizmo_part = ctx.gizmo.part( ctx.gizmo_mode.get(), object_transform, GIZMO_ID );
