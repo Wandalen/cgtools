@@ -598,8 +598,29 @@ mod private
         let _ = self.gl.invalidate_framebuffer( gl::FRAMEBUFFER, &discard );
       }
       self.active_viewport = None;
+      self.gl.disable( gl::SCISSOR_TEST );
       self.gl.bind_framebuffer( gl::FRAMEBUFFER, None );
       self.gl.viewport( 0, 0, self.config.width as i32, self.config.height as i32 );
+    }
+
+    /// Restrict every following draw and clear — [`Self::fill`] included — to
+    /// the pixel rectangle `[ x, y, width, height ]` of the current draw target
+    /// (GL convention: origin at the bottom-left), or lift the restriction with
+    /// `None`. Lets a cache pass repaint only part of a surface: bind it with
+    /// [`Self::begin_render_target`]`( id, None )` to keep its contents, scissor
+    /// the changed area, `fill`, then redraw. [`Self::end_render_target`] always
+    /// lifts the scissor, so it never leaks past the cache pass.
+    pub fn set_scissor( &mut self, rect : Option< [ i32; 4 ] > )
+    {
+      match rect
+      {
+        Some( [ x, y, w, h ] ) =>
+        {
+          self.gl.enable( gl::SCISSOR_TEST );
+          self.gl.scissor( x, y, w.max( 0 ), h.max( 0 ) );
+        },
+        None => self.gl.disable( gl::SCISSOR_TEST ),
+      }
     }
 
     /// Clear the current draw target (colour + depth) to `color`.
