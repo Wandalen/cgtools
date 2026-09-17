@@ -88,6 +88,14 @@ mod private
     /// (sky backgrounds, ocean, long edge segments).
     #[ serde( default ) ]
     pub wrap : WrapMode,
+    /// Whether this image's pixels are stored with **premultiplied** alpha
+    /// (RGB already scaled by alpha). When true, the GPU backend composites it
+    /// with the premultiplied "over" blend (`src + dst·(1-src_a)`) instead of the
+    /// straight one (`src·src_a + dst·(1-src_a)`), which keeps antialiased edges
+    /// fringe-free under linear filtering / mipmaps without needing the
+    /// transparent background dilated to the edge colour. Defaults to `false`.
+    #[ serde( default ) ]
+    pub premultiplied : bool,
   }
 
   /// How an asset is laid out internally.
@@ -417,6 +425,15 @@ mod private
       max : f32,
       /// Oscillation frequency in Hz.
       frequency : f32,
+      /// When `true`, the pulse phase is anchored to the sprite's most recent
+      /// (re)appearance rather than the free-running master clock, so it starts
+      /// from phase 0 (`min`) each time the layer's content changes — e.g. the
+      /// attack-target overlay restarting its fade-in the instant the player
+      /// selects a unit. Implemented for dual-grid (`VertexCorners`) layers as
+      /// the clock captured at the last structural resolve (which reruns on any
+      /// spawn/despawn/move). Default `false` (free-running global phase).
+      #[ serde( default ) ]
+      restart_on_spawn : bool,
     },
     /// Modulate sprite colour toward a target colour over time.
     ColorShift
@@ -427,6 +444,26 @@ mod private
       amplitude : f32,
       /// Oscillation frequency in Hz.
       frequency : f32,
+    },
+    /// One-way ease of a per-bucket visibility multiplier toward an
+    /// externally-driven target (0 or 1), instead of oscillating forever like
+    /// [`Self::AlphaPulse`]. Drives a linear ramp that **holds** once it
+    /// reaches the target, reversing only when the target flips.
+    ///
+    /// The target isn't part of this declaration — it's runtime state set via
+    /// [`crate::scene::Scene::fade_target_set`], keyed by this effect's own
+    /// [`Effect::id`] (referenced by every layer whose `behaviour.effects`
+    /// names it). Layers sharing one effect id share one fade progress;
+    /// [`crate::scene::Scene::tick`] advances it toward its target by
+    /// `1000.0 / duration_ms` per second, clamped to `[0, 1]`. A layer that
+    /// never has its target driven stays at its initial value (`1.0` — fully
+    /// visible — the first time a target is set, `value` snaps straight to
+    /// that target with no ramp, so the very first hide/show isn't a fade).
+    FadeGate
+    {
+      /// Milliseconds for a full `0` ↔ `1` sweep, symmetric for both
+      /// directions.
+      duration_ms : f32,
     },
   }
 
