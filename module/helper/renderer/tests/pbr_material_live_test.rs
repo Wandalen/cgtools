@@ -115,4 +115,20 @@ mod tests
     assert_eq!( cloned.vertex_defines_str(), original.vertex_defines_str(), "Clone must preserve define state" );
     assert_eq!( cloned.base_color_factor, original.base_color_factor, "Clone must preserve scalar/vector state" );
   }
+  #[ wasm_bindgen_test ]
+  fn highlight_defaults_to_a_no_op_and_survives_clone()
+  {
+    let gl_context = gl_init();
+    let mut original = PbrMaterial::new( &gl_context );
+
+    assert_eq!( original.highlight_strength, 0.0, "highlight must be off by default" );
+    assert_eq!( original.highlight_color, gl::F32x3::splat( 1.0 ), "default highlight multiplier must be identity" );
+
+    original.highlight_color = gl::F32x3::from( [ 1.4, 1.3, 1.2 ] );
+    original.highlight_strength = 0.5;
+    let cloned = original.clone();
+
+    assert_eq!( cloned.highlight_color, original.highlight_color, "Clone must preserve highlight_color" );
+    assert_eq!( cloned.highlight_strength, original.highlight_strength, "Clone must preserve highlight_strength" );
+  }
 }
