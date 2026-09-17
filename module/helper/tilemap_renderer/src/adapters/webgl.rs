@@ -110,7 +110,8 @@ mod private
     fn batch_draw( &self, gl : &gl::GL, batch : &GpuBatch, resources : &GpuResources, camera : &[ f32; 9 ], viewport : [ f32; 2 ], max_depth : f32 )
     {
       let GpuBatch::Sprite { instances, vao, params, .. } = batch else { return; };
-      if instances.is_empty() { return; }
+      // Draw only what the last flush put on the GPU (see `ArrayBuffer::gpu_len`).
+      if instances.gpu_len() == 0 { return; }
 
       let Some( gpu_tex ) = resources.texture( params.sheet ) else { return; };
       let tw = gpu_tex.width.get();
@@ -140,7 +141,7 @@ mod private
       }
 
       gl.bind_vertex_array( Some( vao ) );
-      gl.draw_arrays_instanced( gl::TRIANGLE_STRIP, 0, 4, instances.len() as i32 );
+      gl.draw_arrays_instanced( gl::TRIANGLE_STRIP, 0, 4, instances.gpu_len() as i32 );
       // Unbind the batch VAO so subsequent GL state setup (e.g. a later
       // vertex_attrib_pointer call during batch construction) cannot
       // accidentally mutate this batch's attribute layout. The single-draw
@@ -226,7 +227,8 @@ mod private
     fn batch_draw( &self, gl : &gl::GL, batch : &GpuBatch, resources : &GpuResources, camera : &[ f32; 9 ], viewport : [ f32; 2 ], max_depth : f32 )
     {
       let GpuBatch::Mesh { instances, vao, params, .. } = batch else { return };
-      if instances.is_empty() { return; }
+      // Draw only what the last flush put on the GPU (see `ArrayBuffer::gpu_len`).
+      if instances.gpu_len() == 0 { return; }
 
       let Some( geom ) = resources.geometry( params.geometry ) else { return };
       let color = match params.fill { FillRef::Solid( c ) => c, _ => [ 1.0, 1.0, 1.0, 1.0 ] };
@@ -254,11 +256,11 @@ mod private
 
       if let Some( ( count, gl_type ) ) = geom.index_count
       {
-        gl.draw_elements_instanced_with_i32( topology, count as i32, gl_type, 0, instances.len() as i32 );
+        gl.draw_elements_instanced_with_i32( topology, count as i32, gl_type, 0, instances.gpu_len() as i32 );
       }
       else
       {
-        gl.draw_arrays_instanced( topology, 0, geom.vertex_count as i32, instances.len() as i32 );
+        gl.draw_arrays_instanced( topology, 0, geom.vertex_count as i32, instances.gpu_len() as i32 );
       }
       // Unbind the batch VAO so subsequent GL state setup (e.g. a later
       // vertex_attrib_pointer call during batch construction) cannot
@@ -1029,10 +1031,22 @@ mod private
       Ok( () )
     }
 
-    fn cmd_unbind_batch( &mut self )
+    fn cmd_unbind_batch( &mut self ) -> Result< (), RenderError >
     {
       if let Some( batch_id ) = self.recording_batch.take()
       {
+        // Unbind is the commit point: upload everything this recording staged in
+        // one write per batch, before any `DrawBatch` can read it.
+        {
+          let mut res = self.resources.borrow_mut();
+          let flushed = match res.batch_mut( batch_id )
+          {
+            Some( GpuBatch::Sprite { instances, .. } ) => instances.flush(),
+            Some( GpuBatch::Mesh { instances, .. } ) => instances.flush(),
+            None => Ok( () ),
+          };
+          flushed.map_err( | e | RenderError::BackendError( format!( "UnbindBatch({batch_id:?}): {e}" ) ) )?;
+        }
         let res = self.resources.borrow();
         if let Some( batch ) = res.batch( batch_id )
         {
@@ -1060,6 +1074,7 @@ mod private
           }
         }
       }
+      Ok( () )
     }
 
     fn cmd_draw_batch( &self, db : DrawBatch, viewport : [ f32; 2 ] ) -> Result< (), RenderError >
@@ -1578,7 +1593,7 @@ mod private
           RenderCommand::RemoveInstance( ri ) => self.cmd_remove_instance( *ri )?,
           RenderCommand::SetSpriteBatchParams( sp ) => self.cmd_set_sprite_batch_params( sp )?,
           RenderCommand::SetMeshBatchParams( mp ) => self.cmd_set_mesh_batch_params( mp )?,
-          RenderCommand::UnbindBatch( _ ) => self.cmd_unbind_batch(),
+          RenderCommand::UnbindBatch( _ ) => self.cmd_unbind_batch()?,
           RenderCommand::DrawBatch( db ) => self.cmd_draw_batch( *db, viewport )?,
           RenderCommand::DeleteBatch( db ) => self.cmd_delete_batch( *db ),
           // Opaque/transparent pass split: the scene renderer disables depth

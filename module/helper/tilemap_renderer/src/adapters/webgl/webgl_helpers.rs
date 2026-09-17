@@ -7,7 +7,6 @@
 mod private
 {
   use core::cell::Cell;
-  use core::marker::PhantomData;
   use core::sync::atomic::{ AtomicBool, Ordering };
   use minwebgl as gl;
   use nohash_hasher::IntMap;
@@ -16,55 +15,171 @@ mod private
   use crate::types::{ asset, Batch, BlendMode, ResourceId, SamplerFilter, MipmapMode, Topology, WrapMode };
 
   // ============================================================================
+  // StagedVec — CPU staging for ArrayBuffer
+  // ============================================================================
+
+  /// What an [`ArrayBuffer`] must send to the GPU to catch up with its staged
+  /// contents — see [`StagedVec::take_upload`].
+  #[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
+  pub enum StagedUpload
+  {
+    /// The GPU copy is current.
+    None,
+    /// The contents outgrew the GPU buffer: reallocate it to `capacity` elements
+    /// and upload every element.
+    Realloc
+    {
+      /// New GPU capacity, in elements.
+      capacity : u32,
+    },
+    /// Upload elements `start..end` into the existing buffer.
+    Range
+    {
+      /// First element to upload.
+      start : u32,
+      /// One past the last element to upload.
+      end : u32,
+    },
+  }
+
+  /// The authoritative CPU copy of an [`ArrayBuffer`]'s elements plus the part
+  /// the GPU copy is missing. Kept GL-free so the bookkeeping is unit-testable.
+  ///
+  /// Every mutation only touches the `Vec` and widens one dirty range;
+  /// [`Self::take_upload`] then reports a single upload covering everything
+  /// changed since the last call. Batching this way turns N instance writes into
+  /// one `bufferSubData` instead of N bind/upload/unbind triples.
+  #[ derive( Debug ) ]
+  pub struct StagedVec< T >
+  {
+    items : Vec< T >,
+    /// Capacity of the GPU buffer, in elements.
+    gpu_capacity : u32,
+    /// Half-open element range changed since the last upload.
+    dirty : Option< ( u32, u32 ) >,
+  }
+
+  impl< T : Copy > StagedVec< T >
+  {
+    /// An empty staging area for a GPU buffer holding `gpu_capacity` elements.
+    #[ must_use ]
+    pub fn new( gpu_capacity : u32 ) -> Self
+    {
+      Self { items : Vec::new(), gpu_capacity, dirty : None }
+    }
+
+    /// Number of staged elements.
+    #[ must_use ]
+    pub fn len( &self ) -> u32
+    {
+      u32::try_from( self.items.len() ).unwrap_or( u32::MAX )
+    }
+
+    /// Whether no elements are staged.
+    #[ must_use ]
+    pub fn is_empty( &self ) -> bool { self.items.is_empty() }
+
+    /// The staged elements.
+    #[ must_use ]
+    pub fn items( &self ) -> &[ T ] { &self.items }
+
+    /// Appends `value`.
+    pub fn push( &mut self, value : T )
+    {
+      self.items.push( value );
+      self.mark( self.len() - 1 );
+    }
+
+    /// Replaces the element at `index`.
+    ///
+    /// # Panics
+    /// Panics if `index >= len`.
+    pub fn set( &mut self, index : u32, value : T )
+    {
+      assert!( index < self.len(), "StagedVec::set index out of bounds" );
+      self.items[ index as usize ] = value;
+      self.mark( index );
+    }
+
+    /// Removes the element at `index` by moving the last element into it.
+    /// Returns the new length.
+    ///
+    /// # Panics
+    /// Panics if `index >= len`.
+    pub fn swap_remove( &mut self, index : u32 ) -> u32
+    {
+      assert!( index < self.len(), "StagedVec::swap_remove index out of bounds" );
+      self.items.swap_remove( index as usize );
+      if index < self.len() { self.mark( index ); }
+      self.len()
+    }
+
+    /// The upload that brings the GPU copy up to date, and records it as done.
+    /// Removing from the tail needs no upload: the GPU just draws fewer elements.
+    pub fn take_upload( &mut self ) -> StagedUpload
+    {
+      let len = self.len();
+      let dirty = self.dirty.take();
+      if len > self.gpu_capacity
+      {
+        // Headroom both ways: at least double (steady growth) and at least 1.5×
+        // the new length (a big jump), so the next few pushes don't realloc again.
+        self.gpu_capacity = self.gpu_capacity.saturating_mul( 2 )
+          .max( len.saturating_add( len / 2 ) )
+          .max( 4 );
+        return StagedUpload::Realloc { capacity : self.gpu_capacity };
+      }
+      match dirty
+      {
+        Some( ( start, end ) ) if start < end.min( len ) => StagedUpload::Range { start, end : end.min( len ) },
+        _ => StagedUpload::None,
+      }
+    }
+
+    fn mark( &mut self, index : u32 )
+    {
+      let ( start, end ) = self.dirty.unwrap_or( ( index, index + 1 ) );
+      self.dirty = Some( ( start.min( index ), end.max( index + 1 ) ) );
+    }
+  }
+
+  // ============================================================================
   // ArrayBuffer — GPU-side Vec<T>
   // ============================================================================
 
   /// GPU array buffer with `Vec`-like semantics.
   ///
-  /// Stores elements of type `T` in a WebGL `ARRAY_BUFFER`.
-  /// Tracks length and capacity; grows by 2× when full using
-  /// `copy_buffer_sub_data` (GPU-to-GPU copy into a freshly allocated buffer).
-  /// `swap_remove` uses a persistent one-element scratch buffer as an intermediary
-  /// to avoid the WebGL2 spec violation of binding the same buffer to both
-  /// `COPY_READ_BUFFER` and `COPY_WRITE_BUFFER` simultaneously.
+  /// Stores elements of type `T` in a WebGL `ARRAY_BUFFER`. Mutations
+  /// (`push` / `set` / `swap_remove`) are staged on the CPU ([`StagedVec`]) and
+  /// reach the GPU only on [`Self::flush`] — one `bufferSubData` over the changed
+  /// range, or one reallocation + full upload when the contents outgrew the
+  /// buffer. The buffer object itself never changes, so a VAO bound to it stays
+  /// valid. Draw with [`Self::gpu_len`], not [`Self::len`]: unflushed elements
+  /// are not on the GPU yet.
   pub struct ArrayBuffer< T >
   {
     gl : gl::GL,
     buffer : web_sys::WebGlBuffer,
-    /// One-element scratch buffer used by `swap_remove` as a GPU-side intermediary.
-    scratch : web_sys::WebGlBuffer,
-    len : u32,
-    capacity : u32,
-    _marker : PhantomData< T >,
+    staged : StagedVec< T >,
+    /// Elements present on the GPU as of the last flush.
+    gpu_len : u32,
   }
 
-  impl< T : gl::AsBytes > ArrayBuffer< T >
+  impl< T : bytemuck::Pod > ArrayBuffer< T >
   {
     /// Creates a new GPU array buffer with the given initial capacity (in elements).
     ///
-    /// Allocates two GPU buffers: the main data buffer (`capacity * stride` bytes)
-    /// and a one-element scratch buffer (`stride` bytes) used by `swap_remove`.
-    ///
     /// # Errors
-    /// Returns `WebglError` if any GPU buffer cannot be created, or if
+    /// Returns `WebglError` if the GPU buffer cannot be created, or if
     /// `capacity * stride` overflows `i32` (WebGL buffer size limit).
     pub fn new( gl : &gl::GL, capacity : u32 ) -> Result< Self, gl::WebglError >
     {
       let buffer = gl::buffer::create( gl )?;
-      let byte_size = capacity
-        .checked_mul( Self::stride() )
-        .and_then( | n | i32::try_from( n ).ok() )
-        .ok_or( gl::WebglError::FailedToAllocateResource( "Buffer" ) )?;
+      let byte_size = Self::byte_size( capacity )?;
       gl.bind_buffer( gl::ARRAY_BUFFER, Some( &buffer ) );
       gl.buffer_data_with_i32( gl::ARRAY_BUFFER, byte_size, gl::DYNAMIC_DRAW );
       gl.bind_buffer( gl::ARRAY_BUFFER, None );
-
-      let scratch = gl::buffer::create( gl )?;
-      gl.bind_buffer( gl::ARRAY_BUFFER, Some( &scratch ) );
-      gl.buffer_data_with_i32( gl::ARRAY_BUFFER, Self::stride() as i32, gl::DYNAMIC_DRAW );
-      gl.bind_buffer( gl::ARRAY_BUFFER, None );
-
-      Ok( Self { gl : gl.clone(), buffer, scratch, len : 0, capacity, _marker : PhantomData } )
+      Ok( Self { gl : gl.clone(), buffer, staged : StagedVec::new( capacity ), gpu_len : 0 } )
     }
 
     /// Byte size of one element.
@@ -73,129 +188,89 @@ mod private
       core::mem::size_of::< T >() as u32
     }
 
-    /// Number of elements currently stored.
-    #[ must_use ]
-    pub fn len( &self ) -> u32 { self.len }
+    /// Bytes for `count` elements, as the `i32` WebGL takes.
+    fn byte_size( count : u32 ) -> Result< i32, gl::WebglError >
+    {
+      count
+        .checked_mul( Self::stride() )
+        .and_then( | n | i32::try_from( n ).ok() )
+        .ok_or( gl::WebglError::FailedToAllocateResource( "Buffer" ) )
+    }
 
-    /// Whether the buffer is empty.
+    /// Number of staged elements (including any not yet flushed).
     #[ must_use ]
-    pub fn is_empty( &self ) -> bool { self.len == 0 }
+    pub fn len( &self ) -> u32 { self.staged.len() }
+
+    /// Whether no elements are staged.
+    #[ must_use ]
+    pub fn is_empty( &self ) -> bool { self.staged.is_empty() }
+
+    /// Number of elements on the GPU as of the last [`Self::flush`] — the count
+    /// to draw.
+    #[ must_use ]
+    pub fn gpu_len( &self ) -> u32 { self.gpu_len }
 
     /// Returns a reference to the underlying `WebGlBuffer`.
     #[ must_use ]
     pub fn buffer( &self ) -> &web_sys::WebGlBuffer { &self.buffer }
 
-    /// Appends an element at the end, growing if necessary.
+    /// Appends an element at the end (staged until [`Self::flush`]).
     ///
     /// # Errors
-    /// Returns `WebglError` if the GPU buffer needs to grow and allocation fails.
+    /// Never fails today; kept fallible for callers written against the
+    /// immediate-upload version, whose growth could fail to allocate.
     pub fn push( &mut self, value : &T ) -> Result< (), gl::WebglError >
     {
-      if self.len >= self.capacity
-      {
-        self.grow()?;
-      }
-      let offset = self.len * Self::stride();
-      self.gl.bind_buffer( gl::ARRAY_BUFFER, Some( &self.buffer ) );
-      self.gl.buffer_sub_data_with_i32_and_u8_array( gl::ARRAY_BUFFER, offset as i32, value.as_bytes() );
-      self.gl.bind_buffer( gl::ARRAY_BUFFER, None );
-      self.len += 1;
+      self.staged.push( *value );
       Ok( () )
     }
 
-    /// Updates the element at `index` in-place.
+    /// Updates the element at `index` (staged until [`Self::flush`]).
     ///
     /// # Panics
     /// Panics if `index >= len`.
-    pub fn set( &self, index : u32, value : &T )
+    pub fn set( &mut self, index : u32, value : &T )
     {
-      assert!( index < self.len, "ArrayBuffer::set index out of bounds" );
-      let offset = index * Self::stride();
-      self.gl.bind_buffer( gl::ARRAY_BUFFER, Some( &self.buffer ) );
-      self.gl.buffer_sub_data_with_i32_and_u8_array( gl::ARRAY_BUFFER, offset as i32, value.as_bytes() );
-      self.gl.bind_buffer( gl::ARRAY_BUFFER, None );
+      self.staged.set( index, *value );
     }
 
-    /// Removes the element at `index` by swapping with the last element.
-    /// Returns the new length.
+    /// Removes the element at `index` by swapping with the last element (staged
+    /// until [`Self::flush`]). Returns the new length.
     ///
     /// # Panics
     /// Panics if `index >= len`.
     pub fn swap_remove( &mut self, index : u32 ) -> u32
     {
-      assert!( index < self.len, "ArrayBuffer::swap_remove index out of bounds" );
-      self.len -= 1;
-      if index < self.len
-      {
-        let stride = Self::stride() as i32;
-        let src_offset = self.len as i32 * stride;
-        let dst_offset = index as i32 * stride;
-
-        // Binding the same buffer to both COPY_READ_BUFFER and COPY_WRITE_BUFFER is a
-        // WebGL2 spec violation (INVALID_OPERATION). Use a persistent one-element scratch
-        // buffer as an intermediary: last → scratch → removed slot. Both copies use
-        // distinct buffer objects, so the spec is satisfied and the copies are GPU-only.
-        self.gl.bind_buffer( gl::COPY_READ_BUFFER, Some( &self.buffer ) );
-        self.gl.bind_buffer( gl::COPY_WRITE_BUFFER, Some( &self.scratch ) );
-        self.gl.copy_buffer_sub_data_with_i32_and_i32_and_i32
-        (
-          gl::COPY_READ_BUFFER,
-          gl::COPY_WRITE_BUFFER,
-          src_offset,
-          0,
-          stride,
-        );
-        self.gl.bind_buffer( gl::COPY_READ_BUFFER, Some( &self.scratch ) );
-        self.gl.bind_buffer( gl::COPY_WRITE_BUFFER, Some( &self.buffer ) );
-        self.gl.copy_buffer_sub_data_with_i32_and_i32_and_i32
-        (
-          gl::COPY_READ_BUFFER,
-          gl::COPY_WRITE_BUFFER,
-          0,
-          dst_offset,
-          stride,
-        );
-        self.gl.bind_buffer( gl::COPY_READ_BUFFER, None );
-        self.gl.bind_buffer( gl::COPY_WRITE_BUFFER, None );
-      }
-      self.len
+      self.staged.swap_remove( index )
     }
 
-    /// Doubles the capacity, copying old data GPU-to-GPU.
-    fn grow( &mut self ) -> Result< (), gl::WebglError >
+    /// Upload everything staged since the last flush in one GL write.
+    ///
+    /// # Errors
+    /// Returns `WebglError` if the grown buffer size overflows the WebGL limit.
+    pub fn flush( &mut self ) -> Result< (), gl::WebglError >
     {
-      // saturating_mul avoids wrapping; the byte_size check below catches any overflow.
-      let new_capacity = self.capacity.saturating_mul( 2 ).max( 4 );
-      let new_byte_size = new_capacity
-        .checked_mul( Self::stride() )
-        .and_then( | n | i32::try_from( n ).ok() )
-        .ok_or( gl::WebglError::FailedToAllocateResource( "Buffer" ) )?;
-
-      let new_buffer = gl::buffer::create( &self.gl )?;
-      self.gl.bind_buffer( gl::ARRAY_BUFFER, Some( &new_buffer ) );
-      self.gl.buffer_data_with_i32( gl::ARRAY_BUFFER, new_byte_size, gl::DYNAMIC_DRAW );
-      self.gl.bind_buffer( gl::ARRAY_BUFFER, None );
-
-      if self.len > 0
+      let stride = Self::stride();
+      match self.staged.take_upload()
       {
-        let copy_bytes = self.len * Self::stride();
-        self.gl.bind_buffer( gl::COPY_READ_BUFFER, Some( &self.buffer ) );
-        self.gl.bind_buffer( gl::COPY_WRITE_BUFFER, Some( &new_buffer ) );
-        self.gl.copy_buffer_sub_data_with_i32_and_i32_and_i32
-        (
-          gl::COPY_READ_BUFFER,
-          gl::COPY_WRITE_BUFFER,
-          0,
-          0,
-          copy_bytes as i32,
-        );
-        self.gl.bind_buffer( gl::COPY_READ_BUFFER, None );
-        self.gl.bind_buffer( gl::COPY_WRITE_BUFFER, None );
+        StagedUpload::None => {},
+        StagedUpload::Realloc { capacity } =>
+        {
+          let byte_size = Self::byte_size( capacity )?;
+          self.gl.bind_buffer( gl::ARRAY_BUFFER, Some( &self.buffer ) );
+          self.gl.buffer_data_with_i32( gl::ARRAY_BUFFER, byte_size, gl::DYNAMIC_DRAW );
+          self.gl.buffer_sub_data_with_i32_and_u8_array( gl::ARRAY_BUFFER, 0, bytemuck::cast_slice( self.staged.items() ) );
+          self.gl.bind_buffer( gl::ARRAY_BUFFER, None );
+        },
+        StagedUpload::Range { start, end } =>
+        {
+          let bytes : &[ u8 ] = bytemuck::cast_slice( &self.staged.items()[ start as usize..end as usize ] );
+          self.gl.bind_buffer( gl::ARRAY_BUFFER, Some( &self.buffer ) );
+          self.gl.buffer_sub_data_with_i32_and_u8_array( gl::ARRAY_BUFFER, ( start * stride ) as i32, bytes );
+          self.gl.bind_buffer( gl::ARRAY_BUFFER, None );
+        },
       }
-
-      self.gl.delete_buffer( Some( &self.buffer ) );
-      self.buffer = new_buffer;
-      self.capacity = new_capacity;
+      self.gpu_len = self.staged.len();
       Ok( () )
     }
   }
@@ -205,7 +280,6 @@ mod private
     fn drop( &mut self )
     {
       self.gl.delete_buffer( Some( &self.buffer ) );
-      self.gl.delete_buffer( Some( &self.scratch ) );
     }
   }
 
@@ -843,9 +917,74 @@ mod private
   }
 }
 
+#[ cfg( test ) ]
+mod staged_vec_tests
+{
+  use super::private::{ StagedUpload, StagedVec };
+
+  #[ test ]
+  fn pushes_within_capacity_upload_one_range()
+  {
+    let mut v = StagedVec::new( 16 );
+    for i in 0..10_u32 { v.push( i ); }
+    assert_eq!( v.take_upload(), StagedUpload::Range { start : 0, end : 10 } );
+    assert_eq!( v.take_upload(), StagedUpload::None, "an upload is recorded as done" );
+  }
+
+  #[ test ]
+  fn growth_past_capacity_reallocates_once()
+  {
+    let mut v = StagedVec::new( 16 );
+    for i in 0..40_u32 { v.push( i ); }
+    assert_eq!( v.take_upload(), StagedUpload::Realloc { capacity : 60 } );
+    v.push( 40 );
+    assert_eq!( v.take_upload(), StagedUpload::Range { start : 40, end : 41 }, "fits after the realloc" );
+    for i in 0..40_u32 { v.push( i ); }
+    assert_eq!( v.take_upload(), StagedUpload::Realloc { capacity : 121 } );
+  }
+
+  #[ test ]
+  fn sets_and_removes_merge_into_one_range()
+  {
+    let mut v = StagedVec::new( 8 );
+    for i in 0..8_u32 { v.push( i ); }
+    let _ = v.take_upload();
+    v.set( 5, 50 );
+    v.set( 2, 20 );
+    assert_eq!( v.swap_remove( 3 ), 7 );
+    assert_eq!( v.items(), &[ 0, 1, 20, 7, 4, 50, 6 ] );
+    assert_eq!( v.take_upload(), StagedUpload::Range { start : 2, end : 6 } );
+  }
+
+  #[ test ]
+  fn tail_removes_need_no_upload()
+  {
+    let mut v = StagedVec::new( 8 );
+    for i in 0..8_u32 { v.push( i ); }
+    let _ = v.take_upload();
+    v.swap_remove( 7 );
+    v.swap_remove( 6 );
+    assert_eq!( v.take_upload(), StagedUpload::None );
+    assert_eq!( v.len(), 6 );
+  }
+
+  #[ test ]
+  fn a_set_then_truncate_below_it_uploads_nothing()
+  {
+    let mut v = StagedVec::new( 8 );
+    for i in 0..8_u32 { v.push( i ); }
+    let _ = v.take_upload();
+    v.set( 7, 70 );
+    v.swap_remove( 7 );
+    assert_eq!( v.take_upload(), StagedUpload::None );
+  }
+}
+
 mod_interface::mod_interface!
 {
   own use ArrayBuffer;
+  own use StagedUpload;
+  own use StagedVec;
   own use SpriteInstanceData;
   own use MeshInstanceData;
   own use GpuResources;
