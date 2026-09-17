@@ -381,6 +381,16 @@ mod private
     #[ must_use ]
     pub fn assets( &self ) -> &Assets { &self.compiled.assets }
 
+    /// Backend image handle of the spec asset `asset_id`, or `None` if the spec
+    /// declares no such asset. Lets a host draw a loaded image directly (e.g. a
+    /// tiled backdrop via the WebGL backend's `draw_image_tiled`).
+    #[ inline ]
+    #[ must_use ]
+    pub fn image_id( &self, asset_id : &str ) -> Option< ResourceId< asset::Image > >
+    {
+      self.compiled.ids.image( asset_id )
+    }
+
     /// Produce the per-frame command stream for `scene` viewed through
     /// `camera`. Returns a borrow of the internal buffer — valid until
     /// the next call to [`Renderer::render`]. Submit the slice to a

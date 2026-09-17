@@ -671,6 +671,56 @@ mod private
       self.sprite.draw( &self.gl, &mat, &region, [ tw, th ], &tint, viewport, 0.0, self.config.max_depth );
     }
 
+    /// Draw `image` repeated over the world rectangle `[ min, max ]` as ONE quad,
+    /// one copy per `tile_size` world pixels, with a copy's top-left corner at
+    /// `tile_top_left` (any copy — only its position modulo `tile_size` matters),
+    /// multiplied by `tint`, through the current camera at depth 0. A whole
+    /// tiled backdrop then costs one draw call and one layer of fill instead of an
+    /// instanced sprite per tile. The image must be loaded with
+    /// `WrapMode::Repeat`, otherwise the texture edge smears across the rect.
+    /// No-op if `image` is unknown or not loaded yet.
+    pub fn draw_image_tiled
+    (
+      &self,
+      image : ResourceId< asset::Image >,
+      min : [ f32; 2 ],
+      max : [ f32; 2 ],
+      tile_top_left : [ f32; 2 ],
+      tile_size : [ f32; 2 ],
+      tint : [ f32; 4 ],
+    )
+    {
+      let res = self.resources.borrow();
+      let Some( tex ) = res.texture( image ) else { return; };
+      let ( tw, th ) = ( tex.width.get() as f32, tex.height.get() as f32 );
+      let ( w, h ) = ( max[ 0 ] - min[ 0 ], max[ 1 ] - min[ 1 ] );
+      if tw == 0.0 || th == 0.0 || w <= 0.0 || h <= 0.0 || tile_size[ 0 ] <= 0.0 || tile_size[ 1 ] <= 0.0 { return; }
+
+      // The sprite shader samples `uv = region / tex_size` with image rows running
+      // top-down and draws the unit quad scaled to `region.zw`. A region larger
+      // than the texture therefore repeats it. `region.xy` is where the rect's
+      // top-left corner falls inside a tile, in texels — taken modulo one tile so
+      // the numbers stay small (and precise) far from the world origin.
+      let tiles_x = ( min[ 0 ] - tile_top_left[ 0 ] ) / tile_size[ 0 ];
+      let tiles_y = ( tile_top_left[ 1 ] - max[ 1 ] ) / tile_size[ 1 ];
+      let region =
+      [
+        tiles_x.rem_euclid( 1.0 ) * tw,
+        tiles_y.rem_euclid( 1.0 ) * th,
+        w / tile_size[ 0 ] * tw,
+        h / tile_size[ 1 ] * th,
+      ];
+      // Scale the region-sized quad back onto the world rect.
+      let world_mat = [ w / region[ 2 ], 0.0, 0.0, 0.0, h / region[ 3 ], 0.0, min[ 0 ], min[ 1 ], 1.0 ];
+      let mat = mat3_mul( &self.camera, &world_mat );
+
+      self.gl.active_texture( gl::TEXTURE0 );
+      self.gl.bind_texture( gl::TEXTURE_2D, Some( &tex.texture ) );
+      blend_apply( &self.gl, &BlendMode::Normal, tex.premultiplied );
+      let viewport = self.viewport_size();
+      self.sprite.draw( &self.gl, &mat, &region, [ tw, th ], &tint, viewport, 0.0, self.config.max_depth );
+    }
+
     // ---- Command handlers ----
     //
     // Contract for batch-targeting commands (cmd_add_*_instance, cmd_set_*_instance,
