@@ -1,0 +1,73 @@
+[package]
+name = "deterministic_math"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.81.0"
+authors = ["Kostiantyn Mysnyk <wandalen@obox.systems>"]
+license = "MIT"
+repository = "https://github.com/Wandalen/cgtools"
+homepage = "https://github.com/Wandalen/cgtools/tree/master/module/math/deterministic_math"
+documentation = "https://docs.rs/deterministic_math"
+readme = "readme.md"
+description = "Bit-reproducible transcendental functions built only from the six operations IEEE-754 requires to be correctly rounded"
+keywords = ["determinism", "reproducible", "math", "libm", "lockstep"]
+categories = ["mathematics", "no-std", "science", "game-development"]
+include = [
+    "src/**/*",
+    "tests/**/*",
+    "examples/**/*",
+    "Cargo.toml",
+    "readme.md",
+    "license*",
+    "changelog*",
+]
+
+[lints]
+workspace = true
+
+# This crate has no dependencies, and that is its entire reason for existing
+# rather than remaining a module inside `ndarray_cg` — see
+# `docs/invariant/003_zero_dependencies.md`, including why `mod_interface` is
+# not used here. The `enabled` / `default` / `full` triple is kept for
+# uniformity with the rest of the workspace, where feature unification refers
+# to it by name; here every one of them is empty by construction.
+[features]
+enabled = []
+
+# Exposes `internal`, the reduction steps, series and coefficient tables that
+# `tests/inc/internal_test.rs` checks directly. Off by default and never needed
+# by a dependent: with it off the crate exports exactly the 28 functions, 7
+# constants and `measure::ulp_diff` that `docs/api/001_function_surface.md`
+# documents. It exists because tests live in `tests/`, which is a separate
+# crate and so cannot reach a private item the way an inline `mod tests` could.
+test_internals = []
+
+default = [
+  "enabled",
+]
+full = [
+  "default",
+]
+
+[dependencies]
+
+[dev-dependencies]
+
+# Metadata for crates.io
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+default-target = "x86_64-unknown-linux-gnu"
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc",
+    "x86_64-apple-darwin",
+    "wasm32-unknown-unknown",
+]
+
+# Cargo.toml maintenance metadata
+[package.metadata.release]
+pre-release-replacements = [
+    { file = "readme.md", search = "deterministic_math = \"[0-9.]+\"", replace = "deterministic_math = \"{{version}}\"" },
+    { file = "changelog.md", search = "## Unreleased", replace = "## Unreleased\n\n## {{version}} - {{date}}" },
+]

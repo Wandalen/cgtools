@@ -3,29 +3,15 @@
 // Quick Start drift then fails `cargo test --doc` instead of rotting silently (TASK-020).
 #![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
 
-mod private
-{
-  // This crate's `--lib` unit-test binary had no wasm-gated `#[cfg(test)]` code at all until
-  // the inline reproducer tests added for BUG-432/433/434/435/436/437/438/439/440 ( scattered
-  // across several `src/webgl/**` files, each nested inside its own `mod private` for
-  // private-field access — see `rulebook.md § Test placement` ). Without this call, that one
-  // compiled test binary defaults to running in Node.js, where `web_sys::window()` is always
-  // `None` — same failure class as BUG-110 ( `tests/geometry_tests.rs` ), just surfacing here
-  // for the first time because this binary never carried any wasm-gated test before.
-  //
-  // Root cause: `wasm_bindgen_test_configure!( run_in_browser )` must be linked into a test
-  // binary at least once for that whole binary to run in a browser instead of Node — every
-  // external `tests/*.rs` suite in this crate already carries its own copy ( each is a
-  // separate binary ), but `src/lib.rs`'s own `--lib` binary never needed one before now.
-  //
-  // Pitfall: a missing `run_in_browser` config doesn't fail to compile — it fails at runtime
-  // with an unrelated-looking `CanvasRetrievingError("Failed to get window")` on every single
-  // test in the binary, which reads like a `minwebgl`/`mingl` regression rather than the
-  // harness's own misconfiguration. One call anywhere in the binary's compiled `#[cfg(test)]`
-  // code is enough to cover every `mod tests` block nested under `src/webgl/**`.
-  #[ cfg( all( test, target_arch = "wasm32" ) ) ]
-  wasm_bindgen_test::wasm_bindgen_test_configure!( run_in_browser );
-}
+// Empty, but required: `mod_interface!` below resolves its own generated paths
+// through a `private` module in every file that invokes it. This one briefly
+// held a `wasm_bindgen_test_configure!( run_in_browser )` call, needed because
+// the BUG-432..440 reproducers were inline `#[cfg(test)]` blocks under
+// `src/webgl/**` and so compiled into this crate's `--lib` test binary, which
+// defaults to Node where `web_sys::window()` is always `None`. Those tests now
+// live in `tests/webgl/*_gl_lifecycle.rs`, whose binary carries its own call,
+// so nothing wasm-gated compiles into `--lib` any more.
+mod private {}
 
 ::mod_interface::mod_interface!
 {

@@ -20,6 +20,12 @@ include = [
   "changelog*",
 ]
 
+[features]
+# Exposes crate-private items to `tests/`, which is a separate crate and so
+# cannot reach them otherwise. Off by default: nothing a dependent builds
+# changes, and every item behind it is `#[ doc( hidden ) ]`.
+test_internals = []
+
 [lints]
 workspace = true
 
