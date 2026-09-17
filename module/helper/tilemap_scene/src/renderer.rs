@@ -439,7 +439,9 @@ mod private
         return Ok( &self.cmd_buf );
       }
 
-      let emits = gather_frame_emits( &self.compiled, scene, camera, Some( &mut self.vertex_cache ) )?;
+      // Disabled layers are skipped already at gather time — their vertex
+      // resolve is the most expensive part of a miss, and nothing emits them.
+      let emits = gather_frame_emits( &self.compiled, scene, camera, Some( &mut self.vertex_cache ), self.disabled_buckets )?;
 
       self.cmd_buf.clear();
       self.cmd_buf.push( RenderCommand::Clear( Clear { color : emits.clear_color } ) );

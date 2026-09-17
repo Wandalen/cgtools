@@ -54,7 +54,7 @@ pipeline is exercised only by this crate's own tests.
 **Other infrastructure**
 
 - `Camera` with translate + uniform zoom; `viewport_size` source precedence `pipeline.viewport_size` → `camera.viewport_size`. `Camera::to_view_mat3` exposes the world→screen projection as a column-major 3×3 so a GPU backend applies it once per frame — world-space draws emit at unit scale in world coordinates, making a pan/zoom a single view-matrix change instead of a per-sprite re-projection (and, for a pan, an idle-replay cache hit)
-- `Renderer::set_disabled_buckets(mask: u64)` — diagnostic / perf layer gate; bit `i` skips the `i`-th `pipeline.layers` bucket (its live batches are released, depth pinning still divides by the full count so the others' depths don't shift). Changing the mask invalidates the idle-replay cache
+- `Renderer::set_disabled_buckets(mask: u64)` — diagnostic / perf layer gate; bit `i` skips the `i`-th `pipeline.layers` bucket (its live batches are released, depth pinning still divides by the full count so the others' depths don't shift). A skipped bucket is not gathered at all — its `VertexCorners` resolve included — and the vertex-resolve cache is keyed on the mask as well as the scene revision. Changing the mask invalidates the idle-replay cache
 - `Renderer::set_batch_id_base(base: u32)` — offsets `ResourceId<Batch>` allocation so several renderers can share one backend without batch-id collisions (e.g. main / static-bake / region-bake). Must be called before the first `render()`
 - `Scene.seed: Option<u64>` — folds to `u32` salt for `coord_hash`; deterministic across frames
 - `FrameSpec::anchor` — per-frame pixel anchor, overrides `Object.pivot` when set; threaded via `CompiledAssets.sprite_anchors`

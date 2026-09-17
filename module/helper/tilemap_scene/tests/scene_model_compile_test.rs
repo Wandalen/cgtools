@@ -1478,12 +1478,13 @@ fn neighbor_condition_priority_lower_blends_grass_over_sand()
   assert!( !sprite_ids.contains( &sand_edge_n ), "sand_edge_n should NOT emit — sand has lower priority" );
 }
 
-#[ test ]
-#[ expect( clippy::too_many_lines, reason = "linear fixture-build, compile, assert scenario; splitting would scatter the scenario steps across helpers" ) ]
-fn vertex_corners_three_way_blend()
+/// Spec + scene for a single dual-mesh vertex blend: grass at (0,0), sand at
+/// (1,-1), water at (0,-1) share exactly one triangle, which a `blend`
+/// `VertexCorners` object on the `terrain` layer turns into a `tri_gsw_{rot}`
+/// sprite.
+#[ expect( clippy::too_many_lines, reason = "linear fixture build; splitting would scatter one spec across helpers" ) ]
+fn three_way_blend_fixture() -> ( RenderSpec, SceneSnapshot )
 {
-  // Three tiles surrounding a vertex: grass at (0,0), sand at (1,-1), water at (0,-1).
-  // These three hexes share exactly one dual-mesh triangle (by construction).
   let mut spec = minimal_spec();
   spec.assets.push
   (
@@ -1603,21 +1604,47 @@ fn vertex_corners_three_way_blend()
     ],
     ..minimal_scene_3x3()
   };
-  let compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
-  let cmds = at_time_compile( &spec, &scene, &Camera::default(), 0.0 );
+  ( spec, scene )
+}
 
+/// Whether `cmds` contains any rotation of [`three_way_blend_fixture`]'s blend sprite.
+fn has_three_way_blend( spec : &RenderSpec, cmds : &[ RenderCommand ] ) -> bool
+{
+  let compiled = assets_compile( spec, &PathResolver ).expect( "assets" );
   let sprite_ids : std::collections::HashSet< _ > = cmds.iter().filter_map( | c |
-    if let tilemap_renderer::commands::RenderCommand::Sprite( s ) = c { Some( s.sprite ) } else { None }
+    if let RenderCommand::Sprite( s ) = c { Some( s.sprite ) } else { None }
   ).collect();
+  ( 0..3 ).any( | r |
+    compiled.ids.sprite( "blends", &format!( "tri_gsw_{r}" ) ).is_some_and( | id | sprite_ids.contains( &id ) )
+  )
+}
 
-  // The triangle surrounding the shared vertex should have produced a
-  // tri_gsw_<rot> sprite for some rotation in 0..3.
-  let any_rot_emitted = ( 0..3 ).any( | r |
-  {
-    let id = compiled.ids.sprite( "blends", &format!( "tri_gsw_{r}" ) );
-    id.is_some() && sprite_ids.contains( &id.unwrap() )
-  });
-  assert!( any_rot_emitted, "expected any rotation of tri_gsw to emit; sprite_ids = {sprite_ids:?}" );
+#[ test ]
+fn vertex_corners_three_way_blend()
+{
+  let ( spec, scene ) = three_way_blend_fixture();
+  let cmds = at_time_compile( &spec, &scene, &Camera::default(), 0.0 );
+  assert!( has_three_way_blend( &spec, &cmds ), "expected any rotation of tri_gsw to emit" );
+}
+
+/// A disabled layer is skipped at gather time — its vertex resolve included — so
+/// re-enabling it on an UNCHANGED scene (same revision) must re-resolve rather
+/// than reuse the empty result cached while it was off.
+#[ test ]
+fn vertex_corners_reappear_when_a_disabled_layer_is_re_enabled()
+{
+  let ( spec, snap ) = three_way_blend_fixture();
+  let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
+  let scene = Scene::from_snapshot( &snap, Arc::new( spec.clone() ) ).expect( "scene" );
+  let terrain = spec.pipeline.layers.iter().position( | l | l.id == "terrain" ).expect( "terrain layer" );
+
+  renderer.set_disabled_buckets( 1 << terrain );
+  let off = common::commands_to_sprites( renderer.render( &scene, &Camera::default() ).expect( "render" ) );
+  assert!( !has_three_way_blend( &spec, &off ), "a disabled layer emits nothing" );
+
+  renderer.set_disabled_buckets( 0 );
+  let on = common::commands_to_sprites( renderer.render( &scene, &Camera::default() ).expect( "render" ) );
+  assert!( has_three_way_blend( &spec, &on ), "re-enabled layer must re-resolve its vertex sprites" );
 }
 
 #[ test ]

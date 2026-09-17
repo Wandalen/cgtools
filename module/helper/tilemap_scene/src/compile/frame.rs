@@ -306,10 +306,16 @@ mod private
   /// triangle enumeration and corner-pixel projection happened once per bucket
   /// before (terrain + every player region + selection + attack overlays);
   /// now they happen once total.
+  ///
+  /// Buckets whose bit is set in `skip` (bit `i` = pipeline layer `i`) are left
+  /// empty: a renderer that will not draw a layer should not pay to resolve it.
+  /// Each layer's resolve reads only the scene tiles (`corners_resolve`), never
+  /// another layer's output, so skipping one cannot change the others.
   fn resolve_vertex_pass_all
   (
     tiles : &[ Tile ],
     ctx : &FrameContext< '_ >,
+    skip : u64,
   ) -> Result< Vec< Vec< ResolvedVertexSprite > >, CompileError >
   {
     let pipeline_layers = &ctx.spec.pipeline.layers;
@@ -330,6 +336,7 @@ mod private
         }
         let effective = layer.pipeline_layer.as_deref().unwrap_or( object.global_layer.as_str() );
         if let Some( bi ) = pipeline_layers.iter().position( | b | b.id == effective )
+          && !bucket_skipped( skip, bi )
         {
           bucket_layers[ bi ].push( ( object, layer ) );
         }
@@ -914,6 +921,9 @@ mod private
   pub struct VertexResolveCache
   {
     revision : u64,
+    /// The `skip` mask the buckets were resolved with — a different mask is a
+    /// miss even at the same revision (a re-enabled layer was never resolved).
+    skip : u64,
     valid : bool,
     buckets : Vec< Vec< ResolvedVertexSprite > >,
   }
@@ -924,7 +934,7 @@ mod private
     #[ must_use ]
     pub fn new() -> Self
     {
-      Self { revision : 0, valid : false, buckets : Vec::new() }
+      Self { revision : 0, skip : 0, valid : false, buckets : Vec::new() }
     }
   }
 
@@ -955,12 +965,17 @@ mod private
   /// unchanged — so an animating-but-idle board (clock ticking, nothing
   /// spawned/despawned) skips the whole triangle / pattern / string walk and
   /// only re-projects. Pass `None` for a one-shot uncached compile.
+  ///
+  /// `skip` masks out pipeline layers the caller will not draw (bit `i` = layer
+  /// `i`, the renderer's `disabled_buckets`): their bucket comes back empty and
+  /// neither the vertex resolve nor the per-bucket walk runs for them.
   pub fn gather_frame_emits
   (
     compiled : &CompiledAssets,
     scene : &Scene,
     camera : &Camera,
     vcache : Option< &mut VertexResolveCache >,
+    skip : u64,
   ) -> Result< FrameEmits, CompileError >
   {
     let spec = scene.spec();
@@ -1012,9 +1027,9 @@ mod private
     {
       Some( cache ) =>
       {
-        if !cache.valid || cache.revision != revision
+        if !cache.valid || cache.revision != revision || cache.skip != skip
         {
-          let mut fresh = resolve_vertex_pass_all( &synthetic_tiles, &ctx )?;
+          let mut fresh = resolve_vertex_pass_all( &synthetic_tiles, &ctx, skip )?;
           // A `restart_on_spawn` pulse (see `project_vertex_sprite`) anchors to when
           // its bucket's CONTENT last changed — not to every re-resolve. The resolve
           // reruns on any scene `revision` bump, including ones that don't touch these
@@ -1038,13 +1053,14 @@ mod private
           }
           cache.buckets = fresh;
           cache.revision = revision;
+          cache.skip = skip;
           cache.valid = true;
         }
         resolved = &cache.buckets;
       }
       None =>
       {
-        local_resolved = resolve_vertex_pass_all( &synthetic_tiles, &ctx )?;
+        local_resolved = resolve_vertex_pass_all( &synthetic_tiles, &ctx, skip )?;
         resolved = &local_resolved;
       }
     }
@@ -1053,6 +1069,19 @@ mod private
 
     for ( bucket_idx, bucket ) in spec.pipeline.layers.iter().enumerate()
     {
+      if bucket_skipped( skip, bucket_idx )
+      {
+        buckets.push( BucketEmits
+        {
+          sprites : Vec::new(),
+          screen_space : Vec::new(),
+          sort : bucket.sort,
+          alpha_clip : bucket.alpha_clip,
+          occlude_overlap : bucket.occlude_overlap,
+          opaque : bucket.opaque,
+        });
+        continue;
+      }
       let mut draws : Vec< ( f32, f32, Sprite ) > = Vec::new();
 
       for &handle in scene.hex_instances()
@@ -1148,7 +1177,7 @@ mod private
     camera : &Camera,
   ) -> Result< (), CompileError >
   {
-    let emits = gather_frame_emits( compiled, scene, camera, None )?;
+    let emits = gather_frame_emits( compiled, scene, camera, None, 0 )?;
     out.push( RenderCommand::Clear( Clear { color : emits.clear_color } ) );
     for bucket in emits.buckets
     {
@@ -1156,6 +1185,13 @@ mod private
       for s in bucket.screen_space { out.push( RenderCommand::ScreenSpaceSprite( s ) ); }
     }
     Ok( () )
+  }
+
+  /// Whether pipeline layer `index` is masked out by `skip` (bit `index`; layers
+  /// past bit 63 are never skipped, matching `Renderer::set_disabled_buckets`).
+  fn bucket_skipped( skip : u64, index : usize ) -> bool
+  {
+    index < 64 && skip & ( 1_u64 << index ) != 0
   }
 
   /// Build a synthetic `Vec<Tile>` from the scene's hex spatial index.
