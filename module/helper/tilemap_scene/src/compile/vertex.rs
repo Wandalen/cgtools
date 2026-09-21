@@ -117,8 +117,23 @@ mod private
   #[ must_use ]
   pub fn canonicalize( raw : &[ String; 3 ] ) -> ( [ String; 3 ], u8 )
   {
+    canonicalize_any( raw )
+  }
+
+  /// [`canonicalize`] over borrowed ids — same order and `rotation`, no
+  /// allocation. The hot dual-grid resolve uses this form.
+  #[ must_use ]
+  pub fn canonicalize_strs< 'a >( raw : &[ &'a str; 3 ] ) -> ( [ &'a str; 3 ], u8 )
+  {
+    canonicalize_any( raw )
+  }
+
+  /// Shared body of [`canonicalize`] / [`canonicalize_strs`]: `String` and
+  /// `&str` order identically (bytewise), so both forms sort the same way.
+  fn canonicalize_any< S : Ord + Clone >( raw : &[ S; 3 ] ) -> ( [ S; 3 ], u8 )
+  {
     // Pair each value with its original index, sort, then read out the slot.
-    let mut indexed : [ ( usize, String ); 3 ] =
+    let mut indexed : [ ( usize, S ); 3 ] =
     [
       ( 0, raw[ 0 ].clone() ),
       ( 1, raw[ 1 ].clone() ),
@@ -174,6 +189,27 @@ mod private
     canonical : &[ String; 3 ],
   ) -> Option< &'p TriBlendPattern >
   {
+    matching_pattern_find_any( patterns, canonical )
+  }
+
+  /// [`matching_pattern_find`] over a borrowed canonical triple (from
+  /// [`canonicalize_strs`]) — same resolution rules, no allocation.
+  #[ must_use ]
+  pub fn matching_pattern_find_strs< 'p >
+  (
+    patterns : &'p [ TriBlendPattern ],
+    canonical : &[ &str; 3 ],
+  ) -> Option< &'p TriBlendPattern >
+  {
+    matching_pattern_find_any( patterns, canonical )
+  }
+
+  fn matching_pattern_find_any< 'p, S : AsRef< str > >
+  (
+    patterns : &'p [ TriBlendPattern ],
+    canonical : &[ S; 3 ],
+  ) -> Option< &'p TriBlendPattern >
+  {
     let mut best : Option< &TriBlendPattern > = None;
     let mut best_specificity : i32 = -1;
     let mut best_priority : i32 = i32::MIN;
@@ -209,7 +245,7 @@ mod private
   /// the remaining (unpaired) canonical slots are absorbed by `"*"`
   /// wildcards. Positional order is ignored — the canonical is already
   /// sorted, and wildcards can live anywhere in the pattern.
-  fn pattern_matches( pattern : &TriBlendPattern, canonical : &[ String; 3 ] ) -> bool
+  fn pattern_matches< S : AsRef< str > >( pattern : &TriBlendPattern, canonical : &[ S; 3 ] ) -> bool
   {
     let pat = [ &pattern.corners.0, &pattern.corners.1, &pattern.corners.2 ];
     let mut used = [ false; 3 ];
@@ -219,7 +255,7 @@ mod private
       let mut matched = false;
       for ( i, c ) in canonical.iter().enumerate()
       {
-        if !used[ i ] && value.as_str() == c.as_str()
+        if !used[ i ] && value.as_str() == c.as_ref()
         {
           used[ i ] = true;
           matched = true;
@@ -250,5 +286,7 @@ mod_interface::mod_interface!
   exposed use triangles_enumerate;
   exposed use corners_resolve;
   exposed use canonicalize;
+  exposed use canonicalize_strs;
   exposed use matching_pattern_find;
+  exposed use matching_pattern_find_strs;
 }
