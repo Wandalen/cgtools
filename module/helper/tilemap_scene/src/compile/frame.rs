@@ -869,10 +869,11 @@ mod private
   /// the camera and of the master clock**. That is the whole point: the
   /// expensive part of the dual-grid vertex pass (triangle enumeration +
   /// per-triangle corner resolution + pattern matching + frame-name string
-  /// building) only needs to re-run when the scene's `revision` changes, not
-  /// every frame the animation clock ticks. A cache keyed on `revision`
-  /// (see [`VertexResolveCache`]) holds these; each frame they are cheaply
-  /// re-projected to screen `Sprite`s by [`project_vertex_sprite`].
+  /// building) only needs to re-run when the scene's hex cells change, not
+  /// every frame the animation clock ticks. A cache keyed on
+  /// [`Scene::tiles_revision`] (see [`VertexResolveCache`]) holds these; each
+  /// frame they are cheaply re-projected to screen `Sprite`s by
+  /// [`project_vertex_sprite`].
   ///
   /// `base_tint` is the layer's OWN resolved tint (`[1;4]` when the layer has
   /// no `Flat` tint); the scene-global tint is folded in at projection time so
@@ -896,7 +897,7 @@ mod private
     /// off [`Self::pulse_anchor`] instead of the global clock.
     alpha_pulse : Option< ( f32, f32, f32, bool ) >,
     /// Master-clock time (seconds) captured when this sprite was resolved — i.e.
-    /// at the last structural rebuild, which reruns on any spawn/despawn/move. A
+    /// at the last structural rebuild, which reruns when the hex cells change. A
     /// `restart_on_spawn` pulse uses `time_seconds - pulse_anchor` as its phase,
     /// so it restarts from `min` each time the layer's content changes.
     pulse_anchor : f32,
@@ -914,10 +915,11 @@ mod private
   ///
   /// `buckets[i]` holds the resolved triangle sprites routing into pipeline
   /// layer `i` (parallel to `spec.pipeline.layers`). Valid as long as
-  /// `revision` equals the scene's current `revision()`; any structural
-  /// mutation (spawn / despawn / move / owner change) bumps the scene
-  /// revision and forces a rebuild, while a pure clock tick (animation
-  /// advance) does not — so an idle, animating board reuses this every frame.
+  /// `revision` equals the scene's current [`Scene::tiles_revision`] — the
+  /// resolve reads nothing but which visible objects stand in which hex cells,
+  /// so a hex-placed spawn / despawn / move / visibility flip forces a rebuild,
+  /// while the clock, `FreePos` movers (boats, birds, a drag preview), state and
+  /// tint changes do not — an animating board with sailing boats reuses it.
   pub struct VertexResolveCache
   {
     revision : u64,
@@ -1026,10 +1028,10 @@ mod private
     };
 
     // Vertex pass — resolve the camera/clock-independent structural half once,
-    // reusing the cached result while the scene `revision` is unchanged. On a
+    // reusing the cached result while the scene's hex cells are unchanged. On a
     // miss (or with no cache) it is recomputed; either way the cheap per-frame
     // projection happens below, per bucket.
-    let revision = scene.revision();
+    let revision = scene.tiles_revision();
     let resolved : &[ Vec< ResolvedVertexSprite > ];
     let local_resolved;
     match vcache
@@ -1041,10 +1043,10 @@ mod private
           let mut fresh = resolve_vertex_pass_all( &synthetic_tiles, &ctx, skip )?;
           // A `restart_on_spawn` pulse (see `project_vertex_sprite`) anchors to when
           // its bucket's CONTENT last changed — not to every re-resolve. The resolve
-          // reruns on any scene `revision` bump, including ones that don't touch these
-          // tiles at all (a cursor-preview `move_to` on mouse-move bumps the revision),
-          // which must NOT restart an unrelated layer's pulse. So carry each bucket's
-          // prior anchor forward while its resolved tiles are unchanged; only genuinely
+          // reruns on any hex-cell change, including ones that don't touch this
+          // bucket at all (a capture elsewhere re-resolves every layer), which must
+          // NOT restart an unrelated layer's pulse. So carry each bucket's prior
+          // anchor forward while its resolved tiles are unchanged; only genuinely
           // new/changed content takes the fresh `ctx.time_seconds` anchor set above.
           if cache.valid
           {

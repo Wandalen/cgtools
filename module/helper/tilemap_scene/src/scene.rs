@@ -94,6 +94,15 @@ mod private
     /// [`Self::clock`].
     revision : u64,
 
+    /// Narrower mutation counter: bumped only when the set of VISIBLE objects
+    /// standing in `Placement::Hex` cells changes — a hex-placed spawn / despawn,
+    /// a move into, out of or between hex cells, or a visibility flip of a
+    /// hex-placed instance. That set is the only scene input of the dual-grid
+    /// `VertexCorners` resolve, so its cache keys on this instead of
+    /// [`Self::revision`]: ambient `FreePos` movers (boats, birds, a drag
+    /// preview) and state / tint changes no longer force a whole-map re-resolve.
+    tiles_revision : u64,
+
     /// Counter that produces a unique `instance_phase_seed` for each
     /// spawned instance. Hashed once at spawn so the seed is varied
     /// enough that mixing it with `str_hash(anim.id)` gives independent
@@ -116,6 +125,18 @@ mod private
     target : bool,
     /// Current eased progress in `[0, 1]`.
     value : f32,
+  }
+
+  /// The cell a `Placement::Hex` instance stands in — the only placement that
+  /// puts an object into the per-cell stacks the dual-grid resolve reads (not
+  /// [`Placement::hex_coord`], which also reports an edge's owning hex).
+  fn hex_cell( p : Placement ) -> Option< ( i32, i32 ) >
+  {
+    match p
+    {
+      Placement::Hex { q, r } => Some( ( q, r ) ),
+      _ => None,
+    }
   }
 
   /// Per-object metadata cached at `Scene::new`.
@@ -335,6 +356,7 @@ mod private
         global_tint_override : None,
         seed : 0,
         revision : 0,
+        tiles_revision : 0,
         next_phase_seed : 0,
         fade_gates : HashMap::default(),
       }
@@ -453,6 +475,7 @@ mod private
       let handle = self.instances.insert( instance );
       self.index_insert( handle, placement );
       self.revision += 1;
+      if hex_cell( placement ).is_some() { self.tiles_revision += 1; }
       handle
     }
 
@@ -468,6 +491,7 @@ mod private
       };
       self.index_remove( h, inst.placement );
       self.revision += 1;
+      if hex_cell( inst.placement ).is_some() && inst.visible { self.tiles_revision += 1; }
     }
 
     /// Move an existing instance to a new placement. The new placement
@@ -482,10 +506,15 @@ mod private
         return;
       };
       let old = inst.placement;
+      let visible = inst.visible;
       inst.placement = placement;
       self.index_remove( h, old );
       self.index_insert( h, placement );
       self.revision += 1;
+      if visible && hex_cell( old ) != hex_cell( placement )
+      {
+        self.tiles_revision += 1;
+      }
     }
 
     /// Switch the active state of `h`. `state` must belong to the same
@@ -524,6 +553,7 @@ mod private
     {
       if let Some( inst ) = self.instances.get_mut( h )
       {
+        if hex_cell( inst.placement ).is_some() && inst.visible != on { self.tiles_revision += 1; }
         inst.visible = on;
         self.revision += 1;
       }
@@ -861,6 +891,15 @@ mod private
     #[ inline ]
     #[ must_use ]
     pub fn revision( &self ) -> u64 { self.revision }
+
+    /// Monotonic counter of changes to which visible objects occupy which hex
+    /// cells — a subset of [`Self::revision`]'s bumps. Equal values guarantee
+    /// the per-cell object stacks the dual-grid `VertexCorners` pass reads are
+    /// unchanged; other state (placement of `FreePos` instances, states, tints,
+    /// the clock) may still differ.
+    #[ inline ]
+    #[ must_use ]
+    pub fn tiles_revision( &self ) -> u64 { self.tiles_revision }
 
     /// The override for `pipeline.global_tint`, if set.
     #[ inline ]

@@ -1647,6 +1647,77 @@ fn vertex_corners_reappear_when_a_disabled_layer_is_re_enabled()
   assert!( has_three_way_blend( &spec, &on ), "re-enabled layer must re-resolve its vertex sprites" );
 }
 
+/// `Scene::tiles_revision` moves only when the set of visible objects standing in
+/// hex cells changes — `FreePos` moves, same-cell moves, states and tints leave it.
+#[ test ]
+fn tiles_revision_tracks_only_hex_cell_changes()
+{
+  let ( spec, _ ) = three_way_blend_fixture();
+  let mut scene = Scene::new( Arc::new( spec ) );
+  let sand = scene.object( "sand" ).expect( "sand" );
+
+  let t = scene.tiles_revision();
+  let h = scene.spawn( sand, Placement::FreePos { x : 0.0, y : 0.0 } );
+  scene.placement_move( h, Placement::FreePos { x : 5.0, y : 5.0 } );
+  scene.tint_set( h, Some( [ 1.0, 0.0, 0.0, 1.0 ] ) );
+  assert_eq!( scene.tiles_revision(), t, "FreePos spawn / move / tint do not touch hex cells" );
+
+  scene.placement_move( h, Placement::Hex { q : 0, r : 0 } );
+  let t = scene.tiles_revision();
+  assert!( t > 0, "moving onto a hex cell changes the cells" );
+  scene.placement_move( h, Placement::Hex { q : 0, r : 0 } );
+  scene.state_set( h, scene.default_state( sand ) );
+  assert_eq!( scene.tiles_revision(), t, "a same-cell move and a state change do not" );
+
+  scene.visible_set( h, false );
+  let t = scene.tiles_revision();
+  scene.visible_set( h, false );
+  scene.placement_move( h, Placement::Hex { q : 1, r : 1 } );
+  scene.despawn( h );
+  assert_eq!( scene.tiles_revision(), t, "a hidden instance is not in any cell" );
+
+  let h = scene.spawn( sand, Placement::Hex { q : 2, r : 2 } );
+  let t = scene.tiles_revision();
+  scene.despawn( h );
+  assert!( scene.tiles_revision() > t, "despawning a visible hex instance changes the cells" );
+}
+
+/// The dual-grid resolve is cached on `tiles_revision`: mutations that leave the
+/// hex cells alone reuse it (while still re-walking the scene), and a change to
+/// the cells re-runs it with the new result.
+#[ test ]
+fn vertex_resolve_reruns_only_when_hex_cells_change()
+{
+  let ( spec, snap ) = three_way_blend_fixture();
+  let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
+  let mut scene = Scene::from_snapshot( &snap, Arc::new( spec.clone() ) ).expect( "scene" );
+  let camera = Camera::default();
+  let sand = scene.instances_at_hex( 1, -1 ).next().expect( "sand instance" );
+  let mut flat = common::BatchFlattener::new();
+  let mut render = | scene : &Scene, renderer : &mut Renderer |
+    has_three_way_blend( &spec, &flat.apply( renderer.render( scene, &camera ).expect( "render" ) ) );
+
+  assert!( render( &scene, &mut renderer ) );
+  assert_eq!( renderer.vertex_resolves(), 1 );
+
+  scene.tint_set( sand, Some( [ 1.0, 1.0, 1.0, 0.5 ] ) );
+  assert!( render( &scene, &mut renderer ) );
+  scene.tick( 0.25 );
+  assert!( render( &scene, &mut renderer ) );
+  assert_eq!( renderer.scene_walks(), 3, "each change still re-walks the scene" );
+  assert_eq!( renderer.vertex_resolves(), 1, "but the vertex resolve is reused" );
+
+  scene.visible_set( sand, false );
+  assert!( !render( &scene, &mut renderer ), "hiding a corner tile breaks the blend" );
+  assert_eq!( renderer.vertex_resolves(), 2 );
+
+  scene.visible_set( sand, true );
+  assert!( render( &scene, &mut renderer ) );
+  scene.placement_move( sand, Placement::Hex { q : 2, r : 2 } );
+  assert!( !render( &scene, &mut renderer ), "moving a corner tile away breaks the blend" );
+  assert_eq!( renderer.vertex_resolves(), 4 );
+}
+
 #[ test ]
 fn vertex_corners_wildcard_edge_fade()
 {
