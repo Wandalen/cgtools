@@ -18,7 +18,7 @@ mod private
   use tiles_tools::coordinates::ToDual;
   use tiles_tools::coordinates::hexagonal::{ Axial, Coordinate as HexCoordinate, Flat, Pointy };
   use tiles_tools::coordinates::triangular::{ Coordinate as TriCoordinate, FlatSided, FlatTopped };
-  use crate::compile::neighbors::{ VOID_ID, tile_terrain_id };
+  use crate::compile::neighbors::{ VOID_ID, tile_corner_id };
   use crate::pipeline::TilingStrategy;
   use crate::snapshot::Tile;
   use crate::source::TriBlendPattern;
@@ -79,9 +79,10 @@ mod private
     out
   }
 
-  /// Resolve the three corner "terrain" ids of a triangle against the scene,
-  /// using [`tile_terrain_id`] for each corner. Corners outside the scene
-  /// resolve to [`VOID_ID`].
+  /// Resolve the three corner ids of a triangle against the scene, using
+  /// [`tile_corner_id`] for each corner. `source` selects the corner channel
+  /// (`None` = the cell's terrain id; `Some(layer)` = the cell's object in that
+  /// draw layer). Corners outside the scene resolve to [`VOID_ID`].
   #[ must_use ]
   // `tile_lookup` is always this crate's `FxHashMap` alias (every caller builds
   // it via `tile_lookup()` in `neighbors.rs`); there is no existing or planned
@@ -93,13 +94,14 @@ mod private
     tri : &TriangleContext,
     tile_lookup : &HashMap< ( i32, i32 ), &Tile >,
     spec : &RenderSpec,
+    source : Option< &str >,
   ) -> [ String; 3 ]
   {
     tri.corners.map( | pos |
     {
       match tile_lookup.get( &pos )
       {
-        Some( t ) => tile_terrain_id( t, spec ).unwrap_or( VOID_ID ).to_owned(),
+        Some( t ) => tile_corner_id( t, spec, source ).unwrap_or( VOID_ID ).to_owned(),
         None => VOID_ID.to_owned(),
       }
     })
@@ -107,14 +109,31 @@ mod private
 
   /// Canonicalise three corner terrain ids: sort lexicographically so pattern
   /// matching is insensitive to triangle rotation. Returns the sorted triple
-  /// and a `rotation` u8 in `0..3` capturing which original slot landed in
-  /// slot 0 of the canonical form (for `{rot}` sprite substitution).
+  /// and a `rotation` u8 in `0..3` capturing which original slot landed in slot
+  /// 0 of the canonical form (for legacy `{rot}` sprite substitution).
+  ///
+  /// The `orient_to_grid` path does not use `rotation`; it derives a discrete
+  /// orientation from triangle geometry (see `resolve_vertex_pass_all`).
   #[ must_use ]
   pub fn canonicalize( raw : &[ String; 3 ] ) -> ( [ String; 3 ], u8 )
   {
-    // Pair each value with its original index, sort, then record the
-    // permutation by reading out original indices in sorted order.
-    let mut indexed : [ ( usize, String ); 3 ] =
+    canonicalize_any( raw )
+  }
+
+  /// [`canonicalize`] over borrowed ids — same order and `rotation`, no
+  /// allocation. The hot dual-grid resolve uses this form.
+  #[ must_use ]
+  pub fn canonicalize_strs< 'a >( raw : &[ &'a str; 3 ] ) -> ( [ &'a str; 3 ], u8 )
+  {
+    canonicalize_any( raw )
+  }
+
+  /// Shared body of [`canonicalize`] / [`canonicalize_strs`]: `String` and
+  /// `&str` order identically (bytewise), so both forms sort the same way.
+  fn canonicalize_any< S : Ord + Clone >( raw : &[ S; 3 ] ) -> ( [ S; 3 ], u8 )
+  {
+    // Pair each value with its original index, sort, then read out the slot.
+    let mut indexed : [ ( usize, S ); 3 ] =
     [
       ( 0, raw[ 0 ].clone() ),
       ( 1, raw[ 1 ].clone() ),
@@ -170,6 +189,27 @@ mod private
     canonical : &[ String; 3 ],
   ) -> Option< &'p TriBlendPattern >
   {
+    matching_pattern_find_any( patterns, canonical )
+  }
+
+  /// [`matching_pattern_find`] over a borrowed canonical triple (from
+  /// [`canonicalize_strs`]) — same resolution rules, no allocation.
+  #[ must_use ]
+  pub fn matching_pattern_find_strs< 'p >
+  (
+    patterns : &'p [ TriBlendPattern ],
+    canonical : &[ &str; 3 ],
+  ) -> Option< &'p TriBlendPattern >
+  {
+    matching_pattern_find_any( patterns, canonical )
+  }
+
+  fn matching_pattern_find_any< 'p, S : AsRef< str > >
+  (
+    patterns : &'p [ TriBlendPattern ],
+    canonical : &[ S; 3 ],
+  ) -> Option< &'p TriBlendPattern >
+  {
     let mut best : Option< &TriBlendPattern > = None;
     let mut best_specificity : i32 = -1;
     let mut best_priority : i32 = i32::MIN;
@@ -205,7 +245,7 @@ mod private
   /// the remaining (unpaired) canonical slots are absorbed by `"*"`
   /// wildcards. Positional order is ignored — the canonical is already
   /// sorted, and wildcards can live anywhere in the pattern.
-  fn pattern_matches( pattern : &TriBlendPattern, canonical : &[ String; 3 ] ) -> bool
+  fn pattern_matches< S : AsRef< str > >( pattern : &TriBlendPattern, canonical : &[ S; 3 ] ) -> bool
   {
     let pat = [ &pattern.corners.0, &pattern.corners.1, &pattern.corners.2 ];
     let mut used = [ false; 3 ];
@@ -215,7 +255,7 @@ mod private
       let mut matched = false;
       for ( i, c ) in canonical.iter().enumerate()
       {
-        if !used[ i ] && value.as_str() == c.as_str()
+        if !used[ i ] && value.as_str() == c.as_ref()
         {
           used[ i ] = true;
           matched = true;
@@ -246,5 +286,7 @@ mod_interface::mod_interface!
   exposed use triangles_enumerate;
   exposed use corners_resolve;
   exposed use canonicalize;
+  exposed use canonicalize_strs;
   exposed use matching_pattern_find;
+  exposed use matching_pattern_find_strs;
 }

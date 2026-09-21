@@ -5,7 +5,8 @@
 - **Purpose**: Record why `ArrayBuffer<T>::swap_remove` cannot copy directly from a GPU buffer to itself.
 - **Responsibility**: Document the WebGL2 spec constraint, the observed failure it would cause, and the mitigation already in place.
 - **In Scope**: `ArrayBuffer<T>::swap_remove`'s GPU-to-GPU copy step in the WebGL2 adapter.
-- **Out of Scope**: `ArrayBuffer<T>`'s grow-on-full behavior (`copy_buffer_sub_data` into a freshly allocated buffer), which copies between two distinct buffers and is not subject to this constraint.
+- **Out of Scope**: `ArrayBuffer<T>`'s growth, which reallocates its one buffer with `bufferData` and re-uploads from the CPU copy.
+- **Status**: Historical. `ArrayBuffer<T>` now stages every mutation on the CPU (`StagedVec<T>`) and uploads on `flush()`, so swap-remove never copies GPU-to-GPU and the scratch buffer is gone. Kept as a warning for anyone reintroducing a GPU-side swap-remove.
 
 ### Trap
 
@@ -17,7 +18,9 @@ The WebGL2 spec disallows binding the same buffer object to `COPY_READ_BUFFER` a
 
 ### Mitigation
 
-`ArrayBuffer<T>` (`src/adapters/webgl/webgl_helpers.rs`) allocates a **persistent one-element scratch buffer** (`scratch : web_sys::WebGlBuffer`, created alongside the main buffer and freed in `Drop`) and routes `swap_remove` through it in two GPU-to-GPU copies instead of one: last element → scratch (`COPY_READ_BUFFER` = main buffer, `COPY_WRITE_BUFFER` = scratch), then scratch → removed slot (`COPY_READ_BUFFER` = scratch, `COPY_WRITE_BUFFER` = main buffer). Both copies bind two distinct buffer objects, so the spec constraint is satisfied and the whole operation stays GPU-side with no CPU readback. This is fully mitigated — the scratch-buffer indirection is unconditional in `swap_remove`, not a fallback path.
+**Current:** swap-remove happens in `StagedVec<T>` on the CPU; the moved element is uploaded with the next `flush()`'s `bufferSubData`, so no copy-buffer binding is involved at all.
+
+**Previous (immediate-upload design):** `ArrayBuffer<T>` (`src/adapters/webgl/webgl_helpers.rs`) allocated a **persistent one-element scratch buffer** (`scratch : web_sys::WebGlBuffer`, created alongside the main buffer and freed in `Drop`) and routes `swap_remove` through it in two GPU-to-GPU copies instead of one: last element → scratch (`COPY_READ_BUFFER` = main buffer, `COPY_WRITE_BUFFER` = scratch), then scratch → removed slot (`COPY_READ_BUFFER` = scratch, `COPY_WRITE_BUFFER` = main buffer). Both copies bind two distinct buffer objects, so the spec constraint is satisfied and the whole operation stays GPU-side with no CPU readback. This is fully mitigated — the scratch-buffer indirection is unconditional in `swap_remove`, not a fallback path.
 
 ### Features
 
@@ -29,7 +32,7 @@ The WebGL2 spec disallows binding the same buffer object to `COPY_READ_BUFFER` a
 
 | File | Relationship |
 |------|--------------|
-| `src/adapters/webgl/webgl_helpers.rs` | `ArrayBuffer::swap_remove` and the `scratch` buffer it uses as an intermediary |
+| `src/adapters/webgl/webgl_helpers.rs` | `StagedVec::swap_remove` (CPU-side) and `ArrayBuffer::flush`, which replaced the scratch-buffer copy |
 
 ### Tests
 

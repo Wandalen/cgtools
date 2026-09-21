@@ -47,6 +47,53 @@ mod private
     /// the global tint. See SPEC §12.1 step 4.
     #[ serde( default ) ]
     pub tint_mask : Option< TintRef >,
+    /// Coverage cut-off for this bucket's sprites: fragments whose sampled
+    /// texture alpha is below `alpha_clip` are `discard`ed (no colour, no
+    /// depth write). `0.0` (the default) disables the test, so every
+    /// fragment is kept exactly as before.
+    ///
+    /// Combined with [`occlude_overlap`](Self::occlude_overlap) this turns a
+    /// bucket of overlapping translucent tiles (e.g. a bled dual-grid drop
+    /// shadow) into a single-coverage mask: the clip removes the soft AA
+    /// fringe so the depth test can reject the overlap cleanly. Edges become
+    /// hard at the clip contour — that is the intended trade for not
+    /// double-blending the overlap.
+    #[ serde( default ) ]
+    pub alpha_clip : f32,
+    /// When `true`, the backend clears the depth buffer immediately before
+    /// this bucket draws and switches the depth test to `LESS` for its draw
+    /// calls (restoring the default `LEQUAL` afterwards). The first fragment
+    /// to cover a pixel wins; later overlapping fragments (from a sibling
+    /// tile's bleed) are rejected, so a translucent bucket composites each
+    /// pixel exactly once — no double-blend on the overlap.
+    ///
+    /// Safe because every *other* bucket draws painter's-style at depth `0`
+    /// under `LEQUAL`: they never read the depth this bucket writes, and the
+    /// pre-clear only discards depth they don't depend on. Pair with a
+    /// non-zero [`alpha_clip`](Self::alpha_clip) so the AA fringe doesn't
+    /// write depth and block a neighbour. Default `false` = unchanged.
+    #[ serde( default ) ]
+    pub occlude_overlap : bool,
+    /// Marks this bucket as **fully opaque** (after `alpha_clip` coverage), so
+    /// it joins the opaque depth-culling pass. When ANY layer in the pipeline
+    /// sets this, the renderer splits the frame in two: opaque buckets draw
+    /// first, **front-to-back** (topmost layer first) with depth writes on, so
+    /// a nearer opaque layer early-Z rejects the covered fragments of farther
+    /// ones — cutting the multi-layer overdraw of a flat tilemap (background
+    /// under terrain under region). Transparent buckets (`false`, the default)
+    /// then draw in painter's order with depth writes off, so blending is
+    /// unaffected.
+    ///
+    /// Correctness requirements for an opaque layer:
+    /// - It must be visually opaque where it covers (alpha ≈ 1); a translucent
+    ///   layer meant to show what is beneath it must stay `false`.
+    /// - Pair with a non-zero [`alpha_clip`](Self::alpha_clip) so transparent
+    ///   texels `discard` (no depth write) and lower layers show through gaps.
+    ///
+    /// When no layer is opaque the renderer takes the original single-pass
+    /// path unchanged, so this is inert for existing specs.
+    #[ serde( default ) ]
+    pub opaque : bool,
   }
 
   /// Sort mode for a [`PipelineLayer`]. See SPEC §8.2.
