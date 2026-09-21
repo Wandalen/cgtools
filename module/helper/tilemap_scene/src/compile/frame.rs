@@ -296,18 +296,18 @@ mod private
   /// camera/clock-INDEPENDENT half, run once across ALL pipeline buckets.
   ///
   /// Returns one [`ResolvedVertexSprite`] list per pipeline layer (parallel to
-  /// `spec.pipeline.layers`). For each triangle it enumerates the board ONCE,
-  /// computes the corner pixel centres ONCE, and then resolves every
-  /// `VertexCorners` layer routed into any bucket — pattern match, orientation,
-  /// frame-name → sprite id — recording the result in **world space**. None of
-  /// this depends on the camera or the master clock, so the caller may cache
-  /// the whole thing keyed on the scene `revision` (see [`VertexResolveCache`])
-  /// and only re-run it when the board structurally changes.
+  /// `spec.pipeline.layers`), resolving every `VertexCorners` layer routed into
+  /// a bucket — pattern match, orientation, frame-name → sprite id — and
+  /// recording the result in **world space**. None of this depends on the
+  /// camera or the master clock, so the caller may cache the whole thing keyed
+  /// on [`Scene::tiles_revision`] (see [`VertexResolveCache`]) and only re-run it
+  /// when the hex cells change.
   ///
-  /// This is the consolidation of the former per-bucket `resolve_vertex_pass_all`:
-  /// triangle enumeration and corner-pixel projection happened once per bucket
-  /// before (terrain + every player region + selection + attack overlays);
-  /// now they happen once total.
+  /// The board's triangles are enumerated once, and each corner channel's
+  /// per-cell ids are resolved once. A layer then visits only the triangles
+  /// touching an occupied cell of its channel — every other triangle reads
+  /// `(void, void, void)` — unless one of its patterns matches that triple, so
+  /// a small overlay costs its own size rather than the board's.
   ///
   /// Buckets whose bit is set in `skip` (bit `i` = pipeline layer `i`) are left
   /// empty: a renderer that will not draw a layer should not pay to resolve it.
@@ -354,12 +354,6 @@ mod private
       return Ok( out );
     }
 
-    // Any layer's object id works for the unsupported-tiling error message.
-    let id_for_err : &str = bucket_layers.iter().flatten().next()
-      .map_or( "", | ( o, _ ) | o.id.as_str() );
-
-    let triangles = triangles_enumerate( tiles, ctx.tiling );
-
     // Objects by id, first declaration winning — the same answer as the linear
     // scan `tile_corner_id` does per lookup, in one hash probe.
     let mut object_of : HashMap< &str, &Object > = HashMap::default();
@@ -369,8 +363,8 @@ mod private
     }
 
     // Every distinct corner channel's per-cell id, resolved once here rather than
-    // three times per triangle per layer. A cell missing from a map reads as void.
-    let mut channels : Vec< ( Option< &str >, HashMap< ( i32, i32 ), &str > ) > = Vec::new();
+    // three times per triangle per layer.
+    let mut channels : Vec< ( Option< &str >, ChannelCells< '_ > ) > = Vec::new();
     for ( _, layer ) in bucket_layers.iter().flatten()
     {
       let SpriteSource::VertexCorners { corner_source, .. } = &layer.sprite_source
@@ -382,150 +376,30 @@ mod private
       }
     }
 
-    // Triangles around each cell — built on first need, for layers that only
-    // have to visit the triangles touching their channel's occupied cells.
-    let mut tris_at : Option< HashMap< ( i32, i32 ), Vec< u32 > > > = None;
-    // Corner pixel centres + centroid, per triangle, computed on first visit.
-    let mut geometry : Vec< Option< ( [ ( f32, f32 ); 3 ], f32, f32 ) > > = vec![ None; triangles.len() ];
-    // `( pattern address, rotation )` → sprite id: the frame-name string is built
-    // and looked up once per distinct frame, not once per triangle.
-    let mut frame_ids : HashMap< ( usize, u8 ), ResourceId< asset::Sprite > > = HashMap::default();
+    let triangles = triangles_enumerate( tiles, ctx.tiling );
+    let mut scratch = ResolveScratch
+    {
+      geometry : vec![ None; triangles.len() ],
+      triangles,
+      tris_at : None,
+      frame_ids : HashMap::default(),
+      // Any layer's object id works for the unsupported-tiling error message.
+      id_for_err : bucket_layers.iter().flatten().next().map_or( "", | ( o, _ ) | o.id.as_str() ),
+    };
 
     for ( bi, layers ) in bucket_layers.iter().enumerate()
     {
-      // `( triangle, layer position, sprite )`. Layers are resolved one at a
-      // time, so the hits are re-sorted below into the triangle-major,
-      // layer-minor order a single board walk produces — the bucket's stable
-      // depth sort keeps that order among sprites at the same position.
-      let mut hits : Vec< ( u32, u32, ResolvedVertexSprite ) > = Vec::new();
-      for ( li, ( object, layer ) ) in layers.iter().enumerate()
+      // Layers are resolved one at a time, so their hits are re-sorted into the
+      // triangle-major, layer-minor order a single board walk produces — the
+      // bucket's stable depth sort keeps that order among sprites at one spot.
+      let mut hits : Vec< LayerHit > = Vec::new();
+      for ( li, &( object, layer ) ) in layers.iter().enumerate()
       {
-        let SpriteSource::VertexCorners { patterns, asset, orient_to_grid, corner_source, offset } = &layer.sprite_source
+        let SpriteSource::VertexCorners { corner_source, .. } = &layer.sprite_source
         else { continue };
         let source = corner_source.as_deref();
         let cells = &channels.iter().find( | ( s, _ ) | *s == source ).expect( "every channel is built above" ).1;
-
-        // A triangle with no occupied corner reads `(void, void, void)`. Unless a
-        // pattern draws on exactly that, only triangles touching one of this
-        // channel's cells can emit — usually a handful for an overlay.
-        let candidates : Vec< u32 > = if matching_pattern_find_strs( patterns, &[ VOID_ID; 3 ] ).is_some()
-        {
-          ( 0..u32::try_from( triangles.len() ).unwrap_or( u32::MAX ) ).collect()
-        }
-        else
-        {
-          let around = tris_at.get_or_insert_with( || triangles_by_cell( &triangles ) );
-          let mut v : Vec< u32 > = cells.keys().filter_map( | c | around.get( c ) ).flatten().copied().collect();
-          v.sort_unstable();
-          v.dedup();
-          v
-        };
-        if candidates.is_empty() { continue; }
-
-        // The object's "self" id is the value in its all-equal (X,X,X) pattern;
-        // orientation counts corners matching it to tell present from void, so a
-        // neighbouring object's id (e.g. an adjacent player's region) reads as
-        // void instead of being mistaken for the distinguishing corner.
-        let self_id = patterns.iter().find_map( | p |
-          ( p.corners.0 == p.corners.1 && p.corners.1 == p.corners.2 && p.corners.0 != "*" )
-            .then_some( p.corners.0.as_str() ) );
-
-        // Optional static world offset — shifts only the drawn sprite (a tinted,
-        // nudged copy for a 2.5D wall / drop-shadow), not the corner/orientation
-        // geometry resolved below.
-        let ( ox, oy ) = offset.unwrap_or( ( 0.0, 0.0 ) );
-
-        // Per-layer constants: tint, pulse, fade gate. Resolved on the layer's
-        // first match, so a layer that draws nothing raises no tint error.
-        let mut statics : Option< ( [ f32; 4 ], Option< ( f32, f32, f32, bool ) >, Option< Arc< str > > ) > = None;
-
-        for ti in candidates
-        {
-          let tri = &triangles[ ti as usize ];
-          let raw = tri.corners.map( | c | cells.get( &c ).copied().unwrap_or( VOID_ID ) );
-          let ( canonical, rotation ) = canonicalize_strs( &raw );
-          let Some( pattern ) = matching_pattern_find_strs( patterns, &canonical )
-          else { continue };
-
-          let ( corner_px, wx, wy ) = if let Some( g ) = geometry[ ti as usize ] { g } else
-          {
-            let mut corner_px = [ ( 0.0_f32, 0.0_f32 ); 3 ];
-            for ( i, corner ) in tri.corners.iter().enumerate()
-            {
-              corner_px[ i ] = hex_world_pixel( corner.0, corner.1, ctx, id_for_err )?;
-            }
-            let wx = ( corner_px[ 0 ].0 + corner_px[ 1 ].0 + corner_px[ 2 ].0 ) / 3.0;
-            let wy = ( corner_px[ 0 ].1 + corner_px[ 1 ].1 + corner_px[ 2 ].1 ) / 3.0;
-            geometry[ ti as usize ] = Some( ( corner_px, wx, wy ) );
-            ( corner_px, wx, wy )
-          };
-
-          // Both modes substitute `{rot}`; only the index source differs.
-          // Orient mode picks a pre-baked discrete orientation from triangle
-          // geometry; legacy mode uses the canonical-sort rotation. Either way
-          // `transform.rotation` stays 0 — no runtime sprite rotation.
-          let rot_index = if *orient_to_grid
-          {
-            dual_orientation_index( &raw, &canonical, self_id, &corner_px, wx, wy, ctx.tiling )
-          }
-          else
-          {
-            rotation
-          };
-          let frame_key = ( core::ptr::from_ref( pattern ) as usize, rot_index );
-          let sprite_id = if let Some( &id ) = frame_ids.get( &frame_key ) { id } else
-          {
-            let frame_name = pattern.sprite_pattern.replace( "{rot}", &rot_index.to_string() );
-            let id = ctx.compiled.ids.sprite( asset, &frame_name )
-              .ok_or_else( || CompileError::UnresolvedRef
-              {
-                kind : "sprite",
-                id : format!( "{asset}:{frame_name}" ),
-                context : format!( "object {:?} VertexCorners frame {frame_name}", object.id ),
-              })?;
-            frame_ids.insert( frame_key, id );
-            id
-          };
-
-          // Per-object tint: a `Flat` named tint colours each VertexCorners
-          // object (e.g. a per-player region) independently. Stored PRE-global;
-          // the scene-global tint is folded in at projection time so it does not
-          // invalidate this structural cache. `None`/`Masked` → identity base.
-          let ( base_tint, alpha_pulse, fade_gate ) = if let Some( st ) = &statics { st.clone() } else
-          {
-            let base_tint = match &layer.behaviour.tint
-            {
-              TintBehaviour::None => [ 1.0, 1.0, 1.0, 1.0 ],
-              TintBehaviour::Flat( tref ) => resolve_tint_ref( ctx.spec, tref )?,
-              TintBehaviour::Masked { .. } => return Err( CompileError::UnsupportedBehaviour
-              {
-                object : object.id.clone(),
-                behaviour : "Masked tint (not implemented — use Flat or remove the tint behaviour)",
-              }),
-            };
-            let st =
-            (
-              base_tint,
-              resolve_alpha_pulse( ctx.spec, &layer.behaviour.effects ),
-              resolve_fade_gate( ctx.spec, &layer.behaviour.effects ).map( Arc::from ),
-            );
-            statics = Some( st.clone() );
-            st
-          };
-
-          hits.push( ( ti, u32::try_from( li ).unwrap_or( u32::MAX ), ResolvedVertexSprite
-          {
-            world : ( wx + ox, wy + oy ),
-            sprite : sprite_id,
-            base_tint,
-            alpha : layer.behaviour.alpha,
-            blend : layer.behaviour.blend,
-            pivot : object.pivot,
-            alpha_pulse,
-            pulse_anchor : ctx.time_seconds,
-            fade_gate,
-          }));
-        }
+        layer_resolve( ctx, &mut scratch, cells, ( object, layer ), u32::try_from( li ).unwrap_or( u32::MAX ), &mut hits )?;
       }
       if layers.len() > 1
       {
@@ -535,6 +409,195 @@ mod private
     }
 
     Ok( out )
+  }
+
+  /// Each occupied cell's id in one corner channel; a cell left out reads void.
+  type ChannelCells< 'a > = HashMap< ( i32, i32 ), &'a str >;
+
+  /// `( triangle index, layer position in its bucket, sprite )`.
+  type LayerHit = ( u32, u32, ResolvedVertexSprite );
+
+  /// A triangle's three corner pixel centres and its centroid.
+  type TriGeometry = ( [ ( f32, f32 ); 3 ], f32, f32 );
+
+  /// A layer's static draw inputs: base tint, alpha pulse, fade-gate id.
+  type LayerStatics = ( [ f32; 4 ], Option< ( f32, f32, f32, bool ) >, Option< Arc< str > > );
+
+  /// State shared by every layer of one [`resolve_vertex_pass_all`] call.
+  struct ResolveScratch< 'a >
+  {
+    /// Every dual-mesh triangle touched by a tile.
+    triangles : Vec< TriangleContext >,
+    /// Triangles around each cell — built on first need, for layers that only
+    /// visit the triangles touching their channel's occupied cells.
+    tris_at : Option< HashMap< ( i32, i32 ), Vec< u32 > > >,
+    /// Corner pixel centres + centroid per triangle, computed on first visit.
+    geometry : Vec< Option< TriGeometry > >,
+    /// `( pattern address, rotation )` → sprite id, so each frame-name string is
+    /// built and looked up once per distinct frame, not once per triangle.
+    frame_ids : HashMap< ( usize, u8 ), ResourceId< asset::Sprite > >,
+    /// Object id reported by an unsupported-tiling error.
+    id_for_err : &'a str,
+  }
+
+  /// Resolve one `VertexCorners` layer against its corner channel's `cells`,
+  /// appending a [`LayerHit`] (tagged with `layer_pos`) per matched triangle, in
+  /// ascending triangle order.
+  fn layer_resolve
+  (
+    ctx : &FrameContext< '_ >,
+    scratch : &mut ResolveScratch< '_ >,
+    cells : &ChannelCells< '_ >,
+    ( object, layer ) : ( &Object, &ObjectLayer ),
+    layer_pos : u32,
+    hits : &mut Vec< LayerHit >,
+  ) -> Result< (), CompileError >
+  {
+    let SpriteSource::VertexCorners { patterns, asset, orient_to_grid, offset, .. } = &layer.sprite_source
+    else { return Ok( () ) };
+
+    // A triangle with no occupied corner reads `(void, void, void)`. Unless a
+    // pattern draws on exactly that, only triangles touching one of this
+    // channel's cells can emit — usually a handful for an overlay.
+    let candidates : Vec< u32 > = if matching_pattern_find_strs( patterns, &[ VOID_ID; 3 ] ).is_some()
+    {
+      ( 0..u32::try_from( scratch.triangles.len() ).unwrap_or( u32::MAX ) ).collect()
+    }
+    else
+    {
+      let triangles = &scratch.triangles;
+      let around = scratch.tris_at.get_or_insert_with( || triangles_by_cell( triangles ) );
+      let mut v : Vec< u32 > = cells.keys().filter_map( | c | around.get( c ) ).flatten().copied().collect();
+      v.sort_unstable();
+      v.dedup();
+      v
+    };
+
+    // The object's "self" id is the value in its all-equal (X,X,X) pattern;
+    // orientation counts corners matching it to tell present from void, so a
+    // neighbouring object's id (e.g. an adjacent player's region) reads as
+    // void instead of being mistaken for the distinguishing corner.
+    let self_id = patterns.iter().find_map( | p |
+      ( p.corners.0 == p.corners.1 && p.corners.1 == p.corners.2 && p.corners.0 != "*" )
+        .then_some( p.corners.0.as_str() ) );
+
+    // Optional static world offset — shifts only the drawn sprite (a tinted,
+    // nudged copy for a 2.5D wall / drop-shadow), not the corner/orientation
+    // geometry resolved below.
+    let ( ox, oy ) = offset.unwrap_or( ( 0.0, 0.0 ) );
+
+    // Tint, pulse and fade gate, resolved on the layer's first match — a layer
+    // that draws nothing raises no tint error.
+    let mut statics : Option< LayerStatics > = None;
+
+    for ti in candidates
+    {
+      let corners = scratch.triangles[ ti as usize ].corners;
+      let raw = corners.map( | c | cells.get( &c ).copied().unwrap_or( VOID_ID ) );
+      let ( canonical, rotation ) = canonicalize_strs( &raw );
+      let Some( pattern ) = matching_pattern_find_strs( patterns, &canonical )
+      else { continue };
+
+      let ( corner_px, wx, wy ) = triangle_geometry( ctx, scratch, ti )?;
+
+      // Both modes substitute `{rot}`; only the index source differs.
+      // Orient mode picks a pre-baked discrete orientation from triangle
+      // geometry; legacy mode uses the canonical-sort rotation. Either way
+      // `transform.rotation` stays 0 — no runtime sprite rotation.
+      let rot_index = if *orient_to_grid
+      {
+        dual_orientation_index( &raw, &canonical, self_id, &corner_px, wx, wy, ctx.tiling )
+      }
+      else
+      {
+        rotation
+      };
+      let frame_key = ( core::ptr::from_ref( pattern ) as usize, rot_index );
+      let sprite_id = if let Some( &id ) = scratch.frame_ids.get( &frame_key )
+      {
+        id
+      }
+      else
+      {
+        let frame_name = pattern.sprite_pattern.replace( "{rot}", &rot_index.to_string() );
+        let id = ctx.compiled.ids.sprite( asset, &frame_name )
+          .ok_or_else( || CompileError::UnresolvedRef
+          {
+            kind : "sprite",
+            id : format!( "{asset}:{frame_name}" ),
+            context : format!( "object {:?} VertexCorners frame {frame_name}", object.id ),
+          })?;
+        scratch.frame_ids.insert( frame_key, id );
+        id
+      };
+
+      if statics.is_none()
+      {
+        statics = Some( layer_statics( ctx, object, layer )? );
+      }
+      let ( base_tint, alpha_pulse, fade_gate ) = statics.clone().expect( "set just above" );
+
+      hits.push( ( ti, layer_pos, ResolvedVertexSprite
+      {
+        world : ( wx + ox, wy + oy ),
+        sprite : sprite_id,
+        base_tint,
+        alpha : layer.behaviour.alpha,
+        blend : layer.behaviour.blend,
+        pivot : object.pivot,
+        alpha_pulse,
+        pulse_anchor : ctx.time_seconds,
+        fade_gate,
+      }));
+    }
+    Ok( () )
+  }
+
+  /// Corner pixel centres and centroid of triangle `ti`, computed on first use.
+  fn triangle_geometry( ctx : &FrameContext< '_ >, scratch : &mut ResolveScratch< '_ >, ti : u32 ) -> Result< TriGeometry, CompileError >
+  {
+    if let Some( g ) = scratch.geometry[ ti as usize ]
+    {
+      return Ok( g );
+    }
+    let corners = scratch.triangles[ ti as usize ].corners;
+    let mut corner_px = [ ( 0.0_f32, 0.0_f32 ); 3 ];
+    for ( i, corner ) in corners.iter().enumerate()
+    {
+      corner_px[ i ] = hex_world_pixel( corner.0, corner.1, ctx, scratch.id_for_err )?;
+    }
+    let wx = ( corner_px[ 0 ].0 + corner_px[ 1 ].0 + corner_px[ 2 ].0 ) / 3.0;
+    let wy = ( corner_px[ 0 ].1 + corner_px[ 1 ].1 + corner_px[ 2 ].1 ) / 3.0;
+    let g = ( corner_px, wx, wy );
+    scratch.geometry[ ti as usize ] = Some( g );
+    Ok( g )
+  }
+
+  /// A `VertexCorners` layer's static draw inputs.
+  ///
+  /// Per-object tint: a `Flat` named tint colours each VertexCorners object
+  /// (e.g. a per-player region) independently. Stored PRE-global; the
+  /// scene-global tint is folded in at projection time so it does not
+  /// invalidate the structural cache. `None` → identity base; `Masked` is not
+  /// implemented and errors.
+  fn layer_statics( ctx : &FrameContext< '_ >, object : &Object, layer : &ObjectLayer ) -> Result< LayerStatics, CompileError >
+  {
+    let base_tint = match &layer.behaviour.tint
+    {
+      TintBehaviour::None => [ 1.0, 1.0, 1.0, 1.0 ],
+      TintBehaviour::Flat( tref ) => resolve_tint_ref( ctx.spec, tref )?,
+      TintBehaviour::Masked { .. } => return Err( CompileError::UnsupportedBehaviour
+      {
+        object : object.id.clone(),
+        behaviour : "Masked tint (not implemented — use Flat or remove the tint behaviour)",
+      }),
+    };
+    Ok
+    ((
+      base_tint,
+      resolve_alpha_pulse( ctx.spec, &layer.behaviour.effects ),
+      resolve_fade_gate( ctx.spec, &layer.behaviour.effects ).map( Arc::from ),
+    ))
   }
 
   /// Each occupied cell's id in one `VertexCorners` corner channel — exactly
@@ -547,7 +610,7 @@ mod private
     tiles : &'a [ Tile ],
     object_of : &HashMap< &str, &Object >,
     source : Option< &str >,
-  ) -> HashMap< ( i32, i32 ), &'a str >
+  ) -> ChannelCells< 'a >
   {
     let mut cells = HashMap::default();
     for tile in tiles
@@ -1080,6 +1143,158 @@ mod private
     fn default() -> Self { Self::new() }
   }
 
+  /// Every visible hex- and free-placed instance layer, routed to the
+  /// non-skipped buckets it draws in; see [`instances_route`].
+  struct Routed< 'a >
+  {
+    hex : Vec< Vec< HexWork< 'a > > >,
+    free : Vec< Vec< FreeWork< 'a > > >,
+    /// Whether a routed layer reads neighbouring cells (the per-cell tile table).
+    reads_tiles : bool,
+  }
+
+  /// Route every visible hex- and free-placed instance's layers to the buckets
+  /// they draw in, in ONE walk of the scene — per instance, its current state's
+  /// stack in z order, so each bucket's list keeps the instance-major, z-minor
+  /// order a per-bucket walk produced (at `buckets × instances` cost). A layer
+  /// goes to every non-skipped bucket carrying its id, as that per-bucket
+  /// filter did.
+  fn instances_route( scene : &Scene, skip : u64 ) -> Result< Routed< '_ >, CompileError >
+  {
+    let spec = scene.spec();
+    let bucket_count = spec.pipeline.layers.len();
+    let mut bucket_of : HashMap< &str, Vec< usize > > = HashMap::default();
+    for ( i, bucket ) in spec.pipeline.layers.iter().enumerate()
+    {
+      if !bucket_skipped( skip, i ) { bucket_of.entry( bucket.id.as_str() ).or_default().push( i ); }
+    }
+    let mut hex_work : Vec< Vec< HexWork< '_ > > > = ( 0..bucket_count ).map( | _ | Vec::new() ).collect();
+    let mut free_work : Vec< Vec< FreeWork< '_ > > > = ( 0..bucket_count ).map( | _ | Vec::new() ).collect();
+    // Whether a routed layer reads neighbouring cells (the per-cell tile table).
+    let mut layers_read_tiles = false;
+    if !bucket_of.is_empty()
+    {
+      let mut ordered : Vec< &ObjectLayer > = Vec::new();
+      for &handle in scene.hex_instances()
+      {
+        let inst = scene.instance( handle ).expect( "hex handle live" );
+        if !inst.visible { continue; }
+        let object = &spec.objects[ inst.object.index() as usize ];
+        match object.anchor
+        {
+          Anchor::Hex => {},
+          Anchor::Multihex { .. } => return Err( CompileError::UnsupportedAnchor
+          {
+            object : object.id.clone(),
+            anchor : "Multihex",
+          }),
+          _ => continue,
+        }
+        let stack = instance_stack( scene, inst, object )?;
+        let Placement::Hex { q, r } = inst.placement else { continue };
+        layers_z_order_into( stack, &mut ordered );
+        for &layer in &ordered
+        {
+          // `VertexCorners` layers emit nothing per instance — the vertex pass
+          // below draws them for the whole board.
+          if matches!( layer.sprite_source, SpriteSource::VertexCorners { .. } ) { continue; }
+          let effective = layer.pipeline_layer.as_deref().unwrap_or( object.global_layer.as_str() );
+          let Some( targets ) = bucket_of.get( effective ) else { continue };
+          layers_read_tiles |= source_reads_tiles( &layer.sprite_source );
+          for &bi in targets
+          {
+            hex_work[ bi ].push( HexWork { inst, object, layer, pos : ( q, r ) } );
+          }
+        }
+      }
+      for &handle in scene.free_instances()
+      {
+        let inst = scene.instance( handle ).expect( "free handle live" );
+        if !inst.visible { continue; }
+        let Placement::FreePos { x, y } = inst.placement else { unreachable!() };
+        let object = &spec.objects[ inst.object.index() as usize ];
+        if !matches!( object.anchor, Anchor::FreePos )
+        {
+          return Err( CompileError::UnsupportedAnchor
+          {
+            object : object.id.clone(),
+            anchor : "FreePos (object declares a different anchor)",
+          });
+        }
+        let stack = instance_stack( scene, inst, object )?;
+        layers_z_order_into( stack, &mut ordered );
+        for &layer in &ordered
+        {
+          let effective = layer.pipeline_layer.as_deref().unwrap_or( object.global_layer.as_str() );
+          let Some( targets ) = bucket_of.get( effective ) else { continue };
+          for &bi in targets
+          {
+            free_work[ bi ].push( FreeWork { inst, object, layer, pos : ( x, y ) } );
+          }
+        }
+      }
+    }
+
+    Ok( Routed { hex : hex_work, free : free_work, reads_tiles : layers_read_tiles } )
+  }
+
+  /// One hex-placed instance layer routed to a bucket by [`gather_frame_emits`].
+  struct HexWork< 'a >
+  {
+    inst : &'a Instance,
+    object : &'a Object,
+    layer : &'a ObjectLayer,
+    pos : ( i32, i32 ),
+  }
+
+  /// One free-placed instance layer routed to a bucket by [`gather_frame_emits`].
+  struct FreeWork< 'a >
+  {
+    inst : &'a Instance,
+    object : &'a Object,
+    layer : &'a ObjectLayer,
+    pos : ( f32, f32 ),
+  }
+
+  /// The layer stack of `inst`'s current state.
+  fn instance_stack< 'a >( scene : &Scene, inst : &Instance, object : &'a Object ) -> Result< &'a [ ObjectLayer ], CompileError >
+  {
+    let state_name = scene.state_name( inst.state ).ok_or_else( || CompileError::MissingDefaultState
+    {
+      object : object.id.clone(),
+    })?;
+    object.states.get( state_name ).map( Vec::as_slice ).ok_or_else( || CompileError::MissingDefaultState
+    {
+      object : object.id.clone(),
+    })
+  }
+
+  /// [`layers_in_z_order`] into a reused buffer (cleared first), so the
+  /// per-instance routing walk allocates nothing once the buffer has grown.
+  fn layers_z_order_into< 'a >( stack : &'a [ ObjectLayer ], out : &mut Vec< &'a ObjectLayer > )
+  {
+    out.clear();
+    out.extend( stack.iter() );
+    out.sort_by_key( | layer | layer.z_in_object );
+  }
+
+  /// Whether resolving `source` reads the cells around the instance (the
+  /// per-cell tile table): neighbour sources do, directly or as a variant.
+  fn source_reads_tiles( source : &SpriteSource ) -> bool
+  {
+    match source
+    {
+      SpriteSource::NeighborBitmask { .. } | SpriteSource::NeighborCondition { .. } => true,
+      SpriteSource::Variant { variants, .. } => variants.iter().any( | v | source_reads_tiles( &v.sprite ) ),
+      SpriteSource::Static( _ )
+      | SpriteSource::Animation( _ )
+      | SpriteSource::External { .. }
+      | SpriteSource::VertexCorners { .. }
+      | SpriteSource::EdgeConnectedBitmask { .. }
+      | SpriteSource::ViewportTiled { .. } => false,
+    }
+  }
+
   /// Walk the scene and produce structured per-bucket emit data without
   /// flattening to `RenderCommand`s. This is the shared core driving
   /// both [`render_into`] (per-sprite emission, used by tests and
@@ -1129,7 +1344,17 @@ mod private
       });
     }
 
-    let synthetic_tiles = scene_tiles_build( scene );
+    let bucket_count = spec.pipeline.layers.len();
+    let Routed { hex : hex_work, free : free_work, reads_tiles : layers_read_tiles } = instances_route( scene, skip )?;
+
+    // The vertex resolve is reused while the scene's hex cells are unchanged.
+    let revision = scene.tiles_revision();
+    let vertex_miss = vcache.as_ref().is_none_or( | c | !c.valid || c.revision != revision || c.skip != skip );
+
+    // The per-cell tile table — one `String` per hex instance — is read only by
+    // the vertex resolve and by neighbour-reading sources, so build it only when
+    // one of those will run this frame.
+    let synthetic_tiles = if vertex_miss || layers_read_tiles { scene_tiles_build( scene ) } else { Vec::new() };
     let synthetic_edges = scene_edges_build( scene, spec );
 
     let viewport_size = spec.pipeline.viewport_size.unwrap_or( camera.viewport_size );
@@ -1157,14 +1382,13 @@ mod private
     // reusing the cached result while the scene's hex cells are unchanged. On a
     // miss (or with no cache) it is recomputed; either way the cheap per-frame
     // projection happens below, per bucket.
-    let revision = scene.tiles_revision();
     let resolved : &[ Vec< ResolvedVertexSprite > ];
     let local_resolved;
     match vcache
     {
       Some( cache ) =>
       {
-        if !cache.valid || cache.revision != revision || cache.skip != skip
+        if vertex_miss
         {
           let mut fresh = resolve_vertex_pass_all( &synthetic_tiles, &ctx, skip )?;
           // A `restart_on_spawn` pulse (see `project_vertex_sprite`) anchors to when
@@ -1203,7 +1427,7 @@ mod private
       }
     }
 
-    let mut buckets = Vec::with_capacity( spec.pipeline.layers.len() );
+    let mut buckets = Vec::with_capacity( bucket_count );
 
     for ( bucket_idx, bucket ) in spec.pipeline.layers.iter().enumerate()
     {
@@ -1222,43 +1446,9 @@ mod private
       }
       let mut draws : Vec< ( f32, f32, Sprite ) > = Vec::new();
 
-      for &handle in scene.hex_instances()
+      for w in &hex_work[ bucket_idx ]
       {
-        let inst = scene.instance( handle ).expect( "hex handle live" );
-        if !inst.visible { continue; }
-
-        let object = &spec.objects[ inst.object.index() as usize ];
-        match object.anchor
-        {
-          Anchor::Hex => {},
-          Anchor::Multihex { .. } => return Err( CompileError::UnsupportedAnchor
-          {
-            object : object.id.clone(),
-            anchor : "Multihex",
-          }),
-          _ => continue,
-        }
-
-        let state_name = scene.state_name( inst.state ).ok_or_else( || CompileError::MissingDefaultState
-        {
-          object : object.id.clone(),
-        })?;
-        let stack = object.states.get( state_name ).ok_or_else( || CompileError::MissingDefaultState
-        {
-          object : object.id.clone(),
-        })?;
-
-        let Placement::Hex { q, r } = inst.placement else { continue };
-
-        // Fix(BUG-156): see `layers_in_z_order` doc comment for root cause.
-        for layer in layers_in_z_order( stack )
-        {
-          let effective = layer.pipeline_layer.as_deref().unwrap_or( object.global_layer.as_str() );
-          if effective != bucket.id { continue; }
-
-          let layer_draws = instance_layer_compile( object, layer, ( q, r ), inst, &ctx )?;
-          draws.extend( layer_draws );
-        }
+        draws.extend( instance_layer_compile( w.object, w.layer, w.pos, w.inst, &ctx )? );
       }
 
       // Vertex pass: project this bucket's cached (revision-stable) resolves —
@@ -1267,7 +1457,7 @@ mod private
       // batch grouping are unchanged.
       draws.extend( resolved[ bucket_idx ].iter().map( | rv | project_vertex_sprite( rv, &ctx ) ) );
       draws.extend( edge_pass_scene_compile( bucket.id.as_str(), scene, &ctx )? );
-      draws.extend( free_pass_scene_compile( bucket.id.as_str(), scene, &ctx )? );
+      free_pass_scene_compile( &free_work[ bucket_idx ], &ctx, &mut draws )?;
 
       sort_mode_apply( &mut draws, bucket.sort );
 
@@ -1836,43 +2026,14 @@ mod private
   /// Emit sprites for every Scene free-pos handle. Mirrors `compile_free_pass`.
   fn free_pass_scene_compile
   (
-    bucket_id : &str,
-    scene : &Scene,
+    work : &[ FreeWork< '_ > ],
     ctx : &FrameContext< '_ >,
-  ) -> Result< Vec< ( f32, f32, Sprite ) >, CompileError >
+    out : &mut Vec< ( f32, f32, Sprite ) >,
+  ) -> Result< (), CompileError >
   {
-    let mut out = Vec::new();
-    for &handle in scene.free_instances()
+    for &FreeWork { inst, object, layer, pos : ( x, y ) } in work
     {
-      let inst = scene.instance( handle ).expect( "free handle live" );
-      if !inst.visible { continue; }
-      let Placement::FreePos { x, y } = inst.placement else { unreachable!() };
-
-      let object = &ctx.spec.objects[ inst.object.index() as usize ];
-      if !matches!( object.anchor, Anchor::FreePos )
       {
-        return Err( CompileError::UnsupportedAnchor
-        {
-          object : object.id.clone(),
-          anchor : "FreePos (object declares a different anchor)",
-        });
-      }
-
-      let state_name = scene.state_name( inst.state ).ok_or_else( || CompileError::MissingDefaultState
-      {
-        object : object.id.clone(),
-      })?;
-      let stack = object.states.get( state_name ).ok_or_else( || CompileError::MissingDefaultState
-      {
-        object : object.id.clone(),
-      })?;
-
-      // Fix(BUG-156): see `layers_in_z_order` doc comment for root cause.
-      for layer in layers_in_z_order( stack )
-      {
-        let effective = layer.pipeline_layer.as_deref().unwrap_or( object.global_layer.as_str() );
-        if effective != bucket_id { continue; }
-
         match &layer.sprite_source
         {
           SpriteSource::NeighborBitmask { .. }
@@ -1889,7 +2050,6 @@ mod private
           },
           _ => {}
         }
-
         // External slot resolution for free-pos.
         if let SpriteSource::External { slot } = &layer.sprite_source
         {
@@ -1949,7 +2109,7 @@ mod private
         ));
       }
     }
-    Ok( out )
+    Ok( () )
   }
 
   /// Emit `ScreenSpaceSprite` commands for every Scene viewport handle.
