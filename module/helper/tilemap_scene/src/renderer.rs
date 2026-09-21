@@ -219,6 +219,9 @@ mod private
     /// monitoring redraw effectiveness, and gives tests a deterministic
     /// signal that the cache path was taken.
     cache_hits : u64,
+    /// Number of `render()` calls that re-walked the scene (the complement of
+    /// `cache_hits`).
+    scene_walks : u64,
 
     // ──────────────────────────────────────────────────────────────────
     // Sprite-batch state.
@@ -304,6 +307,7 @@ mod private
         },
         has_rendered : false,
         cache_hits : 0,
+        scene_walks : 0,
         batches : HashMap::default(),
         next_batch_id : 0,
         sprite_to_sheet,
@@ -318,6 +322,19 @@ mod private
     #[ inline ]
     #[ must_use ]
     pub fn cache_hits( &self ) -> u64 { self.cache_hits }
+
+    /// Number of `render()` calls that missed the idle-replay cache and
+    /// re-walked the scene. Stable across renderer lifetime — does not reset.
+    #[ inline ]
+    #[ must_use ]
+    pub fn scene_walks( &self ) -> u64 { self.scene_walks }
+
+    /// Number of full dual-grid `VertexCorners` resolves run so far (see
+    /// [`VertexResolveCache::resolves`]). A scene walk that reuses the cached
+    /// resolve does not count. Stable across renderer lifetime.
+    #[ inline ]
+    #[ must_use ]
+    pub fn vertex_resolves( &self ) -> u64 { self.vertex_cache.resolves() }
 
     /// Offset this renderer's `ResourceId&lt;Batch&gt;` allocation so several
     /// renderers can share ONE backend without their batch ids colliding in the
@@ -438,6 +455,8 @@ mod private
         self.cache_hits += 1;
         return Ok( &self.cmd_buf );
       }
+
+      self.scene_walks += 1;
 
       // Disabled layers are skipped already at gather time — their vertex
       // resolve is the most expensive part of a miss, and nothing emits them.

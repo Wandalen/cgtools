@@ -926,6 +926,8 @@ mod private
     skip : u64,
     valid : bool,
     buckets : Vec< Vec< ResolvedVertexSprite > >,
+    /// Structural resolves run so far (cache misses) — see [`Self::resolves`].
+    resolves : u64,
   }
 
   impl VertexResolveCache
@@ -934,8 +936,15 @@ mod private
     #[ must_use ]
     pub fn new() -> Self
     {
-      Self { revision : 0, skip : 0, valid : false, buckets : Vec::new() }
+      Self { revision : 0, skip : 0, valid : false, buckets : Vec::new(), resolves : 0 }
     }
+
+    /// How many times the structural resolve has run through this cache (its
+    /// misses). Each one walks every dual-grid triangle for every live
+    /// `VertexCorners` layer, so this is the counter to watch when profiling.
+    #[ inline ]
+    #[ must_use ]
+    pub fn resolves( &self ) -> u64 { self.resolves }
   }
 
   impl Default for VertexResolveCache
@@ -1055,6 +1064,7 @@ mod private
           cache.revision = revision;
           cache.skip = skip;
           cache.valid = true;
+          cache.resolves += 1;
         }
         resolved = &cache.buckets;
       }
