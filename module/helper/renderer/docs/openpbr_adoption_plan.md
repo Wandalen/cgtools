@@ -719,10 +719,17 @@ approximations, listed so they are not re-derived every time a render looks off.
   Remaining, and a perf note rather than a correctness gap: the compensation is
   applied whenever `USE_OPENPBR` is on rather than gated on roughness — it costs
   a lookup on smooth surfaces, where the term vanishes on its own as `E -> 1`.
-- **Direct specular is faded out at grazing** ( `smoothstep( 0, 0.25, NoV )` ) to
-  suppress sub-pixel highlight aliasing. This is a deliberate, energy-losing
-  departure from every reference; a soft area-light source would remove the
-  aliasing at its origin instead.
+- **Direct specular grazing fade — removed ( 2026-09 ).** Sub-pixel highlight
+  aliasing had four mitigations layered on it. Three preserve energy: the
+  Smith-visibility clamp that kills `1/0` fireflies, a minimum-roughness floor
+  that keeps lobes a few pixels wide, and Tokuyoshi & Kaplanyan GSAA, which
+  widens roughness from the screen-space normal variance. The fourth multiplied
+  direct specular by `smoothstep( 0, 0.25, dot( N, V ) )`, which fixed the
+  symptom by deleting the grazing rim outright — a visible darkening at every
+  silhouette and a departure from every reference renderer. It predated GSAA,
+  which addresses the same aliasing properly, so it is gone. Residual
+  single-pixel sparkle is accepted; removing sub-pixel highlights at the source
+  needs a soft area light, not a post-fade.
 
 ### Formats & ingestion
 - **Full `openusd` Stage reader (N3 full)** — **mostly done**: the scene slice

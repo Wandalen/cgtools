@@ -820,10 +820,7 @@ void applyLightContribution
   vec3 specularColor = D * V * irradiance;
 
   reflectedLight.directDiffuse += ( 1.0 - Fs ) * Fd * diffuseColor;
-  // Fade specular at grazing angles so the silhouette rim doesn't read as a
-  // hard "contour light" ( the aliased bright edge on smooth surfaces ).
-  float grazingFade = smoothstep( 0.0, 0.25, dotNV );
-  reflectedLight.directSpecular += Fs * specularColor * grazingFade;
+  reflectedLight.directSpecular += Fs * specularColor;
 
   #ifdef USE_KULLA_CONTY
     // Multi-scatter energy compensation: add back the light lost between
@@ -966,10 +963,7 @@ void computeSpotLight
   vec3 specularColor = D * V * irradiance;
 
   reflectedLight.directDiffuse += ( 1.0 - Fs ) * Fd * diffuseColor;
-  // Fade specular at grazing angles so the silhouette rim doesn't read as a
-  // hard "contour light" ( the aliased bright edge on smooth surfaces ).
-  float grazingFade = smoothstep( 0.0, 0.25, dotNV );
-  reflectedLight.directSpecular += Fs * specularColor * grazingFade;
+  reflectedLight.directSpecular += Fs * specularColor;
 
   #ifdef USE_KULLA_CONTY
     // Multi-scatter energy compensation: add back the light lost between
@@ -1494,9 +1488,13 @@ void main()
   //   2. a minimum-roughness floor keeps lobes at least a few pixels wide.
   //   3. Tokuyoshi & Kaplanyan GSAA ( below ) widens roughness from the
   //      screen-space normal variance.
-  //   4. direct specular fades out at grazing ( smoothstep on dotNV, in
-  //      applyLightContribution / computeSpotLight ) so the rim no longer
-  //      reads as a hard "contour light".
+  // All three preserve energy: they make the lobe resolvable instead of
+  // removing it. A fourth layer used to multiply direct specular by
+  // `smoothstep( 0, 0.25, dotNV )`, which fixed the symptom by deleting the
+  // grazing rim - a visible darkening at every silhouette, and a departure from
+  // every reference renderer. It predated GSAA, which addresses the same
+  // aliasing properly by widening the lobe, so it was removed once GSAA landed
+  // and the Khronos reference grids were available to judge the result against.
   // Residual single-pixel sparkle is accepted; a soft area/environment light
   // would remove sub-pixel highlights at the source rather than post-fading.
   // -------------------------------------------------------------------------
