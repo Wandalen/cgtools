@@ -69,7 +69,9 @@ fn coat_and_fuzz_are_conditional()
 
   assert_eq!( runtime.coat_weight, Some( 0.9 ) );
   assert_eq!( runtime.coat_roughness, Some( 0.1 ) );
-  assert_eq!( runtime.fuzz_color, Some( [ 0.315, 0.237, 0.465 ] ) );
+  // `fuzz_weight` 0.5 rides in the colour: the KHR sheen carrier has no weight
+  // of its own, so carrying it separately would make the weight a bare on/off.
+  assert_eq!( runtime.fuzz_color, Some( [ 0.315 * 0.5, 0.237 * 0.5, 0.465 * 0.5 ] ) );
   assert_eq!( runtime.fuzz_roughness, Some( 0.5 ) );
 }
 
@@ -125,7 +127,7 @@ fn params_from_surface_maps_thin_film_fuzz_and_ior()
   let params = openpbr_params_from_surface( &surface );
 
   assert_eq!( params.ior, Some( 1.52 ) );
-  assert_eq!( params.sheen_color_factor, Some( [ 0.3, 0.2, 0.4 ] ) );
+  assert_eq!( params.sheen_color_factor, Some( [ 0.3 * 0.5, 0.2 * 0.5, 0.4 * 0.5 ] ) );
   assert_eq!( params.sheen_roughness_factor, Some( 0.6 ) );
   assert_eq!( params.iridescence_factor, Some( 0.8 ) );
   assert_eq!( params.iridescence_ior, Some( 1.4 ) );
@@ -174,4 +176,54 @@ fn params_from_surface_maps_transmission_carriers()
   let params = openpbr_params_from_surface( &opaque );
   assert_eq!( params.transmission_factor, None );
   assert_eq!( params.volume_attenuation_distance, None );
+}
+
+/// `fuzz_weight` has to *scale* the layer, not merely gate it. OpenPBR composes
+/// the fuzz as `layer( base, fuzz, fuzz_weight )` while `KHR_materials_sheen`
+/// has no weight of its own, so the weight rides in `sheenColorFactor` — without
+/// that the slider is a bare on/off and every value above zero looks identical.
+#[ test ]
+fn fuzz_weight_scales_the_layer_rather_than_gating_it()
+{
+  let colored = | weight : f32 |
+  {
+    let mut surface = OpenPbrSurface::spec_default();
+    surface.fuzz_weight = weight;
+    surface.fuzz_color = [ 0.8, 0.6, 0.4 ];
+    openpbr_params_from_surface( &surface ).sheen_color_factor
+  };
+
+  assert_eq!( colored( 1.0 ), Some( [ 0.8, 0.6, 0.4 ] ), "full weight passes the colour through" );
+  assert_eq!( colored( 0.5 ), Some( [ 0.4, 0.3, 0.2 ] ), "half weight halves the layer" );
+  assert_eq!( colored( 0.25 ), Some( [ 0.2, 0.15, 0.1 ] ), "a quarter weight quarters it" );
+  assert_eq!( colored( 0.0 ), None, "no weight disables the layer entirely" );
+}
+
+/// A weight outside `[ 0, 1 ]` must not amplify the layer past its own colour —
+/// `sheenColorFactor` is a reflectivity and the albedo scaling that pairs with it
+/// assumes the same bound.
+#[ test ]
+fn fuzz_weight_is_clamped()
+{
+  let mut surface = OpenPbrSurface::spec_default();
+  surface.fuzz_weight = 4.0;
+  surface.fuzz_color = [ 0.8, 0.6, 0.4 ];
+  assert_eq!( openpbr_params_from_surface( &surface ).sheen_color_factor, Some( [ 0.8, 0.6, 0.4 ] ) );
+}
+
+/// The glTF direction sets `fuzz_weight = 1` on the presence of
+/// `KHR_materials_sheen`, so folding the weight into the colour keeps the round
+/// trip exact rather than darkening a material each time it crosses the bridge.
+#[ test ]
+fn gltf_sheen_round_trips_through_the_weight()
+{
+  let mut surface = OpenPbrSurface::spec_default();
+  surface.fuzz_weight = 1.0;
+  surface.fuzz_color = [ 0.315, 0.237, 0.465 ];
+
+  assert_eq!
+  (
+    openpbr_params_from_surface( &surface ).sheen_color_factor,
+    Some( [ 0.315, 0.237, 0.465 ] )
+  );
 }

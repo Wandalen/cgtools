@@ -415,10 +415,30 @@ mod private
     pub coat_weight : Option< f32 >,
     /// `coat_roughness` when the coat layer is enabled.
     pub coat_roughness : Option< f32 >,
-    /// `fuzz_color` when the fuzz layer is enabled ( `fuzz_weight` > 0 ).
+    /// `fuzz_color` **scaled by `fuzz_weight`** when the fuzz layer is enabled
+    /// ( `fuzz_weight` > 0 ).
+    ///
+    /// The weight has nowhere else to go: OpenPBR layers fuzz over the base as
+    /// `layer( base, fuzz, fuzz_weight )`, while `KHR_materials_sheen` has no
+    /// weight of its own and expresses the layer’s reflectivity entirely through
+    /// `sheenColorFactor`. Folding it in keeps the round trip exact, since the
+    /// glTF direction sets `fuzz_weight = 1` on the presence of the extension.
     pub fuzz_color : Option< [ f32; 3 ] >,
     /// `fuzz_roughness` when the fuzz layer is enabled.
     pub fuzz_roughness : Option< f32 >,
+  }
+
+  /// `fuzz_color` premultiplied by `fuzz_weight`, the form both glTF-carrier
+  /// reductions need. See [`OpenPbrRuntime::fuzz_color`] for why the weight has
+  /// to be folded into the colour rather than carried alongside it.
+  fn fuzz_color_weighted( surface : &OpenPbrSurface ) -> [ f32; 3 ]
+  {
+    let weight = surface.fuzz_weight.clamp( 0.0, 1.0 );
+    [
+      surface.fuzz_color[ 0 ] * weight,
+      surface.fuzz_color[ 1 ] * weight,
+      surface.fuzz_color[ 2 ] * weight,
+    ]
   }
 
   /// Reduces a canonical [`OpenPbrSurface`] to the factors the runtime material
@@ -443,7 +463,7 @@ mod private
       specular_color : not_white( &surface.specular_color ).then_some( surface.specular_color ),
       coat_weight : ( surface.coat_weight > 1e-3 ).then_some( surface.coat_weight ),
       coat_roughness : ( surface.coat_weight > 1e-3 ).then_some( surface.coat_roughness ),
-      fuzz_color : ( surface.fuzz_weight > 1e-3 ).then_some( surface.fuzz_color ),
+      fuzz_color : ( surface.fuzz_weight > 1e-3 ).then_some( fuzz_color_weighted( surface ) ),
       fuzz_roughness : ( surface.fuzz_weight > 1e-3 ).then_some( surface.fuzz_roughness ),
     }
   }
@@ -465,7 +485,10 @@ mod private
 
     if surface.fuzz_weight > 1e-3
     {
-      params.sheen_color_factor = Some( surface.fuzz_color );
+      // `fuzz_weight` scales the layer; the KHR carrier has no weight of its
+      // own, so it rides in the colour. Without this the weight is a bare
+      // on/off switch and every value above zero looks the same.
+      params.sheen_color_factor = Some( fuzz_color_weighted( surface ) );
       params.sheen_roughness_factor = Some( surface.fuzz_roughness );
     }
 
