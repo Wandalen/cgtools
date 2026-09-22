@@ -198,6 +198,17 @@ fn kulla_conty_setup( renderer : &mut Renderer, gl : &gl::WebGl2RenderingContext
   Ok( () )
 }
 
+/// Generates the fuzz ( sheen ) directional-albedo LUT and gives it to the
+/// renderer, so the substrate under an OpenPBR `fuzz` layer is scaled down by
+/// what the layer reflects instead of the layer being pure gain. Without it a
+/// strong fuzz reads as an overall brighter material rather than a fuzzy one.
+fn sheen_albedo_setup( renderer : &mut Renderer, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
+{
+  let lut = renderer::webgl::loaders::sheen_albedo::sheen_albedo_lut_upload( gl, 32, 32, 64, 64 )?;
+  renderer.sheen_albedo_lut_set( lut );
+  Ok( () )
+}
+
 /// The OpenPBR / USD test rig: hemisphere-ish ambient ( two opposite direct
 /// lights whose diffuse contribution scales with NoL — top = cool sky, bottom
 /// = warm ground bounce, blending smoothly over the sphere ) plus a single key
@@ -455,12 +466,24 @@ fn debug_ui_setup
   surface_slider( state, &js_object, &params_folder, "thinFilmWeight", 0.0, ( 0.0, 1.0, 0.01 ), | s, v | s.thin_film_weight = v );
   surface_slider( state, &js_object, &params_folder, "thinFilmThicknessNm", 450.0, ( 100.0, 1000.0, 5.0 ), | s, v | s.thin_film_thickness = v / 1000.0 );
   surface_slider( state, &js_object, &params_folder, "thinFilmIor", 1.4, ( 1.0, 2.0, 0.01 ), | s, v | s.thin_film_ior = v );
-  // §3.3 transmission. Raising the weight re-routes the sphere into the
-  // transmission pass live ( `surface_apply` -> recompile -> `nodes_collect`
-  // sees `transmission_active` ). Depth is the slab thickness driving the
-  // refracted-ray offset.
+  // §3.3 / §3.4 transmission. Raising the weight re-routes the sphere into
+  // the transmission pass live ( `surface_apply` -> recompile -> `nodes_collect`
+  // sees `transmission_active` ).
+  //
+  // `transmissionDepth` is the spec's absorption length scale ( lambda ), not a
+  // geometric thickness : white light becomes `transmissionColor*` after
+  // travelling it, so it only shows once the tint is off-white - drop a channel
+  // below 1 and the glass takes on that color, deeper as the depth shrinks.
+  // `thinWalled` collapses the slab into a zero-thickness shell ( no refraction
+  // offset, no absorption ), and the `roughness` slider above drives the blur of
+  // the refracted tap, so together they exercise the whole 3.3b path.
   surface_slider( state, &js_object, &params_folder, "transmissionWeight", 0.0, ( 0.0, 1.0, 0.01 ), | s, v | s.transmission_weight = v );
-  surface_slider( state, &js_object, &params_folder, "transmissionDepth", 1.5, ( 0.1, 6.0, 0.05 ), | s, v | s.transmission_depth = v );
+  surface_slider( state, &js_object, &params_folder, "transmissionDepth", 1.5, ( 0.05, 6.0, 0.05 ), | s, v | s.transmission_depth = v );
+  surface_slider( state, &js_object, &params_folder, "transmissionColorR", 1.0, ( 0.0, 1.0, 0.01 ), | s, v | s.transmission_color[ 0 ] = v );
+  surface_slider( state, &js_object, &params_folder, "transmissionColorG", 1.0, ( 0.0, 1.0, 0.01 ), | s, v | s.transmission_color[ 1 ] = v );
+  surface_slider( state, &js_object, &params_folder, "transmissionColorB", 1.0, ( 0.0, 1.0, 0.01 ), | s, v | s.transmission_color[ 2 ] = v );
+  // A slider rather than a checkbox : `lil_gui.rs` binds sliders and dropdowns only.
+  surface_slider( state, &js_object, &params_folder, "thinWalled", 0.0, ( 0.0, 1.0, 1.0 ), | s, v | s.geometry_thin_walled = v > 0.5 );
 
   lil_gui::show( &gui );
 }
@@ -523,6 +546,7 @@ async fn app_run() -> Result< (), gl::WebglError >
   let ibl = renderer::webgl::loaders::pmrem::generate( &gl, &equirect, 512 )?;
   renderer.ibl_set( ibl );
   kulla_conty_setup( &mut renderer, &gl )?;
+  sheen_albedo_setup( &mut renderer, &gl )?;
   renderer.clear_color_set( gl::math::F32x3::from( [ 0.01, 0.01, 0.01 ] ) );
   renderer.exposure_set( 0.0 );
 
