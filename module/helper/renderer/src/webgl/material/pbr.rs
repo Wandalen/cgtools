@@ -98,6 +98,8 @@ mod private
     "transmissionDepth",
     "transmissionColor",
     "transmissionDispersion",
+    "diffuseTransmissionFactor",
+    "diffuseTransmissionColor",
     "transmissionIor",
     //// IBL uniform locations
     "irradianceTexture",
@@ -1158,6 +1160,13 @@ mod private
           defines.push_str( "#define USE_TRANSMISSION_DISPERSION\n" );
         }
       }
+      // Diffuse transmission ( KHR_materials_diffuse_transmission ) — OpenPBR
+      // `subsurface_*` on thin-walled geometry. A zero weight is the extension’s
+      // own default and means "no lobe", so it must not compile the split in.
+      if p.diffuse_transmission_factor.is_some_and( | w | w > 0.0 )
+      {
+        defines.push_str( "#define USE_DIFFUSE_TRANSMISSION\n" );
+      }
       if p.emissive_strength.is_some()
       {
         defines.push_str( "#define USE_KHR_materials_emissive_strength\n" );
@@ -1432,6 +1441,13 @@ mod private
         {
           upload( "transmissionDispersion", Some( dispersion ) )?;
         }
+      }
+      if let Some( weight ) = self.openpbr_params.diffuse_transmission_factor.filter( | w | *w > 0.0 )
+      {
+        upload( "diffuseTransmissionFactor", Some( weight.clamp( 0.0, 1.0 ) ) )?;
+        // The extension defaults the tint to white, i.e. an untinted sheet.
+        let tint = self.openpbr_params.diffuse_transmission_color_factor.unwrap_or( [ 1.0, 1.0, 1.0 ] );
+        upload_array( "diffuseTransmissionColor", Some( &tint ) )?;
       }
       if let Some( strength ) = self.openpbr_params.emissive_strength
       {

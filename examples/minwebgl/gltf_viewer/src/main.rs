@@ -499,6 +499,14 @@ fn debug_ui_setup
   // strongly dispersive and 64 is ordinary crown glass.
   surface_slider( state, &js_object, &params_folder, "dispersionScale", 0.0, ( 0.0, 1.0, 0.01 ), | s, v | s.transmission_dispersion_scale = v );
   surface_slider( state, &js_object, &params_folder, "dispersionAbbe", 20.0, ( 10.0, 80.0, 1.0 ), | s, v | s.transmission_dispersion_abbe_number = v );
+  // §3.5 subsurface. On a thin-walled surface it is a diffuse transmission lobe
+  // ( light straight out the far side ), so `thinWalled` has to be on for these
+  // to do anything - a thick subsurface surface needs the diffusion pass and is
+  // deliberately left unmapped. Put a light behind the sphere to see it.
+  surface_slider( state, &js_object, &params_folder, "subsurfaceWeight", 0.0, ( 0.0, 1.0, 0.01 ), | s, v | s.subsurface_weight = v );
+  surface_slider( state, &js_object, &params_folder, "subsurfaceColorR", 0.8, ( 0.0, 1.0, 0.01 ), | s, v | s.subsurface_color[ 0 ] = v );
+  surface_slider( state, &js_object, &params_folder, "subsurfaceColorG", 0.8, ( 0.0, 1.0, 0.01 ), | s, v | s.subsurface_color[ 1 ] = v );
+  surface_slider( state, &js_object, &params_folder, "subsurfaceColorB", 0.8, ( 0.0, 1.0, 0.01 ), | s, v | s.subsurface_color[ 2 ] = v );
 
   lil_gui::show( &gui );
 }

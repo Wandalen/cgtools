@@ -544,6 +544,20 @@ mod private
       }
     }
 
+    // Subsurface on a thin-walled surface is a diffuse transmission lobe : a
+    // sheet with no interior to diffuse through scatters light straight out the
+    // far side, which is exactly `KHR_materials_diffuse_transmission`. Outside
+    // the transmission gate above on purpose — a translucent leaf or lampshade
+    // has no refractive transmission at all, so requiring one would leave every
+    // such surface opaque. A *thick* subsurface surface needs the diffusion pass
+    // ( plan §3.5 ) and has no carrier here, so it stays unmapped rather than
+    // being approximated by a lobe with the wrong shape.
+    if surface.geometry_thin_walled && surface.subsurface_weight > 1e-3
+    {
+      params.diffuse_transmission_factor = Some( surface.subsurface_weight.clamp( 0.0, 1.0 ) );
+      params.diffuse_transmission_color_factor = Some( surface.subsurface_color );
+    }
+
     params
   }
 }

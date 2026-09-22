@@ -259,3 +259,62 @@ fn dispersion_carrier_stays_absent_when_there_is_nothing_to_disperse()
   opaque.transmission_dispersion_abbe_number = 64.0;
   assert_eq!( openpbr_params_from_surface( &opaque ).dispersion, None, "no transmission, no dispersion" );
 }
+
+/// OpenPBR subsurface on a *thin-walled* surface is a diffuse transmission lobe:
+/// a sheet with no interior to diffuse through scatters light straight out the
+/// far side, which is what `KHR_materials_diffuse_transmission` describes.
+#[ test ]
+fn thin_walled_subsurface_becomes_diffuse_transmission()
+{
+  let mut surface = OpenPbrSurface::spec_default();
+  surface.geometry_thin_walled = true;
+  surface.subsurface_weight = 0.7;
+  surface.subsurface_color = [ 0.9, 0.4, 0.35 ];
+
+  let params = openpbr_params_from_surface( &surface );
+  assert_eq!( params.diffuse_transmission_factor, Some( 0.7 ) );
+  assert_eq!( params.diffuse_transmission_color_factor, Some( [ 0.9, 0.4, 0.35 ] ) );
+}
+
+/// A *thick* subsurface surface needs the diffusion pass and has no carrier, so
+/// it must stay unmapped rather than being approximated by a lobe with the wrong
+/// shape — diffuse transmission puts the light straight out the back, which is
+/// not what a solid volume does with it.
+#[ test ]
+fn thick_subsurface_is_left_unmapped()
+{
+  let mut surface = OpenPbrSurface::spec_default();
+  surface.geometry_thin_walled = false;
+  surface.subsurface_weight = 0.7;
+  surface.subsurface_color = [ 0.9, 0.4, 0.35 ];
+
+  let params = openpbr_params_from_surface( &surface );
+  assert_eq!( params.diffuse_transmission_factor, None );
+  assert_eq!( params.diffuse_transmission_color_factor, None );
+}
+
+/// Translucency does not require refractive transmission: a leaf or a lampshade
+/// has `subsurface_weight` and no `transmission_weight` at all. Gating the
+/// mapping behind transmission would leave every such surface opaque.
+#[ test ]
+fn translucency_does_not_require_refractive_transmission()
+{
+  let mut surface = OpenPbrSurface::spec_default();
+  surface.geometry_thin_walled = true;
+  surface.subsurface_weight = 0.6;
+  assert_eq!( surface.transmission_weight, 0.0, "the fixture must have no refractive transmission" );
+
+  let params = openpbr_params_from_surface( &surface );
+  assert_eq!( params.diffuse_transmission_factor, Some( 0.6 ) );
+  assert_eq!( params.transmission_factor, None, "no refraction was authored" );
+}
+
+/// The spec default is a zero subsurface weight, which must not raise the
+/// carrier — that is what compiles the diffuse split into the shader.
+#[ test ]
+fn spec_default_raises_no_diffuse_transmission()
+{
+  let mut surface = OpenPbrSurface::spec_default();
+  surface.geometry_thin_walled = true;
+  assert_eq!( openpbr_params_from_surface( &surface ).diffuse_transmission_factor, None );
+}

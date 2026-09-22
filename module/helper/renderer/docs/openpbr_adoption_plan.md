@@ -459,6 +459,34 @@ in-scattering needs §3.5's diffusion pass.
   per-RGB `subsurface_radius`/`radius_scale` (Burley profile). Compose
   `diffuseTransmission` as the diffuse BTDF under the volume surface.
 
+Status: **diffuse-transmission half landed, browser-UNTESTED (2026-09); the
+diffusion half still open.** §3.5 splits cleanly in two and only one half needs
+a new pass.
+
+The **thin-walled** case is a BRDF-level change and is done. A sheet with no
+interior to diffuse through scatters light straight out the far side, which is
+exactly `KHR_materials_diffuse_transmission`, so OpenPBR `subsurface_weight` /
+`subsurface_color` map onto that carrier when `geometry_thin_walled` is set.
+Behind `USE_DIFFUSE_TRANSMISSION` the diffuse lobe is *split* rather than
+extended - the transmitted share is taken out of the reflected one, so a fully
+translucent sheet reflects nothing diffusely and an opaque one is untouched -
+and the transmitted half is Lambertian about the flipped normal. Two
+consequences worth naming: the light loops stop skipping back-facing lights,
+since a translucent surface is lit by what is behind it ( the reflective terms
+zero themselves there anyway, their `dotNL` being clamped at 0 ), and the IBL
+path reads the irradiance probe along `-N`. The lobe is plain `1 / pi` rather
+than the Burley term the reflected share uses, because the extension specifies
+a Lambertian BTDF and Burley’s retro-reflection has no meaning for light
+leaving the far side.
+
+The **thick** case is what remains, and it is the part that needs the pass: a
+screen-space or texture-space diffusion profile over scattered irradiance with
+per-RGB `subsurface_radius` / `subsurface_radius_scale` ( Burley ). A thick
+subsurface surface is deliberately left *unmapped* rather than approximated by
+the diffuse-transmission lobe - that lobe puts the light straight out the back,
+which is not what a solid volume does with it, so borrowing it would make skin
+and marble look like paper. `subsurface_scatter_anisotropy` rides with it.
+
 ### 3.6 Dispersion (on top of 3.3)
 - Per-channel IOR from Abbe (`20/Vd`, default 20), 3 transmission samples
   (R/G/B) — the transmission pass executed per channel, or an analytic
@@ -800,7 +828,9 @@ approximations, listed so they are not re-derived every time a render looks off.
   three.js bandwidth trick ), per-material `transmissionTexture` map, and
   `transmission_scatter` in-scattering.
 - **Thin-film iridescence** (§3.2) and **dispersion** (§3.6) **landed**;
-  **subsurface diffusion** (§3.5) — blocked/deferred as described in its section.
+  **§3.5** — the diffuse-transmission ( thin-walled ) half landed, the
+  diffusion ( thick ) half still needs its own pass, as described in that
+  section.
 - **Kulla–Conty LUT** (§3.7) — **landed for direct lights and IBL**, weighted by
   the per-bounce Fresnel series and indexed by the anisotropic effective
   roughness. Open: gate the compensation on actual roughness rather than

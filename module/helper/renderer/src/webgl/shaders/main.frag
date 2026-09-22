@@ -53,6 +53,12 @@ struct PhysicalMaterial
     vec3 sheenColorFactor;
     float sheenRoughness;
   #endif
+  #ifdef USE_DIFFUSE_TRANSMISSION
+    // KHR_materials_diffuse_transmission: the share of the diffuse lobe that
+    // passes through instead of reflecting, and its tint.
+    float diffuseTransmissionWeight;
+    vec3 diffuseTransmissionColor;
+  #endif
   #ifdef USE_OPENPBR_IRIDESCENCE
     // Iridescence weight after per-texel modulation by `iridescenceTexture`
     // ( the uniform alone is the scalar factor ).
@@ -208,6 +214,13 @@ uniform vec4 baseColorFactor; // Default: [1, 1, 1, 1]
 #ifdef USE_SHEEN_ALBEDO
   // Fuzz ( sheen ) directional-albedo LUT: E(μ, α) in R.
   uniform sampler2D sheenAlbedo;
+#endif
+#ifdef USE_DIFFUSE_TRANSMISSION
+  // Diffuse transmission ( KHR_materials_diffuse_transmission ), which is what
+  // OpenPBR `subsurface_*` becomes on thin-walled geometry - light scattered
+  // straight through a thin sheet rather than diffused through a volume.
+  uniform float diffuseTransmissionFactor;
+  uniform vec3 diffuseTransmissionColor;
 #endif
 #ifdef USE_TRANSMISSION
   // Transmission ( OpenPBR adoption plan §3.3 / §3.4 ). The renderer captures
@@ -815,12 +828,28 @@ void applyLightContribution
   // Diffuse BRDF (Burley)
   vec3 Fd = Fd_Barley( alpha, dotNV, dotNL, dotLH );
 
-  vec3 irradiance = lightColor * lightIntensity * dotNL;
+  vec3 lightColorAttenuated = lightColor * lightIntensity;
+  vec3 irradiance = lightColorAttenuated * dotNL;
   vec3 diffuseColor = material.diffuseColor * irradiance;
   vec3 specularColor = D * V * irradiance;
 
   reflectedLight.directDiffuse += ( 1.0 - Fs ) * Fd * diffuseColor;
   reflectedLight.directSpecular += Fs * specularColor;
+
+  #ifdef USE_DIFFUSE_TRANSMISSION
+    // The transmitted share of the diffuse lobe. It is Lambertian about the
+    // *flipped* normal, so it is lit by whatever is behind the surface - which
+    // is why the light loops stop skipping back-facing lights once this layer
+    // is on. Plain `1 / pi` rather than the Burley term the reflected share
+    // uses: the extension specifies a Lambertian BTDF, and Burley’s retro-
+    // reflection has no meaning for light leaving the far side.
+    {
+      float dotNLBack = clamp( dot( -normal, lightDir ), 0.0, 1.0 );
+      reflectedLight.directDiffuse += ( 1.0 - Fs )
+      * material.diffuseTransmissionColor * material.diffuseTransmissionWeight
+      * lightColorAttenuated * dotNLBack * RECIPROCAL_PI;
+    }
+  #endif
 
   #ifdef USE_KULLA_CONTY
     // Multi-scatter energy compensation: add back the light lost between
@@ -964,12 +993,28 @@ void computeSpotLight
   #endif
   vec3 Fd = Fd_Barley( alpha, dotNV, dotNL, dotLH );
 
-  vec3 irradiance = light.color * attenuation * dotNL;
+  vec3 lightColorAttenuated = light.color * attenuation;
+  vec3 irradiance = lightColorAttenuated * dotNL;
   vec3 diffuseColor = material.diffuseColor * irradiance;
   vec3 specularColor = D * V * irradiance;
 
   reflectedLight.directDiffuse += ( 1.0 - Fs ) * Fd * diffuseColor;
   reflectedLight.directSpecular += Fs * specularColor;
+
+  #ifdef USE_DIFFUSE_TRANSMISSION
+    // The transmitted share of the diffuse lobe. It is Lambertian about the
+    // *flipped* normal, so it is lit by whatever is behind the surface - which
+    // is why the light loops stop skipping back-facing lights once this layer
+    // is on. Plain `1 / pi` rather than the Burley term the reflected share
+    // uses: the extension specifies a Lambertian BTDF, and Burley’s retro-
+    // reflection has no meaning for light leaving the far side.
+    {
+      float dotNLBack = clamp( dot( -normal, lightDir ), 0.0, 1.0 );
+      reflectedLight.directDiffuse += ( 1.0 - Fs )
+      * material.diffuseTransmissionColor * material.diffuseTransmissionWeight
+      * lightColorAttenuated * dotNLBack * RECIPROCAL_PI;
+    }
+  #endif
 
   #ifdef USE_KULLA_CONTY
     // Multi-scatter energy compensation: add back the light lost between
@@ -1007,6 +1052,16 @@ void computeSpotLight
   #endif
 }
 
+// A surface with a diffuse transmission lobe is lit by what is *behind* it, so
+// the back-facing lights the reflective path skips still have work to do. The
+// reflective terms zero themselves there anyway - their `dotNL` is clamped at 0
+// - so the only cost of letting them through is the branch.
+#ifdef USE_DIFFUSE_TRANSMISSION
+  const bool LIGHTS_FROM_BEHIND = true;
+#else
+  const bool LIGHTS_FROM_BEHIND = false;
+#endif
+
 void computeLights
 (
   const in vec3 viewDir,
@@ -1020,7 +1075,7 @@ void computeLights
     vec3 lightDir = pointLights[ i ].position - vWorldPos;
     float dotNL = clamp( dot( normal, lightDir ), 0.0, 1.0 );
 
-    if ( dotNL > 0.0 )
+    if ( dotNL > 0.0 || LIGHTS_FROM_BEHIND )
     {
       computePointLight( pointLights[ i ], viewDir, normal, material, reflectedLight );
     }
@@ -1030,7 +1085,7 @@ void computeLights
   {
     float dotNL = clamp( dot( normal, directLights[ i ].direction ), 0.0, 1.0 );
 
-    if ( dotNL > 0.0 )
+    if ( dotNL > 0.0 || LIGHTS_FROM_BEHIND )
     {
       computeDirectLight( directLights[ i ], viewDir, normal, material, reflectedLight );
     }
@@ -1041,7 +1096,7 @@ void computeLights
     vec3 lightDir = normalize( spotLights[ i ].position - vWorldPos );
     float dotNL = clamp( dot( normal, lightDir ), 0.0, 1.0 );
 
-    if ( dotNL > 0.0 )
+    if ( dotNL > 0.0 || LIGHTS_FROM_BEHIND )
     {
       computeSpotLight( spotLights[ i ], viewDir, normal, material, reflectedLight );
     }
@@ -1170,6 +1225,18 @@ float ditherNoise( vec2 fragCoord )
     reflectedLight.indirectSpecular += radiance * singleScatter;
     reflectedLight.indirectSpecular += multiScatter * irradiance;
     reflectedLight.indirectDiffuse += diffuse * irradiance;
+
+    #ifdef USE_DIFFUSE_TRANSMISSION
+      // The transmitted share is lit by the environment on the *other* side, so
+      // it reads the irradiance probe along -N. Same energy-conservation factor
+      // as the reflected share: what the specular lobes took is unavailable to
+      // either half of the diffuse one.
+      vec3 backIrradiance = texture( irradianceTexture, -N ).xyz + dither;
+      reflectedLight.indirectDiffuse += material.diffuseTransmissionColor
+      * material.diffuseTransmissionWeight
+      * ( 1.0 - max_value( totalScatter ) )
+      * backIrradiance;
+    #endif
 
     // Clearcoat IBL: raw prefiltered radiance sampled along the clearcoat normal, with no
     // split-sum Fresnel weighting here — the coat's Fresnel is applied once, at the final
@@ -1464,6 +1531,16 @@ void main()
     material.anisotropicT = normalize( TBN * vec3( anisotropyDirection, 0.0 ) );
     material.anisotropicB = cross( geometricNormal, material.anisotropicT );
     material.anisotropyStrength = anisotropyMagnitude;
+  #endif
+
+  #ifdef USE_DIFFUSE_TRANSMISSION
+    // The diffuse lobe is *split*, not extended : the transmitted share is taken
+    // out of the reflected one, so a fully translucent sheet reflects nothing
+    // diffusely and a fully opaque one is untouched. Doing it on
+    // `material.diffuseColor` covers the direct and the IBL paths at once.
+    material.diffuseTransmissionWeight = clamp( diffuseTransmissionFactor, 0.0, 1.0 );
+    material.diffuseTransmissionColor = diffuseTransmissionColor;
+    material.diffuseColor *= 1.0 - material.diffuseTransmissionWeight;
   #endif
 
   #ifdef USE_OPENPBR
