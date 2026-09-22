@@ -36,6 +36,11 @@ const MODE_USD : &str = "usd";
 const MODELS : &[ ( &str, &str ) ] =
 &[
   ( "Dodge Challenger", "static/dodge-challenger/gltf/scene.gltf" ),
+  // Khronos reference tests. Each is a grid sweeping one extension's parameters,
+  // published alongside a reference render - the comparison is the only check the
+  // shader gets that reading the spec cannot give it.
+  ( "KHR ClearCoatTest", "static/ClearCoatTest.glb" ),
+  ( "KHR AnisotropyDiscTest", "static/AnisotropyDiscTest.glb" ),
   ( "AV-8B Harrier II", "static/av-8b_harrier_ii.glb" ),
   ( "Dae Crib", "static/dae_crib_-_tommys_garage.glb" ),
   ( "Gambeson", "static/gambeson.glb" ),
