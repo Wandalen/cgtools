@@ -111,7 +111,7 @@ async fn run() -> Result< (), gl::WebglError >
   let mut renderer = Renderer::new( &gl, pixel_w, pixel_h, samples )?;
 
   let equirect = gl.create_texture().ok_or( gl::WebglError::FailedToAllocateResource( "HDR equirect texture" ) )?;
-  renderer::webgl::loaders::hdr_texture::load_to_mip_d2( &gl, Some( &equirect ), 0, "static/venice_sunset_1k.hdr" ).await;
+  renderer::webgl::loaders::hdr_texture::load_to_mip_d2( &gl, Some( &equirect ), 0, "static/venice_sunset_1k.hdr", true ).await;
 
   let ibl = renderer::webgl::loaders::pmrem::generate( &gl, &equirect, 512 )?;
   renderer.ibl_set( ibl );

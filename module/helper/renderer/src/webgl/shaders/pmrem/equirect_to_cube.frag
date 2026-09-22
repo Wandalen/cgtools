@@ -36,6 +36,10 @@ void main()
 {
   vec3 dir = faceDirFromUV( vUv, face );
   vec2 uv = dirToEquirectUV( dir );
-  uv.y = 1.0 - uv.y;
+  // No vertical flip here: the equirect is uploaded flipped ( see
+  // loaders::hdr_texture::load_to_mip_d2 ), so image top is already at v = 1 -
+  // the same convention skybox.frag and every LDR environment texture use. This
+  // used to compensate for an unflipped upload, which left the skybox ( the only
+  // other consumer of the same texture ) upside down.
   fragColor = texture( equirectMap, uv );
 }
