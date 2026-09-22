@@ -198,6 +198,25 @@ fn kulla_conty_setup( renderer : &mut Renderer, gl : &gl::WebGl2RenderingContext
   Ok( () )
 }
 
+/// Loads the environment map and gives the renderer both of its consumers: the
+/// prefiltered IBL, and the skybox.
+///
+/// The skybox is not decoration here. It is drawn at the end of the opaque pass,
+/// which is exactly what the transmission capture resolves, so it is also what a
+/// transmissive material refracts. Without it the capture behind the glass is
+/// the clear colour - a uniform near-black - so refraction has nothing to bend
+/// and §3.6 dispersion cannot separate three taps of one flat value, however
+/// wide their spread.
+async fn environment_setup( renderer : &mut Renderer, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
+{
+  let equirect = gl.create_texture().ok_or( gl::WebglError::FailedToAllocateResource( "HDR equirect texture" ) )?;
+  renderer::webgl::loaders::hdr_texture::load_to_mip_d2( gl, Some( &equirect ), 0, "static/venice_sunset_1k.hdr" ).await;
+  let ibl = renderer::webgl::loaders::pmrem::generate( gl, &equirect, 512 )?;
+  renderer.ibl_set( ibl );
+  renderer.skybox_set( Some( equirect ) );
+  Ok( () )
+}
+
 /// Generates the fuzz ( sheen ) directional-albedo LUT and gives it to the
 /// renderer, so the substrate under an OpenPBR `fuzz` layer is scaled down by
 /// what the layer reflects instead of the layer being pure gain. Without it a
@@ -271,22 +290,6 @@ async fn scene_load
       gl::WebglError::Other( "Failed to load USD scene" )
     })?;
 
-    // The USD materials never went through `openpbr_surface_apply`'s IBL opt-out;
-    // disable env sampling on every mesh material, like the OpenPBR mode does.
-    let mut disable_ibl = | node : Rc< RefCell< Node > > | -> Result< (), gl::WebglError >
-    {
-      if let Object3D::Mesh( mesh ) = &node.borrow().object
-      {
-        for primitive in &mesh.borrow().primitives
-        {
-          let material_rc = primitive.borrow().material.clone();
-          let mut m = renderer::webgl::cast_unchecked_material_to_ref_mut::< renderer::webgl::material::PbrMaterial >( material_rc.borrow_mut() );
-          m.need_use_ibl_set( false );
-        }
-      }
-      Ok( () )
-    };
-    scene.borrow().traverse( &mut disable_ibl )?;
     studio_rig_add( &scene );
     scene_fit_to_view( &scene );
     // No live-parameter surface binding yet ( the material lives behind the
@@ -301,18 +304,17 @@ async fn scene_load
   {
     // OpenPBR test mode — render the icosphere with a real `.mtlx` surface
     // through the OpenPbrSurface → PbrMaterial runtime bridge, lit by a small
-    // studio rig ( no env reflection, so the material's own response is easy
-    // to read ).
+    // studio rig *and* the environment. Env sampling used to be forced off here
+    // so the material's own response was easy to read in isolation, but a
+    // glass sphere in front of a visible sky that reflects and refracts nothing
+    // reads as broken rather than as legible - and the transmission slice has
+    // nothing to work with at all.
     let surface = openpbr_material_surface( &choice.material );
     let gltf = openpbr_scene::sphere_with_surface( gl, &surface );
 
     if let Some( material ) = gltf.materials.first()
     {
       let material_rc = material.clone();
-      {
-        let mut material = renderer::webgl::cast_unchecked_material_to_ref_mut::< renderer::webgl::material::PbrMaterial >( material_rc.borrow_mut() );
-        material.need_use_ibl_set( false );
-      }
       *state.material.borrow_mut() = Some( material_rc );
       *state.surface.borrow_mut() = Some( surface );
     }
@@ -549,10 +551,7 @@ async fn app_run() -> Result< (), gl::WebglError >
   let samples = 4;
   let mut renderer = Renderer::new( &gl, pixel_w, pixel_h, samples )?;
 
-  let equirect = gl.create_texture().ok_or( gl::WebglError::FailedToAllocateResource( "HDR equirect texture" ) )?;
-  renderer::webgl::loaders::hdr_texture::load_to_mip_d2( &gl, Some( &equirect ), 0, "static/venice_sunset_1k.hdr" ).await;
-  let ibl = renderer::webgl::loaders::pmrem::generate( &gl, &equirect, 512 )?;
-  renderer.ibl_set( ibl );
+  environment_setup( &mut renderer, &gl ).await?;
   kulla_conty_setup( &mut renderer, &gl )?;
   sheen_albedo_setup( &mut renderer, &gl )?;
   renderer.clear_color_set( gl::math::F32x3::from( [ 0.01, 0.01, 0.01 ] ) );
