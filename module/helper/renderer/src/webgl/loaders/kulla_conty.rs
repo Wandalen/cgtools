@@ -150,6 +150,35 @@ mod private
     KullaContyTables { e_uv, e_avg, uv_samples, roughness_samples }
   }
 
+  /// The isotropic roughness whose GGX lobe carries the same energy as the
+  /// anisotropic one with slope roughnesses `alpha_t` / `alpha_b` — the roughness
+  /// to index [`kulla_conty_tables`] with for an anisotropic surface.
+  ///
+  /// The tables are built from the *isotropic* GGX BRDF, so an anisotropic
+  /// surface has no row of its own. Its directional albedo is matched by the
+  /// isotropic lobe of equal projected slope area, i.e. the geometric mean
+  /// `alpha = sqrt( alpha_t * alpha_b )`, and the table is indexed by roughness
+  /// rather than alpha — so the answer is `( alpha_t * alpha_b ) ^ ( 1 / 4 )`.
+  /// An isotropic surface has `alpha_t = alpha_b = r^2` and recovers `r` exactly,
+  /// which is what makes this safe to apply unconditionally.
+  ///
+  /// Indexing by the base roughness instead — what this replaces — reads the wrong
+  /// row for every anisotropic surface, over-compensating along the stretched
+  /// axis and under-compensating along the narrow one.
+  ///
+  /// Non-finite or non-positive inputs fall back to `0`, a mirror, where the
+  /// compensation term vanishes on its own.
+  #[ must_use ]
+  pub fn effective_roughness( alpha_t : f32, alpha_b : f32 ) -> f32
+  {
+    let product = alpha_t * alpha_b;
+    if !product.is_finite() || product <= 0.0
+    {
+      return 0.0;
+    }
+    product.sqrt().sqrt().clamp( 0.0, 1.0 )
+  }
+
   /// The colored multiple-scattering Fresnel weight of the Kulla–Conty
   /// compensation term,
   /// `F_ms = F_avg² E_avg / ( 1 - F_avg ( 1 - E_avg ) )`.
@@ -240,6 +269,7 @@ crate::mod_interface!
     KullaContyTables,
     kulla_conty_tables,
     multi_scatter_fresnel,
+    effective_roughness,
     kulla_conty_lut_upload
   };
 }

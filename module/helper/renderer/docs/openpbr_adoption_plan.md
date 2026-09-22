@@ -697,18 +697,28 @@ approximations, listed so they are not re-derived every time a render looks off.
   environment’s real spectrum would need a spectrum the prefiltered map has
   already integrated away - that needs a different environment representation,
   not a different formula.
-- **Kulla-Conty now sums the per-bounce Fresnel series** ( fixed 2026-09 ):
-  `f_ms` used to be weighted by a single `F_avg`, which over-brightened the
-  compensation term and washed the tint out of colored rough metals - light
-  that survives `n` bounces has been Fresnel-weighted `n` times. It is now
-  weighted by `F_avg^2 E_avg / ( 1 - F_avg ( 1 - E_avg ) )`
-  ( `kulla_fms` in the shader, `loaders::kulla_conty::multi_scatter_fresnel`
-  natively tested against its two limits ). Still open here: the LUT is
-  indexed by `material.roughness` alone, which is not the effective roughness
-  of an anisotropic surface, and the IBL term still rides the older
-  Fdez-Agüera split-sum rather than this LUT. Applying the compensation
-  whenever `USE_OPENPBR` is on costs a lookup on smooth surfaces but is not a
-  correctness gap - the term vanishes on its own as `E -> 1`.
+- **Kulla-Conty — closed ( 2026-09 ).** Three things were wrong here and all
+  three are fixed. `f_ms` was weighted by a single `F_avg` rather than the
+  per-bounce series `F_avg^2 E_avg / ( 1 - F_avg ( 1 - E_avg ) )`, which
+  over-brightened the term and washed the tint out of coloured rough metals
+  ( `kulla_fms`, `loaders::kulla_conty::multi_scatter_fresnel` ). The table was
+  indexed by `material.roughness`, which is not the effective roughness of an
+  anisotropic surface; it is now indexed by the isotropic lobe of equal
+  projected slope area, `( alpha_t * alpha_b ) ^ ( 1 / 4 )`
+  ( `kulla_roughness`, `loaders::kulla_conty::effective_roughness`, which
+  recovers `r` exactly for an isotropic surface and is therefore applied
+  unconditionally ). And the IBL term rode the older Fdez-Agüera split-sum while
+  the direct lights used the table, so one surface compensated two different
+  ways depending on what lit it; `sampleEnvIrradiance` now reads `E` and
+  `E_avg` from the same table and weights them with the same series.
+  `FssEss` deliberately keeps the split-sum DFG pair : that answers how to split
+  the reflectance between `F0` and `F90`, a question the Kulla-Conty table does
+  not, while the table answers the white BRDF’s directional albedo, which is
+  exactly what the compensation needs. Without an uploaded table the shader
+  falls back to the Fdez-Agüera form, so the LUT stays optional.
+  Remaining, and a perf note rather than a correctness gap: the compensation is
+  applied whenever `USE_OPENPBR` is on rather than gated on roughness — it costs
+  a lookup on smooth surfaces, where the term vanishes on its own as `E -> 1`.
 - **Direct specular is faded out at grazing** ( `smoothstep( 0, 0.25, NoV )` ) to
   suppress sub-pixel highlight aliasing. This is a deliberate, energy-losing
   departure from every reference; a soft area-light source would remove the
@@ -772,11 +782,11 @@ approximations, listed so they are not re-derived every time a render looks off.
   `transmission_scatter` in-scattering.
 - **Thin-film iridescence** (§3.2) and **dispersion** (§3.6) **landed**;
   **subsurface diffusion** (§3.5) — blocked/deferred as described in its section.
-- **Kulla–Conty LUT** (§3.7) — landed for direct lights, now weighted by the
-  per-bounce Fresnel series. Open: unify the IBL term onto the same LUT ( it
-  still uses the older Fdez-Agüera split-sum approximation ), index it by the
-  effective roughness of an anisotropic surface, and gate the compensation on
-  actual roughness rather than always-on for `USE_OPENPBR`.
+- **Kulla–Conty LUT** (§3.7) — **landed for direct lights and IBL**, weighted by
+  the per-bounce Fresnel series and indexed by the anisotropic effective
+  roughness. Open: gate the compensation on actual roughness rather than
+  always-on for `USE_OPENPBR` — a lookup saved on smooth surfaces, not a
+  correctness gap.
 - **Thin-film on mirror metals** — per the reference model, a film on a
   near-perfect mirror ( gold f0 ≈ 0.93 ) collapses to `F_s ≈ 1` with no
   visible color ( interference `Cm` terms cancel ). Faithful to Khronos;

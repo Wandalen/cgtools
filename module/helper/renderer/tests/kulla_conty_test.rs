@@ -4,7 +4,7 @@
 //! average `E_avg(α)`, later uploaded as a LUT for direct-light energy
 //! compensation. Pure math, natively testable.
 
-use renderer::webgl::loaders::kulla_conty::{ KullaContyTables, kulla_conty_tables, multi_scatter_fresnel };
+use renderer::webgl::loaders::kulla_conty::{ KullaContyTables, effective_roughness, kulla_conty_tables, multi_scatter_fresnel };
 
 /// Cheap-but-accurate table for tests.
 fn tables() -> KullaContyTables
@@ -130,5 +130,66 @@ fn weight_grows_as_the_surface_loses_more_energy()
     let out = multi_scatter_fresnel( [ 0.5; 3 ], e_avg )[ 0 ];
     assert!( out < previous, "E_avg {e_avg}: {out} did not fall below {previous}" );
     previous = out;
+  }
+}
+
+/// An isotropic surface must index its own row: `alpha_t = alpha_b = r²` has to
+/// come back as exactly `r`, which is what makes the effective roughness safe to
+/// apply unconditionally rather than only under the anisotropy define.
+#[ test ]
+fn effective_roughness_is_identity_for_an_isotropic_lobe()
+{
+  for roughness in [ 0.05_f32, 0.2, 0.5, 0.8, 1.0 ]
+  {
+    let alpha = roughness * roughness;
+    let effective = effective_roughness( alpha, alpha );
+    assert!
+    (
+      ( effective - roughness ).abs() < 1e-5,
+      "roughness {roughness} came back as {effective}"
+    );
+  }
+}
+
+/// An anisotropic lobe is matched by the isotropic one of equal projected slope
+/// area — the geometric mean of the two alphas — so the effective roughness sits
+/// between the roughnesses of the two axes, not at either end.
+#[ test ]
+fn effective_roughness_sits_between_the_two_axes()
+{
+  let alpha_t = 0.64_f32; // roughness 0.8 along the stretched axis
+  let alpha_b = 0.04_f32; // roughness 0.2 along the narrow one
+  let effective = effective_roughness( alpha_t, alpha_b );
+
+  assert!( effective > 0.2 && effective < 0.8, "got {effective}, expected between the axes" );
+  // sqrt( sqrt( 0.64 * 0.04 ) ) = sqrt( 0.16 ) = 0.4
+  assert!( ( effective - 0.4 ).abs() < 1e-5, "got {effective}, expected the geometric mean 0.4" );
+}
+
+/// Monotone in both axes: stretching either one can only make the lobe rougher,
+/// so the row the table is read from can only move in one direction.
+#[ test ]
+fn effective_roughness_grows_with_either_axis()
+{
+  let base = effective_roughness( 0.1, 0.1 );
+  assert!( effective_roughness( 0.4, 0.1 ) > base );
+  assert!( effective_roughness( 0.1, 0.4 ) > base );
+}
+
+/// Bounded to a real table row. A degenerate alpha — a mirror axis, or a
+/// denormalised tangent frame — must not index outside the table or hand the
+/// shader a `NaN` row.
+#[ test ]
+fn effective_roughness_stays_a_valid_table_row()
+{
+  for ( alpha_t, alpha_b ) in
+  [
+    ( 0.0_f32, 0.5_f32 ), ( 0.5, 0.0 ), ( -0.2, 0.5 ), ( 4.0, 4.0 ),
+    ( f32::NAN, 0.5 ), ( f32::INFINITY, 0.5 ), ( 1.0, f32::NEG_INFINITY ),
+  ]
+  {
+    let effective = effective_roughness( alpha_t, alpha_b );
+    assert!( effective.is_finite(), "( {alpha_t}, {alpha_b} ) gave {effective}" );
+    assert!( ( 0.0 ..= 1.0 ).contains( &effective ), "( {alpha_t}, {alpha_b} ) gave {effective}" );
   }
 }

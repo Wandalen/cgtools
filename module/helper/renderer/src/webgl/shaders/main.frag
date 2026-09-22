@@ -566,6 +566,21 @@ float kulla_e_avg( const in float roughness )
   return texture( kullaConty, vec2( 0.5, clamp( roughness, 0.0, 1.0 ) ) ).g;
 }
 
+// renderer::webgl::loaders::kulla_conty::effective_roughness - the roughness to
+// index the table with. The table is built from the *isotropic* GGX BRDF, so an
+// anisotropic surface has no row of its own; its albedo is matched by the
+// isotropic lobe of equal projected slope area, the geometric mean
+// alpha = sqrt( at * ab ), which in roughness is ( at * ab )^(1/4). An isotropic
+// surface recovers its own roughness exactly, so this is safe unconditionally.
+float kulla_roughness( const in PhysicalMaterial material )
+{
+  #ifdef USE_KHR_materials_anisotropy
+    return clamp( sqrt( sqrt( max( material.at * material.ab, 1e-8 ) ) ), 0.0, 1.0 );
+  #else
+    return material.roughness;
+  #endif
+}
+
 // The colored weight of the compensation term: the sum of the per-bounce
 // Fresnel series, F_ms = F_avg² E_avg / ( 1 - F_avg ( 1 - E_avg ) ). Light that
 // survived n bounces has been Fresnel-weighted n times, so the returned energy
@@ -814,9 +829,10 @@ void applyLightContribution
     // Multi-scatter energy compensation: add back the light lost between
     // microfacet bounces, weighted by the per-bounce Fresnel series.
     {
-      float Eo = kulla_e( dotNV, material.roughness );
-      float Ei = kulla_e( dotNL, material.roughness );
-      float Eavg = kulla_e_avg( material.roughness );
+      float kullaRoughness = kulla_roughness( material );
+      float Eo = kulla_e( dotNV, kullaRoughness );
+      float Ei = kulla_e( dotNL, kullaRoughness );
+      float Eavg = kulla_e_avg( kullaRoughness );
       vec3 Favg = material.f0 + ( material.f90 - material.f0 ) * 0.047619;
       reflectedLight.directSpecular += kulla_fms( Favg, Eavg ) * ( ( 1.0 - Eo ) * ( 1.0 - Ei ) / ( PI * max( 1.0 - Eavg, 1e-4 ) ) ) * irradiance;
     }
@@ -959,9 +975,10 @@ void computeSpotLight
     // Multi-scatter energy compensation: add back the light lost between
     // microfacet bounces, weighted by the per-bounce Fresnel series.
     {
-      float Eo = kulla_e( dotNV, material.roughness );
-      float Ei = kulla_e( dotNL, material.roughness );
-      float Eavg = kulla_e_avg( material.roughness );
+      float kullaRoughness = kulla_roughness( material );
+      float Eo = kulla_e( dotNV, kullaRoughness );
+      float Ei = kulla_e( dotNL, kullaRoughness );
+      float Eavg = kulla_e_avg( kullaRoughness );
       vec3 Favg = material.f0 + ( material.f90 - material.f0 ) * 0.047619;
       reflectedLight.directSpecular += kulla_fms( Favg, Eavg ) * ( ( 1.0 - Eo ) * ( 1.0 - Ei ) / ( PI * max( 1.0 - Eavg, 1e-4 ) ) ) * irradiance;
     }
@@ -1103,11 +1120,11 @@ float ditherNoise( vec2 fragCoord )
       );
     #endif
 
-    // Split-sum with multiple-scattering energy compensation, matching three.js
-    // computeMultiscattering(). The single-scatter term is the usual prefiltered
-    // reflection; the multi-scatter term feeds the energy lost between microfacet
-    // bounces back as a soft, irradiance-weighted lobe — without it rough metals /
-    // plastics read as pure mirrors and the overall specular is too dim.
+    // Split-sum single scattering plus multiple-scattering energy compensation.
+    // The single-scatter term is the usual prefiltered reflection; the
+    // multi-scatter term feeds the energy lost between microfacet bounces back
+    // as a soft, irradiance-weighted lobe — without it rough metals / plastics
+    // read as pure mirrors and the overall specular is too dim.
     //
     // `f90` stays the substrate’s: at grazing incidence the interference washes
     // out towards total reflection, which a white `f90` already says. `Favg` is
@@ -1115,10 +1132,29 @@ float ditherNoise( vec2 fragCoord )
     // same tint as the single-scatter one it compensates for - deriving it from
     // the bare substrate would put an untinted lobe under a tinted reflection.
     vec3 FssEss = envF0 * envBrdf.x + material.f90 * envBrdf.y;
-    float Ess = envBrdf.x + envBrdf.y;
-    float Ems = 1.0 - Ess;
     vec3 Favg = envF0 + ( 1.0 - envF0 ) * 0.047619; // 1.0 / 21.0
-    vec3 Fms = FssEss * Favg / ( 1.0 - Ems * Favg );
+
+    // How much energy single scattering left on the table, and how much of it
+    // comes back. `FssEss` keeps the split-sum DFG either way : that pair answers
+    // a question the Kulla-Conty table does not, namely how to split the
+    // reflectance between F0 and F90. The table answers the other one - the white
+    // BRDF’s directional albedo - which is exactly what the compensation needs.
+    #ifdef USE_KULLA_CONTY
+      // Same table and same per-bounce Fresnel series the direct lights use, so a
+      // surface no longer compensates one way under a lamp and another under the
+      // environment. `envBrdf.x + envBrdf.y` is the same directional albedo by a
+      // cruder route ( the DFG pair evaluated at F0 = F90 = 1 ), and the
+      // Fdez-Agüera weight it fed is an approximation of the series below.
+      float kullaRoughness = kulla_roughness( material );
+      float Ess = kulla_e( dotNV, kullaRoughness );
+      float Ems = 1.0 - Ess;
+      vec3 Fms = kulla_fms( Favg, kulla_e_avg( kullaRoughness ) );
+    #else
+      // No table uploaded : the older Fdez-Agüera split-sum approximation.
+      float Ess = envBrdf.x + envBrdf.y;
+      float Ems = 1.0 - Ess;
+      vec3 Fms = FssEss * Favg / ( 1.0 - Ems * Favg );
+    #endif
 
     vec3 singleScatter = FssEss;
     vec3 multiScatter = Fms * Ems;
