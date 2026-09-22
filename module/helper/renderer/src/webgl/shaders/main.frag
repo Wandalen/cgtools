@@ -1079,15 +1079,45 @@ float ditherNoise( vec2 fragCoord )
 
     vec2 envBrdf = texture( integrateBRDF, vec2( dotNV, material.roughness ) ).xy;
 
+    // Thin-film ( iridescence ) under the environment. The film replaces the
+    // substrate’s F0 with its own interference reflectance, exactly as it does
+    // for a direct light - the only difference is the angle it is evaluated at.
+    // The direct paths use dot( V, H ) because the microfacet that reflects
+    // towards the eye is H; the split-sum gathers its prefiltered reflection
+    // about R = reflect( -V, N ), for which the reflecting microfacet *is* N, so
+    // dot( V, H ) = dot( N, V ) here. Same choice, not a different one.
+    //
+    // What this cannot do: a prefiltered environment is one RGB radiance sample
+    // per pixel and carries no spectral detail, so the film can only tint that
+    // sample per channel. Interference against the environment’s actual spectrum
+    // would need the spectrum, which the prefiltered map has already integrated
+    // away. `evalIridescence` returns an RGB reflectance, which is precisely a
+    // per-channel tint, so substituting it for F0 is the whole implementation.
+    vec3 envF0 = material.f0;
+    #ifdef USE_OPENPBR_IRIDESCENCE
+      envF0 = mix
+      (
+        envF0,
+        evalIridescence( 1.0, iridescenceIor, dotNV, iridescenceThickness, material.f0 ),
+        material.iridescenceWeight
+      );
+    #endif
+
     // Split-sum with multiple-scattering energy compensation, matching three.js
     // computeMultiscattering(). The single-scatter term is the usual prefiltered
     // reflection; the multi-scatter term feeds the energy lost between microfacet
     // bounces back as a soft, irradiance-weighted lobe — without it rough metals /
     // plastics read as pure mirrors and the overall specular is too dim.
-    vec3 FssEss = material.f0 * envBrdf.x + material.f90 * envBrdf.y;
+    //
+    // `f90` stays the substrate’s: at grazing incidence the interference washes
+    // out towards total reflection, which a white `f90` already says. `Favg` is
+    // derived from the *substituted* F0 so the multi-scatter term carries the
+    // same tint as the single-scatter one it compensates for - deriving it from
+    // the bare substrate would put an untinted lobe under a tinted reflection.
+    vec3 FssEss = envF0 * envBrdf.x + material.f90 * envBrdf.y;
     float Ess = envBrdf.x + envBrdf.y;
     float Ems = 1.0 - Ess;
-    vec3 Favg = material.f0 + ( 1.0 - material.f0 ) * 0.047619; // 1.0 / 21.0
+    vec3 Favg = envF0 + ( 1.0 - envF0 ) * 0.047619; // 1.0 / 21.0
     vec3 Fms = FssEss * Favg / ( 1.0 - Ems * Favg );
 
     vec3 singleScatter = FssEss;

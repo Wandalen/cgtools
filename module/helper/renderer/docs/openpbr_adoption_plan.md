@@ -682,10 +682,21 @@ approximations, listed so they are not re-derived every time a render looks off.
   behaviour. Still open: the microflake model itself, and the `E` table is
   clamped to `[ 0, 1 ]` because the Ashikhmin visibility fit integrates to
   marginally above one at exact grazing.
-- **Thin film is direct-light only.** `sampleEnvIrradiance` has no iridescence
-  term, so an IBL-lit iridescent surface shows none of it. The spec's IBL
-  wrinkle ( the prefiltered environment is monochromatic, so the film needs a
-  per-channel tint or a 3-tap ) is still the open design question here.
+- **Thin film under IBL — closed ( 2026-09 ).** `sampleEnvIrradiance` now
+  substitutes the interference reflectance for the substrate F0 in the
+  split-sum, evaluated at `dot( N, V )`. That is the same choice the direct
+  paths make with `dot( V, H )`, not a different one: the split-sum gathers its
+  prefiltered reflection about `R = reflect( -V, N )`, whose reflecting
+  microfacet is `N`, so the two cosines coincide. `Favg` follows the
+  substituted F0 so the multi-scatter term carries the same tint as the
+  single-scatter one; `f90` stays the substrate’s, since at grazing the
+  interference washes out towards total reflection. The design question that
+  was open here resolves rather than disappears: a prefiltered environment is
+  one RGB radiance sample per pixel, so the film can only tint it per channel,
+  and `evalIridescence` returns exactly such a tint. Interference against the
+  environment’s real spectrum would need a spectrum the prefiltered map has
+  already integrated away - that needs a different environment representation,
+  not a different formula.
 - **Kulla-Conty now sums the per-bounce Fresnel series** ( fixed 2026-09 ):
   `f_ms` used to be weighted by a single `F_avg`, which over-brightened the
   compensation term and washed the tint out of colored rough metals - light

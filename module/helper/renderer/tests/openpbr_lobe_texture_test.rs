@@ -124,6 +124,36 @@ mod tests
     assert_compiles( &gl, &material, true, true, "all three lobe textures + scalars + IBL + Kulla-Conty, worst-case combo" );
   }
 
+  /// The thin-film layer under environment lighting: `sampleEnvIrradiance`
+  /// substitutes the interference reflectance for the substrate F0 in the
+  /// split-sum, so `USE_IBL` + `USE_OPENPBR_IRIDESCENCE` is a distinct code path
+  /// from the direct-light one. Scalars only, no textures - the shape the
+  /// viewer's iridescent `.mtlx` material actually arrives in.
+  #[ wasm_bindgen_test( async ) ]
+  async fn iridescence_scalars_under_ibl_compile()
+  {
+    let gl = init_gl().await;
+    let mut material = PbrMaterial::new( &gl );
+    material.openpbr_params_set
+    (
+      OpenPbrParams
+      {
+        iridescence_factor : Some( 0.8 ),
+        iridescence_ior : Some( 1.4 ),
+        iridescence_thickness_minimum : Some( 450.0 ),
+        iridescence_thickness_maximum : Some( 450.0 ),
+        ..OpenPbrParams::default()
+      }
+    );
+
+    let defines = material.defines_str().to_owned();
+    assert!( defines.contains( "#define USE_OPENPBR_IRIDESCENCE\n" ), "missing USE_OPENPBR_IRIDESCENCE : {defines}" );
+    assert!( !defines.contains( "USE_IRIDESCENCE_TEXTURE" ), "no texture was set" );
+
+    assert_compiles( &gl, &material, true, false, "iridescence scalars + IBL" );
+    assert_compiles( &gl, &material, false, false, "iridescence scalars, direct light only" );
+  }
+
   #[ wasm_bindgen_test( async ) ]
   async fn clearing_lobe_textures_drops_their_defines()
   {
