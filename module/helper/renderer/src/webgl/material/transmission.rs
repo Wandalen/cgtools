@@ -41,6 +41,66 @@ mod private
     if thickness.is_finite() { thickness.max( 0.0 ) } else { 0.0 }
   }
 
+  /// Abbe number the glTF dispersion carrier is normalised against, so that a
+  /// `dispersion` of `1.0` means "as dispersive as a glass of Abbe number 20".
+  /// Fixed by `KHR_materials_dispersion`, not a tunable.
+  pub const DISPERSION_REFERENCE_ABBE : f32 = 20.0;
+
+  /// The glTF `KHR_materials_dispersion.dispersion` carrier for an OpenPBR
+  /// surface, from `transmission_dispersion_scale` and
+  /// `transmission_dispersion_abbe_number`.
+  ///
+  /// The Abbe number `Vd` measures how *little* a medium disperses — it is the
+  /// refractive power divided by the spread between the F and C Fraunhofer
+  /// lines, so a high `Vd` is a low spread. The glTF carrier wants the spread
+  /// itself, normalised so that `1.0` is an Abbe number of
+  /// [`DISPERSION_REFERENCE_ABBE`]: `dispersion = scale * 20 / Vd`. Crown glass
+  /// at `Vd = 64` therefore arrives as `0.3125`.
+  ///
+  /// A non-positive or non-finite Abbe number has no physical reading, and the
+  /// division would hand the shader an infinity; those surfaces are reported as
+  /// non-dispersive instead.
+  #[ must_use ]
+  pub fn dispersion_from_abbe( scale : f32, abbe_number : f32 ) -> f32
+  {
+    if abbe_number <= 0.0 || !abbe_number.is_finite() || !scale.is_finite()
+    {
+      return 0.0;
+    }
+    ( scale.max( 0.0 ) * DISPERSION_REFERENCE_ABBE / abbe_number ).max( 0.0 )
+  }
+
+  /// The per-channel refractive indices a dispersive medium presents to red,
+  /// green and blue, spread around `ior` by `dispersion`.
+  ///
+  /// Red is refracted least and blue most, so the triple straddles the base
+  /// index: `[ ior - h, ior, ior + h ]` with `h = ( ior - 1 ) * 0.025 * dispersion`.
+  /// That half-spread is the glTF sample viewer's, and substituting
+  /// `dispersion = 20 / Vd` recovers the optical definition of the Abbe number,
+  /// `h = ( n_d - 1 ) / ( 2 Vd )` — the carrier's `0.025` is `1 / ( 2 * 20 )`
+  /// rather than a fudge factor.
+  ///
+  /// Every index is floored just above `1`: the refraction uses `1 / ior` as its
+  /// eta, and a medium thinner than air would bend the ray the wrong way. A
+  /// non-finite input collapses the triple onto the base index, i.e. no
+  /// dispersion rather than three scattered taps.
+  #[ must_use ]
+  pub fn dispersion_iors( ior : f32, dispersion : f32 ) -> [ f32; 3 ]
+  {
+    let base = if ior.is_finite() { ior.max( 1.0001 ) } else { 1.5 };
+    if !dispersion.is_finite() || dispersion <= 0.0
+    {
+      return [ base; 3 ];
+    }
+
+    let half_spread = ( base - 1.0 ) * 0.025 * dispersion;
+    [
+      ( base - half_spread ).max( 1.0001 ),
+      base,
+      ( base + half_spread ).max( 1.0001 ),
+    ]
+  }
+
   /// Per-channel transmittance of the interior medium over `path_length` world
   /// units, from the OpenPBR volumetric-absorption parameters.
   ///
@@ -183,6 +243,9 @@ crate::mod_interface!
   orphan use
   {
     traversal_length,
+    DISPERSION_REFERENCE_ABBE,
+    dispersion_from_abbe,
+    dispersion_iors,
     transmittance,
     blur_lod,
     OCCLUDER_DILATION_MAX_TEXELS,

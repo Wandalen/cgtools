@@ -529,6 +529,19 @@ mod private
       {
         params.volume_thickness_factor = Some( 0.0 );
       }
+
+      // Chromatic dispersion ( §3.6 ). The spec states it as an Abbe number,
+      // which measures how *little* a medium disperses; the glTF carrier wants
+      // the spread itself, normalised against Abbe 20.
+      let dispersion = crate::webgl::material::dispersion_from_abbe
+      (
+        surface.transmission_dispersion_scale,
+        surface.transmission_dispersion_abbe_number
+      );
+      if dispersion > 0.0
+      {
+        params.dispersion = Some( dispersion );
+      }
     }
 
     params

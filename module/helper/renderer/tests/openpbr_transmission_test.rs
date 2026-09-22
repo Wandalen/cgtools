@@ -21,7 +21,10 @@ use renderer::webgl::material::
 {
   OpenPbrSurface,
   OCCLUDER_DILATION_MAX_TEXELS,
+  DISPERSION_REFERENCE_ABBE,
   blur_lod,
+  dispersion_from_abbe,
+  dispersion_iors,
   fallback_slab_thickness,
   occluder_dilation_texels,
   openpbr_params_from_surface,
@@ -295,4 +298,94 @@ fn fallback_thickness_survives_an_uncomputed_bounding_box()
 {
   let t = fallback_slab_thickness( [ f32::NEG_INFINITY; 3 ] );
   assert!( t.is_finite() && t.abs() < 1e-9, "uncomputed box gave {t}" );
+}
+
+/// The Abbe number measures how *little* a medium disperses, so the glTF carrier
+/// is its reciprocal, normalised so that `1.0` means an Abbe number of 20.
+/// Crown glass at `Vd = 64` — what `open_pbr_glass.mtlx` authors — arrives as
+/// `20 / 64`.
+#[ test ]
+fn dispersion_carrier_is_the_normalized_reciprocal_abbe()
+{
+  assert!( ( dispersion_from_abbe( 1.0, DISPERSION_REFERENCE_ABBE ) - 1.0 ).abs() < 1e-6 );
+  assert!( ( dispersion_from_abbe( 1.0, 64.0 ) - 20.0 / 64.0 ).abs() < 1e-6 );
+  // The scale is a plain multiplier on the effect.
+  assert!( ( dispersion_from_abbe( 0.5, 64.0 ) - 10.0 / 64.0 ).abs() < 1e-6 );
+  assert!( dispersion_from_abbe( 0.0, 64.0 ).abs() < 1e-6 );
+}
+
+/// A non-positive or non-finite Abbe number has no physical reading and would
+/// divide into an infinity, which would reach the shader as a `NaN` index.
+#[ test ]
+fn dispersion_carrier_rejects_a_meaningless_abbe_number()
+{
+  for abbe in [ 0.0_f32, -64.0, f32::NAN, f32::INFINITY ]
+  {
+    let d = dispersion_from_abbe( 1.0, abbe );
+    assert!( d.is_finite() && d.abs() < 1e-9, "Abbe {abbe} gave {d}" );
+  }
+  assert!( dispersion_from_abbe( f32::NAN, 64.0 ).abs() < 1e-9 );
+}
+
+/// Red is refracted least and blue most, so the triple straddles the base index
+/// symmetrically — and the half-spread is the optical one, `( n_d - 1 ) / ( 2 Vd )`,
+/// once `dispersion = 20 / Vd` is substituted into the carrier's `0.025`.
+#[ test ]
+fn dispersion_iors_straddle_the_base_index()
+{
+  let ior = 1.5_f32;
+  let abbe = 64.0_f32;
+  let iors = dispersion_iors( ior, dispersion_from_abbe( 1.0, abbe ) );
+
+  assert!( iors[ 0 ] < iors[ 1 ], "red must refract least: {iors:?}" );
+  assert!( iors[ 1 ] < iors[ 2 ], "blue must refract most: {iors:?}" );
+  assert!( ( iors[ 1 ] - ior ).abs() < 1e-6, "green stays at the base index: {iors:?}" );
+
+  // The optical half-spread for crown glass: ( 1.5 - 1 ) / ( 2 * 64 ).
+  let expected = ( ior - 1.0 ) / ( 2.0 * abbe );
+  assert!( ( iors[ 2 ] - ior - expected ).abs() < 1e-6, "half-spread {iors:?} != {expected}" );
+  assert!( ( ior - iors[ 0 ] - expected ).abs() < 1e-6, "half-spread {iors:?} != {expected}" );
+}
+
+/// Zero dispersion must collapse the triple onto the base index, so a
+/// non-dispersive material takes three identical taps rather than three
+/// scattered ones — the define gates this away, but the math must agree.
+#[ test ]
+fn dispersion_iors_collapse_without_dispersion()
+{
+  for dispersion in [ 0.0_f32, -1.0, f32::NAN, f32::INFINITY ]
+  {
+    let iors = dispersion_iors( 1.5, dispersion );
+    assert!( ( iors[ 0 ] - 1.5 ).abs() < 1e-6 && ( iors[ 2 ] - 1.5 ).abs() < 1e-6, "dispersion {dispersion} gave {iors:?}" );
+  }
+}
+
+/// Every index stays above 1: the refraction uses `1 / ior` as its eta, and a
+/// medium thinner than air would bend the ray the wrong way. A wide spread on a
+/// low IOR is what pushes the red channel down there.
+#[ test ]
+fn dispersion_iors_stay_above_air()
+{
+  for ( ior, dispersion ) in [ ( 1.05_f32, 8.0_f32 ), ( 1.0001, 20.0 ), ( 2.4, 1.0 ) ]
+  {
+    let iors = dispersion_iors( ior, dispersion );
+    for n in iors
+    {
+      assert!( n.is_finite() && n > 1.0, "ior {ior} / dispersion {dispersion} gave {iors:?}" );
+    }
+  }
+}
+
+/// A degenerate base index must not propagate into the triple.
+#[ test ]
+fn dispersion_iors_survive_a_degenerate_base()
+{
+  for ior in [ f32::NAN, f32::INFINITY, 0.0_f32, -2.0 ]
+  {
+    let iors = dispersion_iors( ior, 0.3 );
+    for n in iors
+    {
+      assert!( n.is_finite() && n > 1.0, "ior {ior} gave {iors:?}" );
+    }
+  }
 }

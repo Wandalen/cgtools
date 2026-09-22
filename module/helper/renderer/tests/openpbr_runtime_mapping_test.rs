@@ -227,3 +227,35 @@ fn gltf_sheen_round_trips_through_the_weight()
     Some( [ 0.315, 0.237, 0.465 ] )
   );
 }
+
+/// The dispersion carrier only appears once the surface actually disperses.
+/// OpenPBR states it as a scale plus an Abbe number; the glTF extension wants
+/// the normalised reciprocal, so the two have to be combined on the way out.
+#[ test ]
+fn dispersion_reaches_the_gltf_carrier()
+{
+  let mut surface = OpenPbrSurface::spec_default();
+  surface.transmission_weight = 1.0;
+  surface.transmission_dispersion_scale = 1.0;
+  surface.transmission_dispersion_abbe_number = 64.0;
+
+  let params = openpbr_params_from_surface( &surface );
+  let dispersion = params.dispersion.expect( "a dispersive surface must carry the factor" );
+  assert!( ( dispersion - 20.0 / 64.0 ).abs() < 1e-6, "got {dispersion}" );
+}
+
+/// The spec default is a zero scale, and a non-transmissive surface has nothing
+/// to disperse — neither may raise the carrier, which is what compiles the
+/// three-tap path into the shader.
+#[ test ]
+fn dispersion_carrier_stays_absent_when_there_is_nothing_to_disperse()
+{
+  let mut surface = OpenPbrSurface::spec_default();
+  surface.transmission_weight = 1.0;
+  assert_eq!( openpbr_params_from_surface( &surface ).dispersion, None, "spec default scale is 0" );
+
+  let mut opaque = OpenPbrSurface::spec_default();
+  opaque.transmission_dispersion_scale = 1.0;
+  opaque.transmission_dispersion_abbe_number = 64.0;
+  assert_eq!( openpbr_params_from_surface( &opaque ).dispersion, None, "no transmission, no dispersion" );
+}

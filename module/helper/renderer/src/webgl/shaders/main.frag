@@ -230,6 +230,11 @@ uniform vec4 baseColorFactor; // Default: [1, 1, 1, 1]
   #ifdef USE_TRANSMISSION_ABSORPTION
     uniform float transmissionDepth;   // OpenPBR `transmission_depth` ( lambda ), world units
   #endif
+  #ifdef USE_TRANSMISSION_DISPERSION
+    // glTF `KHR_materials_dispersion.dispersion` = 20 / Abbe number, carrying
+    // OpenPBR `transmission_dispersion_scale` / `..._abbe_number`.
+    uniform float transmissionDispersion;
+  #endif
   uniform vec2 uScreenSize;            // framebuffer pixels: screen-space tap + mip-chain top level
 #endif
 #ifdef USE_MR_TEXTURE
@@ -652,6 +657,74 @@ float transmissionNearestViewDepth( const in vec2 uv, const in float radiusTexel
   z = max( z, transmissionViewDepth( uv + vec2( 0.0, r.y ) ) );
   z = max( z, transmissionViewDepth( uv - vec2( 0.0, r.y ) ) );
   return z;
+}
+
+// renderer::webgl::material::dispersion_iors - the refractive indices a
+// dispersive medium presents to red, green and blue. Red is refracted least and
+// blue most, so the triple straddles the base index. The 0.025 is the glTF
+// carrier's normalisation, 1 / ( 2 * 20 ), not a fudge factor: substituting
+// dispersion = 20 / Abbe recovers the optical half-spread ( n_d - 1 ) / ( 2 Vd ).
+vec3 transmissionDispersionIors( const in float ior, const in float dispersion )
+{
+  float base = max( ior, 1.0001 );
+  float halfSpread = ( base - 1.0 ) * 0.025 * max( dispersion, 0.0 );
+  return max( vec3( base - halfSpread, base, base + halfSpread ), vec3( 1.0001 ) );
+}
+
+// Screen uv the refracted ray reaches for one refractive index, or `screenUv`
+// when the tap cannot be trusted. Factored out of main() because chromatic
+// dispersion runs it once per colour channel, at three slightly different
+// indices; without dispersion it is called once and inlines away.
+//
+// The depth-guided validation lives here too. The capture holds the opaque scene
+// only, and this surface is not in it, so a tap is valid only when what it hits
+// sits *behind* the glass; a nearer sample is an occluder between glass and
+// camera, and refracting it would smear a foreground object through the surface.
+// Off-screen taps have no data at all ( the target is CLAMP_TO_EDGE ). Both
+// cases fall back to the un-refracted pixel, which is the correct limit as
+// thickness -> 0 anyway.
+//
+// The test looks over a neighbourhood rather than the single tap texel, because
+// the capture’s colour and depth disagree at a silhouette: colour is filtered
+// ( bilinear, mip, MSAA-resolved ) while depth is one nearest texel. Testing only
+// the exact texel let the half-covered edge pixels through, painting a bright
+// dotted outline of every foreground object on the glass.
+vec2 transmissionRefractedUv
+(
+  const in vec3 N,
+  const in vec3 V,
+  const in float ior,
+  const in float thickness,
+  const in vec2 screenUv,
+  const in float blurLod
+)
+{
+  // Entering the medium from air: eta = n_outside / n_inside.
+  vec3 tIn = refract( -V, N, 1.0 / max( ior, 1.0001 ) );
+  // Refraction into a denser medium bends towards the normal and cannot
+  // total-internally-reflect, but a normal map can still hand us a degenerate
+  // ray; fall back to the straight view ray there.
+  tIn = any( notEqual( tIn, vec3( 0.0 ) ) ) ? normalize( tIn ) : -V;
+
+  // The exit ray is taken to leave travelling along -V again, so only its exit
+  // *position* shifts - which is all a screen-space tap needs. ( Two richer
+  // models were tried and reverted : refracting a second time at the back
+  // surface is optically exact for a sphere and reproduced an analytic ball
+  // lens, but a real ball is a wide-angle instrument and the band it is
+  // recognised by falls outside the captured frame. See
+  // renderer::webgl::material::traversal_length. )
+  vec3 exitPos = vWorldPos + tIn * transmissionTraversalLength( thickness );
+
+  vec4 clip = projectionMatrix * viewMatrix * vec4( exitPos, 1.0 );
+  vec2 projected = clip.xy / max( abs( clip.w ), 1e-5 ) * 0.5 + 0.5;
+  // `clip.w` can go <= 0 behind the camera; pin those samples to the pixel.
+  vec2 uv = clip.w > 0.0 ? projected : screenUv;
+
+  float sampleViewZ = transmissionNearestViewDepth( uv, transmissionOccluderDilation( blurLod ) );
+  float surfaceViewZ = ( viewMatrix * vec4( vWorldPos, 1.0 ) ).z;
+  bool occluded = sampleViewZ > surfaceViewZ + 1e-4;
+  bool offScreen = any( lessThan( uv, vec2( 0.0 ) ) ) || any( greaterThan( uv, vec2( 1.0 ) ) );
+  return ( occluded || offScreen ) ? screenUv : uv;
 }
 #endif
 
@@ -1445,61 +1518,42 @@ void main()
     // Thin-walled ( OpenPBR `geometry_thin_walled` ) : an infinitely thin shell
     // has no interior to refract through, so the ray passes straight on and no
     // volumetric path length accumulates.
-    vec2 refrUv = screenUv;
     float pathLength = 0.0;
 
     // Roughness blur: the transmission target carries a mip chain ( built right
     // after the capture ), so a rough surface reads a pre-filtered level instead
     // of needing many taps. Computed here because the level also sets how far the
-    // occluder test below has to look - a blurrier tap gathers colour from
-    // further away, so it can be contaminated from further away.
+    // occluder test has to look - a blurrier tap gathers colour from further
+    // away, so it can be contaminated from further away.
     float transmissionLod = transmissionBlurLod( material.roughness, transmissionIor, max( uScreenSize.x, uScreenSize.y ) );
 
+    vec3 transmitted = textureLod( transmissionSampler, screenUv, transmissionLod ).rgb;
+
     #ifndef USE_TRANSMISSION_THIN_WALLED
-      // Entering the medium from air: eta = n_outside / n_inside.
-      vec3 tIn = refract( -V, N, 1.0 / max( transmissionIor, 1.0001 ) );
-      // Refraction into a denser medium bends towards the normal and cannot
-      // total-internally-reflect, but a normal map can still hand us a
-      // degenerate ray; fall back to the straight view ray there.
-      tIn = any( notEqual( tIn, vec3( 0.0 ) ) ) ? normalize( tIn ) : -V;
-
-      // The exit ray is taken to leave travelling along -V again, so only its
-      // exit *position* shifts - which is all a screen-space tap needs. ( Two
-      // richer models were tried and reverted : refracting a second time at the
-      // back surface is optically exact for a sphere and reproduced an analytic
-      // ball lens, but a real ball is a wide-angle instrument and the band it is
-      // recognised by falls outside the captured frame. See
-      // renderer::webgl::material::traversal_length. )
       pathLength = transmissionTraversalLength( transmissionThickness );
-      vec3 exitPos = vWorldPos + tIn * pathLength;
 
-      vec4 clip = projectionMatrix * viewMatrix * vec4( exitPos, 1.0 );
-      vec2 projected = clip.xy / max( abs( clip.w ), 1e-5 ) * 0.5 + 0.5;
-      // `clip.w` can go <= 0 behind the camera; pin those samples to the pixel.
-      refrUv = clip.w > 0.0 ? projected : screenUv;
-
-      // Depth-guided validation. The capture holds the opaque scene only, and
-      // this surface is not in it, so a tap is valid only when what it hits sits
-      // *behind* the glass; a nearer sample is an occluder between glass and
-      // camera, and refracting it would smear a foreground object through the
-      // surface. Off-screen taps have no data at all ( the target is
-      // CLAMP_TO_EDGE ). Both cases fall back to the un-refracted pixel, which
-      // is the correct limit as thickness -> 0 anyway.
-      //
-      // The test looks over a neighbourhood rather than the single tap texel,
-      // because the capture’s colour and depth disagree at a silhouette: colour
-      // is filtered ( bilinear, mip, MSAA-resolved ) while depth is one nearest
-      // texel. Testing only the exact texel let the half-covered edge pixels
-      // through, painting a bright dotted outline of every foreground object on
-      // the glass.
-      float sampleViewZ = transmissionNearestViewDepth( refrUv, transmissionOccluderDilation( transmissionLod ) );
-      float surfaceViewZ = ( viewMatrix * vec4( vWorldPos, 1.0 ) ).z;
-      bool occluded = sampleViewZ > surfaceViewZ + 1e-4;
-      bool offScreen = any( lessThan( refrUv, vec2( 0.0 ) ) ) || any( greaterThan( refrUv, vec2( 1.0 ) ) );
-      refrUv = ( occluded || offScreen ) ? screenUv : refrUv;
+      #ifdef USE_TRANSMISSION_DISPERSION
+        // Chromatic dispersion ( §3.6 ). A real medium has a different index for
+        // every wavelength, so the three colour channels leave the body along
+        // slightly different rays and land on different parts of the scene -
+        // which is the coloured fringing seen through a thick edge. Three taps,
+        // one per channel, at the indices material::dispersion_iors spreads
+        // around the base one ( red refracted least, blue most ).
+        vec3 iors = transmissionDispersionIors( transmissionIor, transmissionDispersion );
+        vec2 uvR = transmissionRefractedUv( N, V, iors.r, transmissionThickness, screenUv, transmissionLod );
+        vec2 uvG = transmissionRefractedUv( N, V, iors.g, transmissionThickness, screenUv, transmissionLod );
+        vec2 uvB = transmissionRefractedUv( N, V, iors.b, transmissionThickness, screenUv, transmissionLod );
+        transmitted = vec3
+        (
+          textureLod( transmissionSampler, uvR, transmissionLod ).r,
+          textureLod( transmissionSampler, uvG, transmissionLod ).g,
+          textureLod( transmissionSampler, uvB, transmissionLod ).b
+        );
+      #else
+        vec2 refrUv = transmissionRefractedUv( N, V, transmissionIor, transmissionThickness, screenUv, transmissionLod );
+        transmitted = textureLod( transmissionSampler, refrUv, transmissionLod ).rgb;
+      #endif
     #endif
-
-    vec3 transmitted = textureLod( transmissionSampler, refrUv, transmissionLod ).rgb;
 
     #ifdef USE_TRANSMISSION_ABSORPTION
       // Beer-Lambert absorption over the traversed slab ( §3.4 ).

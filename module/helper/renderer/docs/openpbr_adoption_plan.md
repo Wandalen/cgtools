@@ -464,6 +464,29 @@ in-scattering needs §3.5's diffusion pass.
   (R/G/B) — the transmission pass executed per channel, or an analytic
   approximation.
 
+Status: **landed, browser-UNTESTED (2026-09)**. The Abbe number runs backwards
+to the effect — it is the refractive power divided by the spread between the F
+and C Fraunhofer lines, so a *high* `Vd` means a *low* spread. The glTF
+`KHR_materials_dispersion` carrier wants the spread itself, normalised so that
+`1.0` is an Abbe number of 20, hence `dispersion = scale * 20 / Vd`
+( `material::dispersion_from_abbe` ); crown glass at `Vd = 64` arrives as
+`0.3125`. `material::dispersion_iors` spreads the base index into the R/G/B
+triple by `( ior - 1 ) * 0.025 * dispersion`, red refracted least and blue most.
+That `0.025` is the carrier’s own `1 / ( 2 * 20 )`, not a fudge factor:
+substituting `dispersion = 20 / Vd` recovers the optical half-spread
+`( n_d - 1 ) / ( 2 Vd )`, so the shader and the spec agree by construction.
+
+The tap, occluder rejection included, is factored into the shader’s
+`transmissionRefractedUv` so the dispersive and plain paths share one
+implementation; `USE_TRANSMISSION_DISPERSION` runs it three times and keeps one
+channel of each. Every index is floored just above 1 — the refraction uses
+`1 / ior` as its eta and a medium thinner than air would bend the ray the wrong
+way, which a wide spread on a low IOR would otherwise produce.
+
+Open here: it costs three taps on dispersive pixels, where an analytic
+approximation or a two-tap variant would cost less; and a thin-walled shell is
+excluded entirely, since it has no refraction offset for the spread to act on.
+
 ### 3.7 Kulla–Conty multi-scatter energy compensation (LUT)
 Single-scatter GGX loses energy on rough surfaces (light bouncing between
 microfacets is uncounted); the current code only applies the Fdez-Agüera /
@@ -736,8 +759,8 @@ approximations, listed so they are not re-derived every time a render looks off.
   behind glass reads as background ), half-resolution transmission target ( the
   three.js bandwidth trick ), per-material `transmissionTexture` map, and
   `transmission_scatter` in-scattering.
-- **Thin-film iridescence** (§3.2) **landed**; **subsurface diffusion** (§3.5)
-  and **dispersion** (§3.6) — all blocked/deferred as described in their sections.
+- **Thin-film iridescence** (§3.2) and **dispersion** (§3.6) **landed**;
+  **subsurface diffusion** (§3.5) — blocked/deferred as described in its section.
 - **Kulla–Conty LUT** (§3.7) — landed for direct lights, now weighted by the
   per-bounce Fresnel series. Open: unify the IBL term onto the same LUT ( it
   still uses the older Fdez-Agüera split-sum approximation ), index it by the

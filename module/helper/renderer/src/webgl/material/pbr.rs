@@ -97,6 +97,7 @@ mod private
     "transmissionThickness",
     "transmissionDepth",
     "transmissionColor",
+    "transmissionDispersion",
     "transmissionIor",
     //// IBL uniform locations
     "irradianceTexture",
@@ -1148,6 +1149,14 @@ mod private
         {
           defines.push_str( "#define USE_TRANSMISSION_ABSORPTION\n" );
         }
+        // Chromatic dispersion ( adoption plan §3.6 ) : three refracted taps at
+        // per-channel IORs instead of one. A thin-walled shell has no refraction
+        // offset for the spread to act on, so the three taps would coincide -
+        // there is nothing to compile in that case.
+        if !thin_walled && p.dispersion.is_some_and( | d | d > 0.0 && d.is_finite() )
+        {
+          defines.push_str( "#define USE_TRANSMISSION_DISPERSION\n" );
+        }
       }
       if p.emissive_strength.is_some()
       {
@@ -1418,6 +1427,10 @@ mod private
         if let Some( depth ) = p.volume_attenuation_distance.filter( | d | *d > 0.0 && d.is_finite() )
         {
           upload( "transmissionDepth", Some( depth ) )?;
+        }
+        if let Some( dispersion ) = p.dispersion.filter( | d | *d > 0.0 && d.is_finite() )
+        {
+          upload( "transmissionDispersion", Some( dispersion ) )?;
         }
       }
       if let Some( strength ) = self.openpbr_params.emissive_strength
