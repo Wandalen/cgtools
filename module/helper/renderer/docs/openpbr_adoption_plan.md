@@ -667,10 +667,13 @@ approximations, listed so they are not re-derived every time a render looks off.
   specifies a volumetric microflake sheen ( Heitz 2015 lineage, i.e. the
   Zeltner et al. practical model ); the shader evaluates `KHR_materials_sheen`'s
   Charlie NDF + Ashikhmin-Premoze visibility. Two further gaps ride along:
-  the call site passes `fuzz_roughness` to `D_Charlie` as alpha directly
-  ( the Khronos implementation squares it first, so this lobe is wider than the
-  reference at the same authored roughness - deliberate since the
-  grazing-rim-spike fix, which also floors it at 0.1 ). The **albedo scaling is
+  the roughness-to-alpha mapping is now the reference one ( `alpha = r^2`,
+  floored at `FUZZ_ALPHA_MIN = 0.02` so the Charlie NDF’s `1 / alpha` exponent
+  cannot collapse the rim into a sub-pixel spike; the floor bites below an
+  authored roughness of about 0.14 ). It used to pass the roughness straight
+  through as alpha, which made the lobe far wider than the reference at the
+  same authored value and flattened the grazing rim across the upper half of
+  the range. The **albedo scaling is
   now closed** ( 2026-09 ): `loaders::sheen_albedo` integrates the lobe’s
   directional albedo `E( mu, alpha )` off-GPU with the same Charlie / Ashikhmin
   pair and the same 0.1 floor the shader uses, the renderer binds it as a LUT

@@ -3,13 +3,20 @@ mod private
   use std::f32::consts::TAU;
   use minwebgl as gl;
 
-  /// Lower bound the shader clamps the fuzz roughness to before it reaches
-  /// `D_Charlie` ( `clamp( material.sheenRoughness, 0.1, 1.0 )` in `main.frag` ).
-  /// The Charlie NDF has a `1 / alpha` exponent, so it degenerates into a
-  /// zero-width spike as `alpha -> 0`; the shader's floor keeps the grazing rim
-  /// from aliasing, and the table has to be built with the *same* floor or the
-  /// albedo it reports would not be the albedo of the lobe actually evaluated.
-  pub const FUZZ_ALPHA_MIN : f32 = 0.1;
+  /// Lower bound on the Charlie NDF's slope roughness `alpha`, applied after
+  /// squaring the authored roughness and mirrored by `main.frag`.
+  ///
+  /// The NDF has a `1 / alpha` exponent, so it degenerates into a zero-width
+  /// spike as `alpha -> 0` — a rim that aliases into single bright pixels. The
+  /// floor keeps the narrowest lobe a few pixels wide. It bites below an
+  /// authored roughness of about `0.14`; above that the squared roughness is
+  /// what drives the lobe, which is the point of squaring at all.
+  ///
+  /// The table has to be built with the *same* floor and the *same* squaring or
+  /// the albedo it reports is not the albedo of the lobe the shader evaluates,
+  /// and the energy it takes from the substrate stops matching the energy the
+  /// layer adds.
+  pub const FUZZ_ALPHA_MIN : f32 = 0.02;
 
   /// Directional albedo `E( mu, alpha )` of the fuzz ( sheen ) lobe, computed by
   /// [`sheen_albedo_table`]. Laid out `roughness_samples` rows x `uv_samples`
@@ -56,19 +63,23 @@ mod private
   /// The lobe is smooth and low-frequency, so a deterministic midpoint rule over
   /// `( cos theta_l, phi )` converges faster here than importance sampling would,
   /// and unlike a stochastic estimate it makes the table byte-for-byte
-  /// reproducible, which is what the regression tests lean on. `alpha` is
-  /// clamped to [`FUZZ_ALPHA_MIN`] to match the shader.
+  /// reproducible, which is what the regression tests lean on. The authored
+  /// `roughness` is squared into the NDF's slope roughness and floored at
+  /// [`FUZZ_ALPHA_MIN`], matching the shader exactly.
   ///
   /// # Panics
   ///
   /// Panics if `cos_samples` or `phi_samples` is `0`.
   #[ must_use ]
-  pub fn sheen_directional_albedo( mu : f32, alpha : f32, cos_samples : usize, phi_samples : usize ) -> f32
+  pub fn sheen_directional_albedo( mu : f32, roughness : f32, cos_samples : usize, phi_samples : usize ) -> f32
   {
     assert!( cos_samples > 0, "cos_samples must be > 0" );
     assert!( phi_samples > 0, "phi_samples must be > 0" );
 
-    let alpha = alpha.clamp( FUZZ_ALPHA_MIN, 1.0 );
+    // alpha = roughness^2, the mapping `KHR_materials_sheen` reference
+    // implementations use, floored so the lobe stays resolvable.
+    let roughness = roughness.clamp( 0.0, 1.0 );
+    let alpha = ( roughness * roughness ).clamp( FUZZ_ALPHA_MIN, 1.0 );
     let mu = mu.clamp( 0.0, 1.0 );
     // View direction in the tangent frame ( N = +Z ), at cos theta = mu.
     let v = [ ( 1.0 - mu * mu ).max( 0.0 ).sqrt(), 0.0, mu ];
@@ -126,11 +137,11 @@ mod private
     let mut e = vec![ 0.0_f32; uv_samples * roughness_samples ];
     for r in 0 .. roughness_samples
     {
-      let alpha = r as f32 / ( roughness_samples - 1 ) as f32;
+      let roughness = r as f32 / ( roughness_samples - 1 ) as f32;
       for u in 0 .. uv_samples
       {
         let mu = u as f32 / ( uv_samples - 1 ) as f32;
-        e[ r * uv_samples + u ] = sheen_directional_albedo( mu, alpha, cos_samples, phi_samples );
+        e[ r * uv_samples + u ] = sheen_directional_albedo( mu, roughness, cos_samples, phi_samples );
       }
     }
 

@@ -79,22 +79,48 @@ fn head_on_albedo_is_negligible()
   }
 }
 
-/// The shader floors the fuzz roughness at [`FUZZ_ALPHA_MIN`] before it reaches
-/// `D_Charlie`, so the table has to be built with the same floor: below it every
-/// row is the `FUZZ_ALPHA_MIN` row, and the albedo it reports is the albedo of
-/// the lobe actually evaluated.
+/// The authored roughness is squared into the NDF's slope roughness and then
+/// floored at [`FUZZ_ALPHA_MIN`], exactly as the shader does it. So the floor
+/// bites below an authored `sqrt( FUZZ_ALPHA_MIN )`, and every roughness under
+/// that reports the same albedo - the albedo of the narrowest lobe the shader
+/// will actually evaluate.
 #[ test ]
 fn roughness_below_the_floor_reuses_the_floor_row()
 {
-  let floored = sheen_directional_albedo( 0.3, FUZZ_ALPHA_MIN, 64, 64 );
-  for alpha in [ 0.0_f32, 0.01, 0.05, FUZZ_ALPHA_MIN ]
+  let boundary = FUZZ_ALPHA_MIN.sqrt();
+  let floored = sheen_directional_albedo( 0.3, boundary, 64, 64 );
+  for roughness in [ 0.0_f32, 0.02, 0.05, 0.1, boundary ]
   {
-    let e = sheen_directional_albedo( 0.3, alpha, 64, 64 );
+    let e = sheen_directional_albedo( 0.3, roughness, 64, 64 );
     assert!
     (
       ( e - floored ).abs() < 1e-6,
-      "alpha {alpha} gave {e}, expected the floored {floored}"
+      "roughness {roughness} gave {e}, expected the floored {floored}"
     );
+  }
+}
+
+/// Above the floor the squaring has to actually bite: the albedo must keep
+/// moving with the authored roughness. Passing the roughness through as alpha -
+/// what this replaces - made the lobe far wider than the reference at the same
+/// authored value, which flattened the grazing rim across the upper half of the
+/// range.
+///
+/// Measured away from the silhouette. At `mu = 0` the albedo saturates against
+/// the `[ 0, 1 ]` clamp for every narrow lobe, so grazing cannot tell two of
+/// them apart; off-axis is where a widening lobe shows up, as energy arriving
+/// somewhere other than the rim.
+#[ test ]
+fn roughness_above_the_floor_keeps_moving()
+{
+  let boundary = FUZZ_ALPHA_MIN.sqrt();
+  let mut previous = sheen_directional_albedo( 0.7, boundary, 64, 64 );
+  for roughness in [ 0.3_f32, 0.5, 0.7, 1.0 ]
+  {
+    assert!( roughness > boundary, "the sweep must start above the floor" );
+    let e = sheen_directional_albedo( 0.7, roughness, 64, 64 );
+    assert!( e > previous, "roughness {roughness}: off-axis albedo {e} did not rise above {previous}" );
+    previous = e;
   }
 }
 
