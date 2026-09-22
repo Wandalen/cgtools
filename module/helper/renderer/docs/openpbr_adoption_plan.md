@@ -658,11 +658,20 @@ approximations, listed so they are not re-derived every time a render looks off.
   `mu_t = -ln( T ) / lambda` and its `lambda = 0` constant-tint degenerate case,
   and the thin-film thickness unit conversion ( spec micrometres -> glTF-carrier
   nanometres ) all follow the spec's own equations.
-- **`specular_weight` is applied as a factor on F0, not as the spec's adjusted
-  IOR** ( `eta' = ( 1 + eps ) / ( 1 - eps )`, `eps = sgn( eta - 1 ) sqrt( xi F_s )` ).
-  The two agree exactly at normal incidence - the adjusted IOR is constructed so
-  that `F0' = xi * F_s` - and both reach 1 at grazing, so only the mid-angle
-  curvature differs. Low priority.
+- **`specular_weight` — closed as equivalent ( 2026-09 ), no code change.** The
+  spec adjusts the index of refraction rather than the reflectance:
+  `eps = sgn( eta - 1 ) sqrt( xi F_s )`, `eta’ = ( 1 + eps ) / ( 1 - eps )`. That
+  reads as a different model from the shader’s `F0 *= xi`, and this bullet
+  carried it as a fidelity gap for that reason. It is not one. Substituting
+  gives `( 1 - eta’ ) / ( 1 + eta’ ) = -eps`, so
+  `F0’ = eps^2 = xi F_s` — exactly, for every `eta` and every `xi`. Since the
+  shader’s Fresnel is parameterised by `( F0, F90 = 1 )`, the factor form *is*
+  the adjusted-IOR curve. The residual difference is Schlick versus the exact
+  dielectric Fresnel at mid angles, which is a universal approximation and has
+  nothing to do with `specular_weight`. Pinned by
+  `tests/openpbr_specular_weight_test.rs`, which implements both constructions
+  and asserts they agree, so the equivalence is not re-litigated and nobody
+  "fixes" the shader by adding a redundant adjusted-IOR path.
 - **Fuzz uses the glTF sheen model, not the spec's microflake one.** OpenPBR
   specifies a volumetric microflake sheen ( Heitz 2015 lineage, i.e. the
   Zeltner et al. practical model ); the shader evaluates `KHR_materials_sheen`'s
