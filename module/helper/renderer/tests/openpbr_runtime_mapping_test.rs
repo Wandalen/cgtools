@@ -143,9 +143,12 @@ fn params_from_surface_default_surface_yields_empty_params()
   assert_eq!( params, OpenPbrParams::default() );
 }
 
-/// Transmission ( §3.3 ): the weight rides `transmission_factor`, the slab
-/// depth `volume_thickness_factor`, and a non-white `transmission_color`
-/// becomes the attenuation-color carrier. Zero weight leaves all three unset.
+/// Transmission ( §3.3 / §3.4 ): the weight rides `transmission_factor`, the
+/// absorption length scale `transmission_depth` rides the glTF
+/// `attenuationDistance` carrier, and a non-white `transmission_color` becomes
+/// the attenuation-color carrier. Zero weight leaves all of them unset.
+/// `openpbr_transmission_test.rs` covers the depth/thickness distinction and
+/// the Beer's-law math those two carriers drive.
 #[ test ]
 fn params_from_surface_maps_transmission_carriers()
 {
@@ -156,7 +159,7 @@ fn params_from_surface_maps_transmission_carriers()
 
   let params = openpbr_params_from_surface( &surface );
   assert_eq!( params.transmission_factor, Some( 1.0 ) );
-  assert_eq!( params.volume_thickness_factor, Some( 0.4 ) );
+  assert_eq!( params.volume_attenuation_distance, Some( 0.4 ) );
   assert_eq!( params.volume_attenuation_color, Some( [ 0.9, 0.95, 1.0 ] ) );
 
   // white tint is the default -> no carrier needed
@@ -170,5 +173,5 @@ fn params_from_surface_maps_transmission_carriers()
   opaque.transmission_depth = 2.0;
   let params = openpbr_params_from_surface( &opaque );
   assert_eq!( params.transmission_factor, None );
-  assert_eq!( params.volume_thickness_factor, None );
+  assert_eq!( params.volume_attenuation_distance, None );
 }

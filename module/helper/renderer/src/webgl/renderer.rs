@@ -14,6 +14,7 @@ mod private
       MAX_DIRECT_LIGHTS,
       MAX_SPOT_LIGHTS
     },
+    material::fallback_slab_thickness,
     post_processing::
     {
       BlendPass,
@@ -140,9 +141,33 @@ mod private
     texture
   }
 
+  /// Creates a 2D texture with a full mip chain, trilinear minification and
+  /// clamped wrap - the transmission target's color attachment, whose coarser
+  /// levels stand in for the roughness blur of a refracted ray ( adoption plan
+  /// §3.3b ). Only level 0 is ever rendered/blitted into; the rest are filled by
+  /// `generate_mipmap` in `transmission_capture`.
+  fn texture_2d_mipped_create
+  (
+    gl : &gl::WebGl2RenderingContext,
+    format : u32,
+    width : u32,
+    height : u32
+  )
+  -> Option< gl::web_sys::WebGlTexture >
+  {
+    let texture = gl.create_texture();
+    gl.bind_texture( gl::TEXTURE_2D, texture.as_ref() );
+    let levels = gl::texture::d2::mip_levels_for_dimensions( width, height );
+    gl.tex_storage_2d( gl::TEXTURE_2D, levels as i32, format, width as i32, height as i32 );
+    gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
+    gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
+    gl::texture::d2::wrap_clamp( gl );
+    texture
+  }
+
   /// Creates a depth/stencil texture ( `DEPTH24_STENCIL8` ) with the nearest
-  /// filtering depth sampling requires, for the transmission target's parallax
-  /// correction.
+  /// filtering depth sampling requires, for the transmission target's
+  /// occluder-rejection test.
   fn depth_texture_create
   (
     gl : &gl::WebGl2RenderingContext,
@@ -206,7 +231,7 @@ mod private
       // Transmission target ( §3.3 ) : non-multisampled copies of the opaque
       // color + depth, captured mid-frame for transmissive materials to sample.
       let transmission_framebuffer = gl.create_framebuffer();
-      let transmission_color_texture = texture_2d_create( gl, gl::RGBA16F, width, height );
+      let transmission_color_texture = texture_2d_mipped_create( gl, gl::RGBA16F, width, height );
       let transmission_depth_texture = depth_texture_create( gl, width, height );
       gl.bind_framebuffer( gl::FRAMEBUFFER, transmission_framebuffer.as_ref() );
       gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, transmission_color_texture.as_ref(), 0 );
@@ -361,7 +386,12 @@ mod private
       // then the MSAA color resolve into the sampleable RGBA16F texture. The
       // destination defaults are the right blit targets ( depth attachment /
       // COLOR_ATTACHMENT0 ), so no draw-buffer selection is needed.
-      gl.read_buffer( gl::DEPTH_STENCIL );
+      //
+      // No `read_buffer` call guards the depth blit : `readBuffer` selects the
+      // *color* source and only accepts `BACK`, `NONE` or `COLOR_ATTACHMENT<i>`,
+      // so naming `DEPTH_STENCIL` there raised `INVALID_ENUM` every frame. The
+      // depth/stencil blit reads the read-framebuffer's depth attachment
+      // implicitly and needs no selection at all.
       gl.blit_framebuffer
       (
         0, 0, self.texture_width as i32, self.texture_height as i32,
@@ -379,6 +409,17 @@ mod private
 
       gl.bind_framebuffer( gl::READ_FRAMEBUFFER, None );
       gl.bind_framebuffer( gl::DRAW_FRAMEBUFFER, None );
+
+      // Filter the freshly captured level 0 down the chain : the transmission
+      // shader reads a coarser level the rougher the surface is ( §3.3b ), which
+      // is what stands in for a multi-tap blur of the refracted ray. `RGBA16F`
+      // is both color-renderable ( via `EXT_color_buffer_float`, which this
+      // crate already requires ) and texture-filterable in core WebGL2, so
+      // `generate_mipmap` is legal on it - unlike `RGBA32F`.
+      gl.bind_texture( gl::TEXTURE_2D, self.transmission_color_texture.as_ref() );
+      gl.generate_mipmap( gl::TEXTURE_2D );
+      gl.bind_texture( gl::TEXTURE_2D, None );
+
       self.multisample_bind( gl );
     }
 
@@ -500,6 +541,10 @@ mod private
     /// Kulla–Conty multi-scatter energy-compensation LUT ( `E(μ,α)` / `E_avg` ),
     /// bound for `USE_OPENPBR` materials for direct-light energy compensation.
     kulla_lut : Option< gl::web_sys::WebGlTexture >,
+    /// Fuzz ( sheen ) directional-albedo LUT ( `E(μ, α)` ), bound for
+    /// `USE_OPENPBR` materials so the substrate under the fuzz layer can be
+    /// albedo-scaled instead of simply having the fuzz lobe added on top.
+    sheen_lut : Option< gl::web_sys::WebGlTexture >,
     /// If set to true, the renderer will add blur to the original image
     use_emission : bool,
     /// The **framebuffer context** used for multisampling and post-processing. This
@@ -538,6 +583,7 @@ mod private
       let use_emission = false;
       let ibl = None;
       let kulla_lut = None;
+      let sheen_lut = None;
       let mut blend_effect = BlendPass::new( gl )?;
       blend_effect.dst_factor = gl::ONE;
       blend_effect.src_factor = gl::ONE;
@@ -568,6 +614,7 @@ mod private
           material_program_map : FxHashMap::default(),
           ibl,
           kulla_lut,
+          sheen_lut,
       transparent_nodes : vec![],
       transmission_nodes : vec![],
       opaque_nodes : vec![],
@@ -649,6 +696,15 @@ mod private
     pub fn kulla_conty_lut_set( &mut self, texture : gl::web_sys::WebGlTexture )
     {
       self.kulla_lut = Some( texture );
+    }
+
+    /// Sets the fuzz ( sheen ) directional-albedo LUT ( `E(μ, α)` ) used by
+    /// `USE_OPENPBR` materials to albedo-scale the substrate underneath the fuzz
+    /// layer. Without it the fuzz lobe is simply added on top, which adds energy
+    /// instead of redistributing it — see `loaders::sheen_albedo`.
+    pub fn sheen_albedo_lut_set( &mut self, texture : gl::web_sys::WebGlTexture )
+    {
+      self.sheen_lut = Some( texture );
     }
 
     /// Sets whether the renderer should use the emission texture for post-processing effects.
@@ -953,7 +1009,11 @@ mod private
         // materials ( "USE_OPENPBR" is a substring of "USE_OPENPBR_IOR" ).
         let use_kulla = self.kulla_lut.is_some() && defines.contains( "#define USE_OPENPBR\n" );
         let kulla_define = if use_kulla { "#define USE_KULLA_CONTY\n" } else { "" };
-        let full_defines = format!( "{defines}{ibl_define}{kulla_define}" );
+        // Same exact-token reasoning as above: the fuzz albedo-scaling LUT is an
+        // `USE_OPENPBR` feature, not an `USE_OPENPBR_IOR` one.
+        let use_sheen_lut = self.sheen_lut.is_some() && defines.contains( "#define USE_OPENPBR\n" );
+        let sheen_define = if use_sheen_lut { "#define USE_SHEEN_ALBEDO\n" } else { "" };
+        let full_defines = format!( "{defines}{ibl_define}{kulla_define}{sheen_define}" );
         let cache_key = ( ( **material ).type_id(), full_defines.clone() );
 
         let prog_id = if let Some( &existing_id ) = self.shader_source_registry.get( &cache_key )
@@ -968,7 +1028,7 @@ mod private
           // Pitfall: defines_str() remains correct as the cache key (it covers all variants) — only
           //   the per-stage compilation calls must use the stage-specific accessors.
           let vs_src = format!( "#version 300 es\n{}\n{}", material.vertex_defines_str(), material.vertex_shader() );
-          let fs_src = format!( "#version 300 es\n{}\n{}\n{}\n{}", material.fragment_defines_str(), ibl_define, kulla_define, material.fragment_shader() );
+          let fs_src = format!( "#version 300 es\n{}\n{}\n{}\n{}\n{}", material.fragment_defines_str(), ibl_define, kulla_define, sheen_define, material.fragment_shader() );
           let program = gl::ProgramFromSources::new( &vs_src, &fs_src ).compile_and_link( gl )?;
           let shader_program = material.shader_program_make( gl, &program );
           let new_id = uuid::Uuid::new_v4();
@@ -1011,6 +1071,17 @@ mod private
             gl.active_texture( gl::TEXTURE0 + unit );
             gl.bind_texture( gl::TEXTURE_2D, self.kulla_lut.as_ref() );
             gl.uniform1i( locations.get( "kullaConty" ).expect( "USE_OPENPBR material missing 'kullaConty' sampler" ).clone().as_ref(), unit as i32 );
+          }
+
+          // Bind the fuzz directional-albedo LUT for OpenPBR materials ( energy
+          // scaling of the substrate under the fuzz layer ).
+          if use_sheen_lut
+          {
+            let locations = shader_program.locations();
+            let unit : u32 = 25;
+            gl.active_texture( gl::TEXTURE0 + unit );
+            gl.bind_texture( gl::TEXTURE_2D, self.sheen_lut.as_ref() );
+            gl.uniform1i( locations.get( "sheenAlbedo" ).expect( "USE_OPENPBR material missing 'sheenAlbedo' sampler" ).clone().as_ref(), unit as i32 );
           }
 
           self.shader_source_registry.insert( cache_key, new_id );
@@ -1256,6 +1327,26 @@ mod private
           gl.bind_texture( gl::TEXTURE_2D, self.framebuffer_ctx.transmission_color_texture.as_ref() );
           gl.active_texture( gl::TEXTURE0 + base_unit + 1 );
           gl.bind_texture( gl::TEXTURE_2D, self.framebuffer_ctx.transmission_depth_texture.as_ref() );
+        }
+
+        // Object-sized slab. OpenPBR has no geometric-thickness parameter, so a
+        // `.mtlx` / `.usda` surface authors none and the material can only fall
+        // back to a constant - which is wrong at every scale but one : a 0.5
+        // world-unit slab on a scene normalised to a unit box is thicker than the
+        // objects in it, and the refracted tap lands somewhere else entirely.
+        // Only the renderer knows how big the primitive actually is, so it
+        // supplies the thickness here, after `material.upload` has written the
+        // authored one. See `material::fallback_slab_thickness` for the choice of
+        // extent and for the thin-walled alternative.
+        if !material.transmission_thickness_authored()
+        {
+          if let Some( location ) = shader_program.locations().get( "transmissionThickness" )
+          {
+            let world_box = primitive.bounding_box().transform_apply( node_ref.world_matrix_get() );
+            let extent = world_box.max - world_box.min;
+            let thickness = fallback_slab_thickness( [ extent.x(), extent.y(), extent.z() ] );
+            gl.uniform1f( location.clone().as_ref(), thickness );
+          }
         }
 
         last_material_id = Some( material.id() );

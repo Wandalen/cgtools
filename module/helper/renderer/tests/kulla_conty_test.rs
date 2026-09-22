@@ -4,7 +4,7 @@
 //! average `E_avg(α)`, later uploaded as a LUT for direct-light energy
 //! compensation. Pure math, natively testable.
 
-use renderer::webgl::loaders::kulla_conty::{ KullaContyTables, kulla_conty_tables };
+use renderer::webgl::loaders::kulla_conty::{ KullaContyTables, kulla_conty_tables, multi_scatter_fresnel };
 
 /// Cheap-but-accurate table for tests.
 fn tables() -> KullaContyTables
@@ -54,5 +54,81 @@ fn avg_albedo_decreases_with_roughness()
   for w in t.e_avg.windows( 2 )
   {
     assert!( w[ 1 ] <= w[ 0 ] + 1e-3, "E_avg must be non-increasing in roughness; got {} then {}", w[ 0 ], w[ 1 ] );
+  }
+}
+
+/// A perfect mirror loses nothing: whatever the microfacets bounce around
+/// eventually leaves, so the compensation term returns all of it regardless of
+/// how much single-scatter energy the surface lost.
+#[ test ]
+fn mirror_substrate_returns_all_the_lost_energy()
+{
+  for e_avg in [ 0.2_f32, 0.5, 0.9, 1.0 ]
+  {
+    let f = multi_scatter_fresnel( [ 1.0, 1.0, 1.0 ], e_avg );
+    for c in f
+    {
+      assert!( ( c - 1.0 ).abs() < 1e-4, "E_avg {e_avg}: expected 1, got {c}" );
+    }
+  }
+}
+
+/// A substrate that reflects nothing has nothing to give back.
+#[ test ]
+fn black_substrate_returns_nothing()
+{
+  let f = multi_scatter_fresnel( [ 0.0, 0.0, 0.0 ], 0.5 );
+  for c in f
+  {
+    assert!( c.abs() < 1e-6, "expected 0, got {c}" );
+  }
+}
+
+/// The series is the sum of repeatedly Fresnel-weighted bounces, so it never
+/// returns more than the single-bounce weight `F_avg` it is replacing — the
+/// reason the old single-`F_avg` weighting over-brightened rough metals.
+#[ test ]
+fn series_never_exceeds_the_single_bounce_weight()
+{
+  for e_avg in [ 0.1_f32, 0.4, 0.7, 0.95 ]
+  {
+    for f_avg in [ 0.04_f32, 0.2, 0.5, 0.8, 1.0 ]
+    {
+      let out = multi_scatter_fresnel( [ f_avg; 3 ], e_avg )[ 0 ];
+      assert!
+      (
+        out <= f_avg + 1e-5,
+        "E_avg {e_avg}, F_avg {f_avg}: series {out} exceeds the single-bounce weight"
+      );
+    }
+  }
+}
+
+/// Each channel carries its own Fresnel, and the squared term saturates the
+/// tint — a copper-ish substrate comes back *more* colored than `F_avg`, which
+/// is exactly what the single-`F_avg` weighting used to wash out.
+#[ test ]
+fn colored_substrate_saturates()
+{
+  let f_avg = [ 0.95_f32, 0.64, 0.54 ];
+  let out = multi_scatter_fresnel( f_avg, 0.6 );
+
+  let ratio_in = f_avg[ 2 ] / f_avg[ 0 ];
+  let ratio_out = out[ 2 ] / out[ 0 ];
+  assert!( ratio_out < ratio_in, "tint did not saturate: {ratio_out} >= {ratio_in}" );
+}
+
+/// More single-scatter energy left on the table ( lower `E_avg` ) means a bigger
+/// share of the response comes back through multiple bounces, so the weight
+/// grows as `E_avg` falls — monotonically, with no inversion in the middle.
+#[ test ]
+fn weight_grows_as_the_surface_loses_more_energy()
+{
+  let mut previous = f32::INFINITY;
+  for e_avg in [ 0.95_f32, 0.8, 0.6, 0.4, 0.2 ]
+  {
+    let out = multi_scatter_fresnel( [ 0.5; 3 ], e_avg )[ 0 ];
+    assert!( out < previous, "E_avg {e_avg}: {out} did not fall below {previous}" );
+    previous = out;
   }
 }

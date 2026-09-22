@@ -150,6 +150,33 @@ mod private
     KullaContyTables { e_uv, e_avg, uv_samples, roughness_samples }
   }
 
+  /// The colored multiple-scattering Fresnel weight of the Kulla–Conty
+  /// compensation term,
+  /// `F_ms = F_avg² E_avg / ( 1 - F_avg ( 1 - E_avg ) )`.
+  ///
+  /// This is the sum of the per-bounce series: light that survives `n` bounces
+  /// has been Fresnel-weighted `n` times, so the energy returned by the
+  /// multi-scatter lobe is tinted *more* than a single `F_avg` and is smaller in
+  /// magnitude. Weighting by `F_avg` alone - which is what this shader did
+  /// before - both over-brightens the term and washes the tint of a colored
+  /// metal out of it.
+  ///
+  /// Two limits pin it down: a perfect mirror ( `F_avg = 1` ) returns *all* the
+  /// lost energy, `F_ms = 1`, whatever `E_avg` is; a black substrate
+  /// ( `F_avg = 0` ) returns none of it. Mirrored by `kulla_fms` in `main.frag`.
+  #[ must_use ]
+  pub fn multi_scatter_fresnel( f_avg : [ f32; 3 ], e_avg : f32 ) -> [ f32; 3 ]
+  {
+    let e_avg = e_avg.clamp( 0.0, 1.0 );
+    let mut out = [ 0.0_f32; 3 ];
+    for c in 0 .. 3
+    {
+      let f = f_avg[ c ].clamp( 0.0, 1.0 );
+      out[ c ] = f * f * e_avg / ( 1.0 - f * ( 1.0 - e_avg ) ).max( 1e-4 );
+    }
+    out
+  }
+
   /// Uploads the Kulla–Conty tables as an `RGBA32F` 2D texture: `E(μ, α)` in
   /// the red channel and the row-constant `E_avg(α)` in the green channel, for
   /// the shader's multi-scatter energy compensation.
@@ -212,6 +239,7 @@ crate::mod_interface!
   {
     KullaContyTables,
     kulla_conty_tables,
+    multi_scatter_fresnel,
     kulla_conty_lut_upload
   };
 }

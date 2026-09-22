@@ -48,7 +48,10 @@ The two-stage strategy per lane — **load**, then **shade** — is tracked belo
       - Smith joint-visibility `V = 0.5/(NoL·Λ(V)+NoV·Λ(L))` with
         `Λ(v)=√(1+((v·T)²αt²+(v·B)²αb²)/(v·N)²)`;
       - fuzz/sheen lobe (`KHR_materials_sheen` → Charlie NDF + Ashikhmin-Premoze
-        visibility) for direct + spot + point + IBL;
+        visibility) for direct + spot + point + IBL, with the substrate
+        albedo-scaled by the lobe’s directional albedo `E(μ, α)`
+        (`USE_SHEEN_ALBEDO` LUT, `loaders::sheen_albedo`) so the layer
+        redistributes energy instead of adding it;
       - `emissiveStrength` scaling (also honored on the legacy path).
 - [x] Fdez-Agüera/three.js multi-scatter on the **IBL term only** (existing
       `integrateBRDF` split-sum `FssEss`/`Fms`) — an approximation, *not* a
@@ -58,8 +61,8 @@ The two-stage strategy per lane — **load**, then **shade** — is tracked belo
 
 | Feature | Carrier | Status / blocker |
 |---|---|---|
-| Refraction (`transmission_weight`) | `KHR_materials_transmission` | **3.3a landed — browser-UNTESTED** — dedicated transmission pass + opaque-target capture + thin-plate screen-space refraction (§3.3). Blur, depth parallax, backface/thin-walled still open. |
-| Volume (`transmission_depth`, absorption) | `KHR_materials_volume` | **Partly fed, not evaluated** — the depth now reaches `PbrMaterial` as `transmissionThickness` (drives the refracted offset); Beer–Lambert absorption still needs §3.3b + the already-captured depth texture. |
+| Refraction (`transmission_weight`) | `KHR_materials_transmission` | **3.3a + 3.3b landed — browser-UNTESTED** — dedicated transmission pass + opaque-target capture + screen-space refraction, now with the roughness blur ( mip chain ), occluder rejection from the captured depth, and the thin-walled variant (§3.3). Backface/second-layer tracing and dispersion still open. |
+| Volume (`transmission_depth`, absorption) | `KHR_materials_volume` | **Landed — browser-UNTESTED** — Beer–Lambert absorption over the traversed slab (§3.4), `mu_t = -ln( T ) / lambda` with `T` = `transmission_color` and `lambda` = `transmission_depth`; `lambda = 0` degenerates to the spec's constant tint. Scattering (`transmission_scatter`) and a real per-pixel thickness ( backface depth / `thicknessTexture` ) are still open. |
 | Dispersion (20 / Abbe) | `KHR_materials_dispersion` | **Blocked** — per-channel refraction (3× the transmission pass). |
 | Subsurface / translucent scattering | `KHR_materials_diffuse_transmission` | **Blocked** — needs a diffusion pass (per-RGB radius profile). |
 | Thin-film iridescence | `KHR_materials_iridescence` | **Landed (§3.2)** — `USE_OPENPBR_IRIDESCENCE` spectral Fresnel in `main.frag`. Known model limit: on a near-perfect mirror substrate the interference terms cancel (`R23 ≈ 1 ⇒ Cm = Rs−T121 ≈ 0`) and the film only lifts `F_s` toward 1 — visible color needs low-reflectance bases. |
@@ -300,31 +303,156 @@ Mirror the existing extra-pass pattern (`post_processing/`, `shadow.rs`, PMREM):
    (depth-guided parallax like the three.js `TransmissionPass` approach).
 4. Route `transmission_factor` materials into the transparent pass.
 
-Status: **3.3a landed, browser-UNTESTED (2026-09)** — the dedicated pass exists:
-`FramebufferContext` gained a transmission target ( RGBA16F color + a
-DEPTH24_STENCIL8 *texture* depth, both MSAA-resolved by
+Status: **3.3a + 3.3b landed, browser-UNTESTED (2026-09)**.
+
+3.3a — the pass itself: `FramebufferContext` gained a transmission target
+( RGBA16F color + a DEPTH24_STENCIL8 *texture* depth, both MSAA-resolved by
 `transmission_capture()` ) captured right after the opaque pass; `Renderer`
-routes weight-gated materials into a new `transmission_draw` pass between
-opaque and WBOIT ( depth test + write on, no blend ), binding color/depth at
-fragment units 23/24 via the new `Material::transmission_active` /
-`transmission_texture_unit` contract; `main.frag` `USE_TRANSMISSION` refracts
-the view through the slab ( thin-plate: enter front, exit back, offset by
-`transmissionThickness` ), projects the exit point to screen uv and replaces
-the diffuse term with the tinted scene tap. Carriers flow from
-`OpenPbrSurface` via `openpbr_params_from_surface` ( weight → `transmission_factor`,
-depth → `volume_thickness_factor`, tint → `volume_attenuation_color` ),
-natively tested. The viewer's USD set scene gained a front glass sphere as the
-verification asset. **Deliberately NOT in 3.3a** ( registered below ): the
-roughness blur / mip chain, the depth-guided parallax correction ( the depth
-texture is captured + bound but not yet sampled ), Beer-Lambert absorption,
-`geometry_thin_walled` mode, backface handling ( single-sided shells show the
-front-plate approximation only ).
+routes weight-gated materials into a new `transmission_draw` pass between opaque
+and WBOIT ( depth test + write on, no blend ), binding color/depth at fragment
+units 23/24 via the `Material::transmission_active` / `transmission_texture_unit`
+contract; `main.frag` `USE_TRANSMISSION` refracts the view into the slab,
+projects the exit point to screen uv and replaces the diffuse term with the
+scene tap.
+
+3.3b — what the follow-up added:
+
+- **Exit-ray fix**: the second `refract()` used the *entry* eta ( `1 / ior` )
+  again instead of its reciprocal, bending the ray inward twice. The exit ray is
+  taken to return to `-V`, so only the exit *position* matters and the second
+  refraction is gone; the exit point is `vWorldPos + t_in * d`, with `d` the
+  traversal from `material::traversal_length`.
+- **Traversal model** ( corrected 2026-09 ): `d` is the convex-body chord
+  `thickness * |cos|`, exact for a sphere of diameter `thickness`. It was
+  originally the flat-slab `thickness / |cos|`, which has the cosine on the
+  wrong side for anything convex - it lengthens the path towards the silhouette
+  where the real chord shortens ( ~1.8x over at the rim at IOR 1.5 ), throwing
+  the screen-space tap off the object exactly where the refraction is strongest,
+  and it needed a `|cos|` floor to stay finite. A genuine parallel pane is the
+  thin-walled case, which never reaches this function. `material::traversal_length`
+  records the slab and the constant-`thickness` ( three.js / glTF sample viewer )
+  readings as the alternatives.
+- **Roughness blur**: the transmission color target is allocated with a full mip
+  chain and `generate_mipmap`'d after each capture; the shader reads
+  `textureLod` at `log2( size ) * roughness * clamp( 2*ior - 2, 0, 1 )`
+  ( `material::blur_lod`, the three.js `applyIorToRoughness` heuristic ), so a
+  rough surface gets a pre-filtered tap instead of a mirror-sharp one.
+- **Depth-guided validation**: the captured depth is finally sampled. It is
+  linearized through the projection matrix and compared against this fragment's
+  own view-space z — a tap whose surface sits *in front of* the glass is an
+  occluder, not something seen through it, and falls back to the un-refracted
+  pixel ( as do off-screen taps ). This is rejection, **not** a parallax
+  ray-march: a valid tap is still taken at the thin-plate exit point. The
+  rejection reads the *nearest* depth over a small cross around the tap rather
+  than the one texel under it, because the capture’s colour and depth disagree
+  at a silhouette ( filtered colour, single-sample `NEAREST` depth blit ) and
+  testing the exact texel let the half-covered edge pixels through as a bright
+  outline of every foreground object - see `material::occluder_dilation_texels`.
+- **Beer–Lambert absorption** (§3.4) and the **thin-walled** variant
+  ( `USE_TRANSMISSION_THIN_WALLED`: no interior, so no offset, no path length,
+  no absorption ).
+- **Fresnel split**: the transmitted term is weighted by `1 - F( f0, NoV )`. The
+  reflected share is already in `color` as the specular/IBL response, so without
+  it a grazing rim carried both lobes at full strength.
+
+Carrier semantics were corrected with it: OpenPBR `transmission_depth` is an
+*absorption length scale*, not a geometric thickness, so it now maps to the glTF
+`attenuationDistance` carrier ( `volume_attenuation_distance` ) and the geometric
+slab depth stays on `thicknessFactor` ( `volume_thickness_factor` );
+`geometry_thin_walled` maps to `thicknessFactor = 0`. The pure math the shader
+evaluates ( traversal length, transmittance, blur LOD ) lives in
+`material/transmission.rs` and is native-tested in `openpbr_transmission_test.rs`;
+`openpbr_transmission_shader_test.rs` covers the define gating + GLSL compile of
+all three variants in a browser.
+
+3.3c — **back-surface refraction: implemented, measured, reverted** ( 2026-09 ).
+Worth recording in full, because the result is counter-intuitive and the code is
+cheap to write again.
+
+The exit ray used to be - and once more is - assumed to leave parallel to the
+view, which is what a parallel slab does. Refracting a second time on the way out
+was implemented instead: modelling the body as a sphere of diameter
+`transmissionThickness` makes the exit normal closed-form from the entry normal
+and interior ray alone ( the radius cancels: `normalize( N - 2 ( N . t ) t )` ),
+and one depth sample at the exit point gives the distance to carry the ray along
+the true exit direction. Traced against an analytic two-refraction ball lens
+( sphere, IOR 1.5, background three radii back ) it matched at every sample to
+float precision.
+
+It still looked wrong, and the reason is not the model. A real ball is a
+*wide-angle* instrument: a pixel 80% of the way to the silhouette reads the scene
+1.6 radii off-axis, one at 98% reads 7.7 radii off. All of that is outside the
+frame, so the outer band of every transmissive object fell back to the
+un-refracted pixel - i.e. to whatever sits directly behind it - and the band a
+crystal ball is actually recognised by is precisely what a screen-space capture
+cannot supply. The same happened whenever the exit ray hit the far plane in
+depth: the travel diverged, the tap left the frame, fallback. Optical fidelity
+and a screen-space capture pull in opposite directions here.
+
+So the traversal is now the plain thickness with no angle dependence - the
+three.js / glTF-sample-viewer model - which keeps every tap near the object and
+on-screen, degrades gracefully at the silhouette instead of falling off a cliff,
+and makes an asset look the same here as in the renderers it was authored in.
+`material::traversal_length` carries the three readings and the measurements.
+**The prerequisite for revisiting this is a capture that extends past the frame**
+( a cube-map probe, or a widened capture ), not a better formula.
+
+**Still NOT in 3.3b/c** ( registered below ): second-layer handling
+( transmissive surfaces still cannot see each other ), a real
+per-pixel thickness ( `thicknessTexture` or a backface-depth prepass ), the
+half-resolution transmission target, `transmissionTexture`, transmissive objects
+seeing each other ( the capture holds the opaque pass only ), and dispersion
+(§3.6).
 
 ### 3.4 Volume thickness + Beer–Lambert (on top of 3.3)
 - Thickness source: bake/`thicknessTexture`, or render transmissive back faces'
   depth into a thickness target (leverage existing `doubleSided`/`faceDirection`).
 - `T = attenuationColor^(d / attenuationDistance)` along the refracted ray
   (corrected IOR path length), combined with the transmission tint.
+
+Status: **landed with 3.3b, browser-UNTESTED (2026-09)** — the absorption half.
+The spec states the interior medium's extinction as `mu_t = -ln( T ) / lambda`
+with `T` = `transmission_color` and `lambda` = `transmission_depth`, i.e. white
+light becomes exactly `T` after travelling `lambda`; the glTF volume carriers
+spell the identical relation as `attenuationColor ^ ( d / attenuationDistance )`,
+so both ingestion lanes land on one function ( `material::transmittance`,
+mirrored by `transmissionTransmittance` in `main.frag`, gated on
+`USE_TRANSMISSION_ABSORPTION` ). `lambda = 0` is the spec's "the interior medium
+is absent" case and keeps the previous behaviour — `transmission_color` as a
+constant multiplicative tint on the refraction. `d` is the slab traversal from
+§3.3b, so the absorption deepens at grazing incidence as it should.
+
+**Where the geometric thickness comes from ( decided 2026-09 ).** OpenPBR has no
+geometric-thickness parameter at all - `transmission_depth` is an absorption
+length scale, not a distance through the object - so a `.mtlx` / `.usda`
+surface authors nothing to offset the refracted ray by. Two readings are
+defensible and the renderer takes the first; the second is recorded here so it
+stays available if we change our minds:
+
+1. **Object-sized slab ( chosen ).** When the material authors no thickness
+   ( `Material::transmission_thickness_authored` is false, i.e. no glTF
+   `KHR_materials_volume` carrier ), `transmission_draw` overrides the
+   `transmissionThickness` uniform per draw with the smallest world-space
+   bounding-box extent of the primitive
+   ( `material::fallback_slab_thickness` ). Refraction becomes scale-invariant :
+   the previous fixed `0.5` world-unit fallback was thicker than the whole
+   scene once the viewer normalised it to a unit bounding box, so the refracted
+   tap landed on unrelated geometry. The *smallest* extent is the shortest way
+   through the object - exact for a pane, an over-estimate of the average chord
+   for a sphere, and modest enough either way for a screen-space offset.
+2. **Thin-walled.** glTF says a material without `KHR_materials_volume` has no
+   volume at all, so the strictly spec-faithful reading is no offset and no
+   absorption ( `USE_TRANSMISSION_THIN_WALLED` ). Correct by the letter of both
+   specs, but an unauthored glass ball then stops refracting entirely, which
+   makes the native-content lane look broken rather than approximate. Moving to
+   it means returning `0.0` from `fallback_slab_thickness` unconditionally - its
+   degenerate-extent path already behaves exactly that way.
+
+Open here: the thickness is still one number per drawn primitive rather than a
+per-pixel distance from a backface-depth prepass or a `thicknessTexture`; and
+`transmission_scatter` / `transmission_scatter_anisotropy`
+( `mu_s = S / lambda`, `mu_a = mu_t - mu_s` ) are parsed but not evaluated —
+in-scattering needs §3.5's diffusion pass.
 
 ### 3.5 Subsurface / diffuse transmission (on top of 3.3)
 - Screen-space (or texture-space) diffusion profile over scattered irradiance,
@@ -493,6 +621,65 @@ camera/lighting.
 Work consciously set aside during the current pass. Revisit when the item's
 prerequisite (named in brackets) is in place.
 
+### Spec-fidelity audit of the shipped lobes ( 2026-09 )
+
+Read against the ASWF spec while landing 3.3b. Two defects were fixed in place
+( see the changelog: the coat's doubled Fresnel factor, and thin-film
+interference evaluated at `N.V` instead of `V.H` ); the rest are conscious
+approximations, listed so they are not re-derived every time a render looks off.
+
+- **Matches the spec.** The roughness-to-alpha mapping
+  ( `alpha = r^2`; anisotropic `alpha_t = r^2 sqrt( 2 / ( 1 + ( 1 - a )^2 ) )`,
+  `alpha_b = ( 1 - a ) alpha_t` ), the dielectric Fresnel
+  `F_s = |( 1 - ior ) / ( 1 + ior )|^2`, the Beer's-law extinction
+  `mu_t = -ln( T ) / lambda` and its `lambda = 0` constant-tint degenerate case,
+  and the thin-film thickness unit conversion ( spec micrometres -> glTF-carrier
+  nanometres ) all follow the spec's own equations.
+- **`specular_weight` is applied as a factor on F0, not as the spec's adjusted
+  IOR** ( `eta' = ( 1 + eps ) / ( 1 - eps )`, `eps = sgn( eta - 1 ) sqrt( xi F_s )` ).
+  The two agree exactly at normal incidence - the adjusted IOR is constructed so
+  that `F0' = xi * F_s` - and both reach 1 at grazing, so only the mid-angle
+  curvature differs. Low priority.
+- **Fuzz uses the glTF sheen model, not the spec's microflake one.** OpenPBR
+  specifies a volumetric microflake sheen ( Heitz 2015 lineage, i.e. the
+  Zeltner et al. practical model ); the shader evaluates `KHR_materials_sheen`'s
+  Charlie NDF + Ashikhmin-Premoze visibility. Two further gaps ride along:
+  the call site passes `fuzz_roughness` to `D_Charlie` as alpha directly
+  ( the Khronos implementation squares it first, so this lobe is wider than the
+  reference at the same authored roughness - deliberate since the
+  grazing-rim-spike fix, which also floors it at 0.1 ). The **albedo scaling is
+  now closed** ( 2026-09 ): `loaders::sheen_albedo` integrates the lobe’s
+  directional albedo `E( mu, alpha )` off-GPU with the same Charlie / Ashikhmin
+  pair and the same 0.1 floor the shader uses, the renderer binds it as a LUT
+  ( `USE_SHEEN_ALBEDO`, unit 25 ), and `main.frag` scales the substrate by
+  `1 - max3( fuzz_color ) * E( NoV, alpha )` before adding the lobe - the glTF
+  spelling of the spec’s `layer( base, fuzz, w )`. The environment fuzz term is
+  scaled by the same `E`, so the layer adds exactly what the scaling removes.
+  The LUT is optional; without it the renderer keeps the older additive
+  behaviour. Still open: the microflake model itself, and the `E` table is
+  clamped to `[ 0, 1 ]` because the Ashikhmin visibility fit integrates to
+  marginally above one at exact grazing.
+- **Thin film is direct-light only.** `sampleEnvIrradiance` has no iridescence
+  term, so an IBL-lit iridescent surface shows none of it. The spec's IBL
+  wrinkle ( the prefiltered environment is monochromatic, so the film needs a
+  per-channel tint or a 3-tap ) is still the open design question here.
+- **Kulla-Conty now sums the per-bounce Fresnel series** ( fixed 2026-09 ):
+  `f_ms` used to be weighted by a single `F_avg`, which over-brightened the
+  compensation term and washed the tint out of colored rough metals - light
+  that survives `n` bounces has been Fresnel-weighted `n` times. It is now
+  weighted by `F_avg^2 E_avg / ( 1 - F_avg ( 1 - E_avg ) )`
+  ( `kulla_fms` in the shader, `loaders::kulla_conty::multi_scatter_fresnel`
+  natively tested against its two limits ). Still open here: the LUT is
+  indexed by `material.roughness` alone, which is not the effective roughness
+  of an anisotropic surface, and the IBL term still rides the older
+  Fdez-Agüera split-sum rather than this LUT. Applying the compensation
+  whenever `USE_OPENPBR` is on costs a lookup on smooth surfaces but is not a
+  correctness gap - the term vanishes on its own as `E -> 1`.
+- **Direct specular is faded out at grazing** ( `smoothstep( 0, 0.25, NoV )` ) to
+  suppress sub-pixel highlight aliasing. This is a deliberate, energy-losing
+  departure from every reference; a soft area-light source would remove the
+  aliasing at its origin instead.
+
 ### Formats & ingestion
 - **Full `openusd` Stage reader (N3 full)** — **mostly done**: the scene slice
   reads real composed USD via `openusd` + `openusd-schemas` ( `native-formats`
@@ -537,18 +724,25 @@ prerequisite (named in brackets) is in place.
   `transmissionTexture`, `thicknessTexture`, `iridescenceThicknessTexture`,
   diffuse-transmission textures; also `geometry_normal`/`coat`/`tangent` map
   inputs encountered in real `.mtlx` are skipped today (kept at defaults).
-- **Transmission 3.3b+** — refraction-only 3.3a landed ( §3.3 status ). Open :
-  roughness blur / mip chain of the transmission target, depth-guided parallax
-  using the already-captured `transmission_depth_texture`, Beer–Lambert
-  absorption along the refracted path ( §3.4 ), `geometry_thin_walled` mode,
-  backface/second-layer handling, half-resolution transmission target ( the
-  three.js bandwidth trick ), per-material `transmissionTexture` map.
+- **Transmission 3.3c+** — 3.3a ( pass ) and 3.3b ( blur, depth rejection,
+  Beer–Lambert, thin-walled, Fresnel split ) landed; 3.3c ( back-surface
+  refraction ) was implemented and reverted - see the §3.3 / §3.4 status blocks,
+  it needs a capture wider than the frame to be worth having. Open : second-layer
+  handling, backface depth, per-pixel thickness from a backface-depth
+  prepass or a `thicknessTexture` ( the per-primitive object-sized fallback
+  landed, see §3.4 ), true parallax ray-marching against the
+  captured depth instead of the current occluder *rejection*, transmissive
+  surfaces seeing each other ( the capture holds the opaque pass only, so glass
+  behind glass reads as background ), half-resolution transmission target ( the
+  three.js bandwidth trick ), per-material `transmissionTexture` map, and
+  `transmission_scatter` in-scattering.
 - **Thin-film iridescence** (§3.2) **landed**; **subsurface diffusion** (§3.5)
   and **dispersion** (§3.6) — all blocked/deferred as described in their sections.
-- **Kulla–Conty LUT** (§3.7) — landed for direct lights. Open: unify the IBL
-  term onto the same LUT ( it still uses the older Fdez-Agüera split-sum
-  approximation ), and gate the compensation on actual roughness rather than
-  always-on for `USE_OPENPBR`.
+- **Kulla–Conty LUT** (§3.7) — landed for direct lights, now weighted by the
+  per-bounce Fresnel series. Open: unify the IBL term onto the same LUT ( it
+  still uses the older Fdez-Agüera split-sum approximation ), index it by the
+  effective roughness of an anisotropic surface, and gate the compensation on
+  actual roughness rather than always-on for `USE_OPENPBR`.
 - **Thin-film on mirror metals** — per the reference model, a film on a
   near-perfect mirror ( gold f0 ≈ 0.93 ) collapses to `F_s ≈ 1` with no
   visible color ( interference `Cm` terms cancel ). Faithful to Khronos;

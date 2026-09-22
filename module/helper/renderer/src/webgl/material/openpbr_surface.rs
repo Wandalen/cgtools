@@ -478,20 +478,33 @@ mod private
       params.iridescence_thickness_maximum = Some( thickness_nm );
     }
 
-    // Transmission : the weight rides the `KHR_materials_transmission` carrier,
-    // the slab thickness the `KHR_materials_volume` one, and `transmission_color`
-    // maps onto the attenuation-color carrier ( both mean "color imparted to
-    // light passing through" - the exact absorption-vs-tint distinction is §3.4 ).
+    // Transmission ( §3.3 / §3.4 ). The weight rides the
+    // `KHR_materials_transmission` carrier; the volumetric pair maps onto
+    // `KHR_materials_volume`, which spells the *same* Beer's-law relation under
+    // different names :
+    //
+    //   OpenPBR : `transmission_color` reached after `transmission_depth`
+    //   glTF    : `attenuationColor`   reached after `attenuationDistance`
+    //
+    // so `transmission_depth` is the absorption length scale ( lambda ), NOT a
+    // geometric thickness. `volume_thickness_factor` carries the geometric slab
+    // depth instead, which OpenPBR leaves to the geometry - the one thing it
+    // does say is `geometry_thin_walled`, a zero-thickness shell, which is
+    // exactly the glTF `thicknessFactor = 0` case.
     if surface.transmission_weight > 1e-3
     {
       params.transmission_factor = Some( surface.transmission_weight );
       if surface.transmission_depth > 0.0
       {
-        params.volume_thickness_factor = Some( surface.transmission_depth );
+        params.volume_attenuation_distance = Some( surface.transmission_depth );
       }
       if !( surface.transmission_color[ 0 ] > 0.99 && surface.transmission_color[ 1 ] > 0.99 && surface.transmission_color[ 2 ] > 0.99 )
       {
         params.volume_attenuation_color = Some( surface.transmission_color );
+      }
+      if surface.geometry_thin_walled
+      {
+        params.volume_thickness_factor = Some( 0.0 );
       }
     }
 

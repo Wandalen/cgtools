@@ -24,7 +24,8 @@ mod private
 
   /// Fragment texture unit of the transmission target color ( §3.3 ). Placed
   /// after the lobe carriers ( 20-22 ); depth is bound at the next unit. IBL
-  /// occupies 16-18, the Kulla-Conty LUT 19.
+  /// occupies 16-18, the Kulla-Conty LUT 19 and the fuzz directional-albedo LUT
+  /// 25 ( both bound by the `Renderer`, not by this material ).
   pub const TRANSMISSION_TEXTURE_UNIT : u32 = 23;
 
   /// Emits the `USE_<name>` define plus the `<uv_name> -> vUv_<channel>` alias
@@ -87,12 +88,14 @@ mod private
     "sheenRoughnessTexture",
     "iridescenceTexture",
     "kullaConty",
+    "sheenAlbedo",
     //// Transmission uniform locations ( §3.3 )
     "uScreenSize",
     "transmissionSampler",
     "transmissionDepthSampler",
     "transmissionFactor",
     "transmissionThickness",
+    "transmissionDepth",
     "transmissionColor",
     "transmissionIor",
     //// IBL uniform locations
@@ -166,16 +169,21 @@ mod private
     /// `transmission_weight` ( `KHR_materials_transmission.transmissionFactor`,
     /// schema default `0.0` ).
     pub transmission_factor : Option< f32 >,
-    /// Volumetric slab thickness beneath the surface — the glTF carrier of the
-    /// OpenPBR `transmission_depth` length scale
-    /// ( `KHR_materials_volume.thicknessFactor`, schema default `0.0`, i.e.
-    /// thin-walled ).
+    /// Geometric thickness of the volume beneath the surface, in world units
+    /// — how far a refracted ray travels inside the slab, which is what the
+    /// screen-space refraction offsets by ( `KHR_materials_volume.thicknessFactor`,
+    /// schema default `0.0`, i.e. thin-walled : an infinitely thin shell with
+    /// no interior volume, OpenPBR `geometry_thin_walled` ). This is *not*
+    /// OpenPBR `transmission_depth` — that is the absorption length scale
+    /// carried by `volume_attenuation_distance` below.
     pub volume_thickness_factor : Option< f32 >,
-    /// Distance over which `volume_attenuation_color` is reached — glTF-side
-    /// absorption mean free path ( `KHR_materials_volume.attenuationDistance` ).
-    /// `None` when omitted ( schema default `+inf` : non-absorbing ).
+    /// Distance over which `volume_attenuation_color` is reached — the glTF
+    /// carrier of the OpenPBR `transmission_depth` absorption length scale
+    /// ( `KHR_materials_volume.attenuationDistance` ). `None` when omitted
+    /// ( schema default `+inf` : non-absorbing ).
     pub volume_attenuation_distance : Option< f32 >,
-    /// Color white light turns into after one attenuation distance
+    /// Color white light turns into after one attenuation distance — the glTF
+    /// carrier of OpenPBR `transmission_color`
     /// ( `KHR_materials_volume.attenuationColor`, schema default `[1, 1, 1]` ).
     pub volume_attenuation_color : Option< [ f32; 3 ] >,
     /// Thin-film ( iridescence ) intensity — carries OpenPBR `thin_film_weight`
@@ -1118,6 +1126,28 @@ mod private
       if p.transmission_factor.is_some_and( | w | w > 0.0 )
       {
         defines.push_str( "#define USE_TRANSMISSION\n" );
+
+        // Thin-walled ( OpenPBR `geometry_thin_walled`, glTF `thicknessFactor = 0` ) :
+        // an infinitely thin shell has no interior volume, so the refracted ray
+        // exits where it entered - no lateral offset, no traversal length, and
+        // hence no Beer-Lambert absorption to evaluate. A define rather than a
+        // runtime branch keeps the slab math out of the shell variant entirely.
+        let thin_walled = p.volume_thickness_factor.is_some_and( | t | t <= 0.0 );
+        // Volumetric absorption ( adoption plan §3.4 ) is only defined for a
+        // finite, positive `transmission_depth` inside a slab that has an
+        // interior at all; the spec's `lambda = 0` case is "the interior medium
+        // is absent", where `transmission_color` degenerates into a constant
+        // tint - which is what the shader does without this define.
+        let absorbing = !thin_walled
+        && p.volume_attenuation_distance.is_some_and( | d | d > 0.0 && d.is_finite() );
+        if thin_walled
+        {
+          defines.push_str( "#define USE_TRANSMISSION_THIN_WALLED\n" );
+        }
+        if absorbing
+        {
+          defines.push_str( "#define USE_TRANSMISSION_ABSORPTION\n" );
+        }
       }
       if p.emissive_strength.is_some()
       {
@@ -1158,6 +1188,14 @@ mod private
     fn transmission_active( &self ) -> bool
     {
       self.openpbr_params.transmission_factor.is_some_and( | w | w > 0.0 )
+    }
+
+    fn transmission_thickness_authored( &self ) -> bool
+    {
+      // The `KHR_materials_volume` carrier. A `.mtlx` / `.usda` OpenPBR surface
+      // leaves this `None` ( the spec has no geometric thickness ) unless it is
+      // thin-walled, which sets it to `0.0` and is an authored answer too.
+      self.openpbr_params.volume_thickness_factor.is_some()
     }
 
     fn transmission_texture_unit( &self ) -> Option< u32 >
@@ -1365,13 +1403,22 @@ mod private
       {
         let p = &self.openpbr_params;
         upload( "transmissionFactor", Some( p.transmission_factor.unwrap_or( 0.0 ).clamp( 0.0, 1.0 ) ) )?;
-        // Slab thickness for the refracted-ray parallax offset; OpenPBR
-        // `transmission_depth` already rode in as `volume_thickness_factor`,
-        // otherwise a mid-sized default keeps the effect visible but mild.
-        upload( "transmissionThickness", Some( p.volume_thickness_factor.filter( | t | *t > 0.0 ).unwrap_or( 0.5 ) ) )?;
+        // Geometric depth of the slab the refracted ray crosses ( glTF
+        // `thicknessFactor` ). A carrier-less material gets a mid-sized default
+        // so the refraction stays visible but mild; `0` is thin-walled and
+        // raises `USE_TRANSMISSION_THIN_WALLED`, where the shader ignores it.
+        upload( "transmissionThickness", Some( p.volume_thickness_factor.unwrap_or( 0.5 ).max( 0.0 ) ) )?;
         upload( "transmissionIor", Some( p.ior.filter( | i | *i > 1.0 ).unwrap_or( 1.5 ) ) )?;
+        // OpenPBR `transmission_color` : the color white light becomes after
+        // travelling `transmission_depth` through the medium ( carried by the
+        // glTF attenuation pair ). Without a finite depth the shader falls back
+        // to the spec's constant-tint reading of it.
         let tint = p.volume_attenuation_color.unwrap_or( [ 1.0, 1.0, 1.0 ] );
         upload_array( "transmissionColor", Some( &tint ) )?;
+        if let Some( depth ) = p.volume_attenuation_distance.filter( | d | *d > 0.0 && d.is_finite() )
+        {
+          upload( "transmissionDepth", Some( depth ) )?;
+        }
       }
       if let Some( strength ) = self.openpbr_params.emissive_strength
       {

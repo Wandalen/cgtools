@@ -178,6 +178,23 @@ mod private
       None
     }
 
+    /// Returns `true` when the material carries an authored geometric thickness
+    /// for the transmissive slab, and `false` when the renderer should supply one
+    /// from the size of the primitive being drawn ( see
+    /// [`fallback_slab_thickness`](transmission::fallback_slab_thickness), which
+    /// also records the thin-walled alternative this project did not take ).
+    ///
+    /// The distinction exists because OpenPBR has no geometric-thickness
+    /// parameter : a `.mtlx` / `.usda` surface arrives with nothing to offset the
+    /// refracted ray by, while a glTF material carrying `KHR_materials_volume`
+    /// does. Defaulting to `false` is the safe answer - a material that never
+    /// heard of the transmission pass has certainly not authored a thickness, and
+    /// the override only ever reaches materials the pass actually draws.
+    fn transmission_thickness_authored( &self ) -> bool
+    {
+      false
+    }
+
     /// Returns reference to [`ProgramInfo`](crate::webgl::ProgramInfo) with shader locations and used [`ShaderProgram`]
     fn shader_program_make( &self, gl : &gl::WebGl2RenderingContext, program : &gl::WebGlProgram ) -> Box< dyn ShaderProgram >;
 
@@ -370,6 +387,9 @@ crate::mod_interface!
 
   /// Canonical OpenPBR Surface parameter model ( native formats lane )
   layer openpbr_surface;
+
+  /// Pure transmission math shared with `main.frag`'s `USE_TRANSMISSION` block
+  layer transmission;
 
   orphan use
   {
