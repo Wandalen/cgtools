@@ -484,6 +484,14 @@ fn debug_ui_setup
   surface_slider( state, &js_object, &params_folder, "transmissionColorB", 1.0, ( 0.0, 1.0, 0.01 ), | s, v | s.transmission_color[ 2 ] = v );
   // A slider rather than a checkbox : `lil_gui.rs` binds sliders and dropdowns only.
   surface_slider( state, &js_object, &params_folder, "thinWalled", 0.0, ( 0.0, 1.0, 1.0 ), | s, v | s.geometry_thin_walled = v > 0.5 );
+  // §3.6 chromatic dispersion. Only visible through a thick refracting edge, so
+  // raise `transmissionWeight` first and keep `thinWalled` off - a zero-thickness
+  // shell has no refraction offset for the spread to act on and compiles the
+  // three-tap path away entirely. The Abbe number runs backwards to the effect :
+  // it measures how *little* the medium disperses, so 20 ( the spec default ) is
+  // strongly dispersive and 64 is ordinary crown glass.
+  surface_slider( state, &js_object, &params_folder, "dispersionScale", 0.0, ( 0.0, 1.0, 0.01 ), | s, v | s.transmission_dispersion_scale = v );
+  surface_slider( state, &js_object, &params_folder, "dispersionAbbe", 20.0, ( 10.0, 80.0, 1.0 ), | s, v | s.transmission_dispersion_abbe_number = v );
 
   lil_gui::show( &gui );
 }
