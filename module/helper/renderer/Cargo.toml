@@ -42,7 +42,8 @@ enabled = [
   "dep:rustc-hash",
   "dep:serde",
   "dep:serde_json",
-  "dep:wasm-bindgen-futures"
+  "dep:wasm-bindgen-futures",
+  "dep:wasm-bindgen"
 ]
 default = [ "enabled", "webgl" ]
 full = [ "enabled", "webgl", "animation", "webgpu", "native" ]
@@ -82,6 +83,8 @@ uuid = { version = "1.20.0", features = ["v4", "js"], optional = true }
 serde = { workspace = true, features = [ "derive" ], optional = true }
 serde_json = { workspace = true, optional = true }
 wasm-bindgen-futures = { workspace = true, optional = true }
+# The meshopt decoder is imported from a JS module ( `src/webgl/loaders/meshopt_decoder.mjs` ).
+wasm-bindgen = { workspace = true, optional = true }
 
 [dependencies.web-sys]
 workspace = true

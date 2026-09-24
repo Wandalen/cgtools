@@ -475,9 +475,11 @@ mod private
     }
   }
 
-  /// Collects the raw byte payload of every glTF buffer : the embedded GLB
-  /// binary chunk first ( when present ), then each URI-addressed buffer
-  /// fetched relative to `folder_path`.
+  /// Collects the raw byte payload of every glTF buffer, indexed like the
+  /// document's `buffers` : the embedded GLB binary chunk, each URI-addressed
+  /// buffer fetched relative to `folder_path`, and a zeroed placeholder for each
+  /// meshopt fallback buffer, which [`crate::webgl::loaders::meshopt::views_decode`]
+  /// then fills.
   async fn buffers_load
   (
     gltf_file : &mut gltf::Gltf,
@@ -486,36 +488,51 @@ mod private
   -> Result< Vec< gl::js_sys::Uint8Array >, gl::WebglError >
   {
     let mut buffers : Vec< gl::js_sys::Uint8Array > = Vec::new();
-
-    // Move the GLB bin into buffers
-    if let Some( blob ) = gltf_file.blob.as_mut()
-    {
-      let blob = std::mem::take( blob );
-      gl::debug!( "The gltf binary payload is present: {}", blob.len() );
-      buffers.push( blob.as_slice().into() );
-    }
+    let mut blob = gltf_file.blob.take();
 
     for gltf_buffer in gltf_file.buffers()
     {
-      if let gltf::buffer::Source::Uri( uri ) = gltf_buffer.source()
+      if crate::webgl::loaders::meshopt::buffer_is_fallback( &gltf_buffer )
       {
-        let path = asset_uri_resolve( folder_path, uri );
-        let buffer = gl::file::load( &path ).await
-        .map_err( | e |
+        let length = u32::try_from( gltf_buffer.length() )
+        .map_err( | _ | gl::WebglError::Other( "glTF buffer is larger than 4 GiB" ) )?;
+        buffers.push( gl::js_sys::Uint8Array::new_with_length( length ) );
+        continue;
+      }
+
+      match gltf_buffer.source()
+      {
+        gltf::buffer::Source::Bin =>
         {
-          gl::browser::error!( "Failed to load gltf buffer '{path}': {e:?}" );
-          gl::WebglError::Other( "Failed to load a buffer" )
-        } )?;
+          // Only the first buffer may omit its uri : it is the GLB binary chunk.
+          let blob = blob.take().ok_or_else( ||
+          {
+            gl::browser::error!( "glTF buffer {} has no uri and no GLB binary chunk", gltf_buffer.index() );
+            gl::WebglError::Other( "glTF buffer has no data" )
+          } )?;
+          gl::debug!( "The gltf binary payload is present: {}", blob.len() );
+          buffers.push( blob.as_slice().into() );
+        },
+        gltf::buffer::Source::Uri( uri ) =>
+        {
+          let path = asset_uri_resolve( folder_path, uri );
+          let buffer = gl::file::load( &path ).await
+          .map_err( | e |
+          {
+            gl::browser::error!( "Failed to load gltf buffer '{path}': {e:?}" );
+            gl::WebglError::Other( "Failed to load a buffer" )
+          } )?;
 
-        gl::debug!
-        (
-          "Buffer path: {}\n
-          \tBuffer length: {}",
-          path,
-          buffer.len()
-        );
+          gl::debug!
+          (
+            "Buffer path: {}\n
+            \tBuffer length: {}",
+            path,
+            buffer.len()
+          );
 
-        buffers.push( buffer.as_slice().into() );
+          buffers.push( buffer.as_slice().into() );
+        }
       }
     }
 
@@ -931,6 +948,42 @@ mod private
     .vector( gl::VectorDataType::new( data_type, acc.dimensions().multiplicity() as i32, 1 ) )
   }
 
+  /// Converts a `POSITION` accessor's `min` / `max` into the values the vertex
+  /// shader sees. `KHR_mesh_quantization` stores positions as integers and the
+  /// accessor's bounds use the same raw integers, but WebGL reads a normalized
+  /// accessor as -1..1 or 0..1 : an `i16` bound of 32767 is really 1.0. Bounds of
+  /// float and non-normalized integer accessors are already in shader units.
+  #[ must_use ]
+  pub fn position_bounds_dequantize
+  (
+    bounds : gltf::mesh::BoundingBox,
+    data_type : gltf::accessor::DataType,
+    normalized : bool
+  )
+  -> gltf::mesh::BoundingBox
+  {
+    use gltf::accessor::DataType;
+
+    if !normalized
+    {
+      return bounds;
+    }
+    // Per the glTF spec's normalization equations : signed types clamp at -1.
+    let scale = | v : f32 | match data_type
+    {
+      DataType::I8 => ( v / 127.0 ).max( -1.0 ),
+      DataType::U8 => v / 255.0,
+      DataType::I16 => ( v / 32767.0 ).max( -1.0 ),
+      DataType::U16 => v / 65535.0,
+      DataType::U32 | DataType::F32 => v,
+    };
+    gltf::mesh::BoundingBox
+    {
+      min : bounds.min.map( scale ),
+      max : bounds.max.map( scale ),
+    }
+  }
+
   /// Describes one vertex attribute over the uploaded GPU buffers from its
   /// glTF accessor : data type, offset, stride, and dimensionality.
   fn attribute_info_make
@@ -981,7 +1034,12 @@ mod private
         gltf::Semantic::Positions =>
         {
           geometry.vertex_count = acc.count() as u32;
-          let gltf_box = gltf_primitive.bounding_box();
+          let gltf_box = position_bounds_dequantize
+          (
+            gltf_primitive.bounding_box(),
+            acc.data_type(),
+            acc.normalized()
+          );
 
           let mut attr_info = attribute_info_make( gl_buffers, &acc, 0 );
           attr_info.bounding_box = BoundingBox::new( gltf_box.min, gltf_box.max );
@@ -1395,8 +1453,61 @@ mod private
   /// here. Cross-checked against this file's own code, not just the feature
   /// list: `KHR_lights_punctual` is read in [`light_list_get`] / [`light_get`];
   /// `KHR_materials_specular` is read in `materials_create`'s `gltf_m.specular()`
-  /// branch.
-  const SUPPORTED_EXTENSIONS : &[ &str ] = &[ "KHR_lights_punctual", "KHR_materials_specular" ];
+  /// branch. The meshopt extensions are decoded by
+  /// [`crate::webgl::loaders::meshopt::views_decode`] before any buffer is used.
+  /// `KHR_mesh_quantization` needs no code of its own : integer attributes reach
+  /// `vertexAttribPointer` with their type and `normalized` flag intact
+  /// ( [`attribute_descriptor_make`] ), and normalized position bounds are scaled in
+  /// [`position_bounds_dequantize`].
+  const SUPPORTED_EXTENSIONS : &[ &str ] = &
+  [
+    "KHR_lights_punctual",
+    "KHR_materials_specular",
+    "EXT_meshopt_compression",
+    "KHR_meshopt_compression",
+    "KHR_mesh_quantization"
+  ];
+
+  /// Runs the `gltf` crate's structural validation, minus its `extensionsRequired`
+  /// check. That check accepts only the extensions the crate itself implements, which
+  /// leaves out everything this loader handles on its own ( meshopt, quantization,
+  /// `KHR_materials_specular` ); [`required_extensions_check`] makes that decision
+  /// instead. Every other validation error still refuses the file.
+  ///
+  /// # Errors
+  ///
+  /// Returns `WebglError::Other` on the first validation error; all of them are logged.
+  pub fn document_validate( gltf_file : &gltf::Gltf ) -> Result< (), gl::WebglError >
+  {
+    use gltf::json::validation::{ Error, Validate };
+
+    let root = gltf_file.document.as_json();
+    let mut errors = Vec::new();
+    root.validate
+    (
+      root,
+      gltf::json::Path::new,
+      &mut | path, error |
+      {
+        let path = path();
+        let required_extension = path.as_str().starts_with( "extensionsRequired" );
+        if !( required_extension && matches!( error, Error::Unsupported ) )
+        {
+          errors.push( format!( "{}: {error}", path.as_str() ) );
+        }
+      }
+    );
+
+    if errors.is_empty()
+    {
+      Ok( () )
+    }
+    else
+    {
+      gl::browser::error!( "glTF validation failed: {}", errors.join( "; " ) );
+      Err( gl::WebglError::Other( "glTF validation failed" ) )
+    }
+  }
 
   /// Validates a parsed glTF document's `extensionsRequired` against
   /// [`SUPPORTED_EXTENSIONS`], per glTF 2.0's "Specifying Extensions" : a
@@ -1471,12 +1582,13 @@ mod private
       gl::browser::error!( "Failed to load gltf file '{gltf_path}': {e:?}" );
       gl::WebglError::Other( "Failed to load gltf file" )
     } )?;
-    let mut gltf_file = gltf::Gltf::from_slice( &gltf_slice )
+    let mut gltf_file = gltf::Gltf::from_slice_without_validation( &gltf_slice )
     .map_err( | e |
     {
       gl::browser::error!( "Failed to parse gltf file '{gltf_path}': {e}" );
       gl::WebglError::Other( "Failed to parse gltf file" )
     } )?;
+    document_validate( &gltf_file )?;
 
     // Per glTF 2.0's "Specifying Extensions", a conformant client MUST refuse to
     // load an asset whose `extensionsRequired` names an extension it doesn't
@@ -1484,10 +1596,25 @@ mod private
     required_extensions_check( &gltf_file )?;
 
     let buffers = buffers_load( &mut gltf_file, folder_path ).await?;
+    crate::webgl::loaders::meshopt::views_decode( &gltf_file, &buffers ).await?;
 
-    let bin_buffers = buffers.iter()
-    .map( minwebgl::js_sys::Uint8Array::to_vec )
-    .collect::< Vec< _ > >();
+    // Only skins, morph targets and animations are read on the CPU. Everything else goes
+    // straight from the JS buffers to the GPU, so skip the copy into wasm memory when
+    // nothing needs it : it costs as much as the decoded model again, and the wasm heap
+    // never shrinks afterwards.
+    let cpu_buffers_needed = gltf_file.skins().next().is_some()
+    || gltf_file.animations().next().is_some()
+    || gltf_file.meshes().any( | m | m.primitives().any( | p | p.morph_targets().next().is_some() ) );
+    let bin_buffers = if cpu_buffers_needed
+    {
+      buffers.iter()
+      .map( minwebgl::js_sys::Uint8Array::to_vec )
+      .collect::< Vec< _ > >()
+    }
+    else
+    {
+      Vec::new()
+    };
 
     gl::debug!( "Buffers: {}", buffers.len() );
 
@@ -1556,6 +1683,8 @@ crate::mod_interface!
     load,
     texture_upload_count_get,
     required_extensions_check,
+    document_validate,
+    position_bounds_dequantize,
     asset_uri_resolve,
     light_list_get,
     light_get,

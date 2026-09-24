@@ -8,6 +8,9 @@ crate::mod_interface!
   /// Gltf loader
   layer gltf;
 
+  /// meshopt-compressed buffer views ( EXT_meshopt_compression )
+  layer meshopt;
+
   /// IBL textures loader
   layer ibl;
 
