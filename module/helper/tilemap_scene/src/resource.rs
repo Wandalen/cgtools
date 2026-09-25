@@ -88,6 +88,14 @@ mod private
     /// (sky backgrounds, ocean, long edge segments).
     #[ serde( default ) ]
     pub wrap : WrapMode,
+    /// Whether this image's pixels are stored with **premultiplied** alpha
+    /// (RGB already scaled by alpha). When true, the GPU backend composites it
+    /// with the premultiplied "over" blend (`src + dst·(1-src_a)`) instead of the
+    /// straight one (`src·src_a + dst·(1-src_a)`), which keeps antialiased edges
+    /// fringe-free under linear filtering / mipmaps without needing the
+    /// transparent background dilated to the edge colour. Defaults to `false`.
+    #[ serde( default ) ]
+    pub premultiplied : bool,
   }
 
   /// How an asset is laid out internally.
