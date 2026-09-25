@@ -52,6 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `webgl::loaders::gltf::texture_upload_count_get()`: a running count of glTF images whose decoded pixels have replaced their 1x1 white placeholder. Image uploads complete asynchronously after `load` returns; a renderer that skips unchanged frames redraws when the count moves, so a textured model does not stay blank until something else triggers a frame.
 - GPU PMREM generation (`webgl::loaders::pmrem::generate`): converts an equirectangular HDR into a full IBL set — equirect→cubemap, GGX importance-sampled prefiltered specular mips, cosine-weighted irradiance convolution, and a split-sum BRDF integration LUT.
 - `cull_mode` field to `PbrMaterial` for fine-grained face culling control
 - `Drop` implementation for `SwapFramebuffer` to prevent GPU memory leaks

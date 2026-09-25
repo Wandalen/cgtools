@@ -1,5 +1,10 @@
 #version 300 es
 precision highp float;
+// Fix(android-silhouette-dots): radicalInverseVdC below does 32-bit bit-twiddling, but
+// the fragment-stage default is `mediump int` — 16-bit on Mali — where every sample
+// collapses onto H = N and each "blurred" mip becomes an unfiltered point sample of the
+// environment. Same fault and fix as brdf_integration.frag.
+precision highp int;
 
 in vec2 vUv;
 out vec4 fragColor;

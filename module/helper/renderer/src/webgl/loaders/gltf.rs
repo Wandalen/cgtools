@@ -522,9 +522,30 @@ mod private
     Ok( buffers )
   }
 
+  std::thread_local!
+  {
+    static TEXTURE_UPLOAD_COUNT : std::cell::Cell< u64 > = const { std::cell::Cell::new( 0 ) };
+  }
+
+  /// Number of glTF images whose decoded pixels have replaced their 1x1 white
+  /// placeholder, counted across every [`load`] since the page started.
+  ///
+  /// Image uploads finish asynchronously, after `load` has returned, and nothing
+  /// else signals them. A renderer that skips redrawing unchanged frames should
+  /// redraw whenever this value moves : otherwise the frame drawn with the white
+  /// placeholders stays on screen until something unrelated changes, and a
+  /// textured model shows up blank. Compare against the value seen last frame;
+  /// reading it is one thread-local load.
+  #[ must_use ]
+  pub fn texture_upload_count_get() -> u64
+  {
+    TEXTURE_UPLOAD_COUNT.with( std::cell::Cell::get )
+  }
+
   /// Creates an `<img>` element for `src` and uploads it into a new WebGL
   /// texture pushed onto `images` : a 1x1 white placeholder immediately, the
-  /// decoded image ( with mipmaps ) once the element's onload fires.
+  /// decoded image ( with mipmaps ) once the element's onload fires, which bumps
+  /// [`texture_upload_count_get`].
   fn texture_upload
   (
     document : &gl::web_sys::Document,
@@ -576,6 +597,7 @@ mod private
 
           gl.generate_mipmap( gl::TEXTURE_2D );
           gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
+          TEXTURE_UPLOAD_COUNT.with( | count | count.set( count.get() + 1 ) );
 
           // revoke_object_url is specified only for blob: URLs; for data: URIs or
           // plain file paths it is a no-op, and unwrapping its result is a latent
@@ -1532,6 +1554,7 @@ crate::mod_interface!
   {
     GLTF,
     load,
+    texture_upload_count_get,
     required_extensions_check,
     asset_uri_resolve,
     light_list_get,
