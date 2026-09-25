@@ -4,7 +4,7 @@ mod private
   use crate::{vector, Vector, MatNum, MatEl, NdFloat};
   // use vector::arithmetics::inner_product::*;
   // use vector::arithmetics::{ normalized, mag };
-  use vector::{ normalized, mag, mag2, min, max, dot };
+  use vector::{ normalized, try_normalized, is_finite, mag, mag2, min, max, dot };
 
   impl< E : MatNum, const LEN : usize > Vector< E, LEN >
   {
@@ -65,11 +65,66 @@ mod private
   {
 
     /// Normalize the vector. Requires float scalar (uses `sqrt`).
+    ///
+    /// Divides by the magnitude unconditionally. For the zero vector that is a division by
+    /// zero, so every component becomes `NaN` and is returned as an ordinary value — use
+    /// [`Self::try_normalize`] where a zero-length input is reachable.
     #[ must_use ]
     #[ inline ]
     pub fn normalize( self ) -> Self
     {
       normalized( &self )
+    }
+
+    /// Normalize the vector, or `None` if it has no direction to normalize to.
+    ///
+    /// The guarded counterpart of [`Self::normalize`]. A zero-length vector has no unit
+    /// direction, and dividing by its magnitude yields `NaN` components that propagate
+    /// silently through everything downstream — a real case wherever a direction is derived
+    /// from a difference that can vanish (two coincident points, a body exactly at its
+    /// primary, a degenerate orbit).
+    ///
+    /// Returns `None` when the magnitude is zero or non-finite, so `Some` always carries a
+    /// finite unit vector. The check is on the *magnitude* rather than the components, which
+    /// additionally rejects two cases [`Self::is_finite`] accepts: components small enough
+    /// that the sum of their squares underflows to zero, and components large enough that it
+    /// overflows to infinity. The magnitude is what the division actually uses.
+    ///
+    /// ```
+    /// use ndarray_cg::F64x3;
+    ///
+    /// assert!( F64x3::new( 3.0, 0.0, 4.0 ).try_normalize().is_some() );
+    /// assert!( F64x3::ZERO.try_normalize().is_none() );
+    /// ```
+    #[ must_use ]
+    #[ inline ]
+    pub fn try_normalize( self ) -> Option< Self >
+    {
+      try_normalized( &self )
+    }
+
+    /// Whether every component is finite — neither infinite nor `NaN`.
+    ///
+    /// The component-wise counterpart of [`f64::is_finite`]. Worth having as one call because
+    /// a vector is usually validated as a whole: one non-finite component makes the whole
+    /// value meaningless, and checking each axis by hand is the step that gets skipped.
+    ///
+    /// Use this to validate incoming data. To guard a division by the magnitude, use
+    /// [`Self::try_normalize`] instead — every component can be finite while the magnitude is
+    /// not, so this check alone does not make normalization safe.
+    ///
+    /// ```
+    /// use ndarray_cg::F64x3;
+    ///
+    /// assert!( F64x3::new( 1.0, 2.0, 3.0 ).is_finite() );
+    /// assert!( !F64x3::new( 1.0, f64::NAN, 3.0 ).is_finite() );
+    /// assert!( !F64x3::new( 1.0, f64::INFINITY, 3.0 ).is_finite() );
+    /// ```
+    #[ must_use ]
+    #[ inline ]
+    pub fn is_finite( &self ) -> bool
+    {
+      is_finite( self )
     }
 
     /// Compute the length of the vector. Requires float scalar (uses `sqrt`).

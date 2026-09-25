@@ -123,6 +123,7 @@ vector) that discards the honest signal.
 | 2026-08-20 | filed | Found during repo-wide bug/UX-DX discovery sweep. |
 | 2026-08-20 | fixed | Judgment call: documentation-only resolution (no source behavior change) given the existing behavior is already mathematically correct and the 100+7 call-site footprint makes an unrequested behavior change high-risk relative to its benefit. |
 | 2026-08-20 | verified | See Verification Record below. |
+| 2026-08-29 | superseded-in-part | The "no caller has asked" half of the fixed-row judgment no longer holds: a downstream consumer needed a zero-magnitude answer it could branch on, and had been carrying its own two-method extension trait to get one -- reached, at last count there, from twelve call sites. Resolved *additively*, which is outside what this bug considered — the rejection above and the test file's own rejection of an `Option`-returning form were both about **restructuring** `normalize`/`normalized`, whose cost was the 100+7 existing call sites, and neither reaches a new sibling that changes none of them. `vector::try_normalized` and `vector::is_finite` were added to `mdmath_core::vector::arithmetics` (with `Vector::try_normalize`/`Vector::is_finite` delegating), and `try_normalized`'s own doc cites this bug for why the `NaN` contract stays. The documented behavior of every function named in this report is unchanged, so the Verification Record below still stands as taken. |
 
 ## Verification Record
 
