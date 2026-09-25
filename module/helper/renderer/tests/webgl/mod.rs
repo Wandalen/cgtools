@@ -66,6 +66,9 @@ mod pass;
 /// IBL loader texture-parameter / mip-range wiring tests
 mod ibl;
 
+/// `ScenePicker` / `IdBuffer` id-buffer picking tests
+mod picking;
+
 // The GL-resource-lifecycle suites below were inline `#[cfg(test)] mod tests`
 // blocks under `src/webgl/**` until `rulebook.md § Test placement` was changed
 // to put every test in `tests/`. Each covers one type's teardown contract:

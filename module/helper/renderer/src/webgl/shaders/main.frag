@@ -25,6 +25,9 @@ layout( location = 3 ) out float transparentB;
 
 uniform vec3 cameraPosition;
 uniform float exposure;
+// Interactive highlight: the lit colour is multiplied by mix( 1, highlightColor, highlightStrength ).
+uniform vec3 highlightColor;
+uniform float highlightStrength;
 
 #ifdef USE_ALPHA_CUTOFF
   uniform float alphaCutoff;
@@ -952,6 +955,7 @@ void main()
   // pass operates in display-referred space ). The clear-color background is not
   // drawn by this shader, so it stays exposure-independent.
   color *= exp2( exposure );
+  color *= mix( vec3( 1.0 ), highlightColor, highlightStrength );
 
   float a_weight = alpha * alpha_weight( alpha );
   trasnparentA = vec4( color * a_weight, alpha );
