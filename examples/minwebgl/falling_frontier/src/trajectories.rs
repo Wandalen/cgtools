@@ -65,11 +65,10 @@ impl Trajectories
   }
 
   /// Uploads the frame's view/projection/resolution to every ribbon and
-  /// draws it, if `show_ribbons` (the dev panel's "Trajectories" toggle) is
-  /// set.
-  pub fn draw( &mut self, gl : &GL, view : gl::F32x4x4, projection : gl::F32x4x4, resolution : [ f32; 2 ], show_ribbons : bool )
+  /// draws it. Whether to draw at all is the caller's call
+  /// (`GridTuning::show_trajectories`).
+  pub fn draw( &mut self, gl : &GL, view : gl::F32x4x4, projection : gl::F32x4x4, resolution : [ f32; 2 ] )
   {
-    if !show_ribbons { return; }
     for line in &mut self.ribbons
     {
       let mesh = line.mesh_get_mut().unwrap();

@@ -650,11 +650,6 @@ fn app_run() -> Result< (), gl::WebglError >
     tuning : tuning.clone(),
   } );
 
-  let trajectories = Trajectories::new
-  (
-    &gl, &ctx.ships.borrow(), camera.projection_matrix_get(), [ pixel_w as f32, pixel_h as f32 ]
-  )?;
-
   {
     let ctx = ctx.clone();
     setup_grid_tuning_panel
@@ -696,7 +691,10 @@ fn app_run() -> Result< (), gl::WebglError >
   {
     let canvas = canvas.clone();
     let ctx = ctx.clone();
-    let mut trajectories = trajectories;
+    // Built on first use rather than at startup: nothing in the UI turns
+    // trajectories on yet, so a session that never shows them never builds
+    // one ribbon mesh per ship.
+    let mut trajectories : Option< Trajectories > = None;
     move | t : f64 |
     {
       let delta_time = if prev_time == 0.0 { 0.0 } else { ( t - prev_time ) / 1000.0 };
@@ -838,11 +836,27 @@ fn app_run() -> Result< (), gl::WebglError >
         starfield.draw( &gl, view_proj );
       }
 
-      trajectories.draw
-      (
-        &gl, camera.view_matrix_get(), camera.projection_matrix_get(), [ w as f32, h as f32 ],
-        tuning_snapshot.show_trajectories
-      );
+      if tuning_snapshot.show_trajectories
+      {
+        if trajectories.is_none()
+        {
+          match Trajectories::new( &gl, &ships, camera.projection_matrix_get(), [ w as f32, h as f32 ] )
+          {
+            Ok( built ) => trajectories = Some( built ),
+            Err( e ) =>
+            {
+              // Switch the layer back off so a failing build isn't retried
+              // (and warned about) every frame.
+              web_sys::console::warn_1( &format!( "Falling Frontier: trajectory ribbons unavailable: {e}" ).into() );
+              tuning.borrow_mut().show_trajectories = false;
+            }
+          }
+        }
+        if let Some( trajectories ) = &mut trajectories
+        {
+          trajectories.draw( &gl, camera.view_matrix_get(), camera.projection_matrix_get(), [ w as f32, h as f32 ] );
+        }
+      }
 
       if tuning_snapshot.show_grid
       {
