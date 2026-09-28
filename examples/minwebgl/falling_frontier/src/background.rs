@@ -15,6 +15,7 @@
 
 use minwebgl as gl;
 use gl::GL;
+use gl::web_sys::wasm_bindgen::JsCast;
 
 // Smooth, low-frequency nebula content - no fine detail to preserve, so a
 // modest face resolution is plenty and keeps the one-time bake cheap.
@@ -108,8 +109,24 @@ fn bake_cubemap( gl : &GL ) -> gl::web_sys::WebGlTexture
     gl.draw_arrays( GL::TRIANGLES, 0, 3 );
   }
 
+  // Everything but the texture is one-shot: nothing draws through the bake
+  // program, its VAO or its framebuffer again. Unbind first so the deletes
+  // take effect now instead of waiting for the objects to stop being current.
   gl.bind_framebuffer( GL::FRAMEBUFFER, None );
+  gl.bind_vertex_array( None );
+  gl.use_program( None );
   gl.delete_framebuffer( framebuffer.as_ref() );
+  gl.delete_vertex_array( Some( &vao ) );
+  // `compile_and_link` leaves its two shader objects attached to the program;
+  // deleting the program alone would leave them allocated.
+  if let Some( shaders ) = gl.get_attached_shaders( &program )
+  {
+    for shader in shaders.iter().filter_map( | s | s.dyn_into::< gl::web_sys::WebGlShader >().ok() )
+    {
+      gl.delete_shader( Some( &shader ) );
+    }
+  }
+  gl.delete_program( Some( &program ) );
 
   texture
 }
