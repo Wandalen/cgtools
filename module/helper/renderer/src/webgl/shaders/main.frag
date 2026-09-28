@@ -323,14 +323,16 @@ float V_GGX_anisotropic
 #ifdef USE_KHR_materials_clearcoat
 // The clearcoat layer is modeled as a fixed-IOR (1.5) dielectric coat, using the same
 // isotropic GGX D/V terms as the base layer but with its own normal and roughness.
+// This is the extension's `clearcoat_brdf`: the microfacet lobe WITHOUT Fresnel. The coat
+// Fresnel is applied exactly once, by the fresnel_mix in main(), to direct and image-based
+// coat light alike; weighting it here as well would square it (~0.04^2 head-on).
 // https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_clearcoat/README.md
-vec3 BRDF_Clearcoat( const in float dotNL, const in float dotNV, const in float dotNH, const in float dotVH, const in float roughness )
+float BRDF_Clearcoat( const in float dotNL, const in float dotNV, const in float dotNH, const in float roughness )
 {
   float alpha = pow2( roughness );
   float D = D_GGX( alpha, dotNH );
   float V = V_GGX_SmithCorrelated( alpha, dotNL, dotNV );
-  vec3 F = F_Schlick( vec3( 0.04 ), vec3( 1.0 ), dotVH );
-  return F * ( D * V * dotNL );
+  return D * V * dotNL;
 }
 #endif
 
@@ -384,8 +386,7 @@ void applyLightContribution
     float ccDotNL = clamp( dot( material.clearcoatNormal, lightDir ), 0.0, 1.0 );
     float ccDotNV = clamp( dot( material.clearcoatNormal, viewDir ), 0.0, 1.0 );
     float ccDotNH = clamp( dot( material.clearcoatNormal, halfDir ), 0.0, 1.0 );
-    float ccDotVH = clamp( dot( viewDir, halfDir ), 0.0, 1.0 );
-    reflectedLight.clearcoatSpecular += BRDF_Clearcoat( ccDotNL, ccDotNV, ccDotNH, ccDotVH, material.clearcoatRoughness ) * lightColor * lightIntensity;
+    reflectedLight.clearcoatSpecular += BRDF_Clearcoat( ccDotNL, ccDotNV, ccDotNH, material.clearcoatRoughness ) * lightColor * lightIntensity;
   #endif
 }
 
