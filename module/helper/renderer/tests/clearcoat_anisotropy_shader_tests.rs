@@ -12,6 +12,9 @@
 mod tests
 {
   use wasm_bindgen_test::wasm_bindgen_test;
+  // Browser, not Node: without it the binary runs under Node, where `web_sys::window()` is
+  // `None` and every test fails at runtime with `CanvasRetrievingError("Failed to get window")`.
+  wasm_bindgen_test::wasm_bindgen_test_configure!( run_in_browser );
   use std::{ cell::RefCell, rc::Rc };
   use minwebgl as gl;
   use gl::GL;
@@ -93,11 +96,11 @@ mod tests
     let gl = init_gl().await;
     let mut material = PbrMaterial::new( &gl );
     material.set_anisotropy_strength( Some( 0.5 ) );
-    material.set_normal_texture( Some( dummy_texture_info() ) );
+    material.normal_texture_set( Some( dummy_texture_info() ) );
     // Mirrors what the gltf loader does when a TANGENT attribute is present, exercising the
     // real-tangent TBN branch (shared between normal mapping and anisotropy) instead of the
     // screen-space-derivative fallback.
-    material.add_define( "USE_TANGENTS", "" );
+    material.define_add( "USE_TANGENTS", "" );
     assert_compiles( &gl, &material, false, "anisotropy + base normal map sharing a real-tangent TBN" );
   }
 
@@ -110,7 +113,7 @@ mod tests
     material.set_clearcoat_normal_texture( Some( dummy_texture_info() ) );
     material.set_anisotropy_strength( Some( 0.8 ) );
     material.set_anisotropy_texture( Some( dummy_texture_info() ) );
-    material.set_specular_factor( Some( 0.5 ) ); // also exercised alongside the existing KHR_materials_specular path
+    material.specular_factor_set( Some( 0.5 ) ); // also exercised alongside the existing KHR_materials_specular path
     assert_compiles( &gl, &material, true, "clearcoat + anisotropy + specular + IBL, worst-case combo" );
   }
 }
