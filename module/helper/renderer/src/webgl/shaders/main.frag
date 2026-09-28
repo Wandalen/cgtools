@@ -692,8 +692,13 @@ void main()
   #ifdef USE_TBN
     mat3 TBN;
     #ifdef USE_TANGENTS
+      // On a back face the whole frame flips, not just the normal: geometricNormal is already
+      // negated, the bitangent derived from it follows, and the tangent must be negated too.
+      // Flipping only N and B would mirror tangent-space X relative to master and to the Khronos
+      // sample renderer (which negates t, b and ng together when !gl_FrontFacing).
+      vec3 tangent = vTangent.xyz * faceDirection;
       vec3 bitangent = cross( geometricNormal, vTangent.xyz ) * vTangent.w;
-      TBN = mat3( vTangent.xyz, bitangent, geometricNormal );
+      TBN = mat3( tangent, bitangent, geometricNormal );
     #else
       // No per-texture UV is threaded through here (unlike the normal texture's own vNormalUv
       // below) — vUv_0 is used as a simplification for the clearcoat-normal/anisotropy-only case.
