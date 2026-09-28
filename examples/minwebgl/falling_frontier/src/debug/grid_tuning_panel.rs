@@ -13,11 +13,11 @@ use std::{ cell::RefCell, fmt::Write, rc::Rc };
 use gl::web_sys::
 {
   wasm_bindgen::{ prelude::Closure, JsCast },
-  Document, Element, HtmlButtonElement, HtmlInputElement, HtmlSelectElement,
+  Document, Element, HtmlButtonElement, HtmlSelectElement,
 };
 
 use super::grid_tuning::{ GridTuning, FADE_CURVES };
-use super::layers_panel::layers_summary;
+use super::{ input_by_id, layers_panel::layers_summary };
 
 fn slider_row_html( id : &str, label : &str, min : f32, max : f32, step : f32, value : f32, decimals : usize ) -> String
 {
@@ -156,11 +156,6 @@ pub fn refresh_selection_status( document : &Document, text : &str )
   {
     el.set_text_content( Some( text ) );
   }
-}
-
-fn input_by_id( document : &Document, id : &str ) -> HtmlInputElement
-{
-  document.get_element_by_id( id ).unwrap().dyn_into::< HtmlInputElement >().unwrap()
 }
 
 fn select_by_id( document : &Document, id : &str ) -> HtmlSelectElement

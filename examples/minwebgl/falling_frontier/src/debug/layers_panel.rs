@@ -39,7 +39,7 @@ use gl::web_sys::
   Document, Element, HtmlInputElement, MouseEvent,
 };
 
-use super::{ grid_tuning::GridTuning, render_layers::RenderLayers };
+use super::{ grid_tuning::GridTuning, input_by_id, render_layers::RenderLayers };
 
 /// A `label` wrapping both the text and the checkbox, so a left click
 /// anywhere on the row toggles it, as its pointer cursor promises.
@@ -53,11 +53,6 @@ fn checkbox_row_html( id : &str, label : &str, checked : bool ) -> String
       <input type="checkbox" id="{id}" {checked} style="accent-color:#22d3ee">
     </label>"#
   )
-}
-
-fn input_by_id( document : &Document, id : &str ) -> HtmlInputElement
-{
-  document.get_element_by_id( id ).unwrap().dyn_into::< HtmlInputElement >().unwrap()
 }
 
 /// One row's id + label + the `RenderLayers` bool field it reads/writes.
