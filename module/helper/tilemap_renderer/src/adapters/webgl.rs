@@ -72,7 +72,7 @@ mod private
     /// `region` is the sprite rect in pixels and `tex_size` is the sheet's dimensions — same
     /// convention as `sprite_batch.vert`, so both shaders normalize UV the same way.
     #[ allow( clippy::too_many_arguments, reason = "each parameter is a distinct WebGL uniform upload target; grouping into a struct would add indirection without reducing call-site complexity for this single-call-site private method" ) ]
-    fn draw( &self, gl : &gl::GL, transform : &[ f32; 9 ], region : &[ f32; 4 ], tex_size : [ f32; 2 ], tint : &[ f32; 4 ], viewport : [ f32; 2 ], depth : f32, max_depth : f32 )
+    fn draw( &self, gl : &gl::GL, transform : &[ f32; 9 ], region : &[ f32; 4 ], tex_size : [ f32; 2 ], tint : &[ f32; 4 ], premultiplied : bool, viewport : [ f32; 2 ], depth : f32, max_depth : f32 )
     {
       // Unbind any VAO to prevent stale attribute state from interfering
       gl.bind_vertex_array( None );
@@ -81,6 +81,7 @@ mod private
       self.program.uniform_upload( "u_region", region );
       self.program.uniform_upload( "u_tex_size", &tex_size );
       self.program.uniform_upload( "u_tint", tint );
+      self.program.uniform_upload( "u_premultiplied", &i32::from( premultiplied ) );
       self.program.uniform_upload( "u_viewport", &viewport );
       self.program.uniform_upload( "u_depth", &depth );
       self.program.uniform_upload( "u_max_depth", &max_depth );
@@ -104,6 +105,7 @@ mod private
       self.batch_program.activate();
       self.batch_program.uniform_upload( "u_viewport", &viewport );
       self.batch_program.uniform_upload( "u_tex_size", &[ tw as f32, th as f32 ] );
+      self.batch_program.uniform_upload( "u_premultiplied", &i32::from( gpu_tex.premultiplied ) );
       let parent_mat = params.transform.to_mat3();
       self.batch_program.uniform_matrix_upload( "u_parent", &parent_mat, true );
       self.batch_program.uniform_upload( "u_parent_depth", &params.transform.depth );
@@ -162,6 +164,7 @@ mod private
       topology : u32,
       viewport : [ f32; 2 ],
       use_texture : bool,
+      premultiplied : bool,
       depth : f32,
       max_depth : f32,
     )
@@ -171,6 +174,7 @@ mod private
       self.program.uniform_upload( "u_color", color );
       self.program.uniform_upload( "u_viewport", &viewport );
       self.program.uniform_upload( "u_use_texture", &i32::from( use_texture ) );
+      self.program.uniform_upload( "u_premultiplied", &i32::from( premultiplied ) );
       self.program.uniform_upload( "u_depth", &depth );
       self.program.uniform_upload( "u_max_depth", &max_depth );
 
@@ -213,6 +217,7 @@ mod private
       self.batch_program.uniform_upload( "u_viewport", &viewport );
       self.batch_program.uniform_upload( "u_color", &color );
       self.batch_program.uniform_upload( "u_use_texture", &i32::from( use_texture ) );
+      self.batch_program.uniform_upload( "u_premultiplied", &i32::from( resources.mesh_premultiplied( params.texture ) ) );
       let parent_mat = params.transform.to_mat3();
       self.batch_program.uniform_matrix_upload( "u_parent", &parent_mat, true );
       self.batch_program.uniform_upload( "u_parent_depth", &params.transform.depth );
@@ -448,7 +453,7 @@ mod private
         use_texture = true;
       }
 
-      self.mesh.draw( &self.gl, geom, &mat, &color, topology_to_gl( &m.topology ), viewport, use_texture, m.transform.depth, self.config.max_depth );
+      self.mesh.draw( &self.gl, geom, &mat, &color, topology_to_gl( &m.topology ), viewport, use_texture, premultiplied, m.transform.depth, self.config.max_depth );
       Ok( () )
     }
 
@@ -477,7 +482,7 @@ mod private
 
       let mat = s.transform.to_mat3();
       blend_apply( &self.gl, &s.blend, gpu_tex.premultiplied );
-      self.sprite.draw( &self.gl, &mat, &gpu_sprite.region, tex_size, &s.tint, viewport, s.transform.depth, self.config.max_depth );
+      self.sprite.draw( &self.gl, &mat, &gpu_sprite.region, tex_size, &s.tint, gpu_tex.premultiplied, viewport, s.transform.depth, self.config.max_depth );
       Ok( () )
     }
 

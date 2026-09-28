@@ -25,6 +25,7 @@ tests/
   webgpu_backend_test.rs — WebGpuBackend compile-and-construct-level contract (feature adapter-webgpu, wasm32)
   webgl_backend_test.rs — WebGlBackend::declared_capabilities pure-function contract (feature adapter-webgl)
   webgl_context_loss_test.rs — WebGlBackend context_lost lifecycle against a live context (feature adapter-webgl + test_internals, wasm32)
+  webgl_premultiplied_test.rs — WebGlBackend premultiplied-alpha compositing, pixel read-back against a live context (feature adapter-webgl, wasm32)
   command_consistency_test.rs — cross-backend capabilities-vs-submit() consistency (none/svg/native)
   types_test.rs         — Transform, ResourceId, RenderConfig
 ```
@@ -44,6 +45,7 @@ tests/
 | `webgpu_backend_test.rs` | WebGpuBackend adapter | `declared_capabilities` honest subset, `sprite_draw_params` anti-hardcoding, `command_classify` family rejection (wasm32 only) |
 | `webgl_backend_test.rs` | WebGlBackend adapter | `declared_capabilities` honest-subset pin and `max_texture_size` anti-hardcoding pin — no live `WebGl2RenderingContext` |
 | `webgl_context_loss_test.rs` | WebGlBackend context-loss lifecycle (relocated from inline when `rulebook.md § Test placement` moved every test to `tests/`) | A simulated `webglcontextlost` blocks `submit`/`output`, and `assets_load` — not the restored-event listener — is what clears the flag again; reaches the private flag through `test_internals`' `context_lost_for_test`/`context_lost_set_for_test` |
+| `webgl_premultiplied_test.rs` | WebGlBackend premultiplied-alpha compositing | A premultiplied texel and its straight-alpha equivalent read back the same pixel over a known background — pins `blend_apply`'s `ONE` source factor and the shaders' `u_premultiplied` tint handling |
 | `command_consistency_test.rs` | Cross-backend command/capabilities consistency | `none`/`svg`/`native` each accept a `Sprite` (all declare `sprites: true`); `none`/`native` each reject or gracefully skip a `paths`-family command they declare `false` (never panic) |
 
 ## Adding new tests

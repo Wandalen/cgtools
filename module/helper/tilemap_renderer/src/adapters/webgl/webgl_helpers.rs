@@ -691,7 +691,11 @@ mod private
   /// modes: a premultiplied texture already carries `rgb·a`, so its source factor
   /// is `ONE` (premultiplied "over"); a straight texture uses `SRC_ALPHA`. Without
   /// this, a premultiplied texture drawn under `SRC_ALPHA` would be scaled by alpha
-  /// twice (`a²`), darkening every antialiased edge.
+  /// twice (`a²`), darkening every antialiased edge. The `ONE` factor is only
+  /// correct because the fragment shaders keep the output premultiplied: under
+  /// `u_premultiplied` they scale the tint's RGB by the tint's alpha before
+  /// multiplying, so a layer / instance alpha below 1 fades colour and coverage
+  /// together instead of leaving the colour at full strength.
   pub fn blend_apply( gl : &gl::GL, blend : &BlendMode, premultiplied : bool )
   {
     // For premultiplied sources the colour is pre-scaled by alpha, so the "src·a"
