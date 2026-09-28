@@ -94,6 +94,7 @@ let Output::String( doc ) = svg.output()? else { unreachable!() };
 | Gradients | yes | — | — | — | — | — |
 | Effects | yes | — | — | — | — | — |
 | Blend modes | yes | partial² | partial⁷ | — | —⁵ | —⁵ |
+| Premultiplied images | — | yes | — | — | —⁸ | —⁸ |
 | Viewport pan/zoom | yes | partial | — | — | — | — |
 
 > **Terminal** adapter downsamples world coordinates onto a fixed character-cell grid
@@ -152,6 +153,12 @@ let Output::String( doc ) = svg.output()? else { unreachable!() };
 > ⁷ Terminal blend modes: only `BlendMode::Normal` — source-over (Porter-Duff "over") alpha
 > compositing on straight RGBA via `composite_over` — is evaluated; other variants fall back
 > to Normal. `Capabilities::supported_blend_modes` is `&[BlendMode::Normal]`.
+>
+> ⁸ `ImageAsset::premultiplied` is honoured by the WebGL adapter only (premultiplied
+> "over" blend plus premultiplied tinting, see `docs/feature/002_webgl2_backend_adapter.md`).
+> The other adapters ignore the flag and composite the pixels as straight alpha, so
+> semi-transparent texels of a premultiplied image come out darker. WebGPU and native
+> first need blend support at all (⁵); `Capabilities` has no field for this yet.
 
 ## known issues / TODO
 
