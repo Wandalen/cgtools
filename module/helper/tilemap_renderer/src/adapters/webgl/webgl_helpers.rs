@@ -312,7 +312,7 @@ mod private
     #[ must_use ]
     pub fn mesh_premultiplied( &self, texture : Option< ResourceId< asset::Image > > ) -> bool
     {
-      texture.and_then( | id | self.texture( id ) ).map_or( false, | t | t.premultiplied )
+      texture.and_then( | id | self.texture( id ) ).is_some_and( | t | t.premultiplied )
     }
 
     /// Looks up a sprite by sprite asset id.

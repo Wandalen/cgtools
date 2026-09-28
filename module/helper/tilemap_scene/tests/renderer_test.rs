@@ -88,6 +88,22 @@ fn external_layer( slot : &str ) -> ObjectLayer
   }
 }
 
+/// Hex-anchored object on the `terrain` global layer with a centred pivot.
+fn terrain_object( id : &str, default_state : &str, states : HashMap< String, Vec< ObjectLayer > > ) -> Object
+{
+  Object
+  {
+    id : id.into(),
+    anchor : Anchor::Hex,
+    global_layer : "terrain".into(),
+    priority : None,
+    sort_y_source : SortYSource::default(),
+    pivot : ( 0.5, 0.5 ),
+    default_state : default_state.into(),
+    states,
+  }
+}
+
 fn spec_build() -> RenderSpec
 {
   let mut grass_states = HashMap::default();
@@ -148,39 +164,9 @@ fn spec_build() -> RenderSpec
     effects : Vec::new(),
     objects : vec!
     [
-      Object
-      {
-        id : "grass".into(),
-        anchor : Anchor::Hex,
-        global_layer : "terrain".into(),
-        priority : None,
-        sort_y_source : SortYSource::default(),
-        pivot : ( 0.5, 0.5 ),
-        default_state : "default".into(),
-        states : grass_states,
-      },
-      Object
-      {
-        id : "knight".into(),
-        anchor : Anchor::Hex,
-        global_layer : "terrain".into(),
-        priority : None,
-        sort_y_source : SortYSource::default(),
-        pivot : ( 0.5, 0.5 ),
-        default_state : "idle".into(),
-        states : knight_states,
-      },
-      Object
-      {
-        id : "external_object".into(),
-        anchor : Anchor::Hex,
-        global_layer : "terrain".into(),
-        priority : None,
-        sort_y_source : SortYSource::default(),
-        pivot : ( 0.5, 0.5 ),
-        default_state : "default".into(),
-        states : external_states,
-      },
+      terrain_object( "grass", "default", grass_states ),
+      terrain_object( "knight", "idle", knight_states ),
+      terrain_object( "external_object", "default", external_states ),
     ],
     pipeline : RenderPipeline
     {

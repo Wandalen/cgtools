@@ -830,7 +830,7 @@ mod private
       let ( blend, premultiplied ) = match gpu_batch
       {
         GpuBatch::Sprite { params, .. } =>
-          ( &params.blend, res.texture( params.sheet ).map_or( false, | t | t.premultiplied ) ),
+          ( &params.blend, res.texture( params.sheet ).is_some_and( | t | t.premultiplied ) ),
         GpuBatch::Mesh { params, .. } =>
           ( &params.blend, res.mesh_premultiplied( params.texture ) ),
       };
