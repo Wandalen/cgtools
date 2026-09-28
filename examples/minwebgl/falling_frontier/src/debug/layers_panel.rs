@@ -85,6 +85,21 @@ const LAYER_TOGGLES : &[ LayerToggle ] =
   LayerToggle { id : "layers-show-scanlines", label : "CRT Scanlines", field : | t | &mut t.show_scanlines },
 ];
 
+/// One `label: value` line per Render Layers row, for `grid_tuning_panel`'s
+/// Copy Settings text. Built from `LAYER_TOGGLES` itself, so a row added to
+/// the panel lands in the copied settings too instead of silently missing.
+pub fn layers_summary( t : &GridTuning ) -> String
+{
+  LAYER_TOGGLES.iter()
+  .map( | toggle |
+  {
+    let mut snapshot = *t;
+    format!( "{}: {}", toggle.label.to_lowercase(), *( toggle.field )( &mut snapshot ) )
+  } )
+  .collect::< Vec< _ > >()
+  .join( "\n" )
+}
+
 /// Makes every row's checkbox (and the `hud`-owned CRT scanlines overlay)
 /// match `t` - the one place both the plain left-click path and the solo
 /// right-click path funnel through, so neither has to remember the other's
@@ -196,5 +211,33 @@ pub fn setup_layers_panel( document : &Document, tuning : &Rc< RefCell< GridTuni
   {
     bind_toggle( document, tuning, toggle );
     bind_solo( document, tuning, toggle );
+  }
+}
+
+#[ cfg( test ) ]
+mod tests
+{
+  use super::{ layers_summary, LAYER_TOGGLES };
+  use crate::debug::GridTuning;
+
+  #[ test ]
+  fn summary_has_one_line_per_row()
+  {
+    let summary = layers_summary( &GridTuning::default() );
+    assert_eq!( summary.lines().count(), LAYER_TOGGLES.len() );
+    for toggle in LAYER_TOGGLES
+    {
+      let prefix = format!( "{}: ", toggle.label.to_lowercase() );
+      assert!( summary.lines().any( | line | line.starts_with( &prefix ) ), "missing row {:?} in {summary}", toggle.label );
+    }
+  }
+
+  #[ test ]
+  fn summary_reports_each_row_value()
+  {
+    let t = GridTuning { show_grid : false, show_scanlines : true, ..GridTuning::default() };
+    let summary = layers_summary( &t );
+    assert!( summary.lines().any( | line | line == "tactical grid: false" ), "{summary}" );
+    assert!( summary.lines().any( | line | line == "crt scanlines: true" ), "{summary}" );
   }
 }

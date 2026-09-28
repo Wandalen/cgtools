@@ -17,6 +17,7 @@ use gl::web_sys::
 };
 
 use super::grid_tuning::{ GridTuning, FADE_CURVES };
+use super::layers_panel::layers_summary;
 
 fn slider_row_html( id : &str, label : &str, min : f32, max : f32, step : f32, value : f32, decimals : usize ) -> String
 {
@@ -128,16 +129,8 @@ fn build_tuning_summary( t : &GridTuning ) -> String
     light color: {}\n\
     light intensity: {:.2}\n\
     light size (softness): {:.2}\n\
-    shadows enabled: {}\n\
-    lighting enabled: {}\n\
     \n\
-    show background: {}\n\
-    show starfield: {}\n\
-    show asteroids: {}\n\
-    show ships: {}\n\
-    show station: {}\n\
-    show view ribbon: {}\n\
-    show gizmo: {}",
+    {}",
     rgb_to_hex( t.line_color ), t.line_width_px, t.cell_size, t.dim_alpha, t.bright_alpha,
     t.camera_fade_start, t.camera_fade_end, curve_label( t.camera_fade_mode ), t.camera_fade_gamma,
     rgb_to_hex( t.ribbon_color_core ), rgb_to_hex( t.ribbon_color_edge ),
@@ -145,9 +138,8 @@ fn build_tuning_summary( t : &GridTuning ) -> String
     t.inside_fade_width, curve_label( t.inside_fade_mode ), t.inside_fade_gamma,
     t.asteroid_glow_alpha, t.asteroid_glow_width, curve_label( t.asteroid_glow_mode ), t.asteroid_glow_gamma,
     t.view_radius,
-    t.light_azimuth, t.light_elevation, rgb_to_hex( t.light_color ), t.light_intensity, t.light_size, t.shadows_enabled,
-    t.lighting_enabled,
-    t.show_background, t.show_starfield, t.show_asteroids, t.show_ships, t.show_station, t.show_view_ribbon, t.show_gizmo
+    t.light_azimuth, t.light_elevation, rgb_to_hex( t.light_color ), t.light_intensity, t.light_size,
+    layers_summary( t ),
   )
 }
 
