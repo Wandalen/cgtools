@@ -139,7 +139,7 @@ fn build_tuning_summary( t : &GridTuning ) -> String
     t.asteroid_glow_alpha, t.asteroid_glow_width, curve_label( t.asteroid_glow_mode ), t.asteroid_glow_gamma,
     t.view_radius,
     t.light_azimuth, t.light_elevation, rgb_to_hex( t.light_color ), t.light_intensity, t.light_size,
-    layers_summary( t ),
+    layers_summary( &t.layers ),
   )
 }
 

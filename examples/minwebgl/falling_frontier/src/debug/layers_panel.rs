@@ -39,7 +39,7 @@ use gl::web_sys::
   Document, Element, HtmlInputElement, MouseEvent,
 };
 
-use super::grid_tuning::GridTuning;
+use super::{ grid_tuning::GridTuning, render_layers::RenderLayers };
 
 /// A `label` wrapping both the text and the checkbox, so a left click
 /// anywhere on the row toggles it, as its pointer cursor promises.
@@ -60,7 +60,7 @@ fn input_by_id( document : &Document, id : &str ) -> HtmlInputElement
   document.get_element_by_id( id ).unwrap().dyn_into::< HtmlInputElement >().unwrap()
 }
 
-/// One row's id + label + the `GridTuning` bool field it reads/writes.
+/// One row's id + label + the `RenderLayers` bool field it reads/writes.
 /// `field` is a projection (`|t| &mut t.some_bool`), same pattern
 /// `hud::bind_tuning_toggle` uses, so every row (and the solo gesture, which
 /// needs to reach every *other* row's field too) shares one path instead of
@@ -69,7 +69,7 @@ struct LayerToggle
 {
   id : &'static str,
   label : &'static str,
-  field : fn( &mut GridTuning ) -> &mut bool,
+  field : fn( &mut RenderLayers ) -> &mut bool,
 }
 
 const LAYER_TOGGLES : &[ LayerToggle ] =
@@ -90,7 +90,7 @@ const LAYER_TOGGLES : &[ LayerToggle ] =
 /// One `label: value` line per Render Layers row, for `grid_tuning_panel`'s
 /// Copy Settings text. Built from `LAYER_TOGGLES` itself, so a row added to
 /// the panel lands in the copied settings too instead of silently missing.
-pub fn layers_summary( t : &GridTuning ) -> String
+pub fn layers_summary( t : &RenderLayers ) -> String
 {
   LAYER_TOGGLES.iter()
   .map( | toggle |
@@ -106,7 +106,7 @@ pub fn layers_summary( t : &GridTuning ) -> String
 /// match `t` - the one place both the plain left-click path and the solo
 /// right-click path funnel through, so neither has to remember the other's
 /// side effects.
-fn sync_dom( document : &Document, t : &GridTuning )
+fn sync_dom( document : &Document, t : &RenderLayers )
 {
   for toggle in LAYER_TOGGLES
   {
@@ -142,9 +142,9 @@ fn bind_toggle( document : &Document, tuning : &Rc< RefCell< GridTuning > >, tog
       let input = input_by_id( &document, toggle.id );
       {
         let mut t = tuning.borrow_mut();
-        *( toggle.field )( &mut t ) = input.checked();
+        *( toggle.field )( &mut t.layers ) = input.checked();
       }
-      sync_dom( &document, &tuning.borrow() );
+      sync_dom( &document, &tuning.borrow().layers );
     }
   );
   element.add_event_listener_with_callback( "change", closure.as_ref().unchecked_ref() ).unwrap();
@@ -169,10 +169,10 @@ fn bind_solo( document : &Document, tuning : &Rc< RefCell< GridTuning > >, toggl
       let isolate_out = e.shift_key();
       {
         let mut t = tuning.borrow_mut();
-        for other in LAYER_TOGGLES { *( other.field )( &mut t ) = isolate_out; }
-        *( toggle.field )( &mut t ) = !isolate_out;
+        for other in LAYER_TOGGLES { *( other.field )( &mut t.layers ) = isolate_out; }
+        *( toggle.field )( &mut t.layers ) = !isolate_out;
       }
-      sync_dom( &document, &tuning.borrow() );
+      sync_dom( &document, &tuning.borrow().layers );
     }
   );
   row.add_event_listener_with_callback( "contextmenu", closure.as_ref().unchecked_ref() ).unwrap();
@@ -184,7 +184,7 @@ fn bind_solo( document : &Document, tuning : &Rc< RefCell< GridTuning > >, toggl
 /// layout and `grid_tuning_panel`'s bottom-right panel.
 pub fn setup_layers_panel( document : &Document, tuning : &Rc< RefCell< GridTuning > > )
 {
-  let t = *tuning.borrow();
+  let t = tuning.borrow().layers;
 
   let rows_html : String = LAYER_TOGGLES.iter()
   .map( | toggle |
@@ -220,12 +220,12 @@ pub fn setup_layers_panel( document : &Document, tuning : &Rc< RefCell< GridTuni
 mod tests
 {
   use super::{ layers_summary, LAYER_TOGGLES };
-  use crate::debug::GridTuning;
+  use crate::debug::RenderLayers;
 
   #[ test ]
   fn summary_has_one_line_per_row()
   {
-    let summary = layers_summary( &GridTuning::default() );
+    let summary = layers_summary( &RenderLayers::default() );
     assert_eq!( summary.lines().count(), LAYER_TOGGLES.len() );
     for toggle in LAYER_TOGGLES
     {
@@ -237,7 +237,7 @@ mod tests
   #[ test ]
   fn summary_reports_each_row_value()
   {
-    let t = GridTuning { show_grid : false, show_scanlines : true, ..GridTuning::default() };
+    let t = RenderLayers { show_grid : false, show_scanlines : true, ..RenderLayers::default() };
     let summary = layers_summary( &t );
     assert!( summary.lines().any( | line | line == "tactical grid: false" ), "{summary}" );
     assert!( summary.lines().any( | line | line == "crt scanlines: true" ), "{summary}" );

@@ -1,7 +1,11 @@
-//! Live-tunable state for the tactical grid shader, ported from
-//! `examples/threejs/falling_frontier/src/debug/gridTuning.js`. Scoped to
-//! only the uniforms `TacticalGrid` (M1) actually wires — extend this
-//! struct (not a second one) when M3 adds the ribbon/glow uniforms.
+//! Live-tunable state shared by the dev panels, the HUD and the frame loop.
+//! Started as the tactical grid shader's uniforms, ported from the three.js
+//! original's grid tuning object, and has since grown the view-zone ribbon
+//! and asteroid glow (M3), fleet playback (M7/M8) and the directional light.
+//! The render-layer switches live in their own `RenderLayers`, held here as
+//! `layers`, so one `Rc< RefCell< GridTuning > >` still carries everything.
+
+use super::render_layers::RenderLayers;
 
 /// Fade curve shapes shared by the camera-distance fade (and, later, the
 /// inside/ribbon fade). Value is what the shader's `u_camera_fade_mode`
@@ -14,6 +18,8 @@ pub const FADE_CURVES : [ ( f32, &str ); 4 ] =
   ( 3.0, "Exponential^2" ),
 ];
 
+/// Every live-tunable value the demo has; see the module doc for what each
+/// group is and `RenderLayers` for the visibility switches.
 #[ derive( Clone, Copy ) ]
 pub struct GridTuning
 {
@@ -51,20 +57,15 @@ pub struct GridTuning
   // per-ship value to look up.
   pub view_radius : f32,
 
-  // M7: fleet motion + trajectory visibility. `animate_ships` defaults to
-  // `false`, matching the three.js original, which also started with ship
-  // animation off while the static layout was being blocked out with the
-  // transform gizmo. `show_trajectories` defaults to `false` too, as the
-  // original also hid its trajectory group by default.
+  // M7: fleet motion. `animate_ships` defaults to `false`, matching the
+  // three.js original, which also started with ship animation off while the
+  // static layout was being blocked out with the transform gizmo.
   pub animate_ships : bool,
-  pub show_trajectories : bool,
 
-  // M8: HUD toolbar state. `show_grid` defaults to `true` (JS's own
-  // `toggle-grid` button starts `active`/`[ON]`); `speed_multiplier` scales
-  // `animate_ships`'s per-frame progress step - the HUD's Play/Fast buttons
-  // set it to `1.0`/`2.5` (matching `playbackState.shipSpeedMultiplier` in
-  // the JS reference), Pause leaves it alone and just clears `animate_ships`.
-  pub show_grid : bool,
+  // M8: `speed_multiplier` scales `animate_ships`'s per-frame progress step
+  // - the HUD's Play/Fast buttons set it to `1.0`/`2.5` (matching
+  // `playbackState.shipSpeedMultiplier` in the JS reference), Pause leaves
+  // it alone and just clears `animate_ships`.
   pub speed_multiplier : f32,
 
   // Directional light + shadow-map controls for `hull.rs`'s material
@@ -85,31 +86,10 @@ pub struct GridTuning
   // field exposed it. Range mirrors this same renderer's own spot-light
   // precedent (`shadow.rs:454`: `light_size` computed in `0.01..=1.7`).
   pub light_size : f32,
-  pub shadows_enabled : bool,
 
-  // Render-layer isolation switches - one per distinct draw call/pass in
-  // `main.rs`'s frame closure, so any combination of scene layers can be
-  // shown alone or hidden alone (e.g. "only the grid", "everything but
-  // asteroids"). `lighting_enabled` is deliberately separate from
-  // `shadows_enabled`: the former drops `hull.frag` to a flat unlit
-  // `u_color` (see hull.frag's `u_lighting_enabled` branch), the latter only
-  // gates the shadow-map sample within the normal lit path. `show_asteroids`/
-  // `show_ships`/`show_station` also gate that object's contribution to the
-  // shadow-caster pass, not just its own visible draw - a hidden object
-  // shouldn't still be casting a shadow onto the rest of the scene.
-  pub show_background : bool,
-  pub show_starfield : bool,
-  pub show_asteroids : bool,
-  pub show_ships : bool,
-  pub show_station : bool,
-  pub show_view_ribbon : bool,
-  pub show_gizmo : bool,
-  pub lighting_enabled : bool,
-  /// CRT scanline overlay - pure DOM/CSS effect (see `hud.rs`'s `ff-scanlines`
-  /// element), not a WebGL draw call, but tracked here anyway so it lives in
-  /// the same single Render Layers menu as every other switch instead of
-  /// needing its own separate on/off surface.
-  pub show_scanlines : bool,
+  /// Which scene layers the frame loop draws - the Render Layers panel's
+  /// switches.
+  pub layers : RenderLayers,
 }
 
 impl Default for GridTuning
@@ -145,9 +125,6 @@ impl Default for GridTuning
       view_radius : 160.0,
 
       animate_ships : false,
-      show_trajectories : false,
-
-      show_grid : true,
       speed_multiplier : 1.0,
 
       light_azimuth : 276.0,
@@ -155,17 +132,8 @@ impl Default for GridTuning
       light_color : [ 1.0, 0.933, 0.867 ], // 0xffeedd, matches world.js's own sunLight color
       light_intensity : 1.85,
       light_size : 1.0,
-      shadows_enabled : true,
 
-      show_background : true,
-      show_starfield : true,
-      show_asteroids : true,
-      show_ships : true,
-      show_station : true,
-      show_view_ribbon : true,
-      show_gizmo : true,
-      lighting_enabled : true,
-      show_scanlines : false,
+      layers : RenderLayers::default(),
     }
   }
 }
