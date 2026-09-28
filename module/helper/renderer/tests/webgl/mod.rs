@@ -84,6 +84,11 @@ mod ibl;
 #[ cfg( target_arch = "wasm32" ) ]
 mod geometry_gl_lifecycle;
 
+/// `Texture` owning-vs-view teardown. Needs only a live context, not
+/// `test_internals`.
+#[ cfg( target_arch = "wasm32" ) ]
+mod texture_gl_lifecycle;
+
 /// `IBL` texture teardown and clone/double-free behaviour
 #[ cfg( all( target_arch = "wasm32", feature = "test_internals" ) ) ]
 mod ibl_gl_lifecycle;

@@ -2,6 +2,7 @@ mod private
 {
   use mingl::Former;
   use minwebgl::{ self as gl };
+  use std::rc::Rc;
   use crate::webgl::{ Sampler, MinFilterMode, MagFilterMode, WrappingMode };
 
 
@@ -11,15 +12,12 @@ mod private
   /// It includes the texture's target, the actual WebGL texture object, and a sampler for controlling
   /// how the texture is sampled.
   ///
-  /// `source` is frequently a **non-owning view** onto a GPU texture created and managed elsewhere
-  /// (e.g. a `SwapFramebuffer`/`CanvasRenderer` output re-wrapped as a `Texture` to sample it, or
-  /// multiple glTF textures referencing one shared source image). `owned` + `gl` exist so `Drop`
-  /// can tell the two cases apart: only a `Texture` explicitly marked `owned = true` (with `gl` set)
-  /// deletes `source` on drop. Both default to "not owning" — the safe default, since aliasing was
-  /// already relied upon before `Drop` existed and must not start deleting resources still in use
-  /// elsewhere. Callers that construct a `Texture` around a GPU texture they alone are responsible
-  /// for must opt in explicitly (`.owned( true ).gl( gl.clone() )` via the `Former` builder, or by
-  /// setting the fields directly).
+  /// GPU ownership: by default a `Texture` is a **view** — `source` is a GPU texture
+  /// created and released elsewhere (a framebuffer attachment re-wrapped for sampling, one glTF
+  /// image referenced by several glTF textures, ...), and dropping the view deletes nothing.
+  /// A texture built with [`Texture::owning`] also holds a shared [`TextureOwner`]: clones of
+  /// it share that owner, and the GPU texture is deleted once the last of them drops, so an
+  /// owning `Texture` can be cloned freely without a double delete.
   #[ non_exhaustive ]
   #[ derive( Former, Clone, Debug ) ]
   pub struct Texture
@@ -30,13 +28,31 @@ mod private
     pub source : Option< gl::web_sys::WebGlTexture >,
     /// The sampler associated with the texture, which defines how the texture is sampled.
     pub sampler : Sampler,
-    /// Whether this `Texture` is the sole owner of `source` and must delete it on drop.
-    /// See the struct docs — defaults to `false` (non-owning / aliasing).
-    pub owned : bool,
-    /// WebGL context used by `Drop` to delete `source` when `owned` is `true`. `None` means
-    /// this `Texture` cannot delete its GPU resources even if later marked `owned` — the two
-    /// should always be set together.
-    pub gl : Option< gl::GL >,
+    /// Shared owner of the GPU texture this `Texture` was created around by
+    /// [`Texture::owning`]; `None` for a view. Private so ownership can only be
+    /// established by that constructor.
+    owner : Option< Rc< TextureOwner > >,
+  }
+
+  /// Sole owner of one GPU texture: deletes it when dropped.
+  ///
+  /// Only created by [`Texture::owning`] and only reachable through the `Rc` every
+  /// clone of that `Texture` shares, so the deletion happens exactly once, after the
+  /// last clone is gone. It keeps its own handle, so reassigning `Texture::source`
+  /// afterwards does not redirect what gets deleted.
+  #[ derive( Debug ) ]
+  pub struct TextureOwner
+  {
+    gl : gl::GL,
+    texture : gl::web_sys::WebGlTexture,
+  }
+
+  impl Drop for TextureOwner
+  {
+    fn drop( &mut self )
+    {
+      self.gl.delete_texture( Some( &self.texture ) );
+    }
   }
 
   impl Texture
@@ -48,11 +64,32 @@ mod private
       Self::default()
     }
 
+    /// A `Texture` that owns `source`: the GPU texture is deleted once this
+    /// `Texture` and every clone of it have been dropped (see [`TextureOwner`]).
+    ///
+    /// Use it for a GPU texture created for this `Texture` alone; wrap textures
+    /// managed elsewhere with the `Former` builder, which makes a non-owning view.
+    #[ must_use ]
+    pub fn owning( gl : &gl::GL, target : u32, source : gl::web_sys::WebGlTexture, sampler : Sampler ) -> Self
+    {
+      let owner = Rc::new( TextureOwner { gl : gl.clone(), texture : source.clone() } );
+      Self { target, source : Some( source ), sampler, owner : Some( owner ) }
+    }
+
+    /// Whether this `Texture` shares ownership of its GPU texture (built by
+    /// [`Texture::owning`]) rather than being a view.
+    #[ must_use ]
+    pub fn is_owning( &self ) -> bool
+    {
+      self.owner.is_some()
+    }
+
     /// Loads a 2D texture from `image_path`, sampled with linear filtering and repeat wrapping
     /// on both axes -- the sampler configuration duplicated, with no variation, by every
     /// example that loaded a texture from a path before this helper existed. `flip` controls
     /// whether the image is flipped vertically on upload ( WebGL's texture origin is
-    /// bottom-left; most image formats decode top-left first ).
+    /// bottom-left; most image formats decode top-left first ). The GPU texture is created for
+    /// this `Texture` alone, so the result is [owning](Texture::owning).
     #[ must_use ]
     pub fn load_from_path( gl : &gl::WebGl2RenderingContext, image_path : &str, flip : bool ) -> Self
     {
@@ -65,11 +102,7 @@ mod private
       .wrap_t( WrappingMode::Repeat )
       .end();
 
-      Self::former()
-      .target( gl::TEXTURE_2D )
-      .source( source )
-      .sampler( sampler )
-      .end()
+      Self::owning( gl, gl::TEXTURE_2D, source, sampler )
     }
 
     /// This function binds the texture to the given WebGL context and then uploads the sampler
@@ -98,26 +131,7 @@ mod private
         target,
         source : None,
         sampler : Sampler::default(),
-        owned : false,
-        gl : None,
-      }
-    }
-  }
-
-  /// Deletes `source` only when this `Texture` was explicitly marked as its owner — see the
-  /// struct docs. A non-owning `Texture` (the default) is a pure view and must not delete
-  /// anything, since the same GPU texture is very likely still bound to a `SwapFramebuffer`,
-  /// another glTF texture entry sharing one source image, or similar.
-  impl Drop for Texture
-  {
-    fn drop( &mut self )
-    {
-      if self.owned
-      {
-        if let Some( gl ) = &self.gl
-        {
-          gl.delete_texture( self.source.as_ref() );
-        }
+        owner : None,
       }
     }
   }
@@ -127,6 +141,7 @@ crate::mod_interface!
 {
   orphan use
   {
-    Texture
+    Texture,
+    TextureOwner
   };
 }
