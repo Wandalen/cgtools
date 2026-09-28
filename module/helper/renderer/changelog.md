@@ -28,10 +28,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING**: Renamed `GBuffer::get_texture()` → `texture()`
 - **BREAKING**: Removed `shader_hash()` from the `Material` trait (dead code, replaced by `(TypeId, defines_str)` cache key)
 - **BREAKING**: Asset loaders (`webgl::loaders::gltf::load`, `webgl::loaders::ibl::load`, `webgl::loaders::hdr_texture::load_to_mip_cube` / `load_to_mip_d2`) no longer rely on `mingl::file::load`'s implicit `/static/` prefix. Path arguments are now passed verbatim to the underlying fetch — callers that previously passed bare paths like `"envMap"` must now pass `"static/envMap"` (or any other valid URL / origin-absolute path). Migration mirrors the upstream `mingl` 0.4.0 change.
+- **BREAKING**: `Geometry` no longer implements `Clone` and now implements `Drop` (deleting its VAO), so fields can no longer be moved out of it. Share a geometry through its `Rc<RefCell<Geometry>>` instead of cloning it.
+- `Primitive::clone` (and therefore `Mesh::clone` / `Node::tree_clone`) now shares the primitive's `Geometry` `Rc` instead of copying the geometry; the material is still cloned per copy.
+- `Texture::load_from_path` now returns an owning texture: its GPU texture is deleted once the returned `Texture` and all its clones are dropped.
 - **BREAKING**: `Renderer::set_use_emission` now takes a `&WebGl2RenderingContext` as its first parameter (`set_use_emission( &mut self, gl, use_emission )`). The context is needed to lazily allocate the bloom pass and swap framebuffer the first time emission is enabled.
 
 ### Fixed
 
+- Dropping a clone of an uploaded `TransformsData` / `DisplacementsData` before its own first `upload()` no longer deletes the original's skinning / morph-target textures (BUG-533): `Clone` resets the drop-arming `gl` field instead of copying it.
 - **Screen-space pass culling**: all post-processing passes (tonemapping, sRGB, bloom, color-grading, blend, shadow-to-color) and the OIT composite now explicitly call `gl.disable(CULL_FACE)` before drawing the fullscreen triangle. The fullscreen triangle is back-facing from the camera's perspective, so any preceding opaque pass that leaves `CULL_FACE` enabled would silently cull it, producing a black frame.
 - **Bloom alpha channel corruption**: `unreal_bloom.frag` now writes `alpha = 0.0` instead of `1.0`. The main framebuffer alpha channel is used to distinguish geometry pixels (alpha `1`) from background (alpha `0`) for tone mapping and subsequent passes. Writing alpha `1` from the additive bloom blit was overwriting that signal.
 - Clear-color background is no longer affected by exposure or tone mapping. The main color target is cleared with alpha `0` to mark background pixels (geometry and skybox write alpha `1`), and the tone mapping pass leaves alpha-`0` pixels untouched — mirroring three.js, where the clear color bypasses tone mapping.
@@ -55,6 +59,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GPU PMREM generation (`webgl::loaders::pmrem::generate`): converts an equirectangular HDR into a full IBL set — equirect→cubemap, GGX importance-sampled prefiltered specular mips, cosine-weighted irradiance convolution, and a split-sum BRDF integration LUT.
 - `cull_mode` field to `PbrMaterial` for fine-grained face culling control
 - `Drop` implementation for `SwapFramebuffer` to prevent GPU memory leaks
+- `Drop` for `Geometry`, deleting the VAO it created; attribute and index buffers are borrowed and never deleted by a geometry (see `docs/invariant/004_gpu_resource_ownership.md`)
+- `Texture::owning`, `Texture::is_owning` and `TextureOwner`: opt-in GPU texture ownership shared by clones, deleted once by the last one; textures built otherwise remain non-owning views
 - GSAA (Geometric Specular Anti-Aliasing) for improved specular highlights
 - Reflection-space LOD bias for reduced IBL aliasing
 - Dither noise (IGN) for HDR banding reduction
