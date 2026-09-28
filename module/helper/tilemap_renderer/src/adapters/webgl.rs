@@ -308,9 +308,9 @@ mod private
       // alpha when the canvas is composited against a transparent page or read via
       // readPixels.
       //
-      // This is just the initial state; `apply_blend` reprograms the blend func
+      // This is just the initial state; `blend_apply` reprograms the blend func
       // per draw from each sprite/mesh's `BlendMode` and its texture's
-      // premultiplied flag (see `apply_blend`).
+      // premultiplied flag (see `blend_apply`).
       gl.blend_func_separate( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA, gl::ONE, gl::ONE_MINUS_SRC_ALPHA );
 
       // LEQUAL (not LESS) so equal-depth draws fall back to submission order rather

@@ -385,7 +385,7 @@ mod private
     /// Wrap mode recorded at creation time; kept for parity with future re-applies.
     pub wrap : WrapMode,
     /// Premultiplied-alpha flag recorded at creation time; read at draw time to
-    /// pick the premultiplied vs straight "over" blend in `apply_blend`.
+    /// pick the premultiplied vs straight "over" blend in `blend_apply`.
     pub premultiplied : bool,
   }
 
