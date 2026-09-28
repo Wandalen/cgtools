@@ -143,6 +143,7 @@ fn minimal_spec() -> RenderSpec
         filter : SamplerFilter::Linear,
         mipmap : MipmapMode::Off,
         wrap : WrapMode::Clamp,
+        premultiplied : false,
       },
     ],
     tints : Vec::new(),
@@ -195,6 +196,20 @@ fn compile_assets_allocates_one_image_and_one_sprite()
 
   let sprite = &compiled.assets.sprites[ 0 ];
   assert_eq!( sprite.region, [ 0.0, 0.0, 72.0, 64.0 ], "frame 0 occupies top-left tile" );
+}
+
+#[ test ]
+fn compile_assets_propagates_premultiplied()
+{
+  // Default (serde / fixture) is false.
+  let default_compiled = assets_compile( &minimal_spec(), &PathResolver ).expect( "compile" );
+  assert!( !default_compiled.assets.images[ 0 ].premultiplied, "default premultiplied is false" );
+
+  // premultiplied: true on the source asset must reach the ImageAsset.
+  let mut spec = minimal_spec();
+  spec.assets[ 0 ].premultiplied = true;
+  let compiled = assets_compile( &spec, &PathResolver ).expect( "compile" );
+  assert!( compiled.assets.images[ 0 ].premultiplied, "premultiplied: true must propagate into ImageAsset" );
 }
 
 #[ test ]
@@ -1102,6 +1117,7 @@ fn wall_spec() -> RenderSpec
       filter : SamplerFilter::default(),
       mipmap : MipmapMode::default(),
       wrap : WrapMode::default(),
+      premultiplied : false,
     }
   );
   let wall = Object
@@ -1242,6 +1258,7 @@ fn neighbor_condition_skirt_on_water_side()
       filter : SamplerFilter::default(),
       mipmap : MipmapMode::default(),
       wrap : WrapMode::default(),
+      premultiplied : false,
     }
   );
   // Add a water object.
@@ -1347,6 +1364,7 @@ fn neighbor_condition_priority_lower_blends_grass_over_sand()
       filter : SamplerFilter::default(),
       mipmap : MipmapMode::default(),
       wrap : WrapMode::default(),
+      premultiplied : false,
     }
   );
   // Grass prio 10 (already in grass_object).
@@ -1462,6 +1480,7 @@ fn vertex_corners_three_way_blend()
       filter : SamplerFilter::default(),
       mipmap : MipmapMode::default(),
       wrap : WrapMode::default(),
+      premultiplied : false,
     }
   );
 
@@ -1599,6 +1618,7 @@ fn vertex_corners_wildcard_edge_fade()
       filter : SamplerFilter::default(),
       mipmap : MipmapMode::default(),
       wrap : WrapMode::default(),
+      premultiplied : false,
     }
   );
   spec.objects.push( Object
