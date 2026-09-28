@@ -793,6 +793,56 @@ fn validate_accepts_tint_effect_connects_with()
   spec.validate().expect( "tint / effect / self-connects_with all resolve" );
 }
 
+#[ test ]
+fn validate_rejects_non_multiply_tint_mode()
+{
+  // Tints fold into the multiplicative Sprite.tint, so a Flat tint declared
+  // with `mode: Add` would silently render as a multiply. validate() must
+  // flag the tint declaration; the Multiply tint beside it stays clean.
+  let spec : RenderSpec = ron::from_str( r##"
+    RenderSpec(
+        version: "0.2.0",
+        assets: [
+            Asset( id: "terrain", path: "t.png", kind: Atlas( tile_size: ( 72, 64 ), columns: 8 ) ),
+        ],
+        tints: [
+            Tint( id: "glow", color: "#ffcc00", strength: 1.0, mode: Add ),
+            Tint( id: "dusk", color: "#223344", strength: 0.5, mode: Multiply ),
+        ],
+        objects: [
+            Object(
+                id: "grass",
+                anchor: Hex,
+                global_layer: "terrain",
+                states: {
+                    "default": [
+                        (
+                            sprite_source: Static( ( "terrain", "0" ) ),
+                            behaviour: ( tint: Flat( ( "glow" ) ) ),
+                        ),
+                    ],
+                },
+            ),
+        ],
+        pipeline: (
+            hex: ( tiling: HexFlatTop, grid_stride: ( 72, 64 ) ),
+            layers: [ ( id: "terrain" ) ],
+            global_tint: Some( ( "dusk" ) ),
+        ),
+    )
+  "## ).expect( "spec parses" );
+  let errs = spec.validate().expect_err( "non-Multiply tint mode must be flagged" );
+  assert!
+  (
+    matches!
+    (
+      errs.as_slice(),
+      [ tilemap_scene::ValidationError::UnsupportedTintMode { tint, mode : BlendMode::Add } ] if tint == "glow"
+    ),
+    "expected exactly one UnsupportedTintMode for 'glow', got {errs:?}",
+  );
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Scene parsing — tiles + entities + viewport instances.
 // ────────────────────────────────────────────────────────────────────────────

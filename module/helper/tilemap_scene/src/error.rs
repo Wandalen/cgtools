@@ -4,6 +4,7 @@ mod private
 {
   use core::fmt;
   use error_tools::Error;
+  use tilemap_renderer::types::BlendMode;
 
   /// Error returned by [`crate::spec::RenderSpec::load`] /
   /// [`crate::snapshot::SceneSnapshot::load`] and their `from_ron_str`
@@ -133,6 +134,19 @@ mod private
       /// Behaviour kind encountered (e.g. `"Masked tint"`).
       behaviour : &'static str,
     },
+    /// A declared tint uses a composition `mode` other than `Multiply`.
+    ///
+    /// Every tint consumer (`pipeline.global_tint`, the scene's runtime
+    /// global tint, `TintBehaviour::Flat`) folds the tint into the sprite's
+    /// multiplicative `Sprite.tint`, so only `Multiply` can be honoured; any
+    /// other mode would silently render as a multiply.
+    UnsupportedTintMode
+    {
+      /// Id of the offending tint.
+      tint : String,
+      /// The declared mode.
+      mode : BlendMode,
+    },
     /// A sprite source is not valid for the declaring object's anchor type.
     ///
     /// For example, `NeighborBitmask` only works on `Hex` anchors;
@@ -191,6 +205,8 @@ mod private
           write!( f, "unsupported tiling strategy: {name}" ),
         Self::UnsupportedBehaviour { object, behaviour } =>
           write!( f, "object {object:?} uses {behaviour}, which is not implemented yet" ),
+        Self::UnsupportedTintMode { tint, mode } =>
+          write!( f, "tint {tint:?} declares mode {mode:?}; only Multiply is implemented" ),
         Self::AnchorSourceMismatch { anchor, source_kind } =>
           write!( f, "sprite source {source_kind} is not valid for anchor {anchor}" ),
         Self::MissingDefaultState { object, state } =>

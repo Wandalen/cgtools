@@ -929,7 +929,8 @@ mod private
   /// Resolve a named [`TintRef`] to a strength-blended multiplier `[r,g,b,a]`.
   ///
   /// `strength` interpolates the parsed colour towards identity `[1,1,1,1]`, so
-  /// the result is ready to multiply straight into a `Sprite.tint`.
+  /// the result is ready to multiply straight into a `Sprite.tint`. The tint's
+  /// `mode` is not read: validation admits only `Multiply`.
   fn resolve_tint_ref( spec : &RenderSpec, tint_ref : &TintRef ) -> Result< [ f32; 4 ], CompileError >
   {
     let id = &tint_ref.0;

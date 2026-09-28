@@ -33,7 +33,7 @@ for each layer in pipeline.layers:
 
 A layer whose `sprite_source` is a composite source (`NeighborCondition`, `VertexCorners` — see `format/005`) may push more than one draw call per instance in a single pass (up to `len(sides)` for `NeighborCondition`); every other source pushes exactly one.
 
-**Tint composition order** — each draw call's final color is composed through five stages, each with its own blend mode (default `Multiply`):
+**Tint composition order** — each draw call's final color is composed through five stages, each with its own blend mode (default `Multiply`). Only `Multiply` is implemented: declared tints feed the multiplicative `Sprite.tint`, and `validate()` rejects a `Tint` whose `mode` is anything else (`ValidationError::UnsupportedTintMode`).
 
 1. Sampled sprite pixels (the raw texture read).
 2. Layer behaviour tint (`TintBehaviour::Flat`, see `format/006`; `::Masked` is declared but currently rejected at load and compile).

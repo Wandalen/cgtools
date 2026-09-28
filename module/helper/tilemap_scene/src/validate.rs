@@ -15,10 +15,11 @@ mod private
   use crate::error::ValidationError;
   use crate::layer::{ MaskTint, ObjectLayer, TintBehaviour };
   use crate::pipeline::{ RenderPipeline, TilingStrategy };
-  use crate::resource::{ AnimationRef, AnimationTiming, EffectRef, TintRef };
+  use crate::resource::{ AnimationRef, AnimationTiming, EffectRef, Tint, TintRef };
   use crate::snapshot::SceneSnapshot;
   use crate::source::{ NeighborBitmaskSource, SpriteSource };
   use crate::spec::RenderSpec;
+  use tilemap_renderer::types::BlendMode;
 
   /// Precomputed id sets shared by [`RenderSpec`]'s `validate()` checks —
   /// built once per call and threaded through the per-object / per-layer
@@ -109,6 +110,9 @@ mod private
     ///   `HexPointyTop`; `Square4` / `Square8` are rejected.
     /// - **Unsupported behaviours.** `LayerBehaviour.tint` is not
     ///   `TintBehaviour::Masked`, which compilation does not implement yet.
+    /// - **Tint modes.** Every declared tint's `mode` is `Multiply`; tints are
+    ///   folded into the multiplicative `Sprite.tint`, so no other mode can be
+    ///   honoured.
     ///
     /// **Not enforced** — see the `TODO SPEC §16` comment at the end of
     /// this impl for why anchor ↔ sprite-source compatibility is left
@@ -204,6 +208,7 @@ mod private
       duplicate_ids_check( "effect", self.effects.iter().map( | e | e.id.as_str() ), &mut errors );
       duplicate_ids_check( "object", self.objects.iter().map( | o | o.id.as_str() ), &mut errors );
 
+      tint_mode_check( &self.tints, &mut errors );
       pipeline_tint_checks( &self.pipeline, &ids.tint, &mut errors );
       tiling_check( &self.pipeline, &mut errors );
 
@@ -529,6 +534,19 @@ mod private
           }
         });
       },
+    }
+  }
+
+  /// Rejects every tint whose `mode` is not `Multiply`, the only mode the
+  /// compiler implements (see [`ValidationError::UnsupportedTintMode`]).
+  fn tint_mode_check( tints : &[ Tint ], errors : &mut Vec< ValidationError > )
+  {
+    for tint in tints
+    {
+      if tint.mode != BlendMode::Multiply
+      {
+        errors.push( ValidationError::UnsupportedTintMode { tint : tint.id.clone(), mode : tint.mode } );
+      }
     }
   }
 
