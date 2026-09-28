@@ -145,9 +145,10 @@ game use-case demands one.
    (instance, edge, viewport, free, and `VertexCorners` passes), not only
    `compile_vertex_pass` — the flat tint multiplies the global tint so per-player
    region overlays can be coloured independently. `TintBehaviour::Masked` is
-   explicitly rejected with `CompileError::UnsupportedBehaviour`. Still open:
-   `Masked` + `TeamColor` resolution against `Scene.players[i].color` for
-   team-coloured units.
+   explicitly rejected — at load with `ValidationError::UnsupportedBehaviour`,
+   and at compile with `CompileError::UnsupportedBehaviour` as a backstop.
+   Still open: **`TintBehaviour::Masked` + `TeamColor` resolution** against
+   `Scene.players[i].color` for team-coloured units.
 2. **`Effects` (`VertexDisplace` / `AlphaPulse` / `ColorShift`).** Compile
    layer just passes effect references through; real work is adapter-side
    shader support. Largely blocked on backend. Consider dropping the variants

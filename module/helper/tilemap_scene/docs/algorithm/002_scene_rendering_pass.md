@@ -36,7 +36,7 @@ A layer whose `sprite_source` is a composite source (`NeighborCondition`, `Verte
 **Tint composition order** — each draw call's final color is composed through five stages, each with its own blend mode (default `Multiply`):
 
 1. Sampled sprite pixels (the raw texture read).
-2. Layer behaviour tint (`TintBehaviour::Flat` or `::Masked`, see `format/006`).
+2. Layer behaviour tint (`TintBehaviour::Flat`, see `format/006`; `::Masked` is declared but currently rejected at load and compile).
 3. Layer-level `effects` producing color modulations (see `format/004`).
 4. The bucket's own `PipelineLayer.tint_mask`, if set (see `format/007`).
 5. `RenderPipeline.global_tint` (see `format/007`), applied last, uniformly across every draw call in the frame regardless of which bucket or object it came from.

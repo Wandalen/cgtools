@@ -28,7 +28,7 @@
 |---------|--------|---------|
 | `None` | — | Sample the sprite unmodified (default). |
 | `Flat` | `TintRef` | Multiply the whole sprite by the named tint. |
-| `Masked` | `mask: Box<SpriteSource>`, `tint: MaskTint` | Sample a second sprite from `mask` (any `format/005` source, typically `Static` or `Animation`) and apply `tint` only where the mask's alpha is nonzero — a `Masked` layer samples two textures per draw. |
+| `Masked` | `mask: Box<SpriteSource>`, `tint: MaskTint` | Sample a second sprite from `mask` (any `format/005` source, typically `Static` or `Animation`) and apply `tint` only where the mask's alpha is nonzero — a `Masked` layer samples two textures per draw. **Declared but not implemented yet:** rejected at load (`ValidationError::UnsupportedBehaviour`) and, for specs built without `load()`, at compile (`CompileError::UnsupportedBehaviour`); tracked in `roadmap.md`. |
 
 `MaskTint`: `Ref(TintRef)` | `TeamColor` | `FogDependent` (the same two symbolic tints defined in `format/004`).
 
@@ -66,4 +66,5 @@ New `BlendMode` variants are owned by `tilemap_renderer`, not this crate — a b
 
 | File | Relationship |
 |------|--------------|
-| `tests/scene_model_compile_test.rs` | Behaviour field coverage, including `Masked` mask/body pairing |
+| `tests/scene_model_compile_test.rs` | Behaviour field coverage: `Flat` tint composition and compile-time `Masked` rejection |
+| `tests/scene_model_test.rs` | `Masked` parsing and its load-time rejection by `validate()` |
