@@ -415,7 +415,7 @@ mod private
     }
 
     /// Sets the clearcoat factor.
-    pub fn set_clearcoat_factor( &mut self, value : Option< f32 > )
+    pub fn clearcoat_factor_set( &mut self, value : Option< f32 > )
     {
       self.clearcoat_factor = value;
       self.defines_cache_rebuild();
@@ -429,7 +429,7 @@ mod private
     }
 
     /// Sets the clearcoat texture.
-    pub fn set_clearcoat_texture( &mut self, value : Option< TextureInfo > )
+    pub fn clearcoat_texture_set( &mut self, value : Option< TextureInfo > )
     {
       self.clearcoat_texture = value;
       self.defines_cache_rebuild();
@@ -443,7 +443,7 @@ mod private
     }
 
     /// Sets the clearcoat roughness factor.
-    pub fn set_clearcoat_roughness_factor( &mut self, value : Option< f32 > )
+    pub fn clearcoat_roughness_factor_set( &mut self, value : Option< f32 > )
     {
       self.clearcoat_roughness_factor = value;
       self.defines_cache_rebuild();
@@ -457,7 +457,7 @@ mod private
     }
 
     /// Sets the clearcoat roughness texture.
-    pub fn set_clearcoat_roughness_texture( &mut self, value : Option< TextureInfo > )
+    pub fn clearcoat_roughness_texture_set( &mut self, value : Option< TextureInfo > )
     {
       self.clearcoat_roughness_texture = value;
       self.defines_cache_rebuild();
@@ -471,7 +471,7 @@ mod private
     }
 
     /// Sets the clearcoat normal texture.
-    pub fn set_clearcoat_normal_texture( &mut self, value : Option< TextureInfo > )
+    pub fn clearcoat_normal_texture_set( &mut self, value : Option< TextureInfo > )
     {
       self.clearcoat_normal_texture = value;
       self.defines_cache_rebuild();
@@ -485,7 +485,7 @@ mod private
     }
 
     /// Sets the anisotropy strength.
-    pub fn set_anisotropy_strength( &mut self, value : Option< f32 > )
+    pub fn anisotropy_strength_set( &mut self, value : Option< f32 > )
     {
       self.anisotropy_strength = value;
       self.defines_cache_rebuild();
@@ -499,7 +499,7 @@ mod private
     }
 
     /// Sets the anisotropy texture.
-    pub fn set_anisotropy_texture( &mut self, value : Option< TextureInfo > )
+    pub fn anisotropy_texture_set( &mut self, value : Option< TextureInfo > )
     {
       self.anisotropy_texture = value;
       self.defines_cache_rebuild();

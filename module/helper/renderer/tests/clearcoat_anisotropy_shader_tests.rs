@@ -54,8 +54,8 @@ mod tests
   {
     let gl = init_gl().await;
     let mut material = PbrMaterial::new( &gl );
-    material.set_clearcoat_factor( Some( 1.0 ) );
-    material.set_clearcoat_roughness_factor( Some( 0.2 ) );
+    material.clearcoat_factor_set( Some( 1.0 ) );
+    material.clearcoat_roughness_factor_set( Some( 0.2 ) );
     assert_compiles( &gl, &material, false, "clearcoat factor-only" );
   }
 
@@ -64,10 +64,10 @@ mod tests
   {
     let gl = init_gl().await;
     let mut material = PbrMaterial::new( &gl );
-    material.set_clearcoat_factor( Some( 1.0 ) );
-    material.set_clearcoat_texture( Some( dummy_texture_info() ) );
-    material.set_clearcoat_roughness_texture( Some( dummy_texture_info() ) );
-    material.set_clearcoat_normal_texture( Some( dummy_texture_info() ) );
+    material.clearcoat_factor_set( Some( 1.0 ) );
+    material.clearcoat_texture_set( Some( dummy_texture_info() ) );
+    material.clearcoat_roughness_texture_set( Some( dummy_texture_info() ) );
+    material.clearcoat_normal_texture_set( Some( dummy_texture_info() ) );
     assert_compiles( &gl, &material, false, "clearcoat with all textures (derivative TBN fallback)" );
   }
 
@@ -76,7 +76,7 @@ mod tests
   {
     let gl = init_gl().await;
     let mut material = PbrMaterial::new( &gl );
-    material.set_anisotropy_strength( Some( 0.8 ) );
+    material.anisotropy_strength_set( Some( 0.8 ) );
     assert_compiles( &gl, &material, false, "anisotropy strength-only (derivative TBN fallback)" );
   }
 
@@ -85,8 +85,8 @@ mod tests
   {
     let gl = init_gl().await;
     let mut material = PbrMaterial::new( &gl );
-    material.set_anisotropy_strength( Some( 0.8 ) );
-    material.set_anisotropy_texture( Some( dummy_texture_info() ) );
+    material.anisotropy_strength_set( Some( 0.8 ) );
+    material.anisotropy_texture_set( Some( dummy_texture_info() ) );
     assert_compiles( &gl, &material, false, "anisotropy with texture" );
   }
 
@@ -95,7 +95,7 @@ mod tests
   {
     let gl = init_gl().await;
     let mut material = PbrMaterial::new( &gl );
-    material.set_anisotropy_strength( Some( 0.5 ) );
+    material.anisotropy_strength_set( Some( 0.5 ) );
     material.normal_texture_set( Some( dummy_texture_info() ) );
     // Mirrors what the gltf loader does when a TANGENT attribute is present, exercising the
     // real-tangent TBN branch (shared between normal mapping and anisotropy) instead of the
@@ -109,10 +109,10 @@ mod tests
   {
     let gl = init_gl().await;
     let mut material = PbrMaterial::new( &gl );
-    material.set_clearcoat_factor( Some( 1.0 ) );
-    material.set_clearcoat_normal_texture( Some( dummy_texture_info() ) );
-    material.set_anisotropy_strength( Some( 0.8 ) );
-    material.set_anisotropy_texture( Some( dummy_texture_info() ) );
+    material.clearcoat_factor_set( Some( 1.0 ) );
+    material.clearcoat_normal_texture_set( Some( dummy_texture_info() ) );
+    material.anisotropy_strength_set( Some( 0.8 ) );
+    material.anisotropy_texture_set( Some( dummy_texture_info() ) );
     material.specular_factor_set( Some( 0.5 ) ); // also exercised alongside the existing KHR_materials_specular path
     assert_compiles( &gl, &material, true, "clearcoat + anisotropy + specular + IBL, worst-case combo" );
   }

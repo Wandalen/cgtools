@@ -818,32 +818,32 @@ mod private
       // KHR_materials_clearcoat
       if let Some( cc ) = gltf_m.extension_value( "KHR_materials_clearcoat" )
       {
-        material.set_clearcoat_factor( Some( cc.get( "clearcoatFactor" ).and_then( Value::as_f64 ).unwrap_or( 0.0 ) as f32 ) );
-        material.set_clearcoat_roughness_factor( Some( cc.get( "clearcoatRoughnessFactor" ).and_then( Value::as_f64 ).unwrap_or( 0.0 ) as f32 ) );
+        material.clearcoat_factor_set( Some( cc.get( "clearcoatFactor" ).and_then( Value::as_f64 ).unwrap_or( 0.0 ) as f32 ) );
+        material.clearcoat_roughness_factor_set( Some( cc.get( "clearcoatRoughnessFactor" ).and_then( Value::as_f64 ).unwrap_or( 0.0 ) as f32 ) );
 
         if let Some( t ) = cc.get( "clearcoatTexture" )
         {
-          material.set_clearcoat_texture( parse_ext_texture_info( t ) );
+          material.clearcoat_texture_set( parse_ext_texture_info( t ) );
         }
         if let Some( t ) = cc.get( "clearcoatRoughnessTexture" )
         {
-          material.set_clearcoat_roughness_texture( parse_ext_texture_info( t ) );
+          material.clearcoat_roughness_texture_set( parse_ext_texture_info( t ) );
         }
         if let Some( t ) = cc.get( "clearcoatNormalTexture" )
         {
           material.clearcoat_normal_scale = t.get( "scale" ).and_then( Value::as_f64 ).unwrap_or( 1.0 ) as f32;
-          material.set_clearcoat_normal_texture( parse_ext_texture_info( t ) );
+          material.clearcoat_normal_texture_set( parse_ext_texture_info( t ) );
         }
       }
 
       // KHR_materials_anisotropy
       if let Some( an ) = gltf_m.extension_value( "KHR_materials_anisotropy" )
       {
-        material.set_anisotropy_strength( Some( an.get( "anisotropyStrength" ).and_then( Value::as_f64 ).unwrap_or( 0.0 ) as f32 ) );
+        material.anisotropy_strength_set( Some( an.get( "anisotropyStrength" ).and_then( Value::as_f64 ).unwrap_or( 0.0 ) as f32 ) );
         material.anisotropy_rotation = an.get( "anisotropyRotation" ).and_then( Value::as_f64 ).unwrap_or( 0.0 ) as f32;
         if let Some( t ) = an.get( "anisotropyTexture" )
         {
-          material.set_anisotropy_texture( parse_ext_texture_info( t ) );
+          material.anisotropy_texture_set( parse_ext_texture_info( t ) );
         }
       }
 
