@@ -455,45 +455,7 @@ void computeSpotLight
     }
   #endif
 
-  float dotNL = clamp( dot( normal, lightDir ), 0.0, 1.0 );
-
-  float alpha = pow2( material.roughness );
-  vec3 halfDir = normalize( lightDir + viewDir );
-  float dotNV = clamp( dot( normal, viewDir ), 0.0, 1.0 );
-  float dotNH = clamp( dot( normal, halfDir ), 0.0, 1.0 );
-  float dotVH = clamp( dot( viewDir, halfDir ), 0.0, 1.0 );
-  float dotLH = clamp( dot( lightDir, halfDir ), 0.0, 1.0 );
-
-  vec3 Fs = F_Schlick( material.f0, material.f90, dotVH );
-  vec3 Fd = Fd_Barley( alpha, dotNV, dotNL, dotLH );
-  #ifdef USE_KHR_materials_anisotropy
-    float dotTL = dot( material.anisotropicT, lightDir );
-    float dotBL = dot( material.anisotropicB, lightDir );
-    float dotTV = dot( material.anisotropicT, viewDir );
-    float dotBV = dot( material.anisotropicB, viewDir );
-    float dotTH = dot( material.anisotropicT, halfDir );
-    float dotBH = dot( material.anisotropicB, halfDir );
-    float V = V_GGX_anisotropic( dotNL, dotNV, dotBV, dotTV, dotTL, dotBL, material.at, material.ab );
-    float D = D_GGX_anisotropic( dotNH, dotTH, dotBH, material.at, material.ab );
-  #else
-    float V = V_GGX_SmithCorrelated( alpha, dotNL, dotNV );
-    float D = D_GGX( alpha, dotNH );
-  #endif
-
-  vec3 irradiance = light.color * attenuation * dotNL;
-  vec3 diffuseColor = material.diffuseColor * irradiance;
-  vec3 specularColor = D * V * irradiance;
-
-  reflectedLight.directDiffuse += ( 1.0 - Fs ) * Fd * diffuseColor;
-  reflectedLight.directSpecular += Fs * specularColor;
-
-  #ifdef USE_KHR_materials_clearcoat
-    float ccDotNL = clamp( dot( material.clearcoatNormal, lightDir ), 0.0, 1.0 );
-    float ccDotNV = clamp( dot( material.clearcoatNormal, viewDir ), 0.0, 1.0 );
-    float ccDotNH = clamp( dot( material.clearcoatNormal, halfDir ), 0.0, 1.0 );
-    float ccDotVH = clamp( dot( viewDir, halfDir ), 0.0, 1.0 );
-    reflectedLight.clearcoatSpecular += BRDF_Clearcoat( ccDotNL, ccDotNV, ccDotNH, ccDotVH, material.clearcoatRoughness ) * light.color * attenuation;
-  #endif
+  applyLightContribution( lightDir, viewDir, normal, material, light.color, attenuation, reflectedLight );
 }
 
 void computeLights
