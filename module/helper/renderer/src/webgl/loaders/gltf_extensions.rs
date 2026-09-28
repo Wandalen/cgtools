@@ -102,6 +102,88 @@ mod private
     Err( gl::WebglError::Other( "glTF document failed validation" ) )
   }
 
+  /// A texture reference inside a material extension object: an index into the asset's
+  /// `textures` array and the UV set it samples (`texCoord`, glTF default 0).
+  #[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
+  pub struct ExtensionTextureRef
+  {
+    /// Index into the asset's `textures` array.
+    pub index : usize,
+    /// UV set the texture is sampled with.
+    pub tex_coord : u32,
+  }
+
+  /// `KHR_materials_clearcoat` values as read from JSON, with the extension's defaults filled in.
+  #[ derive( Debug, Clone, Copy, PartialEq ) ]
+  pub struct ClearcoatParams
+  {
+    /// `clearcoatFactor` (default 0).
+    pub factor : f32,
+    /// `clearcoatRoughnessFactor` (default 0).
+    pub roughness_factor : f32,
+    /// `clearcoatTexture`.
+    pub texture : Option< ExtensionTextureRef >,
+    /// `clearcoatRoughnessTexture`.
+    pub roughness_texture : Option< ExtensionTextureRef >,
+    /// `clearcoatNormalTexture`.
+    pub normal_texture : Option< ExtensionTextureRef >,
+    /// `clearcoatNormalTexture.scale` (default 1).
+    pub normal_scale : f32,
+  }
+
+  /// `KHR_materials_anisotropy` values as read from JSON, with the extension's defaults filled in.
+  #[ derive( Debug, Clone, Copy, PartialEq ) ]
+  pub struct AnisotropyParams
+  {
+    /// `anisotropyStrength` (default 0).
+    pub strength : f32,
+    /// `anisotropyRotation` in radians (default 0).
+    pub rotation : f32,
+    /// `anisotropyTexture`.
+    pub texture : Option< ExtensionTextureRef >,
+  }
+
+  fn number_get( json : &Value, key : &str, default : f32 ) -> f32
+  {
+    json.get( key ).and_then( Value::as_f64 ).map_or( default, | v | v as f32 )
+  }
+
+  /// Reads a glTF `textureInfo` object; `None` when it has no integer `index`.
+  fn texture_ref_parse( json : &Value ) -> Option< ExtensionTextureRef >
+  {
+    let index = usize::try_from( json.get( "index" )?.as_u64()? ).ok()?;
+    let tex_coord = json.get( "texCoord" ).and_then( Value::as_u64 ).and_then( | v | u32::try_from( v ).ok() ).unwrap_or( 0 );
+    Some( ExtensionTextureRef { index, tex_coord } )
+  }
+
+  /// Reads a `KHR_materials_clearcoat` extension object.
+  #[ must_use ]
+  pub fn clearcoat_parse( json : &Value ) -> ClearcoatParams
+  {
+    let normal = json.get( "clearcoatNormalTexture" );
+    ClearcoatParams
+    {
+      factor : number_get( json, "clearcoatFactor", 0.0 ),
+      roughness_factor : number_get( json, "clearcoatRoughnessFactor", 0.0 ),
+      texture : json.get( "clearcoatTexture" ).and_then( texture_ref_parse ),
+      roughness_texture : json.get( "clearcoatRoughnessTexture" ).and_then( texture_ref_parse ),
+      normal_texture : normal.and_then( texture_ref_parse ),
+      normal_scale : normal.map_or( 1.0, | n | number_get( n, "scale", 1.0 ) ),
+    }
+  }
+
+  /// Reads a `KHR_materials_anisotropy` extension object.
+  #[ must_use ]
+  pub fn anisotropy_parse( json : &Value ) -> AnisotropyParams
+  {
+    AnisotropyParams
+    {
+      strength : number_get( json, "anisotropyStrength", 0.0 ),
+      rotation : number_get( json, "anisotropyRotation", 0.0 ),
+      texture : json.get( "anisotropyTexture" ).and_then( texture_ref_parse ),
+    }
+  }
+
   /// Applies `gltf_m`'s `KHR_materials_clearcoat` / `KHR_materials_anisotropy` extension
   /// objects, if present, to `material`. Texture indices resolve against `textures` (the
   /// asset's `textures` array); an index outside it leaves that texture unset.
@@ -112,45 +194,29 @@ mod private
     material : &mut PbrMaterial,
   )
   {
-    // The `gltf` crate has no typed accessors for KHR_materials_clearcoat / KHR_materials_anisotropy,
-    // so their JSON is parsed manually via `extension_value`.
-    let parse_ext_texture_info = | json : &Value | -> Option< TextureInfo >
+    let texture_info = | r : Option< ExtensionTextureRef > | -> Option< TextureInfo >
     {
-      let index = json.get( "index" )?.as_u64()? as usize;
-      let uv_position = json.get( "texCoord" ).and_then( Value::as_u64 ).unwrap_or( 0 ) as u32;
-      textures.get( index ).map( | t | TextureInfo { texture : t.clone(), uv_position } )
+      let r = r?;
+      textures.get( r.index ).map( | t | TextureInfo { texture : t.clone(), uv_position : r.tex_coord } )
     };
 
-    // KHR_materials_clearcoat
-    if let Some( cc ) = gltf_m.extension_value( "KHR_materials_clearcoat" )
+    if let Some( json ) = gltf_m.extension_value( "KHR_materials_clearcoat" )
     {
-      material.clearcoat_factor_set( Some( cc.get( "clearcoatFactor" ).and_then( Value::as_f64 ).unwrap_or( 0.0 ) as f32 ) );
-      material.clearcoat_roughness_factor_set( Some( cc.get( "clearcoatRoughnessFactor" ).and_then( Value::as_f64 ).unwrap_or( 0.0 ) as f32 ) );
-
-      if let Some( t ) = cc.get( "clearcoatTexture" )
-      {
-        material.clearcoat_texture_set( parse_ext_texture_info( t ) );
-      }
-      if let Some( t ) = cc.get( "clearcoatRoughnessTexture" )
-      {
-        material.clearcoat_roughness_texture_set( parse_ext_texture_info( t ) );
-      }
-      if let Some( t ) = cc.get( "clearcoatNormalTexture" )
-      {
-        material.clearcoat_normal_scale = t.get( "scale" ).and_then( Value::as_f64 ).unwrap_or( 1.0 ) as f32;
-        material.clearcoat_normal_texture_set( parse_ext_texture_info( t ) );
-      }
+      let cc = clearcoat_parse( json );
+      material.clearcoat_factor_set( Some( cc.factor ) );
+      material.clearcoat_roughness_factor_set( Some( cc.roughness_factor ) );
+      material.clearcoat_texture_set( texture_info( cc.texture ) );
+      material.clearcoat_roughness_texture_set( texture_info( cc.roughness_texture ) );
+      material.clearcoat_normal_texture_set( texture_info( cc.normal_texture ) );
+      material.clearcoat_normal_scale = cc.normal_scale;
     }
 
-    // KHR_materials_anisotropy
-    if let Some( an ) = gltf_m.extension_value( "KHR_materials_anisotropy" )
+    if let Some( json ) = gltf_m.extension_value( "KHR_materials_anisotropy" )
     {
-      material.anisotropy_strength_set( Some( an.get( "anisotropyStrength" ).and_then( Value::as_f64 ).unwrap_or( 0.0 ) as f32 ) );
-      material.anisotropy_rotation = an.get( "anisotropyRotation" ).and_then( Value::as_f64 ).unwrap_or( 0.0 ) as f32;
-      if let Some( t ) = an.get( "anisotropyTexture" )
-      {
-        material.anisotropy_texture_set( parse_ext_texture_info( t ) );
-      }
+      let an = anisotropy_parse( json );
+      material.anisotropy_strength_set( Some( an.strength ) );
+      material.anisotropy_rotation = an.rotation;
+      material.anisotropy_texture_set( texture_info( an.texture ) );
     }
   }
 }
@@ -158,6 +224,11 @@ mod private
 crate::mod_interface!
 {
   own use material_layer_extensions_apply;
+  own use clearcoat_parse;
+  own use anisotropy_parse;
+  own use ClearcoatParams;
+  own use AnisotropyParams;
+  own use ExtensionTextureRef;
   own use required_extensions_check;
   own use document_validate;
 }

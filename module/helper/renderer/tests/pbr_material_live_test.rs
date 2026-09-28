@@ -13,7 +13,14 @@ mod tests
   wasm_bindgen_test::wasm_bindgen_test_configure!( run_in_browser );
   use minwebgl as gl;
   use gl::GL;
-  use renderer::webgl::{ material::PbrMaterial, AlphaMode, Material };
+  use renderer::webgl::{ material::PbrMaterial, AlphaMode, Material, Texture, TextureInfo };
+  use renderer::webgl::loaders::gltf_extensions::material_layer_extensions_apply;
+  use std::{ cell::RefCell, rc::Rc };
+
+  fn texture_info() -> TextureInfo
+  {
+    TextureInfo { texture : Rc::new( RefCell::new( Texture::new() ) ), uv_position : 0 }
+  }
 
   fn gl_init() -> GL
   {
@@ -114,5 +121,77 @@ mod tests
     assert_ne!( cloned.id, original.id, "Clone must generate a fresh uuid, not preserve the original's id" );
     assert_eq!( cloned.vertex_defines_str(), original.vertex_defines_str(), "Clone must preserve define state" );
     assert_eq!( cloned.base_color_factor, original.base_color_factor, "Clone must preserve scalar/vector state" );
+  }
+
+  #[ wasm_bindgen_test ]
+  fn clearcoat_normal_texture_alone_enables_clearcoat_and_tbn()
+  {
+    let gl_context = gl_init();
+    let mut mat = PbrMaterial::new( &gl_context );
+    mat.clearcoat_normal_texture_set( Some( texture_info() ) );
+    let defines = mat.fragment_defines_str();
+
+    assert!( defines.contains( "#define USE_KHR_materials_clearcoat" ), "{defines}" );
+    assert!( defines.contains( "#define USE_CLEARCOAT_NORMAL_TEXTURE" ), "{defines}" );
+    assert!( defines.contains( "#define USE_TBN" ), "a coat normal map needs the tangent frame: {defines}" );
+    assert!( !defines.contains( "USE_KHR_materials_anisotropy" ), "{defines}" );
+  }
+
+  #[ wasm_bindgen_test ]
+  fn anisotropy_strength_alone_enables_anisotropy_and_tbn()
+  {
+    let gl_context = gl_init();
+    let mut mat = PbrMaterial::new( &gl_context );
+    mat.anisotropy_strength_set( Some( 0.5 ) );
+    let defines = mat.fragment_defines_str();
+
+    assert!( defines.contains( "#define USE_KHR_materials_anisotropy" ), "{defines}" );
+    assert!( defines.contains( "#define USE_TBN" ), "anisotropy needs the tangent frame: {defines}" );
+    assert!( !defines.contains( "USE_ANISOTROPY_TEXTURE" ), "{defines}" );
+    assert!( !defines.contains( "USE_KHR_materials_clearcoat" ), "{defines}" );
+  }
+
+  #[ wasm_bindgen_test ]
+  fn plain_material_enables_no_layer_extension()
+  {
+    let gl_context = gl_init();
+    let defines = PbrMaterial::new( &gl_context ).fragment_defines_str().to_owned();
+
+    assert!( !defines.contains( "USE_KHR_materials_clearcoat" ), "{defines}" );
+    assert!( !defines.contains( "USE_KHR_materials_anisotropy" ), "{defines}" );
+    assert!( !defines.contains( "USE_TBN" ), "{defines}" );
+  }
+
+  #[ wasm_bindgen_test ]
+  fn layer_extensions_apply_maps_json_onto_material()
+  {
+    // One texture in the asset: index 0 resolves (with its texCoord), index 5 is out of range
+    // and must leave that texture unset rather than panic.
+    let gltf = gltf::Gltf::from_slice_without_validation( br#"
+    {
+      "asset" : { "version" : "2.0" },
+      "materials" : [ { "extensions" : {
+        "KHR_materials_clearcoat" : {
+          "clearcoatFactor" : 1.0,
+          "clearcoatNormalTexture" : { "index" : 0, "texCoord" : 1, "scale" : 0.5 },
+          "clearcoatTexture" : { "index" : 5 }
+        },
+        "KHR_materials_anisotropy" : { "anisotropyStrength" : 0.4, "anisotropyRotation" : 0.3 }
+      } } ]
+    }"# ).expect( "fixture parses" );
+    let gltf_m = gltf.materials().next().expect( "one material" );
+    let textures = [ Rc::new( RefCell::new( Texture::new() ) ) ];
+
+    let gl_context = gl_init();
+    let mut mat = PbrMaterial::new( &gl_context );
+    material_layer_extensions_apply( &gltf_m, &textures, &mut mat );
+
+    assert_eq!( mat.clearcoat_factor(), Some( 1.0 ) );
+    assert_eq!( mat.clearcoat_roughness_factor(), Some( 0.0 ), "absent factor gets the extension default" );
+    assert!( mat.clearcoat_texture().is_none(), "out-of-range texture index must leave the texture unset" );
+    assert_eq!( mat.clearcoat_normal_texture().map( | t | t.uv_position ), Some( 1 ) );
+    assert!( ( mat.clearcoat_normal_scale - 0.5 ).abs() < 1e-6 );
+    assert_eq!( mat.anisotropy_strength(), Some( 0.4 ) );
+    assert!( ( mat.anisotropy_rotation - 0.3 ).abs() < 1e-6 );
   }
 }
