@@ -118,6 +118,21 @@ mod private
     /// at render time. [`crate::spec::RenderSpec::from_ron_str`] does not
     /// run validation, so it still parses square specs successfully.
     UnsupportedTiling( String ),
+    /// A layer declares a draw-time behaviour this implementation does not
+    /// support yet.
+    ///
+    /// Currently constructed only for `TintBehaviour::Masked`. Compilation
+    /// rejects it too ([`crate::compile::CompileError::UnsupportedBehaviour`]),
+    /// but only on the first frame that draws the layer; reporting it here
+    /// makes [`crate::spec::RenderSpec::load`] fail instead, the same way
+    /// [`Self::UnsupportedTiling`] handles reserved tiling strategies.
+    UnsupportedBehaviour
+    {
+      /// Owning object's id.
+      object : String,
+      /// Behaviour kind encountered (e.g. `"Masked tint"`).
+      behaviour : &'static str,
+    },
     /// A sprite source is not valid for the declaring object's anchor type.
     ///
     /// For example, `NeighborBitmask` only works on `Hex` anchors;
@@ -174,6 +189,8 @@ mod private
           write!( f, "composite source {inner} cannot be nested inside {outer}" ),
         Self::UnsupportedTiling( name ) =>
           write!( f, "unsupported tiling strategy: {name}" ),
+        Self::UnsupportedBehaviour { object, behaviour } =>
+          write!( f, "object {object:?} uses {behaviour}, which is not implemented yet" ),
         Self::AnchorSourceMismatch { anchor, source_kind } =>
           write!( f, "sprite source {source_kind} is not valid for anchor {anchor}" ),
         Self::MissingDefaultState { object, state } =>

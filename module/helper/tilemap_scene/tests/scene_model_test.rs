@@ -23,7 +23,8 @@ use tilemap_renderer::types::{ MipmapMode, SamplerFilter, WrapMode };
 
 // ────────────────────────────────────────────────────────────────────────────
 // Minimal end-to-end: parse a render spec with one grass object and one
-// knight object featuring a masked team-colour layer, then validate.
+// knight object featuring a masked team-colour layer, then validate (which
+// rejects the Masked layer until compile implements it).
 // ────────────────────────────────────────────────────────────────────────────
 
 const MINIMAL_SPEC : &str = r#"
@@ -129,13 +130,24 @@ fn parses_minimal_spec()
 }
 
 #[ test ]
-fn validates_minimal_spec()
+fn validate_minimal_spec_reports_only_masked_tint()
 {
   let spec = RenderSpec::from_ron_str( MINIMAL_SPEC ).expect( "spec must parse" );
   // MINIMAL_SPEC declares assets "terrain" / "knight_sheet" and pipeline
-  // layers "terrain" / "units"; every reference resolves, so validate()
-  // succeeds.
-  spec.validate().expect( "minimal spec validates clean" );
+  // layers "terrain" / "units"; every reference resolves. The one violation
+  // is the knight's Masked team layer: compile does not implement Masked, so
+  // validate() reports it at load instead of letting render() fail later.
+  let errs = spec.validate().expect_err( "Masked tint must be reported" );
+  assert!
+  (
+    matches!
+    (
+      errs.as_slice(),
+      [ tilemap_scene::ValidationError::UnsupportedBehaviour { object, behaviour } ]
+        if object == "knight" && *behaviour == "Masked tint"
+    ),
+    "expected exactly one UnsupportedBehaviour for knight's Masked tint, got {errs:?}",
+  );
 }
 
 #[ test ]
@@ -739,7 +751,7 @@ fn validate_accepts_tint_effect_connects_with()
 {
   // Positive case: a flat tint, an effect, and a self-referencing
   // connects_with all resolve cleanly — MINIMAL_SPEC never exercises these
-  // paths, so validates_minimal_spec alone doesn't cover them.
+  // paths, so validate_minimal_spec_reports_only_masked_tint alone doesn't cover them.
   // Uses r##"..."## (not r#"..."#) because the tint colour literal below
   // contains `"#`, which would otherwise prematurely close a single-hash
   // raw string — same reason MINIMAL_SCENE uses r##"..."## for "#cc2233".

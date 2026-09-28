@@ -200,7 +200,7 @@ game use-case demands one.
    `_square_tiling` / `_conflicting_tile_source` /
    `_owner_out_of_range`), plus one positive-path test
    (`validate_accepts_tint_effect_connects_with`) covering the
-   tint/effect/connects_with resolution paths `validates_minimal_spec`
+   tint/effect/connects_with resolution paths `validate_minimal_spec_reports_only_masked_tint`
    doesn't exercise.
 4. ~~**`External` sprite source runtime plumbing.**~~ *Shipped.*
    `Scene::set_external_sprite( handle, slot, SpriteRef )` populates

@@ -107,6 +107,8 @@ mod private
     ///   to a leaf source, never another composite.
     /// - **Tiling whitelist.** `pipeline.hex.tiling` is `HexFlatTop` or
     ///   `HexPointyTop`; `Square4` / `Square8` are rejected.
+    /// - **Unsupported behaviours.** `LayerBehaviour.tint` is not
+    ///   `TintBehaviour::Masked`, which compilation does not implement yet.
     ///
     /// **Not enforced** — see the `TODO SPEC §16` comment at the end of
     /// this impl for why anchor ↔ sprite-source compatibility is left
@@ -494,6 +496,15 @@ mod private
       },
       TintBehaviour::Masked { mask, tint } =>
       {
+        // Compile rejects Masked on the first frame that draws this layer;
+        // report it at load instead. The reference checks below still run so
+        // one load lists every problem with the layer.
+        errors.push( ValidationError::UnsupportedBehaviour
+        {
+          object : object_id.to_owned(),
+          behaviour : "Masked tint",
+        });
+
         if let MaskTint::Ref( TintRef( id ) ) = tint
           && !ids.tint.contains( id.as_str() )
         {
