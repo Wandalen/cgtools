@@ -579,7 +579,14 @@ float ditherNoise( vec2 fragCoord )
     // mix with the base result (see KHR_materials_clearcoat's fresnel_mix in main()).
     #ifdef USE_KHR_materials_clearcoat
       vec3 Rc = reflect( -V, material.clearcoatNormal );
-      float lodc = min( material.clearcoatRoughness * u_max_lod, u_max_lod );
+      // Same LOD rule as the base sample above: roughness, widened where the coat's
+      // reflection direction varies quickly across the pixel.
+      float lodc = material.clearcoatRoughness * u_max_lod;
+      vec3 dRcdx = dFdx( Rc );
+      vec3 dRcdy = dFdy( Rc );
+      float reflVarianceC = dot( dRcdx, dRcdx ) + dot( dRcdy, dRcdy );
+      lodc = max( lodc, 0.5 * log2( max( reflVarianceC, 1e-6 ) ) + 4.0 );
+      lodc = min( lodc, u_max_lod );
       reflectedLight.clearcoatSpecular += textureLod( prefilterEnvMap, Rc, lodc ).xyz;
     #endif
   }
@@ -776,6 +783,18 @@ void main()
   float geometricVariance = dot( dNdx, dNdx ) + dot( dNdy, dNdy );
   material.roughness = sqrt( clamp( material.roughness * material.roughness + 0.5 * geometricVariance, 0.0, 1.0 ) );
   material.roughness = max( material.roughness, 0.0525 );
+
+  // The coat gets the same safeguards as the base layer. Without the floor, the glTF default
+  // clearcoatRoughness of 0 makes D_GGX zero off the exact mirror direction and 0/0 on it, so a
+  // smooth coat shows no highlight or a single flickering pixel; the variance term antialiases
+  // a smooth coat on curved geometry, measured on the coat's own normal.
+  #ifdef USE_KHR_materials_clearcoat
+    vec3 dCcNdx = dFdx( material.clearcoatNormal );
+    vec3 dCcNdy = dFdy( material.clearcoatNormal );
+    float clearcoatVariance = dot( dCcNdx, dCcNdx ) + dot( dCcNdy, dCcNdy );
+    material.clearcoatRoughness = sqrt( clamp( pow2( material.clearcoatRoughness ) + 0.5 * clearcoatVariance, 0.0, 1.0 ) );
+    material.clearcoatRoughness = max( material.clearcoatRoughness, 0.0525 );
+  #endif
 
   #ifdef USE_KHR_materials_anisotropy
     float anisotropyBaseAlpha = pow2( material.roughness );
