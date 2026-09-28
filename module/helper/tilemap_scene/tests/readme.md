@@ -23,6 +23,7 @@ Two levels coexist:
 | compile_units_test.rs | Unit contracts of compile-layer primitives (ids, conditions, camera, edges, vertex, viewport, animation, coords) |
 | hash_test.rs | Known-answer determinism pins for normative SPEC §13 hashes |
 | hex_config_test.rs | HexConfig::from_hex_size grid-stride arithmetic |
+| layer_tint_compile_test.rs | LayerBehaviour.tint (Flat composition, Masked rejection) through every sprite-emitting compile pass |
 | renderer_cache_test.rs | Renderer per-frame idle-replay cache acceptance |
 | renderer_test.rs | Renderer asset-compile-once and per-instance override contract |
 | scene_events_test.rs | Scene::tick event-stream semantics |
