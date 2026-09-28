@@ -19,9 +19,12 @@ Controls:
 - G - switch the gizmo to translate mode (requires a selection)
 - R - switch the gizmo to rotate mode (requires a selection)
 - Escape - deselect
-- HUD toggle buttons (Tactical Grid / Vector Trajectories / Sensor Ranges & Rings / CRT Scanlines / Animate Ships Motion) - toggle each overlay independently
 - HUD Pause / Play / Fast buttons - control simulation speed
-- HUD "Reset Camera View" button - restores the initial camera framing
-- Dev tuning panel - exposes every tactical-grid shader parameter live
+- HUD "Reset Camera" button - restores the initial camera framing
+- Render Layers panel (bottom left) - click a row to show or hide that layer (grid, view-zone
+  ribbon, background, starfield, asteroids, ships, station, selection gizmo, lighting, shadows,
+  CRT scanlines); right click a row to show only that layer; Shift + right click to hide it and
+  show all the rest
+- Dev tuning panel (bottom right) - exposes every tactical-grid shader parameter live
 
 **[How to run](../../how_to_run.md)**
