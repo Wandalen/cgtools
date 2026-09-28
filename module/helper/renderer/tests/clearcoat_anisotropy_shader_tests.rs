@@ -90,6 +90,20 @@ mod tests
     assert_compiles( &gl, &material, false, "anisotropy with texture" );
   }
 
+  /// Base normal map without vertex tangents: the derivative frame must be built from the
+  /// normal texture's own UV set (`vNormalUv`), the branch the clearcoat / anisotropy cases
+  /// above never reach.
+  #[ wasm_bindgen_test( async ) ]
+  async fn normal_map_and_clearcoat_normal_without_tangents_compiles()
+  {
+    let gl = init_gl().await;
+    let mut material = PbrMaterial::new( &gl );
+    material.normal_texture_set( Some( dummy_texture_info() ) );
+    material.clearcoat_factor_set( Some( 1.0 ) );
+    material.clearcoat_normal_texture_set( Some( dummy_texture_info() ) );
+    assert_compiles( &gl, &material, false, "base + clearcoat normal maps, derivative TBN from vNormalUv" );
+  }
+
   #[ wasm_bindgen_test( async ) ]
   async fn anisotropy_with_real_tangents_and_normal_map_compiles()
   {

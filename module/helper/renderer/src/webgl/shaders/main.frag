@@ -700,9 +700,21 @@ void main()
       vec3 bitangent = cross( geometricNormal, vTangent.xyz ) * vTangent.w;
       TBN = mat3( tangent, bitangent, geometricNormal );
     #else
-      // No per-texture UV is threaded through here (unlike the normal texture's own vNormalUv
-      // below) — vUv_0 is used as a simplification for the clearcoat-normal/anisotropy-only case.
-      TBN = getTBN( geometricNormal, vWorldPos, vUv_0 );
+      // Without vertex tangents the frame is reconstructed from the screen-space derivatives of
+      // a UV set. glTF derives a mesh's tangent frame from the texcoords of its normal texture,
+      // and the frame is shared by every tangent-space texture (base normal, clearcoat normal,
+      // anisotropy direction), so use the base normal texture's UV set. Only when the material
+      // has no base normal texture does the next tangent-space texture's UV set stand in, and
+      // UV set 0 only when there is none.
+      #if defined( USE_NORMAL_TEXTURE )
+        TBN = getTBN( geometricNormal, vWorldPos, vNormalUv );
+      #elif defined( USE_CLEARCOAT_NORMAL_TEXTURE )
+        TBN = getTBN( geometricNormal, vWorldPos, vClearcoatNormalUv );
+      #elif defined( USE_ANISOTROPY_TEXTURE )
+        TBN = getTBN( geometricNormal, vWorldPos, vAnisotropyUv );
+      #else
+        TBN = getTBN( geometricNormal, vWorldPos, vUv_0 );
+      #endif
     #endif
   #endif
 
