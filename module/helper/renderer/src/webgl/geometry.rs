@@ -50,12 +50,18 @@ mod private
 
   /// Represents a geometric object to be rendered.
   ///
-  /// Owns its GPU resources exclusively (VAO + attribute/index buffers) — see the
-  /// `Drop` impl below. Deliberately **not** `Clone`: a struct-clone would alias the
-  /// raw `web_sys` GPU handles (their `Clone` is a cheap JS-reference copy, not a GPU
-  /// duplication), so two `Geometry` values would secretly share one VAO/buffers and
-  /// each independently delete them on drop. Share a `Geometry` via `Rc::clone` on
-  /// its containing `Rc<RefCell<Geometry>>` instead (see `Primitive::clone`).
+  /// GPU ownership: a `Geometry` owns exactly one GPU object, the VAO it creates in
+  /// [`Geometry::new`], and deletes it on drop. Attribute and index buffers are only
+  /// *referenced*: they are handed in through [`Geometry::attribute_add`] /
+  /// [`Geometry::index_add`] and are routinely shared (the glTF loader gives every
+  /// primitive reading one bufferView the same buffer; an instancing buffer is often
+  /// attached to several geometries), so a `Geometry` never deletes them. Whoever
+  /// created a buffer is responsible for releasing it.
+  ///
+  /// Deliberately **not** `Clone`: a struct-clone would alias the raw `web_sys` VAO
+  /// handle (its `Clone` is a JS-reference copy, not a GPU duplication), and both
+  /// copies would delete it on drop. Share a `Geometry` through its
+  /// `Rc<RefCell<Geometry>>` instead (see `Primitive::clone`).
   #[ derive( Debug ) ]
   pub struct Geometry
   {
@@ -111,6 +117,10 @@ mod private
     /// It binds the VAO, uploads the attribute, and stores the `AttributeInfo`.
     /// Returns `Err` if an attribute with the same name already exists.
     ///
+    /// The geometry does not take ownership of `info.buffer`: it is never deleted
+    /// by this `Geometry`, so the same buffer may be attached to any number of
+    /// geometries, and the caller releases it once none of them draws from it.
+    ///
     /// # Errors
     ///
     /// Returns `WebglError` if an attribute with the same name already exists or the upload fails.
@@ -143,6 +153,9 @@ mod private
     /// Adds an index buffer to the geometry.
     ///
     /// It binds the VAO and the element array buffer, storing the information in the VAO.
+    ///
+    /// As with [`Geometry::attribute_add`], `info.buffer` stays owned by the caller
+    /// and is never deleted by this `Geometry`.
     ///
     /// # Errors
     ///
@@ -264,22 +277,15 @@ mod private
     }
   }
 
-  /// Deletes the VAO and every attribute/index buffer this `Geometry` owns.
-  /// Since `Geometry` is not `Clone` (see the struct docs), this only ever
-  /// fires when the last `Rc<RefCell<Geometry>>` referencing it drops.
+  /// Deletes the VAO this `Geometry` created. Attribute and index buffers are
+  /// left alone: they are borrowed and may still back other geometries (see the
+  /// struct docs). Since `Geometry` is not `Clone`, this fires once, when the
+  /// last `Rc<RefCell<Geometry>>` referencing it drops.
   impl Drop for Geometry
   {
     fn drop( &mut self )
     {
       self.gl.delete_vertex_array( Some( &self.vao ) );
-      for info in self.attributes.values()
-      {
-        self.gl.delete_buffer( Some( &info.buffer ) );
-      }
-      if let Some( info ) = self.index_info.as_ref()
-      {
-        self.gl.delete_buffer( Some( &info.buffer ) );
-      }
     }
   }
 

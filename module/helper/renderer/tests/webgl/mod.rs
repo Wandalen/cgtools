@@ -79,6 +79,11 @@ mod ibl;
 // makes the `_for_test` accessors that hand them over exist. Run them with
 // `--features test_internals`; without it these modules compile away entirely
 // and the suites above still run on their own.
+/// `Geometry` VAO teardown; shared attribute / index buffers survive. Needs only
+/// a live context (the handles it checks are public), not `test_internals`.
+#[ cfg( target_arch = "wasm32" ) ]
+mod geometry_gl_lifecycle;
+
 /// `IBL` texture teardown and clone/double-free behaviour
 #[ cfg( all( target_arch = "wasm32", feature = "test_internals" ) ) ]
 mod ibl_gl_lifecycle;
