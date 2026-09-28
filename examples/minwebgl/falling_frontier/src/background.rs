@@ -1,5 +1,5 @@
-//! Nebula skybox backdrop - stands in for `scene/world.js`'s flat
-//! `scene.background = new THREE.Color(COLORS.spaceBg)`, matching the soft
+//! Nebula skybox backdrop - stands in for the three.js original's flat
+//! `COLORS.spaceBg` scene background colour, matching the soft
 //! drifting cloud-blob look of the reference game screenshot the tactical UI
 //! itself is modeled on rather than the JS port's flat placeholder.
 //!

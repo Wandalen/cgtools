@@ -8,8 +8,7 @@
 //! and the dashed height-guide-lines dropping from each waypoint to the
 //! grid plane are dropped - decorative flourishes on top of a ribbon that's
 //! already there, not load-bearing for reading the patrol route. Hidden by
-//! default (`main.js`'s own `groups.trajectory.visible = false;`), toggled
-//! via the dev panel.
+//! default, as in the three.js original, toggled via the dev panel.
 //!
 //! The JS reference's sensor rings (`createSensorRing`, a dashed radius
 //! circle per ship with a `sensorRadius`) are cut entirely, not just hidden -

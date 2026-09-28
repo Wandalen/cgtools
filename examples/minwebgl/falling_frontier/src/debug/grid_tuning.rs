@@ -52,11 +52,10 @@ pub struct GridTuning
   pub view_radius : f32,
 
   // M7: fleet motion + trajectory visibility. `animate_ships` defaults to
-  // `false`, matching the JS reference's own `playbackState.isAnimating:
-  // false` ("off by default while the static layout is being blocked out
-  // with the transform gizmo" - see examples/threejs/falling_frontier/src/
-  // state.js). `show_trajectories` defaults to `false` too, matching
-  // `main.js`'s `groups.trajectory.visible = false;`.
+  // `false`, matching the three.js original, which also started with ship
+  // animation off while the static layout was being blocked out with the
+  // transform gizmo. `show_trajectories` defaults to `false` too, as the
+  // original also hid its trajectory group by default.
   pub animate_ships : bool,
   pub show_trajectories : bool,
 
