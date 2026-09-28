@@ -35,7 +35,7 @@ mod private
     tile_max_priority,
   };
   use crate::compile::orient::dual_orientation_index;
-  use crate::compile::tint::{ final_tint, layer_base_tint, scene_global_tint_resolve, tinted };
+  use crate::compile::tint::{ TintTable, final_tint, layer_base_tint, scene_global_tint_resolve, tinted };
   use crate::compile::vertex::
   {
     canonicalize,
@@ -78,6 +78,8 @@ mod private
     /// Resolved global tint multiplier — `[1,1,1,1]` when `pipeline.global_tint`
     /// is `None`. Multiplied into every emitted `Sprite.tint`.
     global_tint : [ f32; 4 ],
+    /// Declared tints resolved once for this frame (`TintBehaviour::Flat`).
+    tints : TintTable< 'a >,
   }
 
   fn transform_make( sx : f32, sy : f32, zoom : f32 ) -> Transform
@@ -193,6 +195,19 @@ mod private
     ordered
   }
 
+  /// One triangle's corners as read through one `corner_source` channel.
+  struct CornerChannel< 'a >
+  {
+    /// The layer's `corner_source` (`None` = terrain id).
+    source : Option< &'a str >,
+    /// Corner ids parallel to the triangle's corners.
+    raw : [ String; 3 ],
+    /// `raw` sorted for pattern matching.
+    canonical : [ String; 3 ],
+    /// Canonical-sort rotation (legacy `{rot}`).
+    rotation : u8,
+  }
+
   /// Emit dual-mesh triangle sprites for every `VertexCorners` layer that
   /// routes into `bucket_id`. One sprite per triangle whose canonical
   /// corner tuple matches at least one pattern.
@@ -228,11 +243,27 @@ mod private
       return Ok( Vec::new() );
     }
 
+    // Triangle-independent per-layer state, computed once: the "self" id that
+    // orient mode counts corners against. It is the value of the layer's
+    // all-equal (X,X,X) pattern, so a neighbouring object's id (e.g. an
+    // adjacent player's region) reads as void instead of being mistaken for
+    // the distinguishing corner.
+    let self_ids : Vec< Option< &str > > = layers.iter().map( | ( _, layer ) | match &layer.sprite_source
+    {
+      SpriteSource::VertexCorners { patterns, orient_to_grid : true, .. } =>
+        patterns.iter().find_map( TriBlendPattern::self_id ),
+      _ => None,
+    }).collect();
+
     let triangles = triangles_enumerate( tiles, ctx.tiling );
     let mut out : Vec< ( f32, f32, Sprite ) > = Vec::new();
+    // Corners of the current triangle, resolved once per `corner_source`
+    // channel and shared by every layer that reads the same channel.
+    let mut channels : Vec< CornerChannel< '_ > > = Vec::new();
 
     for tri in &triangles
     {
+      channels.clear();
       // Corner hex pixel centres, indexed parallel to `tri.corners`. Computed
       // once per triangle — independent of the layer / corner channel — and
       // reused for the centroid (their average) and the orient-mode frame pick.
@@ -247,18 +278,29 @@ mod private
       let wx = ( corner_px[ 0 ].0 + corner_px[ 1 ].0 + corner_px[ 2 ].0 ) / 3.0;
       let wy = ( corner_px[ 0 ].1 + corner_px[ 1 ].1 + corner_px[ 2 ].1 ) / 3.0;
 
-      for ( object, layer ) in &layers
+      for ( ( object, layer ), self_id ) in layers.iter().zip( &self_ids )
       {
         let SpriteSource::VertexCorners { patterns, asset, orient_to_grid, corner_source, offset } = &layer.sprite_source
         else { continue };
 
-        // Resolve corners from THIS layer's channel (terrain id by default, or
-        // the named draw layer). Per-layer so independent dual grids — e.g.
-        // base terrain and per-player regions — coexist on the same cells.
-        let raw_corners = corners_resolve( tri, &ctx.tile_lookup, ctx.spec, corner_source.as_deref() );
-        let ( canonical, rotation ) = canonicalize( &raw_corners );
+        // Corners come from THIS layer's channel (terrain id by default, or
+        // the named draw layer), so independent dual grids — e.g. base
+        // terrain and per-player regions — coexist on the same cells.
+        let channel = corner_source.as_deref();
+        let idx = if let Some( i ) = channels.iter().position( | c | c.source == channel )
+        {
+          i
+        }
+        else
+        {
+          let raw = corners_resolve( tri, &ctx.tile_lookup, ctx.spec, channel );
+          let ( canonical, rotation ) = canonicalize( &raw );
+          channels.push( CornerChannel { source : channel, raw, canonical, rotation } );
+          channels.len() - 1
+        };
+        let corners = &channels[ idx ];
 
-        let Some( pattern ) = matching_pattern_find( patterns, &canonical )
+        let Some( pattern ) = matching_pattern_find( patterns, &corners.canonical )
         else { continue };
 
         // Both modes substitute `{rot}`; only the index source differs.
@@ -267,16 +309,11 @@ mod private
         // `transform.rotation` stays 0 — no runtime sprite rotation.
         let rot_index = if *orient_to_grid
         {
-          // The object's "self" id is the value in its all-equal (X,X,X) pattern;
-          // orientation counts corners matching it to tell present from void, so a
-          // neighbouring object's id (e.g. an adjacent player's region) reads as
-          // void instead of being mistaken for the distinguishing corner.
-          let self_id = patterns.iter().find_map( TriBlendPattern::self_id );
-          dual_orientation_index( &raw_corners, &canonical, self_id, &corner_px, wx, wy, ctx.tiling )
+          dual_orientation_index( &corners.raw, &corners.canonical, *self_id, &corner_px, wx, wy, ctx.tiling )
         }
         else
         {
-          rotation
+          corners.rotation
         };
         let frame_name = pattern.sprite_pattern.replace( "{rot}", &rot_index.to_string() );
 
@@ -298,7 +335,7 @@ mod private
         // an object (e.g. a per-player region) can be coloured independently.
         // This is universal — `layer_base_tint` resolves `Flat` for every layer
         // type, not just VertexCorners. `Masked` is rejected (not yet implemented).
-        let layer_tint = layer_base_tint( ctx.global_tint, ctx.spec, object, &layer.behaviour )?;
+        let layer_tint = layer_base_tint( ctx.global_tint, &ctx.tints, object, &layer.behaviour )?;
 
         out.push
         ((
@@ -656,6 +693,7 @@ mod private
       viewport_size,
       scene_seed,
       global_tint,
+      tints : TintTable::new( spec ),
     };
 
     let mut buckets = Vec::with_capacity( spec.pipeline.layers.len() );
@@ -864,7 +902,7 @@ mod private
           {
             transform,
             sprite : sprite_id,
-            tint : final_tint( layer_base_tint( ctx.global_tint, ctx.spec, object, &layer.behaviour )?, layer.behaviour.alpha, inst.tint ),
+            tint : final_tint( layer_base_tint( ctx.global_tint, &ctx.tints, object, &layer.behaviour )?, layer.behaviour.alpha, inst.tint ),
             blend : layer.behaviour.blend,
             clip : None,
           },
@@ -897,7 +935,7 @@ mod private
         {
           transform,
           sprite : sprite_id,
-          tint : final_tint( layer_base_tint( ctx.global_tint, ctx.spec, object, &layer.behaviour )?, layer.behaviour.alpha, inst.tint ),
+          tint : final_tint( layer_base_tint( ctx.global_tint, &ctx.tints, object, &layer.behaviour )?, layer.behaviour.alpha, inst.tint ),
           blend : layer.behaviour.blend,
           clip : None,
         },
@@ -1017,7 +1055,7 @@ mod private
         {
           transform,
           sprite : sprite_id,
-          tint : final_tint( layer_base_tint( ctx.global_tint, ctx.spec, object, behaviour )?, behaviour.alpha, inst.tint ),
+          tint : final_tint( layer_base_tint( ctx.global_tint, &ctx.tints, object, behaviour )?, behaviour.alpha, inst.tint ),
           blend : behaviour.blend,
           clip : None,
         },
@@ -1110,7 +1148,7 @@ mod private
           {
             transform,
             sprite : sprite_id,
-            tint : final_tint( layer_base_tint( ctx.global_tint, ctx.spec, object, &layer.behaviour )?, layer.behaviour.alpha, inst.tint ),
+            tint : final_tint( layer_base_tint( ctx.global_tint, &ctx.tints, object, &layer.behaviour )?, layer.behaviour.alpha, inst.tint ),
             blend : layer.behaviour.blend,
             clip : None,
           },
@@ -1196,7 +1234,7 @@ mod private
             {
               transform,
               sprite : sprite_id,
-              tint : final_tint( layer_base_tint( ctx.global_tint, ctx.spec, object, &layer.behaviour )?, layer.behaviour.alpha, inst.tint ),
+              tint : final_tint( layer_base_tint( ctx.global_tint, &ctx.tints, object, &layer.behaviour )?, layer.behaviour.alpha, inst.tint ),
               blend : layer.behaviour.blend,
               clip : None,
             },
@@ -1227,7 +1265,7 @@ mod private
           {
             transform,
             sprite : sprite_id,
-            tint : final_tint( layer_base_tint( ctx.global_tint, ctx.spec, object, &layer.behaviour )?, layer.behaviour.alpha, inst.tint ),
+            tint : final_tint( layer_base_tint( ctx.global_tint, &ctx.tints, object, &layer.behaviour )?, layer.behaviour.alpha, inst.tint ),
             blend : layer.behaviour.blend,
             clip : None,
           },
@@ -1323,7 +1361,7 @@ mod private
             {
               transform,
               sprite : sprite_id,
-              tint : final_tint( layer_base_tint( ctx.global_tint, ctx.spec, object, &layer.behaviour )?, layer.behaviour.alpha, inst.tint ),
+              tint : final_tint( layer_base_tint( ctx.global_tint, &ctx.tints, object, &layer.behaviour )?, layer.behaviour.alpha, inst.tint ),
               blend : layer.behaviour.blend,
               clip : None,
             }));
@@ -1344,7 +1382,7 @@ mod private
           {
             transform,
             sprite : sprite_id,
-            tint : final_tint( layer_base_tint( ctx.global_tint, ctx.spec, object, &layer.behaviour )?, layer.behaviour.alpha, inst.tint ),
+            tint : final_tint( layer_base_tint( ctx.global_tint, &ctx.tints, object, &layer.behaviour )?, layer.behaviour.alpha, inst.tint ),
             blend : layer.behaviour.blend,
             clip : None,
           }));

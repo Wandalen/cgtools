@@ -7,9 +7,10 @@ mod private
   use crate::compile::error::CompileError;
   use crate::layer::{ LayerBehaviour, TintBehaviour };
   use crate::object::Object;
-  use crate::resource::TintRef;
+  use crate::resource::{ Tint, TintRef };
   use crate::scene::Scene;
   use crate::spec::RenderSpec;
+  use rustc_hash::FxHashMap as HashMap;
 
   /// Multiply the alpha channel of a tint by a per-layer alpha factor.
   #[ inline ]
@@ -67,6 +68,12 @@ mod private
         id : id.clone(),
         context : "tint reference".into(),
       })?;
+    tint_multiplier( tint )
+  }
+
+  /// Parses `tint.color` and blends it towards identity by `tint.strength`.
+  fn tint_multiplier( tint : &Tint ) -> Result< [ f32; 4 ], CompileError >
+  {
     let [ r, g, b, a ] = hex_rgba_parse( &tint.color ).ok_or_else( || CompileError::UnresolvedRef
     {
       kind : "tint color",
@@ -81,6 +88,50 @@ mod private
       1.0 + s * ( b - 1.0 ),
       1.0 + s * ( a - 1.0 ),
     ])
+  }
+
+  /// Every declared tint resolved once per frame, keyed by id.
+  ///
+  /// `TintBehaviour::Flat` is looked up here for every emitted sprite;
+  /// calling [`resolve_tint_ref`] instead would repeat a linear search over
+  /// `spec.tints` and a colour parse per sprite. A tint whose colour does not
+  /// parse is stored as `None`, so looking it up falls back to
+  /// [`resolve_tint_ref`] and reports exactly the error it always did.
+  #[ derive( Debug ) ]
+  pub struct TintTable< 'a >
+  {
+    spec : &'a RenderSpec,
+    resolved : HashMap< &'a str, Option< [ f32; 4 ] > >,
+  }
+
+  impl< 'a > TintTable< 'a >
+  {
+    /// Resolves every tint `spec` declares.
+    #[ must_use ]
+    pub fn new( spec : &'a RenderSpec ) -> Self
+    {
+      let mut resolved = HashMap::default();
+      for tint in &spec.tints
+      {
+        // First declaration wins, like `resolve_tint_ref`'s `find`.
+        resolved.entry( tint.id.as_str() ).or_insert_with( || tint_multiplier( tint ).ok() );
+      }
+      Self { spec, resolved }
+    }
+
+    /// The multiplier for `tint_ref`.
+    ///
+    /// # Errors
+    ///
+    /// Same as [`resolve_tint_ref`].
+    pub fn get( &self, tint_ref : &TintRef ) -> Result< [ f32; 4 ], CompileError >
+    {
+      match self.resolved.get( tint_ref.0.as_str() )
+      {
+        Some( Some( c ) ) => Ok( *c ),
+        _ => resolve_tint_ref( self.spec, tint_ref ),
+      }
+    }
   }
 
   /// Resolve the effective global tint, honouring `Scene`'s runtime override.
@@ -111,7 +162,7 @@ mod private
   pub fn layer_base_tint
   (
     global_tint : [ f32; 4 ],
-    spec : &RenderSpec,
+    tints : &TintTable< '_ >,
     object : &Object,
     behaviour : &LayerBehaviour,
   ) -> Result< [ f32; 4 ], CompileError >
@@ -121,7 +172,7 @@ mod private
       TintBehaviour::None => Ok( global_tint ),
       TintBehaviour::Flat( tref ) =>
       {
-        let c = resolve_tint_ref( spec, tref )?;
+        let c = tints.get( tref )?;
         Ok(
         [
           global_tint[ 0 ] * c[ 0 ],
@@ -167,6 +218,7 @@ mod_interface::mod_interface!
   own use tinted;
   own use hex_rgba_parse;
   own use resolve_tint_ref;
+  own use TintTable;
   own use scene_global_tint_resolve;
   own use layer_base_tint;
   own use final_tint;
