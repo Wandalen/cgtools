@@ -35,6 +35,7 @@
 | pmrem_tests.rs | Structural browser tests of the PMREM IBL generator |
 | fbo_pass_cycle_test.rs | Live-context FBO pass-cycle tests for `ShadowMap`/`GBuffer` bind/render |
 | pbr_material_live_test.rs | Live-context tests for `PbrMaterial` defines/IBL-flag/emission/clone logic |
+| pbr_texture_units_test.rs | `PbrMaterial` texture-unit layout: disjoint units, fragment samplers within WebGL2's guaranteed 16 |
 | tests.rs | Connects test modules into root |
 | shader_validation_tests.rs | Validates WGSL shader sources offline via naga |
 | legacy_glsl_shader_compile_test.rs | Compiles all 28 shipped legacy GLSL ES 3.00 `.vert`/`.frag` shaders through a real headless WebGL2 context |

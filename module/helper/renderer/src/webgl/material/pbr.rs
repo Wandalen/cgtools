@@ -22,6 +22,56 @@ mod private
   /// Max spot light sources count
   pub const MAX_SPOT_LIGHTS : usize = 8;
 
+  // Texture units. Every PbrMaterial sampler has a fixed unit; skinning / morph data use the
+  // vertex-stage slots in `skeleton.rs` (`GLOBAL_MATRICES_SLOT`..`DISPLACEMENTS_SLOT`), and IBL
+  // takes `PBR_IBL_UNIT_COUNT` units starting right after them. `tests/pbr_texture_units_test.rs`
+  // checks the whole layout is disjoint and fits WebGL2's guaranteed 16 fragment samplers.
+  /// Texture unit of `PbrMaterial`'s `metallicRoughnessTexture` sampler.
+  pub const PBR_METALLIC_ROUGHNESS_UNIT : u32 = 0;
+  /// Texture unit of `PbrMaterial`'s `baseColorTexture` sampler.
+  pub const PBR_BASE_COLOR_UNIT : u32 = 1;
+  /// Texture unit of `PbrMaterial`'s `normalTexture` sampler.
+  pub const PBR_NORMAL_UNIT : u32 = 2;
+  /// Texture unit of `PbrMaterial`'s `occlusionTexture` sampler.
+  pub const PBR_OCCLUSION_UNIT : u32 = 3;
+  /// Texture unit of `PbrMaterial`'s `emissiveTexture` sampler.
+  pub const PBR_EMISSIVE_UNIT : u32 = 4;
+  /// Texture unit of `PbrMaterial`'s `specularTexture` sampler.
+  pub const PBR_SPECULAR_UNIT : u32 = 5;
+  /// Texture unit of `PbrMaterial`'s `specularColorTexture` sampler.
+  pub const PBR_SPECULAR_COLOR_UNIT : u32 = 6;
+  /// Texture unit of `PbrMaterial`'s `lightMap` sampler.
+  pub const PBR_LIGHT_MAP_UNIT : u32 = 7;
+  /// Texture unit of `PbrMaterial`'s `clearcoatTexture` sampler.
+  pub const PBR_CLEARCOAT_UNIT : u32 = 8;
+  /// Texture unit of `PbrMaterial`'s `clearcoatRoughnessTexture` sampler.
+  pub const PBR_CLEARCOAT_ROUGHNESS_UNIT : u32 = 9;
+  /// Texture unit of `PbrMaterial`'s `clearcoatNormalTexture` sampler.
+  pub const PBR_CLEARCOAT_NORMAL_UNIT : u32 = 10;
+  /// Texture unit of `PbrMaterial`'s `anisotropyTexture` sampler.
+  pub const PBR_ANISOTROPY_UNIT : u32 = 11;
+  /// Every `PbrMaterial` sampler uniform with its texture unit, in unit order.
+  pub const PBR_TEXTURE_UNITS : [ ( &str, u32 ); 12 ] =
+  [
+    ( "metallicRoughnessTexture", PBR_METALLIC_ROUGHNESS_UNIT ),
+    ( "baseColorTexture", PBR_BASE_COLOR_UNIT ),
+    ( "normalTexture", PBR_NORMAL_UNIT ),
+    ( "occlusionTexture", PBR_OCCLUSION_UNIT ),
+    ( "emissiveTexture", PBR_EMISSIVE_UNIT ),
+    ( "specularTexture", PBR_SPECULAR_UNIT ),
+    ( "specularColorTexture", PBR_SPECULAR_COLOR_UNIT ),
+    ( "lightMap", PBR_LIGHT_MAP_UNIT ),
+    ( "clearcoatTexture", PBR_CLEARCOAT_UNIT ),
+    ( "clearcoatRoughnessTexture", PBR_CLEARCOAT_ROUGHNESS_UNIT ),
+    ( "clearcoatNormalTexture", PBR_CLEARCOAT_NORMAL_UNIT ),
+    ( "anisotropyTexture", PBR_ANISOTROPY_UNIT ),
+  ];
+  /// First of the IBL units (irradiance, prefiltered environment, BRDF LUT): the unit after the
+  /// last skinning / morph slot.
+  pub const PBR_IBL_BASE_UNIT : u32 = crate::webgl::DISPLACEMENTS_SLOT + 1;
+  /// Number of consecutive units IBL uses from `PBR_IBL_BASE_UNIT`.
+  pub const PBR_IBL_UNIT_COUNT : u32 = 3;
+
   // A Physically Based Rendering (PBR) shader.
   impl_locations!
   (
@@ -802,9 +852,8 @@ mod private
     {
       if self.need_use_ibl
       {
-        // 0-7: base PBR textures, 8-11: clearcoat/anisotropy textures, 12: spare,
-        // 13-15: skinning/morph textures (vertex stage, see skeleton.rs).
-        Some( 16 )
+        // See the texture-unit constants at the top of this file.
+        Some( PBR_IBL_BASE_UNIT )
       }
       else
       {
@@ -826,27 +875,19 @@ mod private
     {
       let locations = ctx.locations;
 
-      // Assign a texture unit for each type of texture.
+      // Assign each sampler its texture unit (`PBR_TEXTURE_UNITS`).
       //
-      // `.expect(..)` here (rather than `.unwrap()`) names the missing key directly: these
+      // Panicking with the uniform's name (rather than `.unwrap()`) names the missing key: these
       // lookups are only unreachable while `PBRShader`'s `impl_locations!` list above keeps
       // every one of these literals -- an `.unwrap()` panic on drift would instead read as a
       // bare "called `Option::unwrap()` on a `None` value" with no indication of which uniform
       // name fell out of sync.
-      gl.uniform1i( locations.get( "metallicRoughnessTexture" ).expect( "PBRShader::impl_locations! missing \"metallicRoughnessTexture\"" ).clone().as_ref() , 0 );
-      gl.uniform1i( locations.get( "baseColorTexture" ).expect( "PBRShader::impl_locations! missing \"baseColorTexture\"" ).clone().as_ref() , 1 );
-      gl.uniform1i( locations.get( "normalTexture" ).expect( "PBRShader::impl_locations! missing \"normalTexture\"" ).clone().as_ref() , 2 );
-      gl.uniform1i( locations.get( "occlusionTexture" ).expect( "PBRShader::impl_locations! missing \"occlusionTexture\"" ).clone().as_ref() , 3 );
-      gl.uniform1i( locations.get( "emissiveTexture" ).expect( "PBRShader::impl_locations! missing \"emissiveTexture\"" ).clone().as_ref() , 4 );
-      gl.uniform1i( locations.get( "specularTexture" ).expect( "PBRShader::impl_locations! missing \"specularTexture\"" ).clone().as_ref() , 5 );
-      gl.uniform1i( locations.get( "specularColorTexture" ).expect( "PBRShader::impl_locations! missing \"specularColorTexture\"" ).clone().as_ref() , 6 );
-      gl.uniform1i( locations.get( "lightMap" ).expect( "PBRShader::impl_locations! missing \"lightMap\"" ).clone().as_ref() , 7 );
-      // 8-11: clearcoat/anisotropy extension textures (KHR_materials_clearcoat /
-      // KHR_materials_anisotropy).
-      gl.uniform1i( locations.get( "clearcoatTexture" ).expect( "PBRShader::impl_locations! missing \"clearcoatTexture\"" ).clone().as_ref() , 8 );
-      gl.uniform1i( locations.get( "clearcoatRoughnessTexture" ).expect( "PBRShader::impl_locations! missing \"clearcoatRoughnessTexture\"" ).clone().as_ref() , 9 );
-      gl.uniform1i( locations.get( "clearcoatNormalTexture" ).expect( "PBRShader::impl_locations! missing \"clearcoatNormalTexture\"" ).clone().as_ref() , 10 );
-      gl.uniform1i( locations.get( "anisotropyTexture" ).expect( "PBRShader::impl_locations! missing \"anisotropyTexture\"" ).clone().as_ref() , 11 );
+      for ( name, unit ) in PBR_TEXTURE_UNITS
+      {
+        let location = locations.get( name )
+        .unwrap_or_else( || panic!( "PBRShader::impl_locations! missing \"{name}\"" ) );
+        gl.uniform1i( location.as_ref(), unit as i32 );
+      }
     }
 
     fn upload
@@ -952,18 +993,18 @@ mod private
         }
       };
 
-      bind( &self.metallic_roughness_texture, 0 );
-      bind( &self.base_color_texture, 1 );
-      bind( &self.normal_texture, 2 );
-      bind( &self.occlusion_texture, 3 );
-      bind( &self.emissive_texture, 4 );
-      bind( &self.specular_texture, 5 );
-      bind( &self.specular_color_texture, 6 );
-      bind( &self.light_map, 7 );
-      bind( &self.clearcoat_texture, 8 );
-      bind( &self.clearcoat_roughness_texture, 9 );
-      bind( &self.clearcoat_normal_texture, 10 );
-      bind( &self.anisotropy_texture, 11 );
+      bind( &self.metallic_roughness_texture, PBR_METALLIC_ROUGHNESS_UNIT );
+      bind( &self.base_color_texture, PBR_BASE_COLOR_UNIT );
+      bind( &self.normal_texture, PBR_NORMAL_UNIT );
+      bind( &self.occlusion_texture, PBR_OCCLUSION_UNIT );
+      bind( &self.emissive_texture, PBR_EMISSIVE_UNIT );
+      bind( &self.specular_texture, PBR_SPECULAR_UNIT );
+      bind( &self.specular_color_texture, PBR_SPECULAR_COLOR_UNIT );
+      bind( &self.light_map, PBR_LIGHT_MAP_UNIT );
+      bind( &self.clearcoat_texture, PBR_CLEARCOAT_UNIT );
+      bind( &self.clearcoat_roughness_texture, PBR_CLEARCOAT_ROUGHNESS_UNIT );
+      bind( &self.clearcoat_normal_texture, PBR_CLEARCOAT_NORMAL_UNIT );
+      bind( &self.anisotropy_texture, PBR_ANISOTROPY_UNIT );
     }
 
     fn defines_str( &self ) -> &str
@@ -1085,6 +1126,21 @@ crate::mod_interface!
     MAX_POINT_LIGHTS,
     MAX_DIRECT_LIGHTS,
     MAX_SPOT_LIGHTS,
+    PBR_METALLIC_ROUGHNESS_UNIT,
+    PBR_BASE_COLOR_UNIT,
+    PBR_NORMAL_UNIT,
+    PBR_OCCLUSION_UNIT,
+    PBR_EMISSIVE_UNIT,
+    PBR_SPECULAR_UNIT,
+    PBR_SPECULAR_COLOR_UNIT,
+    PBR_LIGHT_MAP_UNIT,
+    PBR_CLEARCOAT_UNIT,
+    PBR_CLEARCOAT_ROUGHNESS_UNIT,
+    PBR_CLEARCOAT_NORMAL_UNIT,
+    PBR_ANISOTROPY_UNIT,
+    PBR_TEXTURE_UNITS,
+    PBR_IBL_BASE_UNIT,
+    PBR_IBL_UNIT_COUNT,
     PBRShader,
     PbrMaterial
   };
