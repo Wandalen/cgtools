@@ -260,7 +260,6 @@ fn scene_assets_load
       filter : SamplerFilter::Linear,
       mipmap : MipmapMode::Off,
       wrap : WrapMode::default(),
-      premultiplied : false,
     });
   }
 
