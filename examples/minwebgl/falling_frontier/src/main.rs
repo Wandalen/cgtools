@@ -27,7 +27,7 @@ use std::{ cell::{ Cell, RefCell }, rc::Rc };
 use debug::{ GridTuning, setup_grid_tuning_panel, setup_layers_panel, refresh_selection_status };
 use hud::{ setup_hud, refresh_unit_panel, bind_reset_camera };
 use boundary::{ build_boundary_polyline, MAX_BOUNDARY_PTS };
-use hull::HullProgram;
+use hull::{ HullPart, HullProgram };
 use gpu_picking::{ IdProgram, PickBuffer };
 use gizmo::{ Gizmo, GizmoMode };
 use asteroids::Asteroids;
@@ -127,6 +127,39 @@ fn unit_info_for( kind : PickedKind, ships : &Ships, station : &Station ) -> hud
       class_label : "ASTEROID".to_string(),
     },
   }
+}
+
+/// Whether `kind`'s Render Layers switch is on. A hidden layer counts as
+/// absent everywhere it matters - the visible draw, the shadow pass and the
+/// pick pass - so an invisible object can neither be clicked nor cover a
+/// visible one behind it.
+fn kind_visible( kind : PickedKind, t : &GridTuning ) -> bool
+{
+  match kind
+  {
+    PickedKind::Asteroid( _ ) => t.show_asteroids,
+    PickedKind::Ship( _ ) => t.show_ships,
+    PickedKind::Station => t.show_station,
+  }
+}
+
+/// Every hull part whose Render Layers switch is on - the one list both the
+/// shadow pass and the pick pass walk, so neither can drift from the other.
+fn visible_parts< 'a >( t : &GridTuning, asteroids : &'a Asteroids, ships : &'a Ships, station : &'a Station ) -> impl Iterator< Item = &'a HullPart >
+{
+  let asteroid_parts : &[ _ ] = if t.show_asteroids { asteroids.parts() } else { &[] };
+  let ship_parts : &[ _ ] = if t.show_ships { ships.parts() } else { &[] };
+  let station_parts : &[ _ ] = if t.show_station { station.parts() } else { &[] };
+  asteroid_parts.iter().chain( ship_parts ).chain( station_parts )
+}
+
+/// Whether the gizmo handle exists for a selected `kind`: its own switch is
+/// on and the object it's attached to is visible. The frame loop draws the
+/// handle and the pick pass renders it under this one condition, so a
+/// handle is grabbable exactly when it can be seen.
+fn gizmo_visible( kind : PickedKind, t : &GridTuning ) -> bool
+{
+  t.show_gizmo && kind_visible( kind, t )
 }
 
 /// The selected object's current world transform - what the M6 gizmo draws
@@ -515,25 +548,31 @@ struct InteractionCtx
   asteroids : RefCell< Asteroids >,
   ships : RefCell< Ships >,
   station : RefCell< Station >,
+  /// Read by the pick pass so it skips whatever the Render Layers panel hides.
+  tuning : Rc< RefCell< GridTuning > >,
 }
 
 /// Re-renders the id pass (including the gizmo handle, if something's
 /// selected) and reads back the pick id at `client_x`/`client_y` - shared by
 /// the pointerdown gizmo-grab check and the pointerup click-to-select path,
 /// since both need the exact same render+read+viewport-restore sequence.
+/// Only what the frame loop actually draws goes into the id pass: layers
+/// hidden in the Render Layers panel, and a gizmo handle that isn't shown,
+/// are left out.
 fn pick_at_client( ctx : &InteractionCtx, client_x : f64, client_y : f64 ) -> Option< i32 >
 {
   let asteroids = ctx.asteroids.borrow();
   let ships = ctx.ships.borrow();
   let station = ctx.station.borrow();
+  let t = *ctx.tuning.borrow();
 
-  let gizmo_part = ctx.selected_id.get().and_then( classify_pick ).map( | kind |
+  let gizmo_part = ctx.selected_id.get().and_then( classify_pick ).filter( | kind | gizmo_visible( *kind, &t ) ).map( | kind |
   {
     let transform = selected_transform( kind, &asteroids, &ships, &station );
     ctx.gizmo.part( ctx.gizmo_mode.get(), transform, GIZMO_ID )
   } );
 
-  let parts = asteroids.parts().iter().chain( ships.parts() ).chain( station.parts() );
+  let parts = visible_parts( &t, &asteroids, &ships, &station );
   ctx.pick_buffer.borrow().render( &ctx.gl, &ctx.id_program, ctx.latest_view_proj.get(), parts, gizmo_part.as_ref() );
 
   let ( px, py ) = canvas_pixel_from_client( &ctx.canvas, client_x, client_y );
@@ -608,6 +647,7 @@ fn app_run() -> Result< (), gl::WebglError >
     asteroids : RefCell::new( Asteroids::new( &gl, ASTEROID_ID_BASE ) ),
     ships : RefCell::new( Ships::new( &gl, SHIP_ID_BASE ) ),
     station : RefCell::new( Station::new( &gl, STATION_ID ) ),
+    tuning : tuning.clone(),
   } );
 
   let trajectories = Trajectories::new
@@ -764,10 +804,7 @@ fn app_run() -> Result< (), gl::WebglError >
         // still be casting a shadow onto the rest of the scene, so the same
         // per-type visibility gates apply here, not just to the visible draw
         // further down.
-        let asteroid_parts : &[ _ ] = if tuning_snapshot.show_asteroids { asteroids.parts() } else { &[] };
-        let ship_parts : &[ _ ] = if tuning_snapshot.show_ships { ships.parts() } else { &[] };
-        let station_parts : &[ _ ] = if tuning_snapshot.show_station { station.parts() } else { &[] };
-        for part in asteroid_parts.iter().chain( ship_parts ).chain( station_parts )
+        for part in visible_parts( &tuning_snapshot, &asteroids, &ships, &station )
         {
           shadow_map.mvp_upload( light_view_proj * part.model );
           gl.bind_vertex_array( Some( &part.vao ) );
@@ -819,7 +856,7 @@ fn app_run() -> Result< (), gl::WebglError >
       // M6: the gizmo handle, drawn on top of everything at whatever is
       // currently selected (translate cross or rotate ring, per
       // `ctx.gizmo_mode`).
-      if tuning_snapshot.show_gizmo && let Some( kind ) = selected_kind
+      if let Some( kind ) = selected_kind && gizmo_visible( kind, &tuning_snapshot )
       {
         let object_transform = selected_transform( kind, &asteroids, &ships, &station );
         let gizmo_part = ctx.gizmo.part( ctx.gizmo_mode.get(), object_transform, GIZMO_ID );
@@ -990,4 +1027,35 @@ fn setup_selection_and_gizmo( ctx : &Rc< InteractionCtx > )
 fn main()
 {
   app_run().unwrap();
+}
+
+#[ cfg( test ) ]
+mod tests
+{
+  use super::{ gizmo_visible, kind_visible, GridTuning, PickedKind };
+
+  #[ test ]
+  fn each_kind_follows_its_own_layer_switch()
+  {
+    let all_hidden = GridTuning { show_asteroids : false, show_ships : false, show_station : false, ..GridTuning::default() };
+    for kind in [ PickedKind::Asteroid( 0 ), PickedKind::Ship( 0 ), PickedKind::Station ]
+    {
+      assert!( kind_visible( kind, &GridTuning::default() ) );
+      assert!( !kind_visible( kind, &all_hidden ) );
+    }
+
+    let ships_only = GridTuning { show_asteroids : false, show_station : false, ..GridTuning::default() };
+    assert!( !kind_visible( PickedKind::Asteroid( 3 ), &ships_only ) );
+    assert!( kind_visible( PickedKind::Ship( 3 ), &ships_only ) );
+    assert!( !kind_visible( PickedKind::Station, &ships_only ) );
+  }
+
+  #[ test ]
+  fn gizmo_needs_its_switch_and_a_visible_object()
+  {
+    let kind = PickedKind::Ship( 0 );
+    assert!( gizmo_visible( kind, &GridTuning::default() ) );
+    assert!( !gizmo_visible( kind, &GridTuning { show_gizmo : false, ..GridTuning::default() } ) );
+    assert!( !gizmo_visible( kind, &GridTuning { show_ships : false, ..GridTuning::default() } ) );
+  }
 }
