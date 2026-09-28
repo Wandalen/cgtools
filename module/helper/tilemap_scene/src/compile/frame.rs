@@ -52,7 +52,7 @@ mod private
   use crate::instance::{ Instance, Placement };
   use crate::scene::Scene;
   use crate::snapshot::{ EdgeInstance, EdgePosition, Tile };
-  use crate::source::{ NeighborBitmaskSource, SpriteSource, VariantSelection, ViewportTiling };
+  use crate::source::{ NeighborBitmaskSource, SpriteSource, TriBlendPattern, VariantSelection, ViewportTiling };
   use crate::spec::RenderSpec;
   use tilemap_renderer::types::Transform;
   use rustc_hash::FxHashMap as HashMap;
@@ -271,9 +271,7 @@ mod private
           // orientation counts corners matching it to tell present from void, so a
           // neighbouring object's id (e.g. an adjacent player's region) reads as
           // void instead of being mistaken for the distinguishing corner.
-          let self_id = patterns.iter().find_map( | p |
-            ( p.corners.0 == p.corners.1 && p.corners.1 == p.corners.2 && p.corners.0 != "*" )
-              .then_some( p.corners.0.as_str() ) );
+          let self_id = patterns.iter().find_map( TriBlendPattern::self_id );
           dual_orientation_index( &raw_corners, &canonical, self_id, &corner_px, wx, wy, ctx.tiling )
         }
         else

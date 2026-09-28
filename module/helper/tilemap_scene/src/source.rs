@@ -272,6 +272,25 @@ mod private
     pub animation : Option< AnimationRef >,
   }
 
+  impl TriBlendPattern
+  {
+    /// The object id this pattern draws as a solid interior, i.e. `X` when
+    /// `corners` is `( X, X, X )` with `X` not the `"*"` wildcard; `None` for
+    /// every other pattern.
+    ///
+    /// `orient_to_grid` relies on it twice and both sites must agree: frame
+    /// allocation reserves the 2-frame parity set only for such a pattern,
+    /// and the vertex pass takes the layer's first such id as the "present"
+    /// id that `dual_orientation_index` counts corners against.
+    #[ inline ]
+    #[ must_use ]
+    pub fn self_id( &self ) -> Option< &str >
+    {
+      let ( a, b, c ) = &self.corners;
+      ( a == b && b == c && a != "*" ).then_some( a.as_str() )
+    }
+  }
+
   /// How a [`SpriteSource::ViewportTiled`] lays its inner content across the viewport.
   #[ derive( Debug, Clone, Copy, Serialize, Deserialize ) ]
   #[ non_exhaustive ]

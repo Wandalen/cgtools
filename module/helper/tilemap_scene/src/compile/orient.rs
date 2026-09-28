@@ -8,6 +8,27 @@
 mod private
 {
   use crate::pipeline::TilingStrategy;
+  use crate::source::TriBlendPattern;
+
+  /// `{rot}` frames of an oriented edge / corner tile: the six 60° steps.
+  pub const ORIENTED_FRAMES : u8 = 6;
+  /// `{rot}` frames of a 3-fold-symmetric (solid) tile: ▲/▽ parity only.
+  pub const SYMMETRIC_FRAMES : u8 = 2;
+
+  /// Number of `{rot}` frames `orient_to_grid` can select for `pattern`,
+  /// i.e. how many the asset pass must allocate so every index
+  /// [`dual_orientation_index`] returns resolves.
+  ///
+  /// A solid pattern ([`TriBlendPattern::self_id`] is `Some`) only matches a
+  /// triangle whose corners are all one id, which that function reduces to
+  /// parity; every other pattern (including `( "*", "*", "*" )`) can match
+  /// an oriented edge or corner and needs all six.
+  #[ inline ]
+  #[ must_use ]
+  pub fn orient_frame_count( pattern : &TriBlendPattern ) -> u8
+  {
+    if pattern.self_id().is_some() { SYMMETRIC_FRAMES } else { ORIENTED_FRAMES }
+  }
 
   /// Discrete dual-grid orientation index for a triangle, in `orient_to_grid`
   /// mode. The regular hex grid's dual triangles occur in six 60°-orientations,
@@ -74,16 +95,16 @@ mod private
         2 =>
         {
           let idx = present.iter().position( | p | !*p ).unwrap_or( 0 );
-          ( FRAC_PI_3 * 5.0, 6_i32, idx )
+          ( FRAC_PI_3 * 5.0, ORIENTED_FRAMES, idx )
         }
         // corner: the lone PRESENT corner is the distinguishing one.
         1 =>
         {
           let idx = present.iter().position( | p | *p ).unwrap_or( 0 );
-          ( FRAC_PI_3, 6, idx )
+          ( FRAC_PI_3, ORIENTED_FRAMES, idx )
         }
         // full (3) — or the degenerate 0 — are 3-fold symmetric: parity only.
-        _ => ( FRAC_PI_3, 2, 0 ),
+        _ => ( FRAC_PI_3, SYMMETRIC_FRAMES, 0 ),
       }
     }
     else
@@ -91,9 +112,9 @@ mod private
       // Legacy fallback: derive the distinguishing corner from canonical order
       // (valid when the absent id sorts after the present id, e.g. literal void).
       let ( unique, base, period ) =
-        if canonical[ 0 ] == canonical[ 2 ]      { ( None,                  FRAC_PI_3,       2_i32 ) }
-        else if canonical[ 0 ] == canonical[ 1 ] { ( Some( &canonical[ 2 ] ), FRAC_PI_3 * 5.0, 6 ) }
-        else                                     { ( Some( &canonical[ 0 ] ), FRAC_PI_3,       6 ) };
+        if canonical[ 0 ] == canonical[ 2 ]      { ( None,                  FRAC_PI_3,       SYMMETRIC_FRAMES ) }
+        else if canonical[ 0 ] == canonical[ 1 ] { ( Some( &canonical[ 2 ] ), FRAC_PI_3 * 5.0, ORIENTED_FRAMES ) }
+        else                                     { ( Some( &canonical[ 0 ] ), FRAC_PI_3,       ORIENTED_FRAMES ) };
       let dist_idx = unique
         .and_then( | v | raw.iter().position( | c | c == v ) )
         .unwrap_or( 0 );
@@ -104,7 +125,7 @@ mod private
     // `base − bearing` (not `bearing − base`): the baked frames advance
     // clockwise in world because the atlas export flips the PNG vertically.
     let steps = ( ( base + base_offset - bearing ) / FRAC_PI_3 ).round() as i32;
-    steps.rem_euclid( period ) as u8
+    steps.rem_euclid( i32::from( period ) ) as u8
   }
 
 }
@@ -112,4 +133,7 @@ mod private
 mod_interface::mod_interface!
 {
   own use dual_orientation_index;
+  own use orient_frame_count;
+  own use ORIENTED_FRAMES;
+  own use SYMMETRIC_FRAMES;
 }

@@ -16,6 +16,7 @@ mod private
   use crate::compile::error::CompileError;
   use crate::compile::ids::IdMap;
   use crate::compile::neighbors::dir_name;
+  use crate::compile::orient::orient_frame_count;
   use crate::compile::resolver::AssetResolver;
   use crate::resource::{ AnimationTiming, AssetKind, SpriteRef };
   use crate::source::{ NeighborBitmaskSource, SpriteSource, Variant };
@@ -193,28 +194,13 @@ mod private
       SpriteSource::VertexCorners { patterns, asset, orient_to_grid, .. } =>
       {
         // Each pattern's `{rot}` placeholder is expanded to every index the
-        // frame pass can pick, so the lookup is guaranteed. Legacy mode: 0..3
-        // (canonical-sort rotation). Orient mode: the regular hex grid's dual
-        // triangles occur in six discrete orientations, so 0..6 — except a
-        // fully-symmetric tile (all three corners equal, a solid triangle) only
-        // distinguishes ▲/▽, so 0..2. Matches `dual_orientation_index`'s period.
+        // frame pass can pick, so the lookup is guaranteed. Legacy mode: the
+        // canonical-sort rotation, 0..3. Orient mode: `orient_frame_count`,
+        // which shares its rule with the frame pass (see `compile/orient.rs`).
         for pattern in patterns
         {
-          let count = if *orient_to_grid
-          {
-            let ( a, b, c ) = &pattern.corners;
-            // Only a non-wildcard all-equal pattern is truly fully-symmetric
-            // (period 2). A `("*","*","*")` pattern is excluded from `self_id`
-            // detection by the `!= "*"` guard in `compile_vertex_pass` (see
-            // `frame.rs`), so it falls to the 6-orientation path at runtime — it
-            // must reserve 6 frames or the lookup hits `UnresolvedRef`.
-            if a == b && b == c && a.as_str() != "*" { 2_u32 } else { 6 }
-          }
-          else
-          {
-            3
-          };
-          for rot in 0_u32..count
+          let count = if *orient_to_grid { orient_frame_count( pattern ) } else { 3 };
+          for rot in 0..count
           {
             let frame_name = pattern.sprite_pattern.replace( "{rot}", &rot.to_string() );
             let sprite_ref = SpriteRef { asset : asset.clone(), frame : frame_name };
