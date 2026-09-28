@@ -128,6 +128,7 @@ mod tests
     material.anisotropy_strength_set( Some( 0.8 ) );
     material.anisotropy_texture_set( Some( dummy_texture_info() ) );
     material.specular_factor_set( Some( 0.5 ) ); // also exercised alongside the existing KHR_materials_specular path
-    assert_compiles( &gl, &material, true, "clearcoat + anisotropy + specular + IBL, worst-case combo" );
+    material.occlusion_texture_set( Some( dummy_texture_info() ) ); // coat IBL specular occlusion branch
+    assert_compiles( &gl, &material, true, "clearcoat + anisotropy + specular + occlusion + IBL, worst-case combo" );
   }
 }

@@ -58,7 +58,10 @@ struct ReflectedLight
   vec3 directDiffuse;
   vec3 directSpecular;
   #ifdef USE_KHR_materials_clearcoat
+    // Direct-light coat lobe; image-based coat light is kept apart so occlusion can darken it
+    // without darkening point / spot / directional highlights.
     vec3 clearcoatSpecular;
+    vec3 clearcoatIndirectSpecular;
   #endif
 };
 
@@ -587,7 +590,7 @@ float ditherNoise( vec2 fragCoord )
       float reflVarianceC = dot( dRcdx, dRcdx ) + dot( dRcdy, dRcdy );
       lodc = max( lodc, 0.5 * log2( max( reflVarianceC, 1e-6 ) ) + 4.0 );
       lodc = min( lodc, u_max_lod );
-      reflectedLight.clearcoatSpecular += textureLod( prefilterEnvMap, Rc, lodc ).xyz;
+      reflectedLight.clearcoatIndirectSpecular += textureLod( prefilterEnvMap, Rc, lodc ).xyz;
     #endif
   }
 
@@ -642,6 +645,7 @@ void main()
   reflectedLight.directSpecular = vec3( 0.0 );
   #ifdef USE_KHR_materials_clearcoat
     reflectedLight.clearcoatSpecular = vec3( 0.0 );
+    reflectedLight.clearcoatIndirectSpecular = vec3( 0.0 );
   #endif
 
   float alpha = 1.0;
@@ -820,6 +824,13 @@ void main()
     float dotNV = clamp( dot( normal, viewDir ), 0.0, 1.0 );
     float specOcclusion = clamp( pow( dotNV + ao, exp2( -16.0 * material.roughness - 1.0 ) ) - 1.0 + ao, 0.0, 1.0 );
     reflectedLight.indirectSpecular *= specOcclusion;
+    #ifdef USE_KHR_materials_clearcoat
+      // The coat's environment reflection is occluded like the base one, but with the coat's
+      // own normal and roughness.
+      float ccDotNV = clamp( dot( material.clearcoatNormal, viewDir ), 0.0, 1.0 );
+      float ccSpecOcclusion = clamp( pow( ccDotNV + ao, exp2( -16.0 * material.clearcoatRoughness - 1.0 ) ) - 1.0 + ao, 0.0, 1.0 );
+      reflectedLight.clearcoatIndirectSpecular *= ccSpecOcclusion;
+    #endif
   #endif
 
   emissive_color = vec4( emissiveFactor, 1.0 );
@@ -839,7 +850,8 @@ void main()
   #ifdef USE_KHR_materials_clearcoat
     vec3 clearcoatFresnel = F_Schlick( vec3( 0.04 ), vec3( 1.0 ), clamp( dot( material.clearcoatNormal, viewDir ), 0.0, 1.0 ) );
     vec3 clearcoatWeight = clamp( material.clearcoatFactor * clearcoatFresnel, 0.0, 1.0 );
-    color = mix( color, reflectedLight.clearcoatSpecular, clearcoatWeight );
+    vec3 clearcoatColor = reflectedLight.clearcoatSpecular + reflectedLight.clearcoatIndirectSpecular;
+    color = mix( color, clearcoatColor, clearcoatWeight );
     emissive_color.rgb *= ( 1.0 - clearcoatWeight );
   #endif
 
