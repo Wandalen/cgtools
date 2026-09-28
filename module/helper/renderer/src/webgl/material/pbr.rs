@@ -882,31 +882,28 @@ mod private
       // `unwrap_or_else( || panic!( .. ) )` rather than `.unwrap()`: `loc` is only known at the
       // call site below, so the panic message can still name the exact missing uniform instead
       // of a bare "called `Option::unwrap()` on a `None` value".
-      let upload = | loc : &str, value : Option< f32 > | -> Result< (), gl::WebglError >
+      // Extension factors are optional on the material but always uploaded, falling back to the
+      // extension's default: programs are shared between materials with the same defines, and a
+      // material can switch an extension on through a texture alone, so skipping the upload for
+      // `None` would draw with whatever factor the previous material left in the program.
+      let upload = | loc : &str, value : f32 | -> Result< (), gl::WebglError >
       {
-        if let Some( v ) = value
-        {
-          let location = locations.get( loc )
-          .unwrap_or_else( || panic!( "PBRShader::impl_locations! missing \"{loc}\"" ) )
-          .clone();
-          gl::uniform::upload( gl, location, &v )?;
-        }
-        Ok( () )
+        let location = locations.get( loc )
+        .unwrap_or_else( || panic!( "PBRShader::impl_locations! missing \"{loc}\"" ) )
+        .clone();
+        gl::uniform::upload( gl, location, &value )
       };
 
-      let upload_array = | loc : &str, value : Option< &[ f32 ] > | -> Result< (), gl::WebglError >
+      let upload_array = | loc : &str, value : &[ f32 ] | -> Result< (), gl::WebglError >
       {
-        if let Some( v ) = value
-        {
-          let location = locations.get( loc )
-          .unwrap_or_else( || panic!( "PBRShader::impl_locations! missing \"{loc}\"" ) )
-          .clone();
-          gl::uniform::upload( gl, location, v )?;
-        }
-        Ok( () )
+        let location = locations.get( loc )
+        .unwrap_or_else( || panic!( "PBRShader::impl_locations! missing \"{loc}\"" ) )
+        .clone();
+        gl::uniform::upload( gl, location, value )
       };
 
-      upload( "specularFactor", self.specular_factor )?;
+      // KHR_materials_specular defaults: specularFactor 1, specularColorFactor [ 1, 1, 1 ].
+      upload( "specularFactor", self.specular_factor.unwrap_or( 1.0 ) )?;
 
       gl::uniform::upload( gl, locations.get( "baseColorFactor" ).expect( "PBRShader::impl_locations! missing \"baseColorFactor\"" ).clone(), self.base_color_factor.as_slice() )?;
       gl::uniform::upload( gl, locations.get( "metallicFactor" ).expect( "PBRShader::impl_locations! missing \"metallicFactor\"" ).clone(), &self.metallic_factor )?;
@@ -921,12 +918,13 @@ mod private
         gl::uniform::upload( gl, mipmap_distance_range_loc.clone(), &[ r.start, r.end ] )?;
       }
 
-      upload_array( "specularColorFactor", self.specular_color_factor.as_ref().map( | v | v.as_slice() ) )?;
+      upload_array( "specularColorFactor", self.specular_color_factor.as_ref().map_or( &[ 1.0, 1.0, 1.0 ], | v | v.as_slice() ) )?;
 
-      upload( "clearcoatFactor", self.clearcoat_factor )?;
-      upload( "clearcoatRoughnessFactor", self.clearcoat_roughness_factor )?;
+      // KHR_materials_clearcoat / KHR_materials_anisotropy defaults: all three factors are 0.
+      upload( "clearcoatFactor", self.clearcoat_factor.unwrap_or( 0.0 ) )?;
+      upload( "clearcoatRoughnessFactor", self.clearcoat_roughness_factor.unwrap_or( 0.0 ) )?;
       gl::uniform::upload( gl, locations.get( "clearcoatNormalScale" ).expect( "PBRShader::impl_locations! missing \"clearcoatNormalScale\"" ).clone(), &self.clearcoat_normal_scale )?;
-      upload( "anisotropyStrength", self.anisotropy_strength )?;
+      upload( "anisotropyStrength", self.anisotropy_strength.unwrap_or( 0.0 ) )?;
       gl::uniform::upload( gl, locations.get( "anisotropyRotation" ).expect( "PBRShader::impl_locations! missing \"anisotropyRotation\"" ).clone(), &self.anisotropy_rotation )?;
 
       Ok( () )
