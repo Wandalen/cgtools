@@ -925,9 +925,9 @@ mod private
 
       upload( "clearcoatFactor", self.clearcoat_factor )?;
       upload( "clearcoatRoughnessFactor", self.clearcoat_roughness_factor )?;
-      gl::uniform::upload( gl, locations.get( "clearcoatNormalScale" ).unwrap().clone(), &self.clearcoat_normal_scale )?;
+      gl::uniform::upload( gl, locations.get( "clearcoatNormalScale" ).expect( "PBRShader::impl_locations! missing \"clearcoatNormalScale\"" ).clone(), &self.clearcoat_normal_scale )?;
       upload( "anisotropyStrength", self.anisotropy_strength )?;
-      gl::uniform::upload( gl, locations.get( "anisotropyRotation" ).unwrap().clone(), &self.anisotropy_rotation )?;
+      gl::uniform::upload( gl, locations.get( "anisotropyRotation" ).expect( "PBRShader::impl_locations! missing \"anisotropyRotation\"" ).clone(), &self.anisotropy_rotation )?;
 
       Ok( () )
     }
