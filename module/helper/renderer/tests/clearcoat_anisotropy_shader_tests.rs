@@ -20,9 +20,9 @@ mod tests
   use gl::GL;
   use renderer::webgl::{ material::PbrMaterial, Material, Texture, TextureInfo };
 
-  async fn init_gl() -> GL
+  fn init_gl() -> GL
   {
-    gl::browser::setup( Default::default() );
+    gl::browser::setup( gl::browser::Config::default() );
     let options = gl::context::ContextOptions::default().antialias( false );
     let canvas = gl::canvas::make().unwrap();
     gl::context::from_canvas_with( &canvas, options ).unwrap()
@@ -52,7 +52,7 @@ mod tests
   #[ wasm_bindgen_test( async ) ]
   async fn clearcoat_factor_only_compiles()
   {
-    let gl = init_gl().await;
+    let gl = init_gl();
     let mut material = PbrMaterial::new( &gl );
     material.clearcoat_factor_set( Some( 1.0 ) );
     material.clearcoat_roughness_factor_set( Some( 0.2 ) );
@@ -62,7 +62,7 @@ mod tests
   #[ wasm_bindgen_test( async ) ]
   async fn clearcoat_with_all_textures_compiles()
   {
-    let gl = init_gl().await;
+    let gl = init_gl();
     let mut material = PbrMaterial::new( &gl );
     material.clearcoat_factor_set( Some( 1.0 ) );
     material.clearcoat_texture_set( Some( dummy_texture_info() ) );
@@ -74,7 +74,7 @@ mod tests
   #[ wasm_bindgen_test( async ) ]
   async fn anisotropy_strength_only_compiles()
   {
-    let gl = init_gl().await;
+    let gl = init_gl();
     let mut material = PbrMaterial::new( &gl );
     material.anisotropy_strength_set( Some( 0.8 ) );
     assert_compiles( &gl, &material, false, "anisotropy strength-only (derivative TBN fallback)" );
@@ -83,7 +83,7 @@ mod tests
   #[ wasm_bindgen_test( async ) ]
   async fn anisotropy_with_texture_compiles()
   {
-    let gl = init_gl().await;
+    let gl = init_gl();
     let mut material = PbrMaterial::new( &gl );
     material.anisotropy_strength_set( Some( 0.8 ) );
     material.anisotropy_texture_set( Some( dummy_texture_info() ) );
@@ -96,7 +96,7 @@ mod tests
   #[ wasm_bindgen_test( async ) ]
   async fn normal_map_and_clearcoat_normal_without_tangents_compiles()
   {
-    let gl = init_gl().await;
+    let gl = init_gl();
     let mut material = PbrMaterial::new( &gl );
     material.normal_texture_set( Some( dummy_texture_info() ) );
     material.clearcoat_factor_set( Some( 1.0 ) );
@@ -107,7 +107,7 @@ mod tests
   #[ wasm_bindgen_test( async ) ]
   async fn anisotropy_with_real_tangents_and_normal_map_compiles()
   {
-    let gl = init_gl().await;
+    let gl = init_gl();
     let mut material = PbrMaterial::new( &gl );
     material.anisotropy_strength_set( Some( 0.5 ) );
     material.normal_texture_set( Some( dummy_texture_info() ) );
@@ -121,7 +121,7 @@ mod tests
   #[ wasm_bindgen_test( async ) ]
   async fn clearcoat_and_anisotropy_combined_with_ibl_compiles()
   {
-    let gl = init_gl().await;
+    let gl = init_gl();
     let mut material = PbrMaterial::new( &gl );
     material.clearcoat_factor_set( Some( 1.0 ) );
     material.clearcoat_normal_texture_set( Some( dummy_texture_info() ) );

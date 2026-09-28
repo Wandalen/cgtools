@@ -186,6 +186,15 @@ mod private
     cached_fragment_defines_str : String,
   }
 
+  /// Pushes `#define <name>` for a texture the material samples, plus the macro that maps its
+  /// per-texture UV varying (`uv_name`) onto the UV set the texture reads (`vUv_<n>`).
+  fn texture_define_push( defines : &mut String, name : &str, uv_name : &str, info : Option< &TextureInfo > )
+  {
+    let _ = writeln!( defines, "#define {name}" );
+    let uv_position = info.unwrap().uv_position;
+    let _ = writeln!( defines, "#define {uv_name} vUv_{uv_position}" );
+  }
+
   impl PbrMaterial
   {
     /// Creates new [`PbrMaterial`] with predefined optimal parameters
@@ -216,16 +225,16 @@ mod private
 
       let light_map = None;
 
-      let clearcoat_factor = Default::default();
-      let clearcoat_texture = Default::default();
-      let clearcoat_roughness_factor = Default::default();
-      let clearcoat_roughness_texture = Default::default();
+      let clearcoat_factor = None;
+      let clearcoat_texture = None;
+      let clearcoat_roughness_factor = None;
+      let clearcoat_roughness_texture = None;
       let clearcoat_normal_scale = 1.0;
-      let clearcoat_normal_texture = Default::default();
+      let clearcoat_normal_texture = None;
 
-      let anisotropy_strength = Default::default();
+      let anisotropy_strength = None;
       let anisotropy_rotation = 0.0;
-      let anisotropy_texture = Default::default();
+      let anisotropy_texture = None;
 
       let alpha_mode = AlphaMode::default();
       let alpha_cutoff = 0.5;
@@ -635,6 +644,85 @@ mod private
       let use_occlusion_texture = self.occlusion_texture.is_some();
       let use_alpha_cutoff = self.alpha_mode == AlphaMode::Mask;
 
+      let mut defines = String::new();
+
+      defines.push_str( format!( "#define MAX_POINT_LIGHTS {MAX_POINT_LIGHTS}\n" ).as_str() );
+      defines.push_str( format!( "#define MAX_DIRECT_LIGHTS {MAX_DIRECT_LIGHTS}\n" ).as_str() );
+      defines.push_str( format!( "#define MAX_SPOT_LIGHTS {MAX_SPOT_LIGHTS}\n" ).as_str() );
+
+      // Base color texture related
+      if use_base_color_texture
+      {
+        texture_define_push( &mut defines, "USE_BASE_COLOR_TEXTURE", "vBaseColorUv", self.base_color_texture.as_ref() );
+      }
+
+      // Metallic roughness texture related
+      if use_metallic_roughness_texture
+      {
+        texture_define_push( &mut defines, "USE_MR_TEXTURE", "vMRUv", self.metallic_roughness_texture.as_ref() );
+      }
+
+      // Emission texture related
+      if use_emissive_texture
+      {
+        texture_define_push( &mut defines, "USE_EMISSION_TEXTURE", "vEmissionUv", self.emissive_texture.as_ref() );
+      }
+
+      // KHR_Materials_Specular extension related
+      if use_khr_materials_specular
+      {
+        defines.push_str( "#define USE_KHR_materials_specular\n" );
+        if use_specular_texture
+        {
+          texture_define_push( &mut defines, "USE_SPECULAR_TEXTURE", "vSpecularUv", self.specular_texture.as_ref() );
+        }
+
+        if use_specular_color_texture
+        {
+          texture_define_push( &mut defines, "USE_SPECULAR_COLOR_TEXTURE", "vSpecularColorUv", self.specular_color_texture.as_ref() );
+        }
+      }
+
+      // Normal texture related
+      if use_normal_texture
+      {
+        texture_define_push( &mut defines, "USE_NORMAL_TEXTURE", "vNormalUv", self.normal_texture.as_ref() );
+      }
+
+      // Occlusion texture related
+      if use_occlusion_texture
+      {
+        texture_define_push( &mut defines, "USE_OCCLUSION_TEXTURE", "vOcclusionUv", self.occlusion_texture.as_ref() );
+      }
+
+      if use_alpha_cutoff
+      {
+        defines.push_str( "#define USE_ALPHA_CUTOFF\n" );
+      }
+
+      if use_light_map
+      {
+        texture_define_push( &mut defines, "USE_LIGHT_MAP", "vLightMapUv", self.light_map.as_ref() );
+      }
+
+      // KHR_materials_clearcoat / KHR_materials_anisotropy
+      let layer_extensions_need_tbn = self.layer_extension_defines_push( &mut defines );
+
+      // Shared tangent/bitangent/normal matrix, needed by normal mapping, clearcoat normal
+      // mapping and anisotropy alike.
+      let use_tbn = use_normal_texture || layer_extensions_need_tbn;
+      if use_tbn
+      {
+        defines.push_str( "#define USE_TBN\n" );
+      }
+
+      defines
+    }
+
+    /// Pushes the `KHR_materials_clearcoat` / `KHR_materials_anisotropy` defines onto `defines`
+    /// and returns whether either extension needs the shared tangent frame (`USE_TBN`).
+    fn layer_extension_defines_push( &self, defines : &mut String ) -> bool
+    {
       let use_clearcoat_texture = self.clearcoat_texture.is_some();
       let use_clearcoat_roughness_texture = self.clearcoat_roughness_texture.is_some();
       let use_clearcoat_normal_texture = self.clearcoat_normal_texture.is_some();
@@ -647,93 +735,23 @@ mod private
       let use_anisotropy_texture = self.anisotropy_texture.is_some();
       let use_khr_materials_anisotropy = self.anisotropy_strength.is_some() || use_anisotropy_texture;
 
-      let use_tbn = use_normal_texture || use_clearcoat_normal_texture || use_khr_materials_anisotropy;
-
-      let mut defines = String::new();
-
-      defines.push_str( format!( "#define MAX_POINT_LIGHTS {MAX_POINT_LIGHTS}\n" ).as_str() );
-      defines.push_str( format!( "#define MAX_DIRECT_LIGHTS {MAX_DIRECT_LIGHTS}\n" ).as_str() );
-      defines.push_str( format!( "#define MAX_SPOT_LIGHTS {MAX_SPOT_LIGHTS}\n" ).as_str() );
-
-      let add_texture = | defines : &mut String, name : &str, uv_name : &str, info : Option< &TextureInfo > |
-      {
-        let _ = writeln!( defines, "#define {name}" );
-        let uv_position = info.unwrap().uv_position;
-        let _ = writeln!( defines, "#define {uv_name} vUv_{uv_position}" );
-      };
-
-      // Base color texture related
-      if use_base_color_texture
-      {
-        add_texture( &mut defines, "USE_BASE_COLOR_TEXTURE", "vBaseColorUv", self.base_color_texture.as_ref() );
-      }
-
-      // Metallic roughness texture related
-      if use_metallic_roughness_texture
-      {
-        add_texture( &mut defines, "USE_MR_TEXTURE", "vMRUv", self.metallic_roughness_texture.as_ref() );
-      }
-
-      // Emission texture related
-      if use_emissive_texture
-      {
-        add_texture( &mut defines, "USE_EMISSION_TEXTURE", "vEmissionUv", self.emissive_texture.as_ref() );
-      }
-
-      // KHR_Materials_Specular extension related
-      if use_khr_materials_specular
-      {
-        defines.push_str( "#define USE_KHR_materials_specular\n" );
-        if use_specular_texture
-        {
-          add_texture( &mut defines, "USE_SPECULAR_TEXTURE", "vSpecularUv", self.specular_texture.as_ref() );
-        }
-
-        if use_specular_color_texture
-        {
-          add_texture( &mut defines, "USE_SPECULAR_COLOR_TEXTURE", "vSpecularColorUv", self.specular_color_texture.as_ref() );
-        }
-      }
-
-      // Normal texture related
-      if use_normal_texture
-      {
-        add_texture( &mut defines, "USE_NORMAL_TEXTURE", "vNormalUv", self.normal_texture.as_ref() );
-      }
-
-      // Occlusion texture related
-      if use_occlusion_texture
-      {
-        add_texture( &mut defines, "USE_OCCLUSION_TEXTURE", "vOcclusionUv", self.occlusion_texture.as_ref() );
-      }
-
-      if use_alpha_cutoff
-      {
-        defines.push_str( "#define USE_ALPHA_CUTOFF\n" );
-      }
-
-      if use_light_map
-      {
-        add_texture( &mut defines, "USE_LIGHT_MAP", "vLightMapUv", self.light_map.as_ref() );
-      }
-
       // KHR_materials_clearcoat extension related
       if use_khr_materials_clearcoat
       {
         defines.push_str( "#define USE_KHR_materials_clearcoat\n" );
         if use_clearcoat_texture
         {
-          add_texture( &mut defines, "USE_CLEARCOAT_TEXTURE", "vClearcoatUv", self.clearcoat_texture.as_ref() );
+          texture_define_push( defines, "USE_CLEARCOAT_TEXTURE", "vClearcoatUv", self.clearcoat_texture.as_ref() );
         }
 
         if use_clearcoat_roughness_texture
         {
-          add_texture( &mut defines, "USE_CLEARCOAT_ROUGHNESS_TEXTURE", "vClearcoatRoughnessUv", self.clearcoat_roughness_texture.as_ref() );
+          texture_define_push( defines, "USE_CLEARCOAT_ROUGHNESS_TEXTURE", "vClearcoatRoughnessUv", self.clearcoat_roughness_texture.as_ref() );
         }
 
         if use_clearcoat_normal_texture
         {
-          add_texture( &mut defines, "USE_CLEARCOAT_NORMAL_TEXTURE", "vClearcoatNormalUv", self.clearcoat_normal_texture.as_ref() );
+          texture_define_push( defines, "USE_CLEARCOAT_NORMAL_TEXTURE", "vClearcoatNormalUv", self.clearcoat_normal_texture.as_ref() );
         }
       }
 
@@ -743,18 +761,11 @@ mod private
         defines.push_str( "#define USE_KHR_materials_anisotropy\n" );
         if use_anisotropy_texture
         {
-          add_texture( &mut defines, "USE_ANISOTROPY_TEXTURE", "vAnisotropyUv", self.anisotropy_texture.as_ref() );
+          texture_define_push( defines, "USE_ANISOTROPY_TEXTURE", "vAnisotropyUv", self.anisotropy_texture.as_ref() );
         }
       }
 
-      // Shared tangent/bitangent/normal matrix, needed by normal mapping, clearcoat normal
-      // mapping and anisotropy alike.
-      if use_tbn
-      {
-        defines.push_str( "#define USE_TBN\n" );
-      }
-
-      defines
+      use_clearcoat_normal_texture || use_khr_materials_anisotropy
     }
 
     /// Returns an immutable reference to the local vertex defines map
