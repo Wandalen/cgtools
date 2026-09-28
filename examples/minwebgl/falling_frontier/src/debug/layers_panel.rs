@@ -41,15 +41,17 @@ use gl::web_sys::
 
 use super::grid_tuning::GridTuning;
 
+/// A `label` wrapping both the text and the checkbox, so a left click
+/// anywhere on the row toggles it, as its pointer cursor promises.
 fn checkbox_row_html( id : &str, label : &str, checked : bool ) -> String
 {
   let checked = if checked { "checked" } else { "" };
   format!
   (
-    r#"<div id="{id}-row" title="Right click: solo this layer&#10;Shift+Right click: hide this layer, show the rest" style="display:flex;justify-content:space-between;align-items:center;font-size:10px;color:#7dd3fc;margin-bottom:6px;cursor:pointer">
+    r#"<label id="{id}-row" title="Right click: solo this layer&#10;Shift+Right click: hide this layer, show the rest" style="display:flex;justify-content:space-between;align-items:center;font-size:10px;color:#7dd3fc;margin-bottom:6px;cursor:pointer">
       <span>{label}</span>
       <input type="checkbox" id="{id}" {checked} style="accent-color:#22d3ee">
-    </div>"#
+    </label>"#
   )
 }
 
