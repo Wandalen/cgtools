@@ -21,7 +21,7 @@
 //! `required_extensions_check` from that separate, unrelated upstream gate, so
 //! these tests exercise exactly the logic added to `gltf.rs`.
 
-use renderer::webgl::loaders::gltf::required_extensions_check;
+use renderer::webgl::loaders::gltf::{ document_validate, required_extensions_check };
 
 const UNSUPPORTED_REQUIRED_FIXTURE : &str = r#"
 {
@@ -109,4 +109,66 @@ fn accepts_asset_with_no_required_extensions()
     required_extensions_check( &gltf ).is_ok(),
     "the typical case -- no extensionsRequired at all -- must not be rejected"
   );
+}
+
+const MATERIAL_LAYER_EXTENSIONS_REQUIRED_FIXTURE : &str = r#"
+{
+  "asset": { "version": "2.0" },
+  "extensionsUsed": [ "KHR_materials_clearcoat", "KHR_materials_anisotropy" ],
+  "extensionsRequired": [ "KHR_materials_clearcoat", "KHR_materials_anisotropy" ],
+  "materials": [
+    {
+      "extensions": {
+        "KHR_materials_clearcoat": { "clearcoatFactor": 1.0 },
+        "KHR_materials_anisotropy": { "anisotropyStrength": 0.5 }
+      }
+    }
+  ]
+}
+"#;
+
+#[ test ]
+fn accepts_required_clearcoat_and_anisotropy()
+{
+  // `materials_create` reads both extensions' JSON by hand, so an asset that requires them
+  // must pass this loader's own gate.
+  let gltf = gltf::Gltf::from_slice_without_validation( MATERIAL_LAYER_EXTENSIONS_REQUIRED_FIXTURE.as_bytes() )
+  .expect( "fixture is well-formed JSON" );
+
+  assert!( required_extensions_check( &gltf ).is_ok(), "clearcoat / anisotropy are implemented -- must not be rejected" );
+}
+
+#[ test ]
+fn document_validate_ignores_upstream_required_extension_list()
+{
+  // `gltf::Gltf::from_slice` rejects this valid asset: gltf-json's own extensionsRequired rule
+  // only knows the extensions it has typed support for. `load` therefore parses without that
+  // validation and runs `document_validate`, which must accept the asset.
+  assert!
+  (
+    gltf::Gltf::from_slice( MATERIAL_LAYER_EXTENSIONS_REQUIRED_FIXTURE.as_bytes() ).is_err(),
+    "precondition: upstream validation rejects hand-read required extensions"
+  );
+  let gltf = gltf::Gltf::from_slice_without_validation( MATERIAL_LAYER_EXTENSIONS_REQUIRED_FIXTURE.as_bytes() )
+  .expect( "fixture is well-formed JSON" );
+
+  assert!( document_validate( &gltf ).is_ok(), "only the upstream extensionsRequired rule may be skipped" );
+}
+
+const DANGLING_NODE_FIXTURE : &str = r#"
+{
+  "asset": { "version": "2.0" },
+  "scenes": [ { "nodes": [ 3 ] } ]
+}
+"#;
+
+#[ test ]
+fn document_validate_still_reports_structural_errors()
+{
+  // Skipping the upstream extension rule must not skip the rest of gltf-json's validation:
+  // a scene naming a node that doesn't exist is still an error.
+  let gltf = gltf::Gltf::from_slice_without_validation( DANGLING_NODE_FIXTURE.as_bytes() )
+  .expect( "fixture is well-formed JSON" );
+
+  assert!( document_validate( &gltf ).is_err(), "an out-of-range node index must fail validation" );
 }

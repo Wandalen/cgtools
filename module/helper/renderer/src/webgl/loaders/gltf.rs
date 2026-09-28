@@ -1373,8 +1373,16 @@ mod private
   /// here. Cross-checked against this file's own code, not just the feature
   /// list: `KHR_lights_punctual` is read in [`light_list_get`] / [`light_get`];
   /// `KHR_materials_specular` is read in `materials_create`'s `gltf_m.specular()`
-  /// branch.
-  const SUPPORTED_EXTENSIONS : &[ &str ] = &[ "KHR_lights_punctual", "KHR_materials_specular" ];
+  /// branch. `KHR_materials_clearcoat` / `KHR_materials_anisotropy` have no typed
+  /// accessor or Cargo feature in the `gltf` crate; `materials_create` reads their
+  /// JSON through `extension_value`.
+  const SUPPORTED_EXTENSIONS : &[ &str ] =
+  &[
+    "KHR_lights_punctual",
+    "KHR_materials_specular",
+    "KHR_materials_clearcoat",
+    "KHR_materials_anisotropy",
+  ];
 
   /// Validates a parsed glTF document's `extensionsRequired` against
   /// [`SUPPORTED_EXTENSIONS`], per glTF 2.0's "Specifying Extensions" : a
@@ -1407,6 +1415,45 @@ mod private
     }
 
     Ok( () )
+  }
+
+  /// Runs the `gltf-json` structural validation ( index bounds, required fields, ... ) that
+  /// `gltf::Gltf::from_slice` would run, minus its `extensionsRequired` rule.
+  ///
+  /// That rule checks against `gltf-json`'s compile-time list of extensions it has typed
+  /// support for, which lacks extensions this loader reads by hand ( `KHR_materials_clearcoat`,
+  /// `KHR_materials_anisotropy` ) and even `KHR_materials_specular`, so a valid asset requiring
+  /// one of them could never load. [`required_extensions_check`] enforces the same glTF rule
+  /// against [`SUPPORTED_EXTENSIONS`], and `load` runs it first.
+  ///
+  /// # Errors
+  ///
+  /// Returns `WebglError::Other` if any other validation error is reported; each one is logged
+  /// via `gl::browser::error!` with its JSON path.
+  pub fn document_validate( gltf_file : &gltf::Gltf ) -> Result< (), gl::WebglError >
+  {
+    use gltf::json::validation::Validate;
+
+    let root = gltf_file.document.as_json();
+    let mut errors = Vec::new();
+    root.validate( root, gltf::json::Path::new, &mut | path, error |
+    {
+      let path = path();
+      if !path.as_str().starts_with( "extensionsRequired" )
+      {
+        errors.push( ( path, error ) );
+      }
+    });
+
+    if errors.is_empty()
+    {
+      return Ok( () );
+    }
+    for ( path, error ) in &errors
+    {
+      gl::browser::error!( "invalid glTF at '{path}': {error:?}" );
+    }
+    Err( gl::WebglError::Other( "glTF document failed validation" ) )
   }
 
   /// Asynchronously loads a glTF (GL Transmission Format) file and its associated resources.
@@ -1449,7 +1496,10 @@ mod private
       gl::browser::error!( "Failed to load gltf file '{gltf_path}': {e:?}" );
       gl::WebglError::Other( "Failed to load gltf file" )
     } )?;
-    let mut gltf_file = gltf::Gltf::from_slice( &gltf_slice )
+    // Parsed without `gltf`'s own validation, which would reject any required extension
+    // outside `gltf-json`'s typed list ( see `document_validate` ); the same checks minus
+    // that one run right below.
+    let mut gltf_file = gltf::Gltf::from_slice_without_validation( &gltf_slice )
     .map_err( | e |
     {
       gl::browser::error!( "Failed to parse gltf file '{gltf_path}': {e}" );
@@ -1460,6 +1510,7 @@ mod private
     // load an asset whose `extensionsRequired` names an extension it doesn't
     // support. Checked immediately after parsing, before any buffer/image/GL work.
     required_extensions_check( &gltf_file )?;
+    document_validate( &gltf_file )?;
 
     let buffers = buffers_load( &mut gltf_file, folder_path ).await?;
 
@@ -1533,6 +1584,7 @@ crate::mod_interface!
     GLTF,
     load,
     required_extensions_check,
+    document_validate,
     asset_uri_resolve,
     light_list_get,
     light_get,
