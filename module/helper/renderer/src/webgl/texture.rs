@@ -97,7 +97,7 @@ mod private
       {
         target,
         source : None,
-        sampler : Default::default(),
+        sampler : Sampler::default(),
         owned : false,
         gl : None,
       }
