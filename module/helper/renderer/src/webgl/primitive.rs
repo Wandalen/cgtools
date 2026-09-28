@@ -17,16 +17,14 @@ mod private
 
   impl Clone for Primitive
   {
-    /// Shares `geometry` (same VAO/buffers) rather than deep-cloning it — `Geometry`
-    /// owns raw GL handles behind a `Clone` derive that only copies the JS reference,
-    /// not the GPU object, so a struct-level clone would alias the same VAO/buffers
-    /// under two independently-refcounted `Rc`s. Every current caller of
-    /// `clone_tree`/`Mesh::clone`/`Primitive::clone` wants "place a copy of this
-    /// subtree elsewhere in the graph", not an independently-mutable GPU copy, so
-    /// sharing is the correct semantics here. `material` is still deep-cloned since
-    /// materials do not own raw GL handles directly (only via already-Rc-shared
-    /// `TextureInfo`), so an independent instance per placement is safe and matches
-    /// existing behaviour (e.g. per-instance material state).
+    /// Shares `geometry` (the same `Rc`, so the same VAO) instead of copying it.
+    /// `Geometry` is not `Clone`: it deletes its VAO on drop, so two copies of one
+    /// VAO handle would each delete it. Every caller of `Node::tree_clone` /
+    /// `Mesh::clone` / `Primitive::clone` wants another placement of the same
+    /// subtree, not an independently mutable GPU copy, so sharing is the intended
+    /// semantics. `material` is still cloned per placement: a material owns no GL
+    /// handle directly (its textures are already shared through `TextureInfo`'s
+    /// `Rc`), and per-placement material state keeps its previous behaviour.
     fn clone( &self ) -> Self
     {
       Self
