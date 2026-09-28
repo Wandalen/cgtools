@@ -2086,6 +2086,50 @@ fn vertex_corners_offset_shifts_sprite_position()
   }
 }
 
+/// `VertexCorners.offset` moves only the drawn sprite, not its depth-sort key:
+/// a sorted bucket orders an offset tile by its un-shifted triangle centroid,
+/// like every other pass orders by the anchor rather than the drawn position.
+/// One object carries the same dual grid twice in a `YAsc` bucket — layer 0
+/// plain, layer 1 shifted far down. Sorting by the centroid keeps each shifted
+/// copy directly after its un-shifted twin (stable sort, same key, emission
+/// order = `z_in_object`); sorting by the shifted position would instead move
+/// every shifted copy ahead of all plain tiles.
+#[ test ]
+fn vertex_corners_offset_sorts_at_unshifted_centroid()
+{
+  const DY : f32 = -10_000.0;
+  let mut spec = dual_orient_spec();
+  spec.pipeline.layers[ 0 ].sort = SortMode::YAsc;
+  let stack = spec.objects[ 0 ].states.get_mut( "default" ).expect( "default state" );
+  let mut shifted = stack[ 0 ].clone();
+  if let SpriteSource::VertexCorners { offset, .. } = &mut shifted.sprite_source
+  {
+    *offset = Some( ( 0.0, DY ) );
+  }
+  else
+  {
+    panic!( "dual_orient_spec layer 0 must be VertexCorners" );
+  }
+  shifted.z_in_object = 1;
+  stack.push( shifted );
+
+  let scene = SceneSnapshot
+  {
+    tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "hexagon".into() ] } ],
+    ..minimal_scene_3x3()
+  };
+  let cmds = at_time_compile( &spec, &scene, &Camera::default(), 0.0 );
+  let sprites = sprite_commands( &cmds );
+
+  assert_eq!( sprites.len(), 12, "lone hex: six triangles, each drawn plain and shifted" );
+  for [ plain, copy ] in sprites.as_chunks::< 2 >().0
+  {
+    assert_eq!( plain.sprite, copy.sprite, "shifted copy must directly follow its own triangle's plain tile" );
+    let dy = copy.transform.position[ 1 ] - plain.transform.position[ 1 ];
+    assert!( ( dy - DY ).abs() < 1e-3, "second of each pair must be the shifted copy (dy = {DY}); got {dy}" );
+  }
+}
+
 /// `TintBehaviour::Flat` must colour a regular hex instance layer, not only
 /// VertexCorners. Before this was wired, `compile_instance_layer` passed the
 /// global tint straight to `final_tint` and silently discarded the layer's
