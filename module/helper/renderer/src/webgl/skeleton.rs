@@ -304,6 +304,14 @@ mod private
     }
   }
 
+  // Fix(BUG-533): dropping a clone of an uploaded `TransformsData` before the clone's own first
+  // `upload()` deleted the ORIGINAL's `global_texture`/`inverse_texture`, which the original was
+  // still sampling.
+  // Root cause: `Clone` copied `gl` along with the aliased texture handles, so the clone's
+  // `Drop` ( BUG-437 ) saw `gl = Some` and deleted handles it did not own yet.
+  // Pitfall: the BUG-437 caveat on `Drop` below covers the opposite order ( original dropped
+  // first ). Both orders are safe only while a clone starts with `gl = None`: whatever makes a
+  // value delete GPU resources in `Drop` ( here `gl` ) must be reset, never copied, by `Clone`.
   impl Clone for TransformsData
   {
     /// `need_clone_inner: true` makes the next `upload()` allocate fresh GPU textures
@@ -341,7 +349,7 @@ mod private
   // only because of that ordering guarantee -- if a future edit ever read `global_texture`/
   // `inverse_texture` for a GL call *before* the `need_clone_inner` reallocation in `upload()`,
   // dropping the original ahead of the clone's first `upload()` would leave the clone pointing
-    // at an already-deleted texture.
+  // at an already-deleted texture.
   impl Drop for TransformsData
   {
     fn drop( &mut self )
@@ -752,6 +760,10 @@ mod private
     }
   }
 
+  // Fix(BUG-533): same defect as `TransformsData`'s `Clone` above -- copying `gl` made a clone,
+  // dropped before its first `upload()`, delete the original's `displacements_texture`.
+  // Root cause: `Clone` copied `gl` with the aliased handle, arming the clone's `Drop`.
+  // Pitfall: see `TransformsData`'s `Clone` -- `Clone` must reset the drop-arming `gl` field.
   impl Clone for DisplacementsData
   {
     /// `need_clone_inner: true` makes the next `upload()` allocate a fresh GPU
@@ -791,7 +803,7 @@ mod private
   // the `if self.need_clone_inner { .. }` block in `upload()`, which always runs before
   // `displacements_update()` would otherwise reuse an existing `Some` handle ). Freeing
   // unconditionally in `Drop` is safe only because of that ordering guarantee -- see the
-    // identical caveat on `TransformsData`'s `impl Drop` above.
+  // identical caveat on `TransformsData`'s `impl Drop` above.
   impl Drop for DisplacementsData
   {
     fn drop( &mut self )
