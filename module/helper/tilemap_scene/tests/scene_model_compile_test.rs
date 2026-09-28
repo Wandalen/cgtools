@@ -2277,12 +2277,13 @@ fn vertex_corners_corner_source_isolates_channels()
   );
 }
 
-/// `corner_source` silent fallback (spec §5.6): a misspelled layer name matches
-/// no object's `global_layer`, so every corner resolves to `VOID_ID` — exactly
-/// as for an off-map corner — with NO error. The dual grid then matches none of
-/// its region patterns (all require `region_1`) and emits nothing. This pins the
-/// documented silent behaviour so a regression that turned the miss into a
-/// `CompileError` or a panic would be caught.
+/// `corner_source` compile-time fallback (`format/005`): a misspelled layer
+/// name matches no object's `global_layer`, so every corner resolves to
+/// `VOID_ID` — exactly as for an off-map corner. `validate()` rejects such a
+/// spec at load (`validate_rejects_unknown_corner_source_layer`); this test
+/// compiles without loading to pin what compilation itself does when handed
+/// one: no error, and the dual grid matches none of its region patterns (all
+/// require `region_1`), so it emits nothing rather than panicking.
 #[ test ]
 fn vertex_corners_corner_source_invalid_layer_falls_back_to_void()
 {
