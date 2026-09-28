@@ -9,7 +9,10 @@ current conversation.
 **All milestones (M0-M8) are done, verified, and committed.** This port is
 feature-complete against its own plan - see each checklist entry below for
 what/how (M7's verification hit a real testing-environment limit worth
-reading before touching fleet motion again; M8's is the last entry).
+reading before touching fleet motion again; M8's is the last entry). Later
+work changed part of what M7/M8 delivered - sensor rings are gone and the
+HUD's view-layer toggles moved into a Render Layers panel; see
+**Post-port changes** below before trusting those two entries.
 - `851dd9df` on `space-game-demo` — M0-M3 ("feat: add Falling Frontier
   tactical grid, dev panel, and view-zone ribbon")
 - `6c71a5c8` on `space-game-demo` — M4 ("feat: add Falling Frontier ships,
@@ -93,6 +96,31 @@ delete once no longer needed, not part of the deliverable.
     browser — ship/station/asteroid picking, gizmo translate+rotate (through
     the promoted `box_mesh`/`torus_mesh`), and the fleet patrol spline all
     re-verified working with zero console errors after the move.
+
+**Post-port changes (`space-game-demo`, PR #213):**
+- **Sensor rings cut entirely**, not just hidden: the dashed ring per ship,
+  `Ships`' `sensor_radius` spec field and `GridTuning::show_sensor_rings`
+  are gone. M7's entry below still describes them as delivered.
+- **Visibility switches moved out of the HUD** into a new Render Layers dev
+  panel (`src/debug/layers_panel.rs`, bottom left): one row per draw pass
+  (grid, view-zone ribbon, background, starfield, asteroids, ships,
+  station, selection gizmo) plus lighting, shadows and CRT scanlines. A
+  click toggles a row, right click shows only that layer, Shift + right
+  click hides it and shows the rest. The switches live in `RenderLayers`,
+  held as `GridTuning::layers`; a hidden asteroid/ship/station layer is also
+  left out of the shadow pass and the pick pass. The HUD keeps only
+  Pause/Play/Fast and Reset Camera, so M8's toolbar toggles, including
+  Animate Ships Motion (and BUG-454's sync between it and Pause/Play/Fast),
+  no longer exist.
+- **Trajectories have no toggle anywhere** while they're unfinished;
+  `RenderLayers::show_trajectories` stays `false`, and the frame loop builds
+  the ribbons only the first time it is set.
+- **Nebula backdrop baked into a cube map**: `background.rs`'s
+  `bake_cubemap` evaluates `shaders/background.frag`'s fbm once per face
+  into a 512x512 cube map at startup, and `shaders/skybox.frag` samples it
+  every frame. The bake runs with time fixed at 0, so the clouds no longer
+  drift. The face order and orientation are pinned by a unit test in
+  `background.rs`.
 
 **If picking this back up**: there's no "next task" - re-read the gap audit
 (`research/falling_frontier_cgtools_audit.md`) against what actually landed

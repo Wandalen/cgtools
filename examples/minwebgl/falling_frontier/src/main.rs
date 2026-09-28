@@ -4,7 +4,8 @@
 //! blocking asteroids as a faceted boundary polyline. Object picking uses
 //! an off-screen id buffer (`gpu_picking`), selected units get a
 //! movable/rotatable transform gizmo, fleets move along Catmull-Rom
-//! trajectories, and a HUD surfaces unit info and view-layer toggles. See
+//! patrol paths, a HUD surfaces unit info and playback controls, and a
+//! Render Layers dev panel shows or hides each scene layer. See
 //! `PORT_PLAN.md` in this crate for the milestone history and porting notes.
 
 mod debug;
@@ -24,10 +25,10 @@ use gl::GL;
 use renderer::webgl::Camera;
 use renderer::webgl::shadow::{ ShadowMap, Light };
 use std::{ cell::{ Cell, RefCell }, rc::Rc };
-use debug::{ GridTuning, setup_grid_tuning_panel, refresh_selection_status };
+use debug::{ GridTuning, RenderLayers, setup_grid_tuning_panel, setup_layers_panel, refresh_selection_status };
 use hud::{ setup_hud, refresh_unit_panel, bind_reset_camera };
 use boundary::{ build_boundary_polyline, MAX_BOUNDARY_PTS };
-use hull::HullProgram;
+use hull::{ HullPart, HullProgram };
 use gpu_picking::{ IdProgram, PickBuffer };
 use gizmo::{ Gizmo, GizmoMode };
 use asteroids::Asteroids;
@@ -127,6 +128,39 @@ fn unit_info_for( kind : PickedKind, ships : &Ships, station : &Station ) -> hud
       class_label : "ASTEROID".to_string(),
     },
   }
+}
+
+/// Whether `kind`'s Render Layers switch is on. A hidden layer counts as
+/// absent everywhere it matters - the visible draw, the shadow pass and the
+/// pick pass - so an invisible object can neither be clicked nor cover a
+/// visible one behind it.
+fn kind_visible( kind : PickedKind, t : &RenderLayers ) -> bool
+{
+  match kind
+  {
+    PickedKind::Asteroid( _ ) => t.show_asteroids,
+    PickedKind::Ship( _ ) => t.show_ships,
+    PickedKind::Station => t.show_station,
+  }
+}
+
+/// Every hull part whose Render Layers switch is on - the one list both the
+/// shadow pass and the pick pass walk, so neither can drift from the other.
+fn visible_parts< 'a >( t : &RenderLayers, asteroids : &'a Asteroids, ships : &'a Ships, station : &'a Station ) -> impl Iterator< Item = &'a HullPart >
+{
+  let asteroid_parts : &[ _ ] = if t.show_asteroids { asteroids.parts() } else { &[] };
+  let ship_parts : &[ _ ] = if t.show_ships { ships.parts() } else { &[] };
+  let station_parts : &[ _ ] = if t.show_station { station.parts() } else { &[] };
+  asteroid_parts.iter().chain( ship_parts ).chain( station_parts )
+}
+
+/// Whether the gizmo handle exists for a selected `kind`: its own switch is
+/// on and the object it's attached to is visible. The frame loop draws the
+/// handle and the pick pass renders it under this one condition, so a
+/// handle is grabbable exactly when it can be seen.
+fn gizmo_visible( kind : PickedKind, t : &RenderLayers ) -> bool
+{
+  t.show_gizmo && kind_visible( kind, t )
 }
 
 /// The selected object's current world transform - what the M6 gizmo draws
@@ -515,25 +549,31 @@ struct InteractionCtx
   asteroids : RefCell< Asteroids >,
   ships : RefCell< Ships >,
   station : RefCell< Station >,
+  /// Read by the pick pass so it skips whatever the Render Layers panel hides.
+  tuning : Rc< RefCell< GridTuning > >,
 }
 
 /// Re-renders the id pass (including the gizmo handle, if something's
 /// selected) and reads back the pick id at `client_x`/`client_y` - shared by
 /// the pointerdown gizmo-grab check and the pointerup click-to-select path,
 /// since both need the exact same render+read+viewport-restore sequence.
+/// Only what the frame loop actually draws goes into the id pass: layers
+/// hidden in the Render Layers panel, and a gizmo handle that isn't shown,
+/// are left out.
 fn pick_at_client( ctx : &InteractionCtx, client_x : f64, client_y : f64 ) -> Option< i32 >
 {
   let asteroids = ctx.asteroids.borrow();
   let ships = ctx.ships.borrow();
   let station = ctx.station.borrow();
+  let t = ctx.tuning.borrow().layers;
 
-  let gizmo_part = ctx.selected_id.get().and_then( classify_pick ).map( | kind |
+  let gizmo_part = ctx.selected_id.get().and_then( classify_pick ).filter( | kind | gizmo_visible( *kind, &t ) ).map( | kind |
   {
     let transform = selected_transform( kind, &asteroids, &ships, &station );
     ctx.gizmo.part( ctx.gizmo_mode.get(), transform, GIZMO_ID )
   } );
 
-  let parts = asteroids.parts().iter().chain( ships.parts() ).chain( station.parts() );
+  let parts = visible_parts( &t, &asteroids, &ships, &station );
   ctx.pick_buffer.borrow().render( &ctx.gl, &ctx.id_program, ctx.latest_view_proj.get(), parts, gizmo_part.as_ref() );
 
   let ( px, py ) = canvas_pixel_from_client( &ctx.canvas, client_x, client_y );
@@ -608,12 +648,8 @@ fn app_run() -> Result< (), gl::WebglError >
     asteroids : RefCell::new( Asteroids::new( &gl, ASTEROID_ID_BASE ) ),
     ships : RefCell::new( Ships::new( &gl, SHIP_ID_BASE ) ),
     station : RefCell::new( Station::new( &gl, STATION_ID ) ),
+    tuning : tuning.clone(),
   } );
-
-  let trajectories = Trajectories::new
-  (
-    &gl, &ctx.ships.borrow(), camera.projection_matrix_get(), [ pixel_w as f32, pixel_h as f32 ]
-  )?;
 
   {
     let ctx = ctx.clone();
@@ -628,6 +664,8 @@ fn app_run() -> Result< (), gl::WebglError >
       }
     );
   }
+
+  setup_layers_panel( &document, &tuning );
 
   setup_hud( &document, &tuning );
   {
@@ -654,7 +692,10 @@ fn app_run() -> Result< (), gl::WebglError >
   {
     let canvas = canvas.clone();
     let ctx = ctx.clone();
-    let mut trajectories = trajectories;
+    // Built on first use rather than at startup: nothing in the UI turns
+    // trajectories on yet, so a session that never shows them never builds
+    // one ribbon mesh per ship.
+    let mut trajectories : Option< Trajectories > = None;
     move | t : f64 |
     {
       let delta_time = if prev_time == 0.0 { 0.0 } else { ( t - prev_time ) / 1000.0 };
@@ -684,11 +725,14 @@ fn app_run() -> Result< (), gl::WebglError >
       let view_proj = camera.projection_matrix_get() * camera.view_matrix_get();
       ctx.latest_view_proj.set( view_proj );
 
-      background.draw( &gl, view_proj, camera.eye_get(), ( t / 1000.0 ) as f32 );
-
       let tuning_snapshot = *tuning.borrow();
       let selected = ctx.selected_id.get();
       let selected_kind = selected.and_then( classify_pick );
+
+      if tuning_snapshot.layers.show_background
+      {
+        background.draw( &gl, view_proj, camera.eye_get() );
+      }
 
       // M7: advance every ship along its patrol path, except whichever one
       // is currently selected - matches `main.js`'s `updateFleetMotion`
@@ -716,7 +760,8 @@ fn app_run() -> Result< (), gl::WebglError >
       // object but leaves the ribbon off).
       let focus_snapshot = match selected_kind
       {
-        Some( PickedKind::Ship( i ) ) => FocusState { active : true, point : ships.position( i ) },
+        Some( PickedKind::Ship( i ) ) if tuning_snapshot.layers.show_view_ribbon =>
+          FocusState { active : true, point : ships.position( i ) },
         _ => FocusState::default(),
       };
 
@@ -750,13 +795,20 @@ fn app_run() -> Result< (), gl::WebglError >
       let mut light = Light::new( shadow_scene_center + light_dir * SHADOW_LIGHT_DISTANCE, -light_dir, shadow_projection, tuning_snapshot.light_size );
       let light_view_proj = light.view_projection();
 
-      shadow_map.bind();
-      shadow_map.clear();
-      for part in asteroids.parts().iter().chain( ships.parts() ).chain( station.parts() )
+      if tuning_snapshot.layers.shadows_enabled
       {
-        shadow_map.mvp_upload( light_view_proj * part.model );
-        gl.bind_vertex_array( Some( &part.vao ) );
-        gl.draw_elements_with_i32( GL::TRIANGLES, part.index_count, GL::UNSIGNED_INT, 0 );
+        shadow_map.bind();
+        shadow_map.clear();
+        // A hidden object (per the Render Layers toggles below) shouldn't
+        // still be casting a shadow onto the rest of the scene, so the same
+        // per-type visibility gates apply here, not just to the visible draw
+        // further down.
+        for part in visible_parts( &tuning_snapshot.layers, &asteroids, &ships, &station )
+        {
+          shadow_map.mvp_upload( light_view_proj * part.model );
+          gl.bind_vertex_array( Some( &part.vao ) );
+          gl.draw_elements_with_i32( GL::TRIANGLES, part.index_count, GL::UNSIGNED_INT, 0 );
+        }
       }
       gl.bind_framebuffer( GL::FRAMEBUFFER, None );
       gl.viewport( 0, 0, w as i32, h as i32 );
@@ -765,24 +817,49 @@ fn app_run() -> Result< (), gl::WebglError >
       hull_program.begin_frame
       (
         &gl, view_proj, camera.eye_get(), light_dir, tuning_snapshot.light_color, tuning_snapshot.light_intensity,
-        light_view_proj, shadow_map.depth_buffer(), tuning_snapshot.shadows_enabled,
+        light_view_proj, shadow_map.depth_buffer(), tuning_snapshot.layers.shadows_enabled, tuning_snapshot.layers.lighting_enabled,
       );
-      for part in asteroids.parts() { hull_program.draw_part( &gl, part, Some( part.pick_id ) == selected ); }
-      for part in ships.parts() { hull_program.draw_part( &gl, part, Some( part.pick_id ) == selected ); }
-      for part in station.parts() { hull_program.draw_part( &gl, part, Some( part.pick_id ) == selected ); }
-
-      starfield.draw( &gl, view_proj );
-
-      if tuning_snapshot.show_trajectories || tuning_snapshot.show_sensor_rings
+      if tuning_snapshot.layers.show_asteroids
       {
-        trajectories.draw
-        (
-          &gl, camera.view_matrix_get(), camera.projection_matrix_get(), [ w as f32, h as f32 ],
-          tuning_snapshot.show_trajectories, tuning_snapshot.show_sensor_rings
-        );
+        for part in asteroids.parts() { hull_program.draw_part( &gl, part, Some( part.pick_id ) == selected ); }
+      }
+      if tuning_snapshot.layers.show_ships
+      {
+        for part in ships.parts() { hull_program.draw_part( &gl, part, Some( part.pick_id ) == selected ); }
+      }
+      if tuning_snapshot.layers.show_station
+      {
+        for part in station.parts() { hull_program.draw_part( &gl, part, Some( part.pick_id ) == selected ); }
       }
 
-      if tuning_snapshot.show_grid
+      if tuning_snapshot.layers.show_starfield
+      {
+        starfield.draw( &gl, view_proj );
+      }
+
+      if tuning_snapshot.layers.show_trajectories
+      {
+        if trajectories.is_none()
+        {
+          match Trajectories::new( &gl, &ships, camera.projection_matrix_get(), [ w as f32, h as f32 ] )
+          {
+            Ok( built ) => trajectories = Some( built ),
+            Err( e ) =>
+            {
+              // Switch the layer back off so a failing build isn't retried
+              // (and warned about) every frame.
+              web_sys::console::warn_1( &format!( "Falling Frontier: trajectory ribbons unavailable: {e}" ).into() );
+              tuning.borrow_mut().layers.show_trajectories = false;
+            }
+          }
+        }
+        if let Some( trajectories ) = &mut trajectories
+        {
+          trajectories.draw( &gl, camera.view_matrix_get(), camera.projection_matrix_get(), [ w as f32, h as f32 ] );
+        }
+      }
+
+      if tuning_snapshot.layers.show_grid
       {
         grid.draw
         (
@@ -794,7 +871,7 @@ fn app_run() -> Result< (), gl::WebglError >
       // M6: the gizmo handle, drawn on top of everything at whatever is
       // currently selected (translate cross or rotate ring, per
       // `ctx.gizmo_mode`).
-      if let Some( kind ) = selected_kind
+      if let Some( kind ) = selected_kind && gizmo_visible( kind, &tuning_snapshot.layers )
       {
         let object_transform = selected_transform( kind, &asteroids, &ships, &station );
         let gizmo_part = ctx.gizmo.part( ctx.gizmo_mode.get(), object_transform, GIZMO_ID );
@@ -965,4 +1042,35 @@ fn setup_selection_and_gizmo( ctx : &Rc< InteractionCtx > )
 fn main()
 {
   app_run().unwrap();
+}
+
+#[ cfg( test ) ]
+mod tests
+{
+  use super::{ gizmo_visible, kind_visible, PickedKind, RenderLayers };
+
+  #[ test ]
+  fn each_kind_follows_its_own_layer_switch()
+  {
+    let all_hidden = RenderLayers { show_asteroids : false, show_ships : false, show_station : false, ..RenderLayers::default() };
+    for kind in [ PickedKind::Asteroid( 0 ), PickedKind::Ship( 0 ), PickedKind::Station ]
+    {
+      assert!( kind_visible( kind, &RenderLayers::default() ) );
+      assert!( !kind_visible( kind, &all_hidden ) );
+    }
+
+    let ships_only = RenderLayers { show_asteroids : false, show_station : false, ..RenderLayers::default() };
+    assert!( !kind_visible( PickedKind::Asteroid( 3 ), &ships_only ) );
+    assert!( kind_visible( PickedKind::Ship( 3 ), &ships_only ) );
+    assert!( !kind_visible( PickedKind::Station, &ships_only ) );
+  }
+
+  #[ test ]
+  fn gizmo_needs_its_switch_and_a_visible_object()
+  {
+    let kind = PickedKind::Ship( 0 );
+    assert!( gizmo_visible( kind, &RenderLayers::default() ) );
+    assert!( !gizmo_visible( kind, &RenderLayers { show_gizmo : false, ..RenderLayers::default() } ) );
+    assert!( !gizmo_visible( kind, &RenderLayers { show_ships : false, ..RenderLayers::default() } ) );
+  }
 }

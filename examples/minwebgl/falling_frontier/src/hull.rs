@@ -97,6 +97,7 @@ struct HullUniforms
   light_view_proj : Option< gl::WebGlUniformLocation >,
   shadow_map : Option< gl::WebGlUniformLocation >,
   shadows_enabled : Option< gl::WebGlUniformLocation >,
+  lighting_enabled : Option< gl::WebGlUniformLocation >,
 }
 
 pub struct HullProgram
@@ -128,6 +129,7 @@ impl HullProgram
       light_view_proj : gl.get_uniform_location( &program, "u_light_view_proj" ),
       shadow_map : gl.get_uniform_location( &program, "u_shadow_map" ),
       shadows_enabled : gl.get_uniform_location( &program, "u_shadows_enabled" ),
+      lighting_enabled : gl.get_uniform_location( &program, "u_lighting_enabled" ),
     };
 
     Self { program, uniforms }
@@ -144,6 +146,7 @@ impl HullProgram
     &self, gl : &GL, view_proj : gl::F32x4x4, camera_position : gl::F32x3,
     light_dir : gl::F32x3, light_color : [ f32; 3 ], light_intensity : f32,
     light_view_proj : gl::F32x4x4, shadow_map : Option< &gl::web_sys::WebGlTexture >, shadows_enabled : bool,
+    lighting_enabled : bool,
   )
   {
     gl.use_program( Some( &self.program ) );
@@ -155,6 +158,7 @@ impl HullProgram
     gl::uniform::upload( gl, u.light_intensity.clone(), &light_intensity ).unwrap();
     gl::uniform::matrix_upload( gl, u.light_view_proj.clone(), light_view_proj.to_array().as_slice(), true ).unwrap();
     gl::uniform::upload( gl, u.shadows_enabled.clone(), &if shadows_enabled { 1.0f32 } else { 0.0f32 } ).unwrap();
+    gl::uniform::upload( gl, u.lighting_enabled.clone(), &if lighting_enabled { 1.0f32 } else { 0.0f32 } ).unwrap();
 
     gl.active_texture( GL::TEXTURE0 );
     gl.bind_texture( GL::TEXTURE_2D, shadow_map );

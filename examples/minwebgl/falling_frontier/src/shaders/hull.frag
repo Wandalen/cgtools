@@ -20,6 +20,7 @@ uniform float u_light_intensity;
 uniform mat4 u_light_view_proj;
 uniform sampler2D u_shadow_map;
 uniform float u_shadows_enabled;
+uniform float u_lighting_enabled;
 
 out vec4 frag_color;
 
@@ -77,6 +78,27 @@ float shadow_factor( vec3 world_pos )
 
 void main()
 {
+  // Fully self-lit parts (u_ambient == 1.0: engine glow, beacon) fall
+  // straight through to plain u_color regardless of any lighting term, same
+  // invariant the original flat-ambient formula relied on - `self_lit` is a
+  // hard step rather than a continuous blend since AMBIENT_LIT/AMBIENT_GLOW
+  // (see hull.rs) are the only two values ever passed in, and blending
+  // partway between the lit result and `u_color` for the *normal* 0.35 case
+  // would just dilute the shading effect this rewrite is for.
+  float self_lit = step( 0.999, u_ambient );
+
+  // Render-layer isolation: with lighting switched off, every non-glow part
+  // reads as plain flat `u_color` (no normal/shadow/specular work at all) -
+  // a deliberately separate uniform from `u_shadows_enabled`, which only
+  // gates the shadow *sample* within the normal lit path below and would
+  // still leave directional shading (and the resulting dark unlit faces) in
+  // place on its own.
+  if ( u_lighting_enabled < 0.5 && self_lit < 0.5 )
+  {
+    frag_color = vec4( u_color, 1.0 );
+    return;
+  }
+
   vec3 normal = normalize( cross( dFdx( v_world_pos ), dFdy( v_world_pos ) ) );
   if ( !gl_FrontFacing ) normal = -normal;
 
@@ -96,14 +118,6 @@ void main()
   vec3 diffuse_color = u_color * u_light_color * u_light_intensity;
   vec3 base = mix( ambient_color, diffuse_color, lit ) * floor_and_diffuse;
 
-  // Fully self-lit parts (u_ambient == 1.0: engine glow, beacon) fall
-  // straight through to plain u_color regardless of `base` above, same
-  // invariant the original flat-ambient formula relied on - `self_lit` is a
-  // hard step rather than a continuous blend since AMBIENT_LIT/AMBIENT_GLOW
-  // (see hull.rs) are the only two values ever passed in, and blending
-  // partway between `base` and `u_color` for the *normal* 0.35 case would
-  // just dilute the shading effect this rewrite is for.
-  float self_lit = step( 0.999, u_ambient );
   vec3 color = mix( base, u_color, self_lit );
   color += u_light_color * u_light_intensity * spec * SPECULAR_STRENGTH * ( 1.0 - self_lit );
 

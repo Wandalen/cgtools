@@ -1,52 +1,171 @@
-//! Full-viewport nebula backdrop - stands in for `scene/world.js`'s flat
-//! `scene.background = new THREE.Color(COLORS.spaceBg)`, matching the
-//! soft drifting cloud-blob look of the reference game screenshot the
-//! tactical UI itself is modeled on rather than the JS port's flat
-//! placeholder. Drawn first each frame with depth test/write both off, so
-//! it always sits behind every other draw call regardless of camera orbit.
+//! Nebula skybox backdrop - stands in for the three.js original's flat
+//! `COLORS.spaceBg` scene background colour, matching the soft
+//! drifting cloud-blob look of the reference game screenshot the tactical UI
+//! itself is modeled on rather than the JS port's flat placeholder.
+//!
+//! The nebula is a 5-octave fbm evaluated per pixel (`shaders/background.frag`),
+//! too expensive to run every frame for what is, in the end, a static
+//! backdrop the camera orbits but never approaches. `Background::new` bakes
+//! that formula once into a cube map (one draw per face, camera at the
+//! origin, `u_time` frozen at 0 - see `bake_cubemap`) and every subsequent
+//! frame just samples it (`shaders/skybox.frag`), one texture fetch instead
+//! of the whole noise stack. Drawn first each frame with depth test/write
+//! both off, so it always sits behind every other draw call regardless of
+//! camera orbit.
 
 use minwebgl as gl;
 use gl::GL;
+use gl::web_sys::wasm_bindgen::JsCast;
 
-struct BackgroundUniforms
+// Smooth, low-frequency nebula content - no fine detail to preserve, so a
+// modest face resolution is plenty and keeps the one-time bake cheap.
+const BAKE_RESOLUTION : i32 = 512;
+
+/// Per-face view-projection for baking: slot `i` is the camera for
+/// `TEXTURE_CUBE_MAP_POSITIVE_X + i`, looking down that face's axis with the
+/// up vector the GL cube-map lookup implies (-Y for the four side faces,
+/// +Z / -Z for +Y / -Y). `tests` checks every slot against the lookup
+/// table, so a swapped or mirrored face (which once showed up here as a seam
+/// between the X faces and their neighbours) fails a test instead of only
+/// being visible when orbiting the backdrop.
+fn cube_face_view_proj() -> [ gl::F32x4x4; 6 ]
+{
+  let px = gl::math::mat3x3h::look_at_rh( gl::F32x3::ZERO, gl::F32x3::X, gl::F32x3::NEG_Y );
+  let nx = gl::math::mat3x3h::look_at_rh( gl::F32x3::ZERO, gl::F32x3::NEG_X, gl::F32x3::NEG_Y );
+  let py = gl::math::mat3x3h::look_at_rh( gl::F32x3::ZERO, gl::F32x3::Y, gl::F32x3::Z );
+  let ny = gl::math::mat3x3h::look_at_rh( gl::F32x3::ZERO, gl::F32x3::NEG_Y, gl::F32x3::NEG_Z );
+  let pz = gl::math::mat3x3h::look_at_rh( gl::F32x3::ZERO, gl::F32x3::Z, gl::F32x3::NEG_Y );
+  let nz = gl::math::mat3x3h::look_at_rh( gl::F32x3::ZERO, gl::F32x3::NEG_Z, gl::F32x3::NEG_Y );
+
+  let proj = gl::math::mat3x3h::perspective_rh_gl( 90.0f32.to_radians(), 1.0, 0.1, 10.0 );
+  [ proj * px, proj * nx, proj * py, proj * ny, proj * pz, proj * nz ]
+}
+
+/// Renders `shaders/background.frag`'s nebula formula once per cube face
+/// into a freshly created cube texture. Reuses `background.vert`'s
+/// attributeless "big triangle" trick and `background.frag`'s own
+/// `u_inv_view_proj`/`u_camera_position` ray reconstruction unmodified - with
+/// the camera pinned to the origin, `far.xyz - u_camera_position` reduces to
+/// exactly the direction each face's view-projection was built to cover, so
+/// sampling the result later with that same direction reproduces the formula
+/// faithfully.
+fn bake_cubemap( gl : &GL ) -> gl::web_sys::WebGlTexture
+{
+  let vertex_shader = include_str!( "shaders/background.vert" );
+  let fragment_shader = include_str!( "shaders/background.frag" );
+  let program = gl::ProgramFromSources::new( vertex_shader, fragment_shader )
+  .compile_and_link( gl )
+  .unwrap();
+
+  let inv_view_proj_loc = gl.get_uniform_location( &program, "u_inv_view_proj" );
+  let camera_position_loc = gl.get_uniform_location( &program, "u_camera_position" );
+  let time_loc = gl.get_uniform_location( &program, "u_time" );
+
+  // No attributes, same reasoning as `Background`'s own runtime vao below.
+  let vao = gl::vao::create( gl ).unwrap();
+
+  let texture = gl.create_texture().unwrap();
+  gl.bind_texture( GL::TEXTURE_CUBE_MAP, Some( &texture ) );
+  for i in 0 .. 6
+  {
+    gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array
+    (
+      GL::TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL::RGBA as i32,
+      BAKE_RESOLUTION, BAKE_RESOLUTION, 0, GL::RGBA, GL::UNSIGNED_BYTE, None,
+    ).unwrap();
+  }
+  gl.tex_parameteri( GL::TEXTURE_CUBE_MAP, GL::TEXTURE_MIN_FILTER, GL::LINEAR as i32 );
+  gl.tex_parameteri( GL::TEXTURE_CUBE_MAP, GL::TEXTURE_MAG_FILTER, GL::LINEAR as i32 );
+  gl.tex_parameteri( GL::TEXTURE_CUBE_MAP, GL::TEXTURE_WRAP_S, GL::CLAMP_TO_EDGE as i32 );
+  gl.tex_parameteri( GL::TEXTURE_CUBE_MAP, GL::TEXTURE_WRAP_T, GL::CLAMP_TO_EDGE as i32 );
+  gl.tex_parameteri( GL::TEXTURE_CUBE_MAP, GL::TEXTURE_WRAP_R, GL::CLAMP_TO_EDGE as i32 );
+
+  let framebuffer = gl.create_framebuffer();
+  gl.bind_framebuffer( GL::FRAMEBUFFER, framebuffer.as_ref() );
+  gl.viewport( 0, 0, BAKE_RESOLUTION, BAKE_RESOLUTION );
+  gl.use_program( Some( &program ) );
+  gl.bind_vertex_array( Some( &vao ) );
+  gl::uniform::upload( gl, camera_position_loc, gl::F32x3::ZERO.to_array().as_slice() ).unwrap();
+  gl::uniform::upload( gl, time_loc, &0.0f32 ).unwrap();
+
+  for ( i, view_proj ) in cube_face_view_proj().iter().enumerate()
+  {
+    // The bake camera's perspective/look-at is never degenerate, so this
+    // inverse always exists.
+    let inv_view_proj = view_proj.inverse().unwrap();
+    gl::uniform::matrix_upload( gl, inv_view_proj_loc.clone(), inv_view_proj.to_array().as_slice(), true ).unwrap();
+    gl.framebuffer_texture_2d
+    (
+      GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0,
+      GL::TEXTURE_CUBE_MAP_POSITIVE_X + i as u32, Some( &texture ), 0,
+    );
+    gl.draw_arrays( GL::TRIANGLES, 0, 3 );
+  }
+
+  // Everything but the texture is one-shot: nothing draws through the bake
+  // program, its VAO or its framebuffer again. Unbind first so the deletes
+  // take effect now instead of waiting for the objects to stop being current.
+  gl.bind_framebuffer( GL::FRAMEBUFFER, None );
+  gl.bind_vertex_array( None );
+  gl.use_program( None );
+  gl.delete_framebuffer( framebuffer.as_ref() );
+  gl.delete_vertex_array( Some( &vao ) );
+  // `compile_and_link` leaves its two shader objects attached to the program;
+  // deleting the program alone would leave them allocated.
+  if let Some( shaders ) = gl.get_attached_shaders( &program )
+  {
+    for shader in shaders.iter().filter_map( | s | s.dyn_into::< gl::web_sys::WebGlShader >().ok() )
+    {
+      gl.delete_shader( Some( &shader ) );
+    }
+  }
+  gl.delete_program( Some( &program ) );
+
+  texture
+}
+
+struct SkyboxUniforms
 {
   inv_view_proj : Option< gl::WebGlUniformLocation >,
   camera_position : Option< gl::WebGlUniformLocation >,
-  time : Option< gl::WebGlUniformLocation >,
+  skybox : Option< gl::WebGlUniformLocation >,
 }
 
 pub struct Background
 {
   vao : gl::WebGlVertexArrayObject,
   program : gl::WebGlProgram,
-  uniforms : BackgroundUniforms,
+  uniforms : SkyboxUniforms,
+  cubemap : gl::web_sys::WebGlTexture,
 }
 
 impl Background
 {
   pub fn new( gl : &GL ) -> Self
   {
+    let cubemap = bake_cubemap( gl );
+
     // No attributes - `background.vert` draws its triangle purely off
     // `gl_VertexID`, but WebGL2 still requires *a* VAO bound to draw at all.
     let vao = gl::vao::create( gl ).unwrap();
 
     let vertex_shader = include_str!( "shaders/background.vert" );
-    let fragment_shader = include_str!( "shaders/background.frag" );
+    let fragment_shader = include_str!( "shaders/skybox.frag" );
     let program = gl::ProgramFromSources::new( vertex_shader, fragment_shader )
     .compile_and_link( gl )
     .unwrap();
 
-    let uniforms = BackgroundUniforms
+    let uniforms = SkyboxUniforms
     {
       inv_view_proj : gl.get_uniform_location( &program, "u_inv_view_proj" ),
       camera_position : gl.get_uniform_location( &program, "u_camera_position" ),
-      time : gl.get_uniform_location( &program, "u_time" ),
+      skybox : gl.get_uniform_location( &program, "u_skybox" ),
     };
 
-    Self { vao, program, uniforms }
+    Self { vao, program, uniforms, cubemap }
   }
 
-  pub fn draw( &self, gl : &GL, view_proj : gl::F32x4x4, camera_position : gl::F32x3, time : f32 )
+  pub fn draw( &self, gl : &GL, view_proj : gl::F32x4x4, camera_position : gl::F32x3 )
   {
     // A non-invertible view_proj can't happen with this scene's fixed
     // perspective projection, but skip the draw rather than upload garbage
@@ -57,7 +176,10 @@ impl Background
     let u = &self.uniforms;
     gl::uniform::matrix_upload( gl, u.inv_view_proj.clone(), inv_view_proj.to_array().as_slice(), true ).unwrap();
     gl::uniform::upload( gl, u.camera_position.clone(), camera_position.to_array().as_slice() ).unwrap();
-    gl::uniform::upload( gl, u.time.clone(), &time ).unwrap();
+
+    gl.active_texture( GL::TEXTURE0 );
+    gl.bind_texture( GL::TEXTURE_CUBE_MAP, Some( &self.cubemap ) );
+    gl::uniform::upload( gl, u.skybox.clone(), &0i32 ).unwrap();
 
     gl.disable( GL::DEPTH_TEST );
     gl.depth_mask( false );
@@ -67,5 +189,69 @@ impl Background
 
     gl.depth_mask( true );
     gl.enable( GL::DEPTH_TEST );
+  }
+}
+
+#[ cfg( test ) ]
+mod tests
+{
+  use super::cube_face_view_proj;
+  use minwebgl as gl;
+
+  /// Where the GL cube-map lookup (OpenGL ES 3.0 §3.8.10, table 3.21) puts
+  /// direction `d` on `face` (0..6 = +X, -X, +Y, -Y, +Z, -Z), as NDC on that
+  /// face's render target: `( sc / |ma|, tc / |ma| )`. Face row 0 is the
+  /// render target's bottom row, so `t` maps to NDC y without a flip.
+  fn expected_ndc( face : usize, d : [ f32; 3 ] ) -> [ f32; 2 ]
+  {
+    let [ rx, ry, rz ] = d;
+    let ( sc, tc, ma ) = match face
+    {
+      0 => ( -rz, -ry, rx ),
+      1 => ( rz, -ry, -rx ),
+      2 => ( rx, rz, ry ),
+      3 => ( rx, -rz, -ry ),
+      4 => ( rx, -ry, rz ),
+      5 => ( -rx, -ry, -rz ),
+      _ => unreachable!(),
+    };
+    [ sc / ma, tc / ma ]
+  }
+
+  #[ test ]
+  fn each_slot_renders_the_face_the_sampler_reads()
+  {
+    let face_axes : [ [ f32; 3 ]; 6 ] =
+    [
+      [ 1.0, 0.0, 0.0 ], [ -1.0, 0.0, 0.0 ],
+      [ 0.0, 1.0, 0.0 ], [ 0.0, -1.0, 0.0 ],
+      [ 0.0, 0.0, 1.0 ], [ 0.0, 0.0, -1.0 ],
+    ];
+    // Off-centre by different amounts on the two minor axes, so a swapped
+    // face, a mirrored axis or a transposed pair all land somewhere else.
+    let offsets = [ [ 0.0, 0.0 ], [ 0.3, -0.2 ], [ -0.45, 0.1 ] ];
+
+    for ( slot, view_proj ) in cube_face_view_proj().iter().enumerate()
+    {
+      let axis = face_axes[ slot ];
+      let major = axis.iter().position( | c | *c != 0.0 ).unwrap();
+      let minors : Vec< usize > = ( 0 .. 3 ).filter( | i | *i != major ).collect();
+      for [ a, b ] in offsets
+      {
+        let mut d = axis;
+        d[ minors[ 0 ] ] = a;
+        d[ minors[ 1 ] ] = b;
+
+        let clip = *view_proj * gl::math::F32x4::new( d[ 0 ] * 5.0, d[ 1 ] * 5.0, d[ 2 ] * 5.0, 1.0 );
+        assert!( clip.w() > 0.0, "slot {slot}: direction {d:?} is behind the bake camera" );
+        let ndc = [ clip.x() / clip.w(), clip.y() / clip.w() ];
+        let want = expected_ndc( slot, d );
+        assert!
+        (
+          ( ndc[ 0 ] - want[ 0 ] ).abs() < 1e-4 && ( ndc[ 1 ] - want[ 1 ] ).abs() < 1e-4,
+          "slot {slot}: direction {d:?} lands at {ndc:?}, the sampler reads it at {want:?}"
+        );
+      }
+    }
   }
 }

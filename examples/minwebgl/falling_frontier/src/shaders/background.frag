@@ -88,10 +88,11 @@ void main()
   vec3 color = mix( deep, base, smoothstep( -0.9, -0.15, elevation ) );
   color = mix( color, bright, clouds * 0.5 );
 
-  // Soft falloff right at the bottom edge only, echoing the reference
-  // screenshot's letterbox vignette without darkening the rest of the sky.
-  float vignette = 1.0 - 0.25 * smoothstep( 0.55, 1.0, -v_ndc.y );
-  color *= vignette;
-
+  // No screen-space vignette here (deliberately, unlike this shader's
+  // pre-bake version) - this formula is baked once per cube face (see
+  // `background.rs`'s `bake_cubemap`), and a `v_ndc`-based falloff would bake
+  // in *that bake camera's* screen edge as a permanent world-space seam at
+  // each face boundary. `skybox.frag` applies the equivalent falloff itself,
+  // in the real camera's screen space, after sampling this baked result.
   frag_color = vec4( color, 1.0 );
 }
