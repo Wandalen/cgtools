@@ -21,31 +21,24 @@ use gl::web_sys::wasm_bindgen::JsCast;
 // modest face resolution is plenty and keeps the one-time bake cheap.
 const BAKE_RESOLUTION : i32 = 512;
 
-/// Per-face view-projection for baking, sharing the six-direction convention
-/// (and `TEXTURE_CUBE_MAP_POSITIVE_X`-relative face order) `examples/minwebgl/
-/// make_cube_map`'s own `cube_camera_make` uses, so face `i` here always
-/// lines up with `TEXTURE_CUBE_MAP_POSITIVE_X + i`.
-///
-/// `px`/`nx` are deliberately *not* in POSITIVE_X/NEGATIVE_X slot order in
-/// the returned array - `px` (as named/defined below) is actually the
-/// standard camera for the NEGATIVE_X slot, and `nx` for POSITIVE_X, per the
-/// usual OpenGL cubemap-face camera table (e.g. LearnOpenGL's point-shadow
-/// cubemap setup), which `py`/`ny`/`pz`/`nz` already follow directly. Mixing
-/// up that one pair showed up as a visible seam between the X faces and
-/// their neighbors; swapping the two slots (not their camera directions)
-/// fixes it, confirmed seam-free by orbiting a world-direction-colored test
-/// bake (RGB = ray_dir) across the whole sphere.
+/// Per-face view-projection for baking: slot `i` is the camera for
+/// `TEXTURE_CUBE_MAP_POSITIVE_X + i`, looking down that face's axis with the
+/// up vector the GL cube-map lookup implies (-Y for the four side faces,
+/// +Z / -Z for +Y / -Y). `tests` checks every slot against the lookup
+/// table, so a swapped or mirrored face (which once showed up here as a seam
+/// between the X faces and their neighbours) fails a test instead of only
+/// being visible when orbiting the backdrop.
 fn cube_face_view_proj() -> [ gl::F32x4x4; 6 ]
 {
-  let px = gl::math::mat3x3h::look_at_rh( gl::F32x3::ZERO, gl::F32x3::NEG_X, gl::F32x3::NEG_Y );
-  let nx = gl::math::mat3x3h::look_at_rh( gl::F32x3::ZERO, gl::F32x3::X, gl::F32x3::NEG_Y );
+  let px = gl::math::mat3x3h::look_at_rh( gl::F32x3::ZERO, gl::F32x3::X, gl::F32x3::NEG_Y );
+  let nx = gl::math::mat3x3h::look_at_rh( gl::F32x3::ZERO, gl::F32x3::NEG_X, gl::F32x3::NEG_Y );
   let py = gl::math::mat3x3h::look_at_rh( gl::F32x3::ZERO, gl::F32x3::Y, gl::F32x3::Z );
   let ny = gl::math::mat3x3h::look_at_rh( gl::F32x3::ZERO, gl::F32x3::NEG_Y, gl::F32x3::NEG_Z );
   let pz = gl::math::mat3x3h::look_at_rh( gl::F32x3::ZERO, gl::F32x3::Z, gl::F32x3::NEG_Y );
   let nz = gl::math::mat3x3h::look_at_rh( gl::F32x3::ZERO, gl::F32x3::NEG_Z, gl::F32x3::NEG_Y );
 
   let proj = gl::math::mat3x3h::perspective_rh_gl( 90.0f32.to_radians(), 1.0, 0.1, 10.0 );
-  [ proj * nx, proj * px, proj * py, proj * ny, proj * pz, proj * nz ]
+  [ proj * px, proj * nx, proj * py, proj * ny, proj * pz, proj * nz ]
 }
 
 /// Renders `shaders/background.frag`'s nebula formula once per cube face
@@ -196,5 +189,69 @@ impl Background
 
     gl.depth_mask( true );
     gl.enable( GL::DEPTH_TEST );
+  }
+}
+
+#[ cfg( test ) ]
+mod tests
+{
+  use super::cube_face_view_proj;
+  use minwebgl as gl;
+
+  /// Where the GL cube-map lookup (OpenGL ES 3.0 §3.8.10, table 3.21) puts
+  /// direction `d` on `face` (0..6 = +X, -X, +Y, -Y, +Z, -Z), as NDC on that
+  /// face's render target: `( sc / |ma|, tc / |ma| )`. Face row 0 is the
+  /// render target's bottom row, so `t` maps to NDC y without a flip.
+  fn expected_ndc( face : usize, d : [ f32; 3 ] ) -> [ f32; 2 ]
+  {
+    let [ rx, ry, rz ] = d;
+    let ( sc, tc, ma ) = match face
+    {
+      0 => ( -rz, -ry, rx ),
+      1 => ( rz, -ry, -rx ),
+      2 => ( rx, rz, ry ),
+      3 => ( rx, -rz, -ry ),
+      4 => ( rx, -ry, rz ),
+      5 => ( -rx, -ry, -rz ),
+      _ => unreachable!(),
+    };
+    [ sc / ma, tc / ma ]
+  }
+
+  #[ test ]
+  fn each_slot_renders_the_face_the_sampler_reads()
+  {
+    let face_axes : [ [ f32; 3 ]; 6 ] =
+    [
+      [ 1.0, 0.0, 0.0 ], [ -1.0, 0.0, 0.0 ],
+      [ 0.0, 1.0, 0.0 ], [ 0.0, -1.0, 0.0 ],
+      [ 0.0, 0.0, 1.0 ], [ 0.0, 0.0, -1.0 ],
+    ];
+    // Off-centre by different amounts on the two minor axes, so a swapped
+    // face, a mirrored axis or a transposed pair all land somewhere else.
+    let offsets = [ [ 0.0, 0.0 ], [ 0.3, -0.2 ], [ -0.45, 0.1 ] ];
+
+    for ( slot, view_proj ) in cube_face_view_proj().iter().enumerate()
+    {
+      let axis = face_axes[ slot ];
+      let major = axis.iter().position( | c | *c != 0.0 ).unwrap();
+      let minors : Vec< usize > = ( 0 .. 3 ).filter( | i | *i != major ).collect();
+      for [ a, b ] in offsets
+      {
+        let mut d = axis;
+        d[ minors[ 0 ] ] = a;
+        d[ minors[ 1 ] ] = b;
+
+        let clip = *view_proj * gl::math::F32x4::new( d[ 0 ] * 5.0, d[ 1 ] * 5.0, d[ 2 ] * 5.0, 1.0 );
+        assert!( clip.w() > 0.0, "slot {slot}: direction {d:?} is behind the bake camera" );
+        let ndc = [ clip.x() / clip.w(), clip.y() / clip.w() ];
+        let want = expected_ndc( slot, d );
+        assert!
+        (
+          ( ndc[ 0 ] - want[ 0 ] ).abs() < 1e-4 && ( ndc[ 1 ] - want[ 1 ] ).abs() < 1e-4,
+          "slot {slot}: direction {d:?} lands at {ndc:?}, the sampler reads it at {want:?}"
+        );
+      }
+    }
   }
 }
