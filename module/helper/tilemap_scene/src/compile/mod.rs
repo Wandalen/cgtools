@@ -29,7 +29,9 @@ mod_interface::mod_interface!
   layer frame;
   layer ids;
   layer neighbors;
+  layer orient;
   layer resolver;
+  layer tint;
   layer vertex;
   layer viewport;
 }
