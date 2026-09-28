@@ -8,7 +8,9 @@
 //! and the dashed height-guide-lines dropping from each waypoint to the
 //! grid plane are dropped - decorative flourishes on top of a ribbon that's
 //! already there, not load-bearing for reading the patrol route. Hidden by
-//! default, as in the three.js original, toggled via the dev panel.
+//! default, as in the three.js original, and not yet exposed in any panel
+//! (`RenderLayers::show_trajectories` has no row); `main.rs` builds the
+//! ribbons the first time that switch is on.
 //!
 //! The JS reference's sensor rings (`createSensorRing`, a dashed radius
 //! circle per ship with a `sensorRadius`) are cut entirely, not just hidden -

@@ -4,7 +4,8 @@
 //! blocking asteroids as a faceted boundary polyline. Object picking uses
 //! an off-screen id buffer (`gpu_picking`), selected units get a
 //! movable/rotatable transform gizmo, fleets move along Catmull-Rom
-//! trajectories, and a HUD surfaces unit info and view-layer toggles. See
+//! patrol paths, a HUD surfaces unit info and playback controls, and a
+//! Render Layers dev panel shows or hides each scene layer. See
 //! `PORT_PLAN.md` in this crate for the milestone history and porting notes.
 
 mod debug;

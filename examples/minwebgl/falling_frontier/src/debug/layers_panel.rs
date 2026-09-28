@@ -4,18 +4,16 @@
 //! united in one place, separate from `grid_tuning_panel`'s slider-heavy
 //! shader tuning controls and from `hud`'s in-game "real UI". Lets any
 //! combination of scene layers be isolated (e.g. "only the grid") or hidden
-//! (e.g. "everything but asteroids") from a single menu instead of hunting
-//! each switch down across `grid_tuning_panel`'s subsections or `hud`'s
-//! toolbar.
+//! (e.g. "everything but asteroids") from a single menu; the HUD no longer
+//! carries visibility toggles of its own.
 //!
-//! Trajectories and ship animation were cut from this panel deliberately -
-//! both were still unfinished/experimental, so they're left off by default
-//! (`GridTuning::default`) with no UI surface to turn them back on. The
-//! underlying `GridTuning::show_trajectories`/`animate_ships` fields and the
-//! rendering code that reads them (`trajectories.rs`, `main.rs`'s fleet-
-//! motion step) are untouched - only this panel's rows are gone. Sensor
-//! rings were cut further still: the feature itself is gone from
-//! `trajectories.rs`, not just hidden.
+//! Trajectories and ship animation have no rows here. Ship animation is
+//! driven by the HUD's Pause/Play/Fast buttons (`GridTuning::animate_ships`
+//! and `speed_multiplier`). Trajectories are still unfinished, so
+//! `RenderLayers::show_trajectories` stays off by default with no toggle
+//! anywhere yet; the frame loop builds the ribbons the first time it is
+//! set. Sensor rings were cut further still: the feature itself is gone
+//! from `trajectories.rs`, not just hidden.
 //!
 //! Left click flips just the clicked row, same as any checkbox. Right click
 //! (`contextmenu`, default browser menu suppressed) is an unconditional
@@ -56,10 +54,9 @@ fn checkbox_row_html( id : &str, label : &str, checked : bool ) -> String
 }
 
 /// One row's id + label + the `RenderLayers` bool field it reads/writes.
-/// `field` is a projection (`|t| &mut t.some_bool`), same pattern
-/// `hud::bind_tuning_toggle` uses, so every row (and the solo gesture, which
-/// needs to reach every *other* row's field too) shares one path instead of
-/// each repeating its own borrow/read/write/rebuild sequence.
+/// `field` is a projection (`|t| &mut t.some_bool`), so every row (and the
+/// solo gesture, which needs to reach every *other* row's field too) shares
+/// one path instead of each repeating its own borrow/read/write sequence.
 struct LayerToggle
 {
   id : &'static str,

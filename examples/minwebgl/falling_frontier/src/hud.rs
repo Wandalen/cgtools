@@ -184,9 +184,8 @@ const TIME_CONTROL_IDS : [ &str; 3 ] = [ "ff-btn-pause", "ff-btn-play", "ff-btn-
 /// when `animate_ships` is clear, else Play/Fast is picked by
 /// `speed_multiplier` (Play = 1.0, Fast = 2.5 - a `> 1.0` threshold avoids
 /// relying on exact float equality) - so the initial render matches
-/// whatever state `tuning` already holds, the same guarantee the other four
-/// toggles have. Returns each button's own `active`-or-empty CSS class
-/// fragment, in (pause, play, fast) order.
+/// whatever state `tuning` already holds. Returns each button's own
+/// `active`-or-empty CSS class fragment, in (pause, play, fast) order.
 fn time_control_button_classes( animate_ships : bool, speed_multiplier : f32 ) -> ( &'static str, &'static str, &'static str )
 {
   if !animate_ships
