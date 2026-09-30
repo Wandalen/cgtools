@@ -16,7 +16,15 @@ vec3 LinearToSrgb( const in vec3 color )
 
 void main()
 {
-  vec3 result = LinearToSrgb( texture( sourceTexture, vUv ).rgb );
+  vec4 src = texture( sourceTexture, vUv );
+  vec3 result = LinearToSrgb( src.rgb );
   //result = texture( sourceTexture, vUv ).rgb;
+#ifdef FORWARD_ALPHA
+  // Opt-in (`ToSrgbPass::alpha_forward_set`): forward the coverage alpha from
+  // the tone mapping pass (background = 0, geometry = 1) so the canvas this pass
+  // writes can be alpha-composited over other content, e.g. AR over a photo.
+  frag_color = vec4( result, src.a );
+#else
   frag_color = vec4( result, 1.0 );
+#endif
 }
