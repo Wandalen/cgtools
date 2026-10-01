@@ -261,34 +261,54 @@ mod tests
   #[ wasm_bindgen_test ]
   fn layer_extensions_apply_maps_json_onto_material()
   {
-    // One texture in the asset: index 0 resolves (with its texCoord), index 5 is out of range
-    // and must leave that texture unset rather than panic.
+    // Material 0 names each of the four extension textures in range, each with its own texture
+    // and UV set; material 1 names an index past the asset's three textures, which must leave
+    // that texture unset rather than panic.
     let gltf = gltf::Gltf::from_slice_without_validation( br#"
     {
       "asset" : { "version" : "2.0" },
-      "materials" : [ { "extensions" : {
-        "KHR_materials_clearcoat" : {
-          "clearcoatFactor" : 1.0,
-          "clearcoatNormalTexture" : { "index" : 0, "texCoord" : 1, "scale" : 0.5 },
-          "clearcoatTexture" : { "index" : 5 }
-        },
-        "KHR_materials_anisotropy" : { "anisotropyStrength" : 0.4, "anisotropyRotation" : 0.3 }
-      } } ]
+      "materials" : [
+        { "extensions" : {
+          "KHR_materials_clearcoat" : {
+            "clearcoatFactor" : 1.0,
+            "clearcoatTexture" : { "index" : 1, "texCoord" : 2 },
+            "clearcoatRoughnessTexture" : { "index" : 2 },
+            "clearcoatNormalTexture" : { "index" : 0, "texCoord" : 1, "scale" : 0.5 }
+          },
+          "KHR_materials_anisotropy" : {
+            "anisotropyStrength" : 0.4,
+            "anisotropyRotation" : 0.3,
+            "anisotropyTexture" : { "index" : 1, "texCoord" : 3 }
+          }
+        } },
+        { "extensions" : { "KHR_materials_clearcoat" : { "clearcoatFactor" : 1.0, "clearcoatTexture" : { "index" : 5 } } } }
+      ]
     }"# ).expect( "fixture parses" );
-    let gltf_m = gltf.materials().next().expect( "one material" );
-    let textures = [ Rc::new( RefCell::new( Texture::new() ) ) ];
-
+    let textures = [ 0, 1, 2 ].map( | _ | Rc::new( RefCell::new( Texture::new() ) ) );
     let gl_context = gl_init();
-    let mut mat = PbrMaterial::new( &gl_context );
-    material_layer_extensions_apply( &gltf_m, &textures, &mut mat );
+    let mut materials = gltf.materials().map( | gltf_m |
+    {
+      let mut mat = PbrMaterial::new( &gl_context );
+      material_layer_extensions_apply( &gltf_m, &textures, &mut mat );
+      mat
+    });
+    let ( mat, out_of_range ) = ( materials.next().expect( "material 0" ), materials.next().expect( "material 1" ) );
+    // Which of the asset's textures, and which UV set, a material texture resolved to.
+    let resolved = | info : Option< &TextureInfo > |
+    {
+      info.map( | t | ( textures.iter().position( | a | Rc::ptr_eq( a, &t.texture ) ), t.uv_position ) )
+    };
 
     assert_eq!( mat.clearcoat_factor(), Some( 1.0 ) );
     assert_eq!( mat.clearcoat_roughness_factor(), Some( 0.0 ), "absent factor gets the extension default" );
-    assert!( mat.clearcoat_texture().is_none(), "out-of-range texture index must leave the texture unset" );
-    assert_eq!( mat.clearcoat_normal_texture().map( | t | t.uv_position ), Some( 1 ) );
+    assert_eq!( resolved( mat.clearcoat_texture() ), Some( ( Some( 1 ), 2 ) ) );
+    assert_eq!( resolved( mat.clearcoat_roughness_texture() ), Some( ( Some( 2 ), 0 ) ), "absent texCoord is UV set 0" );
+    assert_eq!( resolved( mat.clearcoat_normal_texture() ), Some( ( Some( 0 ), 1 ) ) );
     assert!( ( mat.clearcoat_normal_scale - 0.5 ).abs() < 1e-6 );
     assert_eq!( mat.anisotropy_strength(), Some( 0.4 ) );
     assert!( ( mat.anisotropy_rotation - 0.3 ).abs() < 1e-6 );
+    assert_eq!( resolved( mat.anisotropy_texture() ), Some( ( Some( 1 ), 3 ) ) );
+    assert!( out_of_range.clearcoat_texture().is_none(), "out-of-range texture index must leave the texture unset" );
   }
 
   #[ wasm_bindgen_test ]

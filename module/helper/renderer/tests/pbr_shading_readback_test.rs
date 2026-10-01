@@ -131,6 +131,38 @@ mod tests
     pixel
   }
 
+  /// Factors a material leaves unset must be uploaded as their extension's default: programs are
+  /// shared between materials with the same defines, so skipping the upload would draw with the
+  /// value the previous material left in the program. The values set by hand stand in for that
+  /// previous material.
+  #[ wasm_bindgen_test ]
+  fn unset_extension_factors_upload_their_defaults()
+  {
+    let gl = gl_init();
+    let mut material = PbrMaterial::new( &gl );
+    material.clearcoat_factor_set( Some( 1.0 ) );
+    material.specular_texture_set( Some( solid_texture( &gl, [ 255; 4 ], 0 ) ) );
+    let ( vs, fs ) = shader_sources( &material, false );
+    let program = gl::ProgramFromSources::new( &vs, &fs ).compile_and_link( &gl ).expect( "PBR program compiles" );
+    let shader = PBRShader::new( &gl, &program );
+    gl.use_program( Some( &program ) );
+    let uniform = | name : &str | gl.get_uniform_location( &program, name );
+    gl.uniform1f( uniform( "clearcoatRoughnessFactor" ).as_ref(), 0.7 );
+    gl.uniform1f( uniform( "specularFactor" ).as_ref(), 0.7 );
+    gl.uniform3f( uniform( "specularColorFactor" ).as_ref(), 0.3, 0.3, 0.3 );
+
+    let node = Node::default();
+    let ctx = MaterialUploadContext { node : &node, primitive_id : None, locations : shader.locations() };
+    material.upload_on_state_change( &gl, &ctx ).expect( "material uniforms upload" );
+
+    let read = | name : &str | gl::js_sys::Float32Array::from( gl.get_uniform( &program, &uniform( name ).expect( name ) ) ).to_vec();
+    let scalar = | name : &str | gl.get_uniform( &program, &uniform( name ).expect( name ) ).as_f64();
+    assert_eq!( scalar( "clearcoatRoughnessFactor" ), Some( 0.0 ), "KHR_materials_clearcoat default" );
+    assert_eq!( scalar( "specularFactor" ), Some( 1.0 ), "KHR_materials_specular default" );
+    assert_eq!( read( "specularColorFactor" ), [ 1.0, 1.0, 1.0 ], "KHR_materials_specular default" );
+    gl.delete_program( Some( &program ) );
+  }
+
   /// A black dielectric whose only visible light is the coat: base color 0, metallic 0.
   fn black_dielectric( gl : &GL ) -> PbrMaterial
   {
