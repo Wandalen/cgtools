@@ -39,8 +39,8 @@ implemented.
 
 ### Violation Consequences
 
-- Deleting a borrowed buffer: survivors keep drawing from the orphaned storage, but every later call naming the buffer (`Geometry::upload`, `attribute_add`, `bind_buffer` + data update) fails with `INVALID_OPERATION`, so updates silently go nowhere.
-- Two owners of one handle: the second delete hits an object that may already be reused, or the first delete removes a texture the other owner still samples (black / incomplete texture).
+- Deleting a borrowed buffer: survivors keep drawing from the orphaned storage, but every later bind of the buffer (`Geometry::upload`, `attribute_add`, `bind_buffer` + data update) fails with `INVALID_OPERATION` and leaves the previous binding in place. minwebgl never unbinds `ARRAY_BUFFER`, so a following `bufferData` lands in whichever buffer is still bound (possibly another geometry's), and `vertexAttribPointer` can point a VAO at it.
+- Two owners of one handle: the first delete removes a texture the other owner still samples. Its binds then fail with `INVALID_OPERATION`, so the unit keeps sampling whatever texture was bound there before, or an incomplete texture if none was. (WebGL never reuses a deleted object, so the second delete itself is a no-op.)
 - Views that delete: framebuffer attachments or shared glTF images disappear while still in use.
 
 ### Features
