@@ -227,7 +227,7 @@ fn sprite_premultiplied_tint_alpha_matches_straight()
 
 /// Pins the core of the flag: under `Normal` a premultiplied texel composites
 /// with source factor `ONE`. Drawn under `SRC_ALPHA` instead, its already
-/// alpha-scaled RGB would be scaled again and read back ≈ `( 64, 64, 255 )`
+/// alpha-scaled RGB would be scaled again and read back ≈ `( 64, 64, 191 )`
 /// ( the darkened-edge artefact the flag exists to remove ).
 #[ wasm_bindgen_test ]
 fn sprite_premultiplied_normal_matches_straight()
