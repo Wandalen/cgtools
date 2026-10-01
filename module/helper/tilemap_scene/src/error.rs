@@ -147,6 +147,22 @@ mod private
       /// The declared mode.
       mode : BlendMode,
     },
+    /// An `orient_to_grid` `VertexCorners` layer declares solid `( X, X, X )`
+    /// patterns for more than one id.
+    ///
+    /// Orientation counts a triangle's corners against one self id per layer
+    /// (the first solid pattern's id), so the edge and corner tiles of every
+    /// other solid id would be oriented as if none of their corners were
+    /// present.
+    ConflictingOrientSelfIds
+    {
+      /// Owning object's id.
+      object : String,
+      /// State whose layer declares the patterns.
+      state : String,
+      /// The distinct solid ids, in pattern order.
+      ids : Vec< String >,
+    },
     /// A sprite source is not valid for the declaring object's anchor type.
     ///
     /// For example, `NeighborBitmask` only works on `Hex` anchors;
@@ -207,6 +223,8 @@ mod private
           write!( f, "object {object:?} uses {behaviour}, which is not implemented yet" ),
         Self::UnsupportedTintMode { tint, mode } =>
           write!( f, "tint {tint:?} declares mode {mode:?}; only Multiply is implemented" ),
+        Self::ConflictingOrientSelfIds { object, state, ids } =>
+          write!( f, "object {object:?} state {state:?}: orient_to_grid VertexCorners layer has solid patterns for several ids {ids:?}; only one is supported" ),
         Self::AnchorSourceMismatch { anchor, source_kind } =>
           write!( f, "sprite source {source_kind} is not valid for anchor {anchor}" ),
         Self::MissingDefaultState { object, state } =>

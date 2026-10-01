@@ -17,7 +17,7 @@ mod private
   use crate::pipeline::{ RenderPipeline, TilingStrategy };
   use crate::resource::{ AnimationRef, AnimationTiming, EffectRef, Tint, TintRef };
   use crate::snapshot::SceneSnapshot;
-  use crate::source::{ NeighborBitmaskSource, SpriteSource };
+  use crate::source::{ NeighborBitmaskSource, SpriteSource, TriBlendPattern };
   use crate::spec::RenderSpec;
   use tilemap_renderer::types::BlendMode;
 
@@ -82,6 +82,9 @@ mod private
     /// - **Corner-source layers resolve.** Every `VertexCorners.corner_source`
     ///   (when set) names a layer used by at least one object's `global_layer`;
     ///   otherwise corner resolution silently falls back to `VOID_ID`.
+    /// - **One self id per oriented layer.** A `VertexCorners` layer with
+    ///   `orient_to_grid: true` declares solid `( X, X, X )` patterns for at
+    ///   most one id, the self id its orientation counts corners against.
     /// - **Default state exists.** Every object's `default_state` names a
     ///   key present in its `states` map.
     /// - **Reserved ids.** The reserved id `"void"` is not declared as a
@@ -376,7 +379,7 @@ mod private
 
   /// Runs every per-layer SPEC §16 rule against one `ObjectLayer` —
   /// `pipeline_layer` override resolution, `VertexCorners.corner_source`
-  /// resolution, asset / animation / tint / effect reference resolution,
+  /// resolution, the `orient_to_grid` single-self-id rule, asset / animation / tint / effect reference resolution,
   /// `connects_with` validity, and composite-nesting legality — pushing
   /// violations into `errors`.
   fn layer_checks
@@ -411,6 +414,29 @@ mod private
         id : cs.clone(),
         context : format!( "object {object_id:?} state {state_name:?} VertexCorners corner_source" ),
       });
+    }
+
+    // Orient mode counts corners against the layer's first solid id only, so
+    // a second solid id's edge and corner tiles would pick parity frames.
+    if let SpriteSource::VertexCorners { patterns, orient_to_grid : true, .. } = &layer.sprite_source
+    {
+      let mut solid : Vec< &str > = Vec::new();
+      for id in patterns.iter().filter_map( TriBlendPattern::self_id )
+      {
+        if !solid.contains( &id )
+        {
+          solid.push( id );
+        }
+      }
+      if solid.len() > 1
+      {
+        errors.push( ValidationError::ConflictingOrientSelfIds
+        {
+          object : object_id.to_owned(),
+          state : state_name.to_owned(),
+          ids : solid.into_iter().map( str::to_owned ).collect(),
+        });
+      }
     }
 
     asset_refs_visit( &layer.sprite_source, &mut | asset, where_ |

@@ -335,6 +335,70 @@ fn validate_accepts_known_corner_source_layer()
   spec.validate().expect( "known corner_source layer validates clean" );
 }
 
+/// One `orient_to_grid` layer with the given `patterns` RON.
+fn orient_layer_spec( patterns : &str ) -> RenderSpec
+{
+  ron::from_str( &format!( r#"
+    RenderSpec(
+        version: "0.2.0",
+        assets: [
+            Asset( id: "terrain", path: "t.png", kind: Atlas( tile_size: ( 72, 64 ), columns: 8 ) ),
+        ],
+        objects: [
+            Object(
+                id: "blend",
+                anchor: Hex,
+                global_layer: "terrain",
+                states: {{ "default": [ ( sprite_source: VertexCorners( patterns: [ {patterns} ], asset: "terrain", orient_to_grid: true ) ) ] }},
+            ),
+        ],
+        pipeline: (
+            hex: ( tiling: HexFlatTop, grid_stride: ( 72, 64 ) ),
+            layers: [ ( id: "terrain" ) ],
+        ),
+    )
+  "# ) ).expect( "spec parses" )
+}
+
+#[ test ]
+fn validate_rejects_orient_layer_with_two_solid_ids()
+{
+  // Orientation counts corners against one self id, so "sand"'s edge and
+  // corner tiles would be oriented as if no corner were present.
+  let spec = orient_layer_spec( r#"
+    ( corners: ( "grass", "grass", "grass" ), sprite_pattern: "g_{rot}" ),
+    ( corners: ( "grass", "grass", "*" ), sprite_pattern: "ge_{rot}" ),
+    ( corners: ( "sand", "sand", "sand" ), sprite_pattern: "s_{rot}" ),
+    ( corners: ( "sand", "sand", "*" ), sprite_pattern: "se_{rot}" ),
+    ( corners: ( "grass", "grass", "grass" ), sprite_pattern: "g2_{rot}", priority: 1 ),
+  "# );
+  let errs = spec.validate().expect_err( "two solid ids on one orient layer must be flagged" );
+  assert!
+  (
+    matches!
+    (
+      errs.as_slice(),
+      [ tilemap_scene::ValidationError::ConflictingOrientSelfIds { object, state, ids } ]
+        if object == "blend" && state == "default" && ids == &[ "grass".to_owned(), "sand".to_owned() ]
+    ),
+    "expected exactly one ConflictingOrientSelfIds( grass, sand ), got {errs:?}",
+  );
+}
+
+#[ test ]
+fn validate_accepts_orient_layer_with_one_solid_id()
+{
+  // One solid id, repeated or not, plus non-solid patterns is the supported
+  // shape.
+  let spec = orient_layer_spec( r#"
+    ( corners: ( "grass", "grass", "grass" ), sprite_pattern: "g_{rot}" ),
+    ( corners: ( "grass", "grass", "grass" ), sprite_pattern: "g2_{rot}", priority: 1 ),
+    ( corners: ( "grass", "grass", "*" ), sprite_pattern: "ge_{rot}" ),
+    ( corners: ( "*", "*", "*" ), sprite_pattern: "w_{rot}" ),
+  "# );
+  spec.validate().expect( "a single solid id validates clean" );
+}
+
 #[ test ]
 fn validate_rejects_missing_default_state()
 {
