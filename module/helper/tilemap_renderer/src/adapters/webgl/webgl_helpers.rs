@@ -384,8 +384,9 @@ mod private
     pub mipmap : MipmapMode,
     /// Wrap mode recorded at creation time; kept for parity with future re-applies.
     pub wrap : WrapMode,
-    /// Premultiplied-alpha flag recorded at creation time; read at draw time to
-    /// pick the premultiplied vs straight "over" blend in `blend_apply`.
+    /// Premultiplied-alpha flag recorded at creation time. Every draw path reads
+    /// it to pick the premultiplied vs straight "over" blend in `blend_apply`
+    /// and uploads the same value as the shaders' `u_premultiplied` uniform.
     pub premultiplied : bool,
   }
 
@@ -700,19 +701,22 @@ mod private
   pub fn blend_apply( gl : &gl::GL, blend : &BlendMode, premultiplied : bool )
   {
     // For premultiplied sources the colour is pre-scaled by alpha, so the "src·a"
-    // factor becomes plain `ONE`. Affects the alpha-weighted modes (Normal, Add).
+    // factor becomes plain `ONE`. Affects the alpha-weighted modes: Normal, Add
+    // and the Overlay fallback.
     let src_a = if premultiplied { gl::ONE } else { gl::SRC_ALPHA };
     match blend
     {
-      // Color: src + dst. Alpha: standard over.
+      // Color: src*src_a + dst (straight) or src + dst (premultiplied). Alpha: standard over.
       BlendMode::Add => gl.blend_func_separate( src_a, gl::ONE, gl::ONE, gl::ONE_MINUS_SRC_ALPHA ),
       // `DST_COLOR` is the defining source factor for Multiply (src.rgb*dst.rgb)
       // and is independent of `premultiplied`: the flag only swaps the
       // alpha-compositing source factor (ONE vs SRC_ALPHA), which Multiply does
       // not use. Approximation: diverges from Photoshop Multiply for *straight*
       // sources when src_alpha < 1 — the DST_COLOR factor multiplies dst by raw
-      // src.rgb (not src.rgb*src_a), so partially transparent straight sources
-      // darken the destination more than the reference formula prescribes. Exact
+      // src.rgb (not src.rgb*src_a), so the result is dst*(src + 1 - a) against
+      // the reference dst*(src*a + 1 - a): partially transparent straight sources
+      // darken the destination less than the reference, by dst*src*(1 - a), and
+      // brighten it wherever src > a. Exact
       // when src_alpha = 1, or for premultiplied sources at any alpha (there
       // src.rgb already carries rgb*a, so dst*(rgb*a + 1 - a) is the reference).
       // An FBO / custom-shader pass would be needed for the Photoshop-accurate
