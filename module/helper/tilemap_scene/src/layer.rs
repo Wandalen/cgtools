@@ -103,6 +103,13 @@ mod private
     /// The mask is sampled per render call using the inner [`SpriteSource`];
     /// if the mask is an [`SpriteSource::Animation`] with the same frame count
     /// as the body layer, the two stay synchronised automatically (SPEC §7.3).
+    ///
+    /// **Not implemented yet.** The variant parses, but
+    /// [`crate::validate::Validate::validate`] rejects it with
+    /// `ValidationError::UnsupportedBehaviour` and frame compilation with
+    /// `CompileError::UnsupportedBehaviour`, rather than silently drawing the
+    /// layer untinted. Tracked in `roadmap.md` ("`TintBehaviour::Masked` +
+    /// `TeamColor` resolution").
     Masked
     {
       /// Sprite source sampled as the mask.

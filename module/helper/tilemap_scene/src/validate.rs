@@ -15,10 +15,11 @@ mod private
   use crate::error::ValidationError;
   use crate::layer::{ MaskTint, ObjectLayer, TintBehaviour };
   use crate::pipeline::{ RenderPipeline, TilingStrategy };
-  use crate::resource::{ AnimationRef, AnimationTiming, EffectRef, TintRef };
+  use crate::resource::{ AnimationRef, AnimationTiming, EffectRef, Tint, TintRef };
   use crate::snapshot::SceneSnapshot;
-  use crate::source::{ NeighborBitmaskSource, SpriteSource };
+  use crate::source::{ NeighborBitmaskSource, SpriteSource, TriBlendPattern };
   use crate::spec::RenderSpec;
+  use tilemap_renderer::types::BlendMode;
 
   /// Precomputed id sets shared by [`RenderSpec`]'s `validate()` checks —
   /// built once per call and threaded through the per-object / per-layer
@@ -37,6 +38,9 @@ mod private
     anim : HashSet< &'a str >,
     /// Declared `effects[*].id` values.
     effect : HashSet< &'a str >,
+    /// `objects[*].global_layer` values — the set of layer names a
+    /// `VertexCorners.corner_source` can resolve against.
+    global_layer : HashSet< &'a str >,
   }
 
   /// Trait implemented by types that validate their own content against the
@@ -75,6 +79,12 @@ mod private
     ///   variant resolves to a declared `assets[*].id`. `Animation` /
     ///   `External` sources stop the walk at their boundary; animation
     ///   bodies are validated separately when iterating `spec.animations`.
+    /// - **Corner-source layers resolve.** Every `VertexCorners.corner_source`
+    ///   (when set) names a layer used by at least one object's `global_layer`;
+    ///   otherwise corner resolution silently falls back to `VOID_ID`.
+    /// - **One self id per oriented layer.** A `VertexCorners` layer with
+    ///   `orient_to_grid: true` declares solid `( X, X, X )` patterns for at
+    ///   most one id, the self id its orientation counts corners against.
     /// - **Default state exists.** Every object's `default_state` names a
     ///   key present in its `states` map.
     /// - **Reserved ids.** The reserved id `"void"` is not declared as a
@@ -101,6 +111,11 @@ mod private
     ///   to a leaf source, never another composite.
     /// - **Tiling whitelist.** `pipeline.hex.tiling` is `HexFlatTop` or
     ///   `HexPointyTop`; `Square4` / `Square8` are rejected.
+    /// - **Unsupported behaviours.** `LayerBehaviour.tint` is not
+    ///   `TintBehaviour::Masked`, which compilation does not implement yet.
+    /// - **Tint modes.** Every declared tint's `mode` is `Multiply`; tints are
+    ///   folded into the multiplicative `Sprite.tint`, so no other mode can be
+    ///   honoured.
     ///
     /// **Not enforced** — see the `TODO SPEC §16` comment at the end of
     /// this impl for why anchor ↔ sprite-source compatibility is left
@@ -117,6 +132,12 @@ mod private
         tint : self.tints.iter().map( | t | t.id.as_str() ).collect(),
         anim : self.animations.iter().map( | a | a.id.as_str() ).collect(),
         effect : self.effects.iter().map( | e | e.id.as_str() ).collect(),
+        // `tile_corner_id` matches `corner_source` to an object's
+        // `global_layer`, so a value naming no object's `global_layer` can
+        // only ever fall back to `VOID_ID` for every corner (silent,
+        // geometrically wrong output). Validating against this set catches
+        // such misspellings.
+        global_layer : self.objects.iter().map( | o | o.global_layer.as_str() ).collect(),
       };
 
       for object in &self.objects
@@ -190,6 +211,7 @@ mod private
       duplicate_ids_check( "effect", self.effects.iter().map( | e | e.id.as_str() ), &mut errors );
       duplicate_ids_check( "object", self.objects.iter().map( | o | o.id.as_str() ), &mut errors );
 
+      tint_mode_check( &self.tints, &mut errors );
       pipeline_tint_checks( &self.pipeline, &ids.tint, &mut errors );
       tiling_check( &self.pipeline, &mut errors );
 
@@ -208,7 +230,7 @@ mod private
       //   - `compile/frame.rs::vertex_pass_compile` scans *every* object
       //     for VertexCorners layers with no anchor check at all —
       //     confirmed intentional by the explicit comment on the `blend`
-      //     object in `tests/scene_model_compile_test.rs`'s
+      //     object in `tests/vertex_corners_compile_test.rs`'s
       //     `vertex_corners_three_way_blend`: "anchor type of the owning
       //     object doesn't matter for VertexCorners pass". `Placement`
       //     (`src/instance.rs`) also has no `Vertex` variant at all, so
@@ -356,9 +378,10 @@ mod private
   }
 
   /// Runs every per-layer SPEC §16 rule against one `ObjectLayer` —
-  /// `pipeline_layer` override resolution, asset / animation / tint /
-  /// effect reference resolution, `connects_with` validity, and
-  /// composite-nesting legality — pushing violations into `errors`.
+  /// `pipeline_layer` override resolution, `VertexCorners.corner_source`
+  /// resolution, the `orient_to_grid` single-self-id rule, asset / animation / tint / effect reference resolution,
+  /// `connects_with` validity, and composite-nesting legality — pushing
+  /// violations into `errors`.
   fn layer_checks
   (
     object_id : &str,
@@ -377,6 +400,43 @@ mod private
         id : pl.to_owned(),
         context : format!( "object {object_id:?} state {state_name:?} layer pipeline_layer override" ),
       });
+    }
+
+    // `tile_corner_id` matches `corner_source` to an object's `global_layer`,
+    // so a value naming no object's `global_layer` can only ever fall back to
+    // `VOID_ID` for every corner (silent, geometrically wrong output).
+    if let SpriteSource::VertexCorners { corner_source : Some( cs ), .. } = &layer.sprite_source
+      && !ids.global_layer.contains( cs.as_str() )
+    {
+      errors.push( ValidationError::UnresolvedRef
+      {
+        kind : "corner_source layer",
+        id : cs.clone(),
+        context : format!( "object {object_id:?} state {state_name:?} VertexCorners corner_source" ),
+      });
+    }
+
+    // Orient mode counts corners against the layer's first solid id only, so
+    // a second solid id's edge and corner tiles would pick parity frames.
+    if let SpriteSource::VertexCorners { patterns, orient_to_grid : true, .. } = &layer.sprite_source
+    {
+      let mut solid : Vec< &str > = Vec::new();
+      for id in patterns.iter().filter_map( TriBlendPattern::self_id )
+      {
+        if !solid.contains( &id )
+        {
+          solid.push( id );
+        }
+      }
+      if solid.len() > 1
+      {
+        errors.push( ValidationError::ConflictingOrientSelfIds
+        {
+          object : object_id.to_owned(),
+          state : state_name.to_owned(),
+          ids : solid.into_iter().map( str::to_owned ).collect(),
+        });
+      }
     }
 
     asset_refs_visit( &layer.sprite_source, &mut | asset, where_ |
@@ -467,6 +527,15 @@ mod private
       },
       TintBehaviour::Masked { mask, tint } =>
       {
+        // Compile rejects Masked on the first frame that draws this layer;
+        // report it at load instead. The reference checks below still run so
+        // one load lists every problem with the layer.
+        errors.push( ValidationError::UnsupportedBehaviour
+        {
+          object : object_id.to_owned(),
+          behaviour : "Masked tint",
+        });
+
         if let MaskTint::Ref( TintRef( id ) ) = tint
           && !ids.tint.contains( id.as_str() )
         {
@@ -491,6 +560,19 @@ mod private
           }
         });
       },
+    }
+  }
+
+  /// Rejects every tint whose `mode` is not `Multiply`, the only mode the
+  /// compiler implements (see [`ValidationError::UnsupportedTintMode`]).
+  fn tint_mode_check( tints : &[ Tint ], errors : &mut Vec< ValidationError > )
+  {
+    for tint in tints
+    {
+      if tint.mode != BlendMode::Multiply
+      {
+        errors.push( ValidationError::UnsupportedTintMode { tint : tint.id.clone(), mode : tint.mode } );
+      }
     }
   }
 

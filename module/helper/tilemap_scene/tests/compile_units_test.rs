@@ -222,7 +222,7 @@ fn canonicalize_sorts_ids()
 /// ## Why Not Caught
 /// No existing test pinned a specific `rotation` value — `canonicalize_sorts_ids`
 /// only checks the sorted triple, and the one integration assertion in
-/// `scene_model_compile_test.rs` accepts *any* of the 3 rotations
+/// `vertex_corners_compile_test.rs` accepts *any* of the 3 rotations
 /// ( `any_rot_emitted` ). A wrong-but-in-range `u8` produces no panic and no
 /// visible test failure.
 /// ## Fix Applied

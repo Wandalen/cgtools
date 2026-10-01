@@ -39,7 +39,7 @@ crosstalk.
 | `src/validate.rs` | `Validate` trait + partial impls for `RenderSpec` and `SceneSnapshot` — see [`docs/invariant/001_renderspec_referential_integrity.md`](docs/invariant/001_renderspec_referential_integrity.md) for exactly which rules are enforced today. |
 | `src/error.rs` | `LoadError`, `ValidationError`, `SnapshotLoadError`. |
 | `src/compile/` | Internal lowering passes called by `Renderer`. See sub-table. |
-| `tests/` | Integration tests — `scene_state_test`, `scene_events_test`, `renderer_test`, `renderer_cache_test`, `scene_model_compile_test`, `scene_model_test`. `tests/common/mod.rs` carries the shared `commands_to_sprites` / `BatchFlattener` helpers used to project batch streams back to pre-batch `Sprite` commands for assertions. |
+| `tests/` | Integration tests — `scene_state_test`, `scene_events_test`, `renderer_test`, `renderer_cache_test`, `scene_model_compile_test`, `vertex_corners_compile_test`, `layer_tint_compile_test`, `scene_model_test`. `tests/common/mod.rs` carries the shared `commands_to_sprites` / `BatchFlattener` helpers used to project batch streams back to pre-batch `Sprite` commands for assertions; `tests/common/compile.rs` the spec / scene / render fixtures shared by the compile tests. |
 | `docs/` | Design documentation as typed doc definitions — see [docs/definition/readme.md](docs/definition/readme.md) |
 | `roadmap.md` | Open work and design sketches. |
 
@@ -55,6 +55,8 @@ crosstalk.
 | `viewport.rs` | `viewport_transform` / `tiled_positions` — screen-space transforms for `ViewportTiled` sources, Y-up convention. |
 | `edges.rs` | Edge-anchor canonicalisation, neighbour resolution, world-pixel placement, sprite rotation. |
 | `vertex.rs` | Vertex-corner pattern resolution for `VertexCorners` sources. |
+| `orient.rs` | `orient_to_grid` frame pick for a `VertexCorners` dual triangle (`dual_orientation_index`) and the frame-count rule (`orient_frame_count`) shared with the asset pass. |
+| `tint.rs` | `FrameTints` — the frame's tint state (global tint plus every declared tint, resolved once) and `sprite_tint`, the single per-sprite composition of a layer's `TintBehaviour`, layer alpha and instance tint used by every emit site. |
 | `neighbors.rs` | Hex-anchor neighbour mask computation feeding `NeighborBitmask` / `NeighborCondition`. |
 | `conditions.rs` | `NeighborCondition` rule evaluation. |
 | `animation.rs` | `animation_frame_resolve` — deterministic per-tile frame pick given timing + phase offset. Also exposes `animation_duration_seconds` / `declared_phase_seconds` consumed by `Scene::tick`. |
