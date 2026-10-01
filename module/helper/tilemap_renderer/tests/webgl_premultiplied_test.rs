@@ -6,7 +6,7 @@
 //! which only exists under the workspace's headless-browser wasm32 runner.
 //!
 //! Every case draws a 1×1 texel stretched over the whole viewport onto a known
-//! opaque background and reads pixel `( 0, 0 )` back. The same visible colour
+//! background and reads pixel `( 0, 0 )` back. The same visible colour
 //! is authored twice — once straight-alpha, once premultiplied — and the two
 //! results must match: a premultiplied texture is a storage format, not a
 //! different look.
@@ -27,9 +27,14 @@ use wasm_bindgen_test::wasm_bindgen_test;
 
 wasm_bindgen_test::wasm_bindgen_test_configure!( run_in_browser );
 
-/// Opaque blue background every case composites onto, so both the source and
-/// the destination term of the blend show up in the read-back pixel.
-const BACKGROUND : [ f32; 4 ] = [ 0.0, 0.0, 1.0, 1.0 ];
+/// Half-transparent mid grey every case composites onto. No channel of a
+/// correct result saturates except under `Add`, so both the source and the
+/// destination term of the colour blend show up in every channel, and the
+/// alpha blend shows up in the alpha channel: a wrong destination factor, a
+/// tint alpha applied to the texel's alpha twice, or one mode's factors in
+/// place of another's each move the read-back pixel well outside the ±2
+/// tolerance.
+const BACKGROUND : [ f32; 4 ] = [ 0.5, 0.5, 0.5, 0.5 ];
 
 /// White at 50% coverage, stored straight-alpha.
 const STRAIGHT_TEXEL : [ u8; 4 ] = [ 255, 255, 255, 128 ];
@@ -41,10 +46,15 @@ const WHITE : [ f32; 4 ] = [ 1.0, 1.0, 1.0, 1.0 ];
 /// White tint at half alpha — how the scene compiler expresses a faded layer.
 const HALF_ALPHA : [ f32; 4 ] = [ 1.0, 1.0, 1.0, 0.5 ];
 
-/// 50% white over [`BACKGROUND`] under `Normal`, or 50% white added to it.
-const HALF_WHITE_OVER_BLUE : [ u8; 4 ] = [ 128, 128, 255, 255 ];
-/// 25% white over [`BACKGROUND`]: the 50%-coverage texel at tint alpha 0.5.
-const QUARTER_WHITE_OVER_BLUE : [ u8; 4 ] = [ 64, 64, 255, 255 ];
+/// 50% white over [`BACKGROUND`] under `Normal`: `0.502 + 0.5 · 0.498` in every
+/// channel.
+const HALF_WHITE_OVER_GREY : [ u8; 4 ] = [ 191, 191, 191, 191 ];
+/// 25% white over [`BACKGROUND`]: the 50%-coverage texel at tint alpha 0.5,
+/// `0.251 + 0.5 · 0.749` in every channel.
+const QUARTER_WHITE_OVER_GREY : [ u8; 4 ] = [ 159, 159, 159, 159 ];
+/// 50% white added to [`BACKGROUND`]: colour `0.502 + 0.5` saturates, alpha
+/// still composites "over" as under `Normal`.
+const HALF_WHITE_ADDED_TO_GREY : [ u8; 4 ] = [ 255, 255, 255, 191 ];
 
 /// Same live-context helper as `webgl_context_loss_test.rs::gl_init`.
 fn gl_init() -> gl::GL
@@ -207,9 +217,9 @@ fn assert_pixel_close( actual : [ u8; 4 ], expected : [ u8; 4 ], what : &str )
 ///
 /// ## Prevention
 /// Draws the same half-covered white at tint alpha 0.5 as a straight and as a
-/// premultiplied texture over blue and requires identical pixels: 25% white
-/// over blue ≈ `( 64, 64, 255 )`. Before the fix the premultiplied draw read
-/// back ≈ `( 128, 128, 255 )`.
+/// premultiplied texture over grey and requires identical pixels: 25% white
+/// over grey ≈ `( 159, 159, 159, 159 )`. Before the fix the premultiplied draw
+/// read back ≈ `( 223, 223, 223, 159 )`.
 ///
 /// ## Pitfall
 /// The tint alpha is where the scene compiler folds layer alpha and instance
@@ -221,13 +231,13 @@ fn sprite_premultiplied_tint_alpha_matches_straight()
   let straight = sprite_pixel( &texel_assets( STRAIGHT_TEXEL, false ), HALF_ALPHA, BlendMode::Normal );
   let premultiplied = sprite_pixel( &texel_assets( PREMULTIPLIED_TEXEL, true ), HALF_ALPHA, BlendMode::Normal );
 
-  assert_pixel_close( straight, QUARTER_WHITE_OVER_BLUE, "straight texel, tint alpha 0.5" );
+  assert_pixel_close( straight, QUARTER_WHITE_OVER_GREY, "straight texel, tint alpha 0.5" );
   assert_pixel_close( premultiplied, straight, "premultiplied texel, tint alpha 0.5" );
 }
 
 /// Pins the core of the flag: under `Normal` a premultiplied texel composites
 /// with source factor `ONE`. Drawn under `SRC_ALPHA` instead, its already
-/// alpha-scaled RGB would be scaled again and read back ≈ `( 64, 64, 191 )`
+/// alpha-scaled RGB would be scaled again and read back ≈ `( 128, 128, 128, 191 )`
 /// ( the darkened-edge artefact the flag exists to remove ).
 #[ wasm_bindgen_test ]
 fn sprite_premultiplied_normal_matches_straight()
@@ -235,7 +245,7 @@ fn sprite_premultiplied_normal_matches_straight()
   let straight = sprite_pixel( &texel_assets( STRAIGHT_TEXEL, false ), WHITE, BlendMode::Normal );
   let premultiplied = sprite_pixel( &texel_assets( PREMULTIPLIED_TEXEL, true ), WHITE, BlendMode::Normal );
 
-  assert_pixel_close( straight, HALF_WHITE_OVER_BLUE, "straight texel, Normal" );
+  assert_pixel_close( straight, HALF_WHITE_OVER_GREY, "straight texel, Normal" );
   assert_pixel_close( premultiplied, straight, "premultiplied texel, Normal" );
 }
 
@@ -247,7 +257,7 @@ fn sprite_premultiplied_add_matches_straight()
   let straight = sprite_pixel( &texel_assets( STRAIGHT_TEXEL, false ), WHITE, BlendMode::Add );
   let premultiplied = sprite_pixel( &texel_assets( PREMULTIPLIED_TEXEL, true ), WHITE, BlendMode::Add );
 
-  assert_pixel_close( straight, HALF_WHITE_OVER_BLUE, "straight texel, Add" );
+  assert_pixel_close( straight, HALF_WHITE_ADDED_TO_GREY, "straight texel, Add" );
   assert_pixel_close( premultiplied, straight, "premultiplied texel, Add" );
 }
 
@@ -259,7 +269,7 @@ fn mesh_textured_premultiplied_matches_straight()
   let straight = mesh_pixel( &texel_assets( STRAIGHT_TEXEL, false ), HALF_ALPHA, true );
   let premultiplied = mesh_pixel( &texel_assets( PREMULTIPLIED_TEXEL, true ), HALF_ALPHA, true );
 
-  assert_pixel_close( straight, QUARTER_WHITE_OVER_BLUE, "straight textured mesh, fill alpha 0.5" );
+  assert_pixel_close( straight, QUARTER_WHITE_OVER_GREY, "straight textured mesh, fill alpha 0.5" );
   assert_pixel_close( premultiplied, straight, "premultiplied textured mesh, fill alpha 0.5" );
 }
 
@@ -271,7 +281,7 @@ fn mesh_untextured_stays_straight()
 {
   let pixel = mesh_pixel( &texel_assets( PREMULTIPLIED_TEXEL, true ), HALF_ALPHA, false );
 
-  assert_pixel_close( pixel, HALF_WHITE_OVER_BLUE, "untextured mesh, fill alpha 0.5" );
+  assert_pixel_close( pixel, HALF_WHITE_OVER_GREY, "untextured mesh, fill alpha 0.5" );
 }
 
 /// The sprite batch path reads the flag from its sheet and applies the
@@ -282,7 +292,7 @@ fn sprite_batch_premultiplied_matches_straight()
   let straight = sprite_batch_pixel( &texel_assets( STRAIGHT_TEXEL, false ), HALF_ALPHA );
   let premultiplied = sprite_batch_pixel( &texel_assets( PREMULTIPLIED_TEXEL, true ), HALF_ALPHA );
 
-  assert_pixel_close( straight, QUARTER_WHITE_OVER_BLUE, "straight sprite batch, instance alpha 0.5" );
+  assert_pixel_close( straight, QUARTER_WHITE_OVER_GREY, "straight sprite batch, instance alpha 0.5" );
   assert_pixel_close( premultiplied, straight, "premultiplied sprite batch, instance alpha 0.5" );
 }
 
@@ -294,6 +304,6 @@ fn mesh_batch_premultiplied_matches_straight()
   let straight = mesh_batch_pixel( &texel_assets( STRAIGHT_TEXEL, false ), HALF_ALPHA );
   let premultiplied = mesh_batch_pixel( &texel_assets( PREMULTIPLIED_TEXEL, true ), HALF_ALPHA );
 
-  assert_pixel_close( straight, QUARTER_WHITE_OVER_BLUE, "straight mesh batch, instance alpha 0.5" );
+  assert_pixel_close( straight, QUARTER_WHITE_OVER_GREY, "straight mesh batch, instance alpha 0.5" );
   assert_pixel_close( premultiplied, straight, "premultiplied mesh batch, instance alpha 0.5" );
 }
