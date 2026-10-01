@@ -140,8 +140,10 @@ let Output::String( doc ) = svg.output()? else { unreachable!() };
 >
 > ⁴ Native sprites: unlike WebGPU, `gpu_hal`'s native surface does support pixel
 > upload (`Queue::texture_write`), so this path renders real image content — verified
-> by exact-byte pixel readback tests (`tests/native_backend_test.rs`), the only
-> pixel-verified adapter in this crate. See `docs/feature/006_native_backend_adapter.md`.
+> by exact-byte pixel readback tests (`tests/native_backend_test.rs`). It is the one
+> adapter whose whole declared scope is pixel-verified; WebGL2 has read-back tests for
+> its premultiplied compositing, pending-image and context-restore paths. See
+> `docs/feature/006_native_backend_adapter.md`.
 >
 > ⁵ Neither the WebGPU nor the native adapter reads `Sprite::blend` — the field is
 > accepted but not yet applied by either pipeline.
