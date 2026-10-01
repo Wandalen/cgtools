@@ -1,5 +1,5 @@
 // Spliced into every fragment shader in place of its `#include "tint.glsl"`
-// line, after the precision statement ( see `fragment_source` in webgl.rs ).
+// line, after the precision statement ( see `fragment_source` in webgl/webgl_renderers.rs ).
 
 uniform bool u_premultiplied; // the bound texture's RGB is already scaled by its alpha
 

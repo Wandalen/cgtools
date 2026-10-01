@@ -11,7 +11,7 @@
 
 ### Design
 
-The implementation is split across two files to stay under the workspace's per-file size budget: `adapters/webgl.rs` holds `WebGlBackend`, the sprite/mesh renderers, and the async image loader; `adapters/webgl/webgl_helpers.rs` (a `mod_interface::layer` submodule) holds self-contained helpers — the GPU-side array type, instance-data layouts, GPU resource handles, VAO setup, the async `Loadable` mechanism, and GL enum-mapping helpers.
+The implementation is split across four files, each under the workspace's 1500-line source-file ceiling: `adapters/webgl.rs` holds `WebGlBackend` (command dispatch, asset loading, context-loss handling); three `mod_interface::layer` submodules under `adapters/webgl/` hold the rest. `webgl_renderers.rs` has the sprite/mesh renderers (shader programs and draw calls), `webgl_textures.rs` the texture uploads (sync bitmaps and the async image loader), and `webgl_helpers.rs` self-contained helpers — the GPU-side array type, instance-data layouts, GPU resource handles, VAO setup, the async `Loadable` mechanism, and GL enum-mapping helpers.
 
 Instanced sprite and mesh batches are backed by `ArrayBuffer<T>`, a GPU-side growable array (`ARRAY_BUFFER`) that doubles capacity via `copy_buffer_sub_data` (GPU-to-GPU, no CPU readback) and removes elements via swap-remove. The swap-remove step needs a persistent scratch buffer to stay spec-compliant — see [pitfall/001](../pitfall/001_arraybuffer_swap_remove_buffer_binding_violation.md). Per-instance GPU data is fixed-layout (`SpriteInstanceData` 72 bytes, `MeshInstanceData` 56 bytes, both including a per-instance tint and depth), and the byte offsets the VAO attribute setup reads from those structs are hardcoded rather than computed — see [pitfall/002](../pitfall/002_gpu_instance_struct_field_reorder_desync.md) for exactly what is and isn't guarded against a future field change. VAO attribute bindings are configured once at batch create/unbind time and simply bound (not reconfigured) at each draw call.
 
@@ -52,7 +52,9 @@ Given the number of unimplemented command families and the `Overlay` blend-mode 
 
 | File | Relationship |
 |------|--------------|
-| `src/adapters/webgl.rs` | `WebGlBackend`, sprite/mesh renderers, async image loader, command dispatch |
+| `src/adapters/webgl.rs` | `WebGlBackend`: command dispatch, asset loading, context-loss handling |
+| `src/adapters/webgl/webgl_renderers.rs` | `SpriteRenderer` / `MeshRenderer`: shader programs, the `tint.glsl` splice, draw calls |
+| `src/adapters/webgl/webgl_textures.rs` | `bitmap_texture_upload`, `image_upload_from_path` (async image loader) |
 | `src/adapters/webgl/webgl_helpers.rs` | `ArrayBuffer<T>`, instance-data layouts, GPU resource handles, VAO setup, GL mapping helpers |
 | `src/adapters/shaders/sprite.vert`, `sprite.frag` | Single-sprite shader pair |
 | `src/adapters/shaders/sprite_batch.vert`, `sprite_batch.frag` | Instanced sprite-batch shader pair |

@@ -16,9 +16,11 @@ The core library and SVG adapter are functional; the WebGL2 adapter is partially
 - **Backend trait** — `assets_load`, `submit`, `output`, `resize`, `capabilities`
 - **SVG adapter** — implemented across every command and asset family: paths, text, sprites, meshes, batches, groups, effects, gradients, patterns, blend modes, bitmap PNG encoding, viewport pan/zoom wrapper, `Source::Path` geometry loading via blocking `std::fs` (loud skip with stderr warning + diagnostic comment on read failure, incl. on wasm32 where no filesystem exists). Not complete, though — see "svg adapter gaps" below (font selection unimplemented). `Transform::depth` is deliberately ignored, not unimplemented — SVG has no depth buffer, so submission order is the whole ordering contract; a committed, permanent design decision formalized in [docs/invariant/003_z_layer_draw_ordering.md](docs/invariant/003_z_layer_draw_ordering.md)
 - **WebGL2 adapter (partial)** — hardware-accelerated sprites, meshes, and instanced batches on wasm32:
-  - Split across `adapters/webgl.rs` (backend + renderers + async image loader) and
-    `adapters/webgl/webgl_helpers.rs` (self-contained helpers wired via `mod_interface::layer`)
-    to stay under the per-file size budget
+  - Split across `adapters/webgl.rs` (backend: command dispatch, asset loading, context
+    loss) and three `mod_interface::layer` submodules under `adapters/webgl/`:
+    `webgl_helpers.rs` (self-contained helpers), `webgl_renderers.rs` (sprite / mesh
+    renderers) and `webgl_textures.rs` (texture upload, async image loader), each under
+    the 1500-line source-file ceiling
   - `ArrayBuffer<T>` — GPU-side Vec with 2× grow via `copy_buffer_sub_data` (no CPU readback);
     `swap_remove` uses a persistent scratch buffer to avoid binding the same buffer to both
     `COPY_READ_BUFFER` and `COPY_WRITE_BUFFER` (WebGL2 spec violation)
@@ -75,9 +77,11 @@ tilemap_renderer/           # Single crate with feature-gated adapters
 │   └── adapters/
 │       ├── mod.rs          # Feature-gated re-exports
 │       ├── svg.rs          # SVG 1.1 backend
-│       ├── webgl.rs        # WebGL2 backend entry point (WebGlBackend + renderers)
-│       ├── webgl/          # WebGL submodule layer
-│       │   └── webgl_helpers.rs  # ArrayBuffer, GPU handles, GL mappers, batch types
+│       ├── webgl.rs        # WebGL2 backend entry point (WebGlBackend)
+│       ├── webgl/          # WebGL submodule layers
+│       │   ├── webgl_helpers.rs    # ArrayBuffer, GPU handles, GL mappers, batch types
+│       │   ├── webgl_renderers.rs  # Sprite / mesh renderers
+│       │   └── webgl_textures.rs   # Texture upload, async image loader
 │       ├── terminal.rs     # Terminal backend (ANSI-truecolor character-cell grid)
 │       └── shaders/        # GLSL shaders for WebGL
 ├── Cargo.toml
