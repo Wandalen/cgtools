@@ -56,7 +56,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **KHR_materials_clearcoat** and **KHR_materials_anisotropy**: the glTF loader reads both (including assets that list them in `extensionsRequired`), `PbrMaterial` gains `clearcoat_*_set` / `anisotropy_*_set` accessors, and the PBR shader adds a Fresnel-mixed dielectric coat lobe (direct and image-based, with its own normal, roughness and occlusion) and the anisotropic GGX distribution / visibility with a bent-normal IBL lookup. A layer's shader variant is compiled only when it is on: `clearcoatFactor` or `anisotropyStrength` above 0.
-- Named texture-unit constants for `PbrMaterial` (`PBR_*_UNIT`, `PBR_TEXTURE_UNITS`, `PBR_IBL_BASE_UNIT`); the IBL base unit moved from 10 to 16 to make room for the four new textures.
+- Named texture-unit constants for `PbrMaterial` (`PBR_*_UNIT`, `PBR_IBL_BASE_UNIT`) and the `PBR_TEXTURE_UNITS` table pairing each sampler with its unit and texture getter, which both `configure()` and `bind()` read; the IBL base unit moved from 10 to 16 to make room for the four new textures.
 - GPU PMREM generation (`webgl::loaders::pmrem::generate`): converts an equirectangular HDR into a full IBL set — equirect→cubemap, GGX importance-sampled prefiltered specular mips, cosine-weighted irradiance convolution, and a split-sum BRDF integration LUT.
 - `cull_mode` field to `PbrMaterial` for fine-grained face culling control
 - `Drop` implementation for `SwapFramebuffer` to prevent GPU memory leaks

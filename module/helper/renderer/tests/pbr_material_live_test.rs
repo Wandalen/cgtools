@@ -13,7 +13,7 @@ mod tests
   wasm_bindgen_test::wasm_bindgen_test_configure!( run_in_browser );
   use minwebgl as gl;
   use gl::GL;
-  use renderer::webgl::{ material::PbrMaterial, AlphaMode, Material, Texture, TextureInfo };
+  use renderer::webgl::{ material::{ PbrMaterial, PBR_TEXTURE_UNITS }, AlphaMode, Material, Texture, TextureInfo };
   use renderer::webgl::loaders::gltf_extensions::material_layer_extensions_apply;
   use std::{ cell::RefCell, rc::Rc };
 
@@ -139,6 +139,38 @@ mod tests
     assert!( defines.contains( "#define USE_CLEARCOAT_NORMAL_TEXTURE" ), "{defines}" );
     assert!( defines.contains( "#define USE_TBN" ), "a coat normal map needs the tangent frame: {defines}" );
     assert!( !defines.contains( "USE_KHR_materials_anisotropy" ), "{defines}" );
+  }
+
+  #[ wasm_bindgen_test ]
+  fn texture_unit_table_pairs_each_sampler_with_its_own_texture()
+  {
+    let gl_context = gl_init();
+    let setters : [ ( &str, fn( &mut PbrMaterial, Option< TextureInfo > ) ); 12 ] =
+    [
+      ( "metallicRoughnessTexture", PbrMaterial::metallic_roughness_texture_set ),
+      ( "baseColorTexture", PbrMaterial::base_color_texture_set ),
+      ( "normalTexture", PbrMaterial::normal_texture_set ),
+      ( "occlusionTexture", PbrMaterial::occlusion_texture_set ),
+      ( "emissiveTexture", PbrMaterial::emissive_texture_set ),
+      ( "specularTexture", PbrMaterial::specular_texture_set ),
+      ( "specularColorTexture", PbrMaterial::specular_color_texture_set ),
+      ( "lightMap", PbrMaterial::light_map_set ),
+      ( "clearcoatTexture", PbrMaterial::clearcoat_texture_set ),
+      ( "clearcoatRoughnessTexture", PbrMaterial::clearcoat_roughness_texture_set ),
+      ( "clearcoatNormalTexture", PbrMaterial::clearcoat_normal_texture_set ),
+      ( "anisotropyTexture", PbrMaterial::anisotropy_texture_set ),
+    ];
+
+    for ( sampler, set ) in setters
+    {
+      let mut mat = PbrMaterial::new( &gl_context );
+      set( &mut mat, Some( texture_info() ) );
+      let bound : Vec< &str > = PBR_TEXTURE_UNITS.iter()
+      .filter( | ( _, _, texture ) | texture( &mat ).is_some() )
+      .map( | ( name, _, _ ) | *name )
+      .collect();
+      assert_eq!( bound, [ sampler ], "the texture set for {sampler} must be bound to {sampler}'s unit, and only there" );
+    }
   }
 
   #[ wasm_bindgen_test ]

@@ -13,7 +13,7 @@ const WEBGL2_MIN_FRAGMENT_SAMPLERS : usize = 16;
 
 fn all_units() -> Vec< ( String, u32 ) >
 {
-  let mut units : Vec< ( String, u32 ) > = PBR_TEXTURE_UNITS.iter().map( | ( name, unit ) | ( ( *name ).to_owned(), *unit ) ).collect();
+  let mut units : Vec< ( String, u32 ) > = PBR_TEXTURE_UNITS.iter().map( | ( name, unit, _ ) | ( ( *name ).to_owned(), *unit ) ).collect();
   units.push( ( "globalMatrices (skeleton)".to_owned(), GLOBAL_MATRICES_SLOT ) );
   units.push( ( "inverseMatrices (skeleton)".to_owned(), INVERSE_MATRICES_SLOT ) );
   units.push( ( "displacements (skeleton)".to_owned(), DISPLACEMENTS_SLOT ) );

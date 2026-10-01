@@ -50,21 +50,25 @@ mod private
   pub const PBR_CLEARCOAT_NORMAL_UNIT : u32 = 10;
   /// Texture unit of `PbrMaterial`'s `anisotropyTexture` sampler.
   pub const PBR_ANISOTROPY_UNIT : u32 = 11;
-  /// Every `PbrMaterial` sampler uniform with its texture unit, in unit order.
-  pub const PBR_TEXTURE_UNITS : [ ( &str, u32 ); 12 ] =
+  /// A `PbrMaterial` texture getter, as stored in [`PBR_TEXTURE_UNITS`].
+  pub type PbrTextureGet = fn( &PbrMaterial ) -> Option< &TextureInfo >;
+  /// Every `PbrMaterial` sampler uniform with its texture unit and the texture bound to it, in
+  /// unit order. `configure()` assigns the units and `bind()` binds the textures from this one
+  /// table, so a sampler, its unit and its texture can't be paired differently in two places.
+  pub const PBR_TEXTURE_UNITS : [ ( &str, u32, PbrTextureGet ); 12 ] =
   [
-    ( "metallicRoughnessTexture", PBR_METALLIC_ROUGHNESS_UNIT ),
-    ( "baseColorTexture", PBR_BASE_COLOR_UNIT ),
-    ( "normalTexture", PBR_NORMAL_UNIT ),
-    ( "occlusionTexture", PBR_OCCLUSION_UNIT ),
-    ( "emissiveTexture", PBR_EMISSIVE_UNIT ),
-    ( "specularTexture", PBR_SPECULAR_UNIT ),
-    ( "specularColorTexture", PBR_SPECULAR_COLOR_UNIT ),
-    ( "lightMap", PBR_LIGHT_MAP_UNIT ),
-    ( "clearcoatTexture", PBR_CLEARCOAT_UNIT ),
-    ( "clearcoatRoughnessTexture", PBR_CLEARCOAT_ROUGHNESS_UNIT ),
-    ( "clearcoatNormalTexture", PBR_CLEARCOAT_NORMAL_UNIT ),
-    ( "anisotropyTexture", PBR_ANISOTROPY_UNIT ),
+    ( "metallicRoughnessTexture", PBR_METALLIC_ROUGHNESS_UNIT, PbrMaterial::metallic_roughness_texture ),
+    ( "baseColorTexture", PBR_BASE_COLOR_UNIT, PbrMaterial::base_color_texture ),
+    ( "normalTexture", PBR_NORMAL_UNIT, PbrMaterial::normal_texture ),
+    ( "occlusionTexture", PBR_OCCLUSION_UNIT, PbrMaterial::occlusion_texture ),
+    ( "emissiveTexture", PBR_EMISSIVE_UNIT, PbrMaterial::emissive_texture ),
+    ( "specularTexture", PBR_SPECULAR_UNIT, PbrMaterial::specular_texture ),
+    ( "specularColorTexture", PBR_SPECULAR_COLOR_UNIT, PbrMaterial::specular_color_texture ),
+    ( "lightMap", PBR_LIGHT_MAP_UNIT, PbrMaterial::light_map ),
+    ( "clearcoatTexture", PBR_CLEARCOAT_UNIT, PbrMaterial::clearcoat_texture ),
+    ( "clearcoatRoughnessTexture", PBR_CLEARCOAT_ROUGHNESS_UNIT, PbrMaterial::clearcoat_roughness_texture ),
+    ( "clearcoatNormalTexture", PBR_CLEARCOAT_NORMAL_UNIT, PbrMaterial::clearcoat_normal_texture ),
+    ( "anisotropyTexture", PBR_ANISOTROPY_UNIT, PbrMaterial::anisotropy_texture ),
   ];
   /// First of the IBL units (irradiance, prefiltered environment, BRDF LUT): the unit after the
   /// last skinning / morph slot.
@@ -876,7 +880,7 @@ mod private
       // every one of these literals -- an `.unwrap()` panic on drift would instead read as a
       // bare "called `Option::unwrap()` on a `None` value" with no indication of which uniform
       // name fell out of sync.
-      for ( name, unit ) in PBR_TEXTURE_UNITS
+      for ( name, unit, _ ) in PBR_TEXTURE_UNITS
       {
         let location = locations.get( name )
         .unwrap_or_else( || panic!( "PBRShader::impl_locations! missing \"{name}\"" ) );
@@ -978,27 +982,15 @@ mod private
 
     fn bind( &self, gl : &gl::WebGl2RenderingContext )
     {
-      let bind = | texture : &Option< TextureInfo >, unit : u32 |
+      // Each texture on the unit its sampler reads ( `PBR_TEXTURE_UNITS` ).
+      for ( _, unit, texture ) in PBR_TEXTURE_UNITS
       {
-        if let Some( ref t ) = texture
+        if let Some( t ) = texture( self )
         {
           gl.active_texture( gl::TEXTURE0 + unit );
           t.upload( gl );
         }
-      };
-
-      bind( &self.metallic_roughness_texture, PBR_METALLIC_ROUGHNESS_UNIT );
-      bind( &self.base_color_texture, PBR_BASE_COLOR_UNIT );
-      bind( &self.normal_texture, PBR_NORMAL_UNIT );
-      bind( &self.occlusion_texture, PBR_OCCLUSION_UNIT );
-      bind( &self.emissive_texture, PBR_EMISSIVE_UNIT );
-      bind( &self.specular_texture, PBR_SPECULAR_UNIT );
-      bind( &self.specular_color_texture, PBR_SPECULAR_COLOR_UNIT );
-      bind( &self.light_map, PBR_LIGHT_MAP_UNIT );
-      bind( &self.clearcoat_texture, PBR_CLEARCOAT_UNIT );
-      bind( &self.clearcoat_roughness_texture, PBR_CLEARCOAT_ROUGHNESS_UNIT );
-      bind( &self.clearcoat_normal_texture, PBR_CLEARCOAT_NORMAL_UNIT );
-      bind( &self.anisotropy_texture, PBR_ANISOTROPY_UNIT );
+      }
     }
 
     fn defines_str( &self ) -> &str
@@ -1133,6 +1125,7 @@ crate::mod_interface!
     PBR_CLEARCOAT_NORMAL_UNIT,
     PBR_ANISOTROPY_UNIT,
     PBR_TEXTURE_UNITS,
+    PbrTextureGet,
     PBR_IBL_BASE_UNIT,
     PBR_IBL_UNIT_COUNT,
     PBRShader,
