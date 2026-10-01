@@ -42,6 +42,7 @@ mod private
     triangles_enumerate,
     matching_pattern_find,
     corners_resolve,
+    TriangleContext,
   };
   use crate::hash::coord_hash;
   use crate::layer::{ LayerBehaviour, ObjectLayer };
@@ -206,6 +207,121 @@ mod private
     rotation : u8,
   }
 
+  /// The corners of `tri` read through channel `source`, resolved on first
+  /// use and cached in `channels` for every later layer that reads the same
+  /// channel. `channels` holds one triangle's channels; clear it per triangle.
+  fn corner_channel< 'c, 'a >
+  (
+    channels : &'c mut Vec< CornerChannel< 'a > >,
+    tri : &TriangleContext,
+    source : Option< &'a str >,
+    ctx : &FrameContext< '_ >,
+  ) -> &'c CornerChannel< 'a >
+  {
+    let idx = if let Some( i ) = channels.iter().position( | c | c.source == source )
+    {
+      i
+    }
+    else
+    {
+      let raw = corners_resolve( tri, &ctx.tile_lookup, ctx.spec, source );
+      let ( canonical, rotation ) = canonicalize( &raw );
+      channels.push( CornerChannel { source, raw, canonical, rotation } );
+      channels.len() - 1
+    };
+    &channels[ idx ]
+  }
+
+  /// A `VertexCorners` layer routed into the bucket being compiled, with its
+  /// triangle-independent state.
+  struct VertexLayer< 'a >
+  {
+    object : &'a Object,
+    layer : &'a ObjectLayer,
+    /// The id orient mode counts corners against: the value of the layer's
+    /// solid (X,X,X) pattern, so a neighbouring object's id (e.g. an adjacent
+    /// player's region) reads as void instead of being mistaken for the
+    /// distinguishing corner. `None` outside orient mode.
+    self_id : Option< &'a str >,
+  }
+
+  /// Every `VertexCorners` layer whose effective pipeline layer is
+  /// `bucket_id`, in object order and `z_in_object` order within an object.
+  fn vertex_layers_gather< 'a >( bucket_id : &str, spec : &'a RenderSpec ) -> Vec< VertexLayer< 'a > >
+  {
+    let mut layers = Vec::new();
+    for object in &spec.objects
+    {
+      let Some( stack ) = object.states.get( &object.default_state )
+      else { continue };
+      for layer in layers_in_z_order( stack )
+      {
+        let SpriteSource::VertexCorners { patterns, orient_to_grid, .. } = &layer.sprite_source
+        else { continue };
+        let effective = layer.pipeline_layer.as_deref().unwrap_or( object.global_layer.as_str() );
+        if effective == bucket_id
+        {
+          let self_id = if *orient_to_grid { patterns.iter().find_map( TriBlendPattern::self_id ) } else { None };
+          layers.push( VertexLayer { object, layer, self_id } );
+        }
+      }
+    }
+    layers
+  }
+
+  /// The sprite `vl` draws on a triangle whose corners read `corners`, or
+  /// `None` when no pattern matches. `corner_px` are the corner hex centres
+  /// and `( wx, wy )` their centroid.
+  fn vertex_sprite_build
+  (
+    vl : &VertexLayer< '_ >,
+    corners : &CornerChannel< '_ >,
+    corner_px : &[ ( f32, f32 ); 3 ],
+    ( wx, wy ) : ( f32, f32 ),
+    ctx : &FrameContext< '_ >,
+  ) -> Result< Option< Sprite >, CompileError >
+  {
+    let SpriteSource::VertexCorners { patterns, asset, orient_to_grid, offset, .. } = &vl.layer.sprite_source
+    else { return Ok( None ) };
+    let Some( pattern ) = matching_pattern_find( patterns, &corners.canonical )
+    else { return Ok( None ) };
+
+    // Both modes substitute `{rot}`; only the index source differs.
+    // Orient mode picks a pre-baked discrete orientation from triangle
+    // geometry; legacy mode uses the canonical-sort rotation. Either way
+    // `transform.rotation` stays 0 — no runtime sprite rotation.
+    let rot_index = if *orient_to_grid
+    {
+      dual_orientation_index( &corners.raw, vl.self_id, corner_px, wx, wy, ctx.tiling )
+    }
+    else
+    {
+      corners.rotation
+    };
+    let frame_name = pattern.sprite_pattern.replace( "{rot}", &rot_index.to_string() );
+
+    let sprite_id = ctx.compiled.ids.sprite( asset, &frame_name )
+      .ok_or_else( || CompileError::UnresolvedRef
+      {
+        kind : "sprite",
+        id : format!( "{asset}:{frame_name}" ),
+        context : format!( "object {:?} VertexCorners frame {frame_name}", vl.object.id ),
+      })?;
+
+    // Optional static world offset — shifts only the drawn sprite (a tinted,
+    // nudged copy for a 2.5D wall / drop-shadow), not the corner/orientation
+    // geometry resolved above.
+    let ( ox, oy ) = offset.unwrap_or( ( 0.0, 0.0 ) );
+    Ok( Some( Sprite
+    {
+      transform : point_to_transform( wx + ox, wy + oy, vl.object.pivot, sprite_id, ctx ),
+      sprite : sprite_id,
+      tint : ctx.tints.sprite_tint( vl.object, &vl.layer.behaviour, None )?,
+      blend : vl.layer.behaviour.blend,
+      clip : None,
+    }))
+  }
+
   /// Emit dual-mesh triangle sprites for every `VertexCorners` layer that
   /// routes into `bucket_id`. One sprite per triangle whose canonical
   /// corner tuple matches at least one pattern.
@@ -216,58 +332,24 @@ mod private
     ctx : &FrameContext< '_ >,
   ) -> Result< Vec< ( f32, f32, Sprite ) >, CompileError >
   {
-    // Gather every VertexCorners layer that belongs in this bucket.
-    let mut layers : Vec< ( &Object, &ObjectLayer ) > = Vec::new();
-    for object in &ctx.spec.objects
-    {
-      let Some( stack ) = object.states.get( &object.default_state )
-      else { continue };
-      for layer in layers_in_z_order( stack )
-      {
-        if !matches!( layer.sprite_source, SpriteSource::VertexCorners { .. } )
-        {
-          continue;
-        }
-        let effective = layer.pipeline_layer.as_deref().unwrap_or( object.global_layer.as_str() );
-        if effective == bucket_id
-        {
-          layers.push( ( object, layer ) );
-        }
-      }
-    }
+    let layers = vertex_layers_gather( bucket_id, ctx.spec );
+    let Some( first ) = layers.first()
+    else { return Ok( Vec::new() ) };
+    // The object id passed to `hex_world_pixel` only affects an unsupported-
+    // tiling error message, so any layer's object id is fine.
+    let id_for_err = &first.object.id;
 
-    if layers.is_empty()
-    {
-      return Ok( Vec::new() );
-    }
-
-    // Triangle-independent per-layer state, computed once: the "self" id that
-    // orient mode counts corners against. It is the value of the layer's
-    // all-equal (X,X,X) pattern, so a neighbouring object's id (e.g. an
-    // adjacent player's region) reads as void instead of being mistaken for
-    // the distinguishing corner.
-    let self_ids : Vec< Option< &str > > = layers.iter().map( | ( _, layer ) | match &layer.sprite_source
-    {
-      SpriteSource::VertexCorners { patterns, orient_to_grid : true, .. } =>
-        patterns.iter().find_map( TriBlendPattern::self_id ),
-      _ => None,
-    }).collect();
-
-    let triangles = triangles_enumerate( tiles, ctx.tiling );
     let mut out : Vec< ( f32, f32, Sprite ) > = Vec::new();
     // Corners of the current triangle, resolved once per `corner_source`
     // channel and shared by every layer that reads the same channel.
     let mut channels : Vec< CornerChannel< '_ > > = Vec::new();
 
-    for tri in &triangles
+    for tri in &triangles_enumerate( tiles, ctx.tiling )
     {
       channels.clear();
       // Corner hex pixel centres, indexed parallel to `tri.corners`. Computed
       // once per triangle — independent of the layer / corner channel — and
       // reused for the centroid (their average) and the orient-mode frame pick.
-      // The object id passed to `hex_world_pixel` only affects an unsupported-
-      // tiling error message, so any layer's object id is fine.
-      let id_for_err = &layers[ 0 ].0.id;
       let mut corner_px = [ ( 0.0_f32, 0.0_f32 ); 3 ];
       for ( i, corner ) in tri.corners.iter().enumerate()
       {
@@ -276,72 +358,18 @@ mod private
       let wx = ( corner_px[ 0 ].0 + corner_px[ 1 ].0 + corner_px[ 2 ].0 ) / 3.0;
       let wy = ( corner_px[ 0 ].1 + corner_px[ 1 ].1 + corner_px[ 2 ].1 ) / 3.0;
 
-      for ( ( object, layer ), self_id ) in layers.iter().zip( &self_ids )
+      for vl in &layers
       {
-        let SpriteSource::VertexCorners { patterns, asset, orient_to_grid, corner_source, offset } = &layer.sprite_source
-        else { continue };
-
         // Corners come from THIS layer's channel (terrain id by default, or
         // the named draw layer), so independent dual grids — e.g. base
         // terrain and per-player regions — coexist on the same cells.
-        let channel = corner_source.as_deref();
-        let idx = if let Some( i ) = channels.iter().position( | c | c.source == channel )
-        {
-          i
-        }
-        else
-        {
-          let raw = corners_resolve( tri, &ctx.tile_lookup, ctx.spec, channel );
-          let ( canonical, rotation ) = canonicalize( &raw );
-          channels.push( CornerChannel { source : channel, raw, canonical, rotation } );
-          channels.len() - 1
-        };
-        let corners = &channels[ idx ];
-
-        let Some( pattern ) = matching_pattern_find( patterns, &corners.canonical )
+        let SpriteSource::VertexCorners { corner_source, .. } = &vl.layer.sprite_source
         else { continue };
-
-        // Both modes substitute `{rot}`; only the index source differs.
-        // Orient mode picks a pre-baked discrete orientation from triangle
-        // geometry; legacy mode uses the canonical-sort rotation. Either way
-        // `transform.rotation` stays 0 — no runtime sprite rotation.
-        let rot_index = if *orient_to_grid
+        let corners = corner_channel( &mut channels, tri, corner_source.as_deref(), ctx );
+        if let Some( sprite ) = vertex_sprite_build( vl, corners, &corner_px, ( wx, wy ), ctx )?
         {
-          dual_orientation_index( &corners.raw, *self_id, &corner_px, wx, wy, ctx.tiling )
+          out.push( ( wx, wy, sprite ) );
         }
-        else
-        {
-          corners.rotation
-        };
-        let frame_name = pattern.sprite_pattern.replace( "{rot}", &rot_index.to_string() );
-
-        let sprite_id = ctx.compiled.ids.sprite( asset, &frame_name )
-          .ok_or_else( || CompileError::UnresolvedRef
-          {
-            kind : "sprite",
-            id : format!( "{asset}:{frame_name}" ),
-            context : format!( "object {:?} VertexCorners frame {frame_name}", object.id ),
-          })?;
-
-        // Optional static world offset — shifts only the drawn sprite (a tinted,
-        // nudged copy for a 2.5D wall / drop-shadow), not the corner/orientation
-        // geometry resolved above.
-        let ( ox, oy ) = offset.unwrap_or( ( 0.0, 0.0 ) );
-        let transform = point_to_transform( wx + ox, wy + oy, object.pivot, sprite_id, ctx );
-
-
-        out.push
-        ((
-          wx, wy,
-          Sprite
-          {
-            transform,
-            sprite : sprite_id,
-            tint : ctx.tints.sprite_tint( object, &layer.behaviour, None )?,
-            blend : layer.behaviour.blend,
-            clip : None,
-          },
-        ));
       }
     }
 
