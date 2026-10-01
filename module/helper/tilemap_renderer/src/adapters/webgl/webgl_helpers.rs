@@ -693,9 +693,10 @@ mod private
   /// this, a premultiplied texture drawn under `SRC_ALPHA` would be scaled by alpha
   /// twice (`a²`), darkening every antialiased edge. The `ONE` factor is only
   /// correct because the fragment shaders keep the output premultiplied: under
-  /// `u_premultiplied` they scale the tint's RGB by the tint's alpha before
-  /// multiplying, so a layer / instance alpha below 1 fades colour and coverage
-  /// together instead of leaving the colour at full strength.
+  /// `u_premultiplied`, `shaders/tint.glsl` returns the colour and alpha the
+  /// straight twin would write, clamped the same way, with the colour multiplied
+  /// by that alpha. A layer / instance alpha below 1 then fades colour and
+  /// coverage together, and a tint outside 0..1 saturates as it does straight.
   pub fn blend_apply( gl : &gl::GL, blend : &BlendMode, premultiplied : bool )
   {
     // For premultiplied sources the colour is pre-scaled by alpha, so the "src·a"

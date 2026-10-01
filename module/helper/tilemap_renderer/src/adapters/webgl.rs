@@ -36,6 +36,19 @@ mod private
   use crate::commands::{ Clear, Mesh, Sprite, CreateSpriteBatch, CreateMeshBatch, BindBatch, AddSpriteInstance, AddMeshInstance, SetSpriteInstance, SetMeshInstance, RemoveInstance, SetSpriteBatchParams, SetMeshBatchParams, DrawBatch, DeleteBatch, RenderCommand };
   use crate::types::{ FillRef, RenderConfig, ResourceId, Batch, MipmapMode, BlendMode, asset, SamplerFilter, WrapMode };
 
+  /// The tint every fragment shader applies ( `shaders/tint.glsl` ), kept in one
+  /// place because its premultiplied branch is what the `ONE` source factor of
+  /// `blend_apply` relies on.
+  const TINT_CHUNK : &str = include_str!( "shaders/tint.glsl" );
+
+  /// Splices [`TINT_CHUNK`] into a fragment shader at its `#include "tint.glsl"`
+  /// line. GLSL ES has no `#include`, so a shader whose line went missing fails
+  /// to compile instead of silently drawing untinted.
+  fn fragment_source( source : &str ) -> String
+  {
+    source.replacen( "#include \"tint.glsl\"", TINT_CHUNK, 1 )
+  }
+
   // ============================================================================
   // Sprite renderer
   // ============================================================================
@@ -56,13 +69,13 @@ mod private
       (
         gl.clone(),
         include_str!( "shaders/sprite.vert" ),
-        include_str!( "shaders/sprite.frag" ),
+        &fragment_source( include_str!( "shaders/sprite.frag" ) ),
       )?;
       let batch_program = gl::Program::new
       (
         gl.clone(),
         include_str!( "shaders/sprite_batch.vert" ),
-        include_str!( "shaders/sprite_batch.frag" ),
+        &fragment_source( include_str!( "shaders/sprite_batch.frag" ) ),
       )?;
       Ok( Self { program, batch_program } )
     }
@@ -141,13 +154,13 @@ mod private
       (
         gl.clone(),
         include_str!( "shaders/mesh.vert" ),
-        include_str!( "shaders/mesh.frag" ),
+        &fragment_source( include_str!( "shaders/mesh.frag" ) ),
       )?;
       let batch_program = gl::Program::new
       (
         gl.clone(),
         include_str!( "shaders/mesh_batch.vert" ),
-        include_str!( "shaders/mesh_batch.frag" ),
+        &fragment_source( include_str!( "shaders/mesh_batch.frag" ) ),
       )?;
       Ok( Self { program, batch_program } )
     }

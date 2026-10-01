@@ -200,6 +200,19 @@ fn mesh_batch_pixel( assets : &Assets, tint : [ f32; 4 ] ) -> [ u8; 4 ]
   ])
 }
 
+/// Straight texels, their premultiplied twins and tints outside the plain 0–1
+/// product: a tint alpha above 1, a brightening tint over a bright opaque
+/// texel, and both over a half-covered one. The straight path's colour and
+/// alpha are each clamped to 0–1 where the RGBA8 target is written, so the
+/// premultiplied path has to reproduce `clamp( c · tint.rgb ) · clamp( a · tint.a )`
+/// rather than scale the stored `c · a` by the tint.
+const OUT_OF_RANGE_TINTS : [ ( [ u8; 4 ], [ u8; 4 ], [ f32; 4 ] ); 3 ] =
+[
+  ( [ 128, 128, 128, 255 ], [ 128, 128, 128, 255 ], [ 1.0, 1.0, 1.0, 1.5 ] ),
+  ( [ 230, 230, 230, 255 ], [ 230, 230, 230, 255 ], [ 1.3, 1.3, 1.3, 0.5 ] ),
+  ( [ 204, 204, 204, 128 ], [ 102, 102, 102, 128 ], [ 1.5, 1.5, 1.5, 1.5 ] ),
+];
+
 /// The read-back pixel of a reference blend over [`BACKGROUND`]: `colour` maps the
 /// destination channel to the result, and alpha composites "over", as every
 /// mode's alpha factors do.
@@ -210,6 +223,9 @@ fn reference_over_background( source_alpha : f32, colour : impl Fn( f32 ) -> f32
   let c = byte( colour( dst ) );
   [ c, c, c, byte( source_alpha + BACKGROUND[ 3 ] * ( 1.0 - source_alpha ) ) ]
 }
+
+/// A draw path: the pixel a texel's assets read back under a tint.
+type PixelFn = fn( &Assets, [ f32; 4 ] ) -> [ u8; 4 ];
 
 /// Asserts two read-back pixels agree within 8-bit rounding ( ±2 per channel ).
 fn assert_pixel_close( actual : [ u8; 4 ], expected : [ u8; 4 ], what : &str )
@@ -352,6 +368,32 @@ fn mesh_untextured_stays_straight()
   let pixel = mesh_pixel( &texel_assets( PREMULTIPLIED_TEXEL, true ), HALF_ALPHA, false );
 
   assert_pixel_close( pixel, HALF_WHITE_OVER_GREY, "untextured mesh, fill alpha 0.5" );
+}
+
+/// A tint outside the plain 0–1 product still draws a premultiplied texel like
+/// its straight twin, on every draw path, since each fragment shader tints
+/// through the shared `tint.glsl`. Before the fix the three cases read back
+/// 192 / 213 / 255 premultiplied against 128 / 191 / 223 straight on every
+/// path.
+#[ wasm_bindgen_test ]
+fn premultiplied_out_of_range_tint_matches_straight()
+{
+  let paths : [ ( &str, PixelFn ); 4 ] =
+  [
+    ( "sprite", | assets, tint | sprite_pixel( assets, tint, BlendMode::Normal ) ),
+    ( "textured mesh", | assets, tint | mesh_pixel( assets, tint, true ) ),
+    ( "sprite batch", sprite_batch_pixel ),
+    ( "mesh batch", mesh_batch_pixel ),
+  ];
+  for ( path, pixel ) in paths
+  {
+    for ( straight_texel, premultiplied_texel, tint ) in OUT_OF_RANGE_TINTS
+    {
+      let straight = pixel( &texel_assets( straight_texel, false ), tint );
+      let premultiplied = pixel( &texel_assets( premultiplied_texel, true ), tint );
+      assert_pixel_close( premultiplied, straight, &format!( "{path}, texel {straight_texel:?}, tint {tint:?}" ) );
+    }
+  }
 }
 
 /// The sprite batch path reads the flag from its sheet and applies the
