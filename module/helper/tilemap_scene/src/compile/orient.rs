@@ -81,8 +81,8 @@ mod private
     // a `round()` half-step boundary, so adjacent orientations collapse onto the
     // same index and a lone hex yields fewer than six distinct frames. Rotate
     // the orientation reference by the same 30° so the residuals are integral
-    // again. (The absolute base — which frame is orientation 0 — is calibrated
-    // visually per atlas; this only restores the 60° step alignment.)
+    // again. Frame 0's reference direction therefore sits 30° further round on
+    // a pointy-top grid; format/005's atlas-baker contract states both tilings.
     let base_offset = match tiling
     {
       TilingStrategy::HexPointyTop => FRAC_PI_6,
