@@ -94,8 +94,11 @@ mod private
     /// (`src + dst·(1-src_a)`) instead of the straight one
     /// (`src·src_a + dst·(1-src_a)`), which keeps antialiased edges fringe-free
     /// under linear filtering / mipmaps without needing the transparent
-    /// background dilated to the edge colour. Other adapters ignore the flag and
-    /// treat the image as straight alpha. Defaults to `false`.
+    /// background dilated to the edge colour. Other adapters ignore the flag:
+    /// SVG draws the pixels as straight alpha ( semi-transparent texels come out
+    /// darker ), the terminal adapter never samples image pixels, and WebGPU /
+    /// native have no blending yet ( see `tilemap_renderer`'s readme capability
+    /// table ). Defaults to `false`.
     #[ serde( default ) ]
     pub premultiplied : bool,
   }

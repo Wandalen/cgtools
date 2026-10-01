@@ -94,7 +94,7 @@ let Output::String( doc ) = svg.output()? else { unreachable!() };
 | Gradients | yes | — | — | — | — | — |
 | Effects | yes | — | — | — | — | — |
 | Blend modes | yes | partial² | partial⁷ | — | —⁵ | —⁵ |
-| Premultiplied images | — | yes | — | — | —⁸ | —⁸ |
+| Premultiplied images | —⁸ | yes | —⁸ | — | —⁸ | —⁸ |
 | Viewport pan/zoom | yes | partial | — | — | — | — |
 
 > **Terminal** adapter downsamples world coordinates onto a fixed character-cell grid
@@ -156,9 +156,16 @@ let Output::String( doc ) = svg.output()? else { unreachable!() };
 >
 > ⁸ `ImageAsset::premultiplied` is honoured by the WebGL adapter only (premultiplied
 > "over" blend plus premultiplied tinting, see `docs/feature/002_webgl2_backend_adapter.md`).
-> The other adapters ignore the flag and composite the pixels as straight alpha, so
-> semi-transparent texels of a premultiplied image come out darker. WebGPU and native
-> first need blend support at all (⁵). `Capabilities::premultiplied_images` reports the flag's support at runtime: `true` for WebGL only.
+> The other adapters ignore the flag, with different results:
+> - SVG embeds the pixels as a straight-alpha PNG, so a premultiplied image's
+>   semi-transparent texels draw darker.
+> - Terminal never samples image pixels ( a sprite paints its tint into one cell ), so
+>   the flag has nothing to change.
+> - WebGPU and native have no blending yet (⁵) and write texels unblended, premultiplied
+>   RGB included; WebGPU also doesn't upload image pixels yet (³).
+>
+> `Capabilities::premultiplied_images` reports the flag's support at runtime: `true` for
+> WebGL only.
 
 ## known issues / TODO
 
