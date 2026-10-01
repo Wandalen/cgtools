@@ -234,32 +234,15 @@ fn assert_pixel_close( actual : [ u8; 4 ], expected : [ u8; 4 ], what : &str )
   assert!( close, "{what}: got {actual:?}, expected ≈ {expected:?}" );
 }
 
-/// ## Root Cause
-/// The premultiplied path swaps the blend source factor from `SRC_ALPHA` to
-/// `ONE`, which is only correct when the fragment colour is itself
-/// premultiplied. The shaders multiplied the texel by the tint component-wise,
-/// so a tint alpha below 1 reduced coverage ( `A·ta` ) but left RGB at `R·A·t`
-/// instead of `R·A·t·ta` — a faded premultiplied sprite composited too bright.
+/// A tint alpha below 1 fades a premultiplied texel's colour and coverage
+/// together. The `ONE` source factor is only right while the fragment colour
+/// is itself premultiplied, so the tint's alpha has to scale the RGB too:
+/// multiplied component-wise, the texel keeps its full colour while its
+/// coverage drops and composites too bright, ≈ `( 223, 223, 223, 159 )`
+/// against the straight twin's 25% white over grey, ≈ `( 159, 159, 159, 159 )`.
 ///
-/// ## Why Not Caught
-/// No test exercised the WebGL2 blend path of the premultiplied flag at all;
-/// the only coverage stopped at the compiled `ImageAsset`.
-///
-/// ## Fix Applied
-/// All four fragment shaders scale the tint's RGB by the tint's alpha under a
-/// new `u_premultiplied` uniform, which every draw path uploads from its
-/// texture's flag.
-///
-/// ## Prevention
-/// Draws the same half-covered white at tint alpha 0.5 as a straight and as a
-/// premultiplied texture over grey and requires identical pixels: 25% white
-/// over grey ≈ `( 159, 159, 159, 159 )`. Before the fix the premultiplied draw
-/// read back ≈ `( 223, 223, 223, 159 )`.
-///
-/// ## Pitfall
 /// The tint alpha is where the scene compiler folds layer alpha and instance
-/// alpha, so this is the path every faded layer takes — not an edge case.
-// test_kind: bug_reproducer
+/// alpha, so this is the path every faded layer takes, not an edge case.
 #[ wasm_bindgen_test ]
 fn sprite_premultiplied_tint_alpha_matches_straight()
 {
