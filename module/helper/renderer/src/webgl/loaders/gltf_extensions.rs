@@ -16,12 +16,13 @@ mod private
   /// `Cargo.toml` ( `[dependencies.gltf].features` ) -- an extension whose
   /// Cargo feature isn't turned on has no typed accessor exposed by the `gltf`
   /// crate at all, so this loader could not act on it even if it were listed
-  /// here. Cross-checked against this file's own code, not just the feature
-  /// list: `KHR_lights_punctual` is read in [`light_list_get`] / [`light_get`];
-  /// `KHR_materials_specular` is read in `materials_create`'s `gltf_m.specular()`
-  /// branch. `KHR_materials_clearcoat` / `KHR_materials_anisotropy` have no typed
-  /// accessor or Cargo feature in the `gltf` crate; `materials_create` reads their
-  /// JSON through `extension_value`.
+  /// here. Cross-checked against the code that reads each one, not just the
+  /// feature list: `KHR_lights_punctual` is read in `loaders/gltf.rs`'s
+  /// `light_list_get` / `light_get`, and `KHR_materials_specular` in its
+  /// `materials_create` ( the `gltf_m.specular()` branch ).
+  /// `KHR_materials_clearcoat` / `KHR_materials_anisotropy` have no typed accessor
+  /// or Cargo feature in the `gltf` crate; [`material_layer_extensions_apply`] in
+  /// this file reads their JSON through `extension_value`.
   const SUPPORTED_EXTENSIONS : &[ &str ] =
   &[
     "KHR_lights_punctual",

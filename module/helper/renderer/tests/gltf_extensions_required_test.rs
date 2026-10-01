@@ -19,7 +19,7 @@
 //! crate -- an apparent upstream gap, not something this loader controls ).
 //! Using `from_slice_without_validation` isolates this loader's own
 //! `required_extensions_check` from that separate, unrelated upstream gate, so
-//! these tests exercise exactly the logic added to `gltf.rs`.
+//! these tests exercise exactly this loader's own checks in `gltf_extensions.rs`.
 
 use renderer::webgl::loaders::gltf_extensions::{ document_validate, required_extensions_check };
 
@@ -130,8 +130,8 @@ const MATERIAL_LAYER_EXTENSIONS_REQUIRED_FIXTURE : &str = r#"
 #[ test ]
 fn accepts_required_clearcoat_and_anisotropy()
 {
-  // `materials_create` reads both extensions' JSON by hand, so an asset that requires them
-  // must pass this loader's own gate.
+  // `material_layer_extensions_apply` reads both extensions' JSON by hand, so an asset that
+  // requires them must pass this loader's own gate.
   let gltf = gltf::Gltf::from_slice_without_validation( MATERIAL_LAYER_EXTENSIONS_REQUIRED_FIXTURE.as_bytes() )
   .expect( "fixture is well-formed JSON" );
 
