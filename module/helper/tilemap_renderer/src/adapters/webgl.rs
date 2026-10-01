@@ -101,8 +101,9 @@ mod private
       gl.draw_arrays( gl::TRIANGLE_STRIP, 0, 4 );
     }
 
-    /// Draw an instanced sprite batch.
-    fn batch_draw( &self, gl : &gl::GL, batch : &GpuBatch, resources : &GpuResources, viewport : [ f32; 2 ], max_depth : f32 )
+    /// Draw an instanced sprite batch. `premultiplied` is the flag `cmd_draw_batch`
+    /// already handed to `blend_apply`, so the shader and the blend agree.
+    fn batch_draw( &self, gl : &gl::GL, batch : &GpuBatch, resources : &GpuResources, premultiplied : bool, viewport : [ f32; 2 ], max_depth : f32 )
     {
       let GpuBatch::Sprite { instances, vao, params, .. } = batch else { return; };
       if instances.is_empty() { return; }
@@ -118,7 +119,7 @@ mod private
       self.batch_program.activate();
       self.batch_program.uniform_upload( "u_viewport", &viewport );
       self.batch_program.uniform_upload( "u_tex_size", &[ tw as f32, th as f32 ] );
-      self.batch_program.uniform_upload( "u_premultiplied", &i32::from( gpu_tex.premultiplied ) );
+      self.batch_program.uniform_upload( "u_premultiplied", &i32::from( premultiplied ) );
       let parent_mat = params.transform.to_mat3();
       self.batch_program.uniform_matrix_upload( "u_parent", &parent_mat, true );
       self.batch_program.uniform_upload( "u_parent_depth", &params.transform.depth );
@@ -208,7 +209,9 @@ mod private
     }
 
     /// Draw an instanced mesh batch. VAO is already configured via `mesh_batch_vao_setup`.
-    fn batch_draw( &self, gl : &gl::GL, batch : &GpuBatch, resources : &GpuResources, viewport : [ f32; 2 ], max_depth : f32 )
+    /// `premultiplied` is the flag `cmd_draw_batch` already handed to `blend_apply`,
+    /// so the shader and the blend agree.
+    fn batch_draw( &self, gl : &gl::GL, batch : &GpuBatch, resources : &GpuResources, premultiplied : bool, viewport : [ f32; 2 ], max_depth : f32 )
     {
       let GpuBatch::Mesh { instances, vao, params, .. } = batch else { return };
       if instances.is_empty() { return; }
@@ -230,7 +233,7 @@ mod private
       self.batch_program.uniform_upload( "u_viewport", &viewport );
       self.batch_program.uniform_upload( "u_color", &color );
       self.batch_program.uniform_upload( "u_use_texture", &i32::from( use_texture ) );
-      self.batch_program.uniform_upload( "u_premultiplied", &i32::from( resources.mesh_premultiplied( params.texture ) ) );
+      self.batch_program.uniform_upload( "u_premultiplied", &i32::from( premultiplied ) );
       let parent_mat = params.transform.to_mat3();
       self.batch_program.uniform_matrix_upload( "u_parent", &parent_mat, true );
       self.batch_program.uniform_upload( "u_parent_depth", &params.transform.depth );
@@ -840,6 +843,9 @@ mod private
       // batch may carry a premultiplied texture (`MeshBatchParams::texture`), so
       // hardcoding straight-alpha here would double-scale its edges by alpha. An
       // untextured mesh batch resolves to `false` (no texture) — straight-alpha.
+      // Resolved once here and passed to both `blend_apply` and `batch_draw`'s
+      // `u_premultiplied` upload: the `ONE` source factor is only right while the
+      // shader keeps its output premultiplied, so the two must never disagree.
       let ( blend, premultiplied ) = match gpu_batch
       {
         GpuBatch::Sprite { params, .. } =>
@@ -850,8 +856,8 @@ mod private
       blend_apply( &self.gl, blend, premultiplied );
       match gpu_batch
       {
-        GpuBatch::Sprite { .. } => self.sprite.batch_draw( &self.gl, gpu_batch, &res, viewport, self.config.max_depth ),
-        GpuBatch::Mesh { .. } => self.mesh.batch_draw( &self.gl, gpu_batch, &res, viewport, self.config.max_depth ),
+        GpuBatch::Sprite { .. } => self.sprite.batch_draw( &self.gl, gpu_batch, &res, premultiplied, viewport, self.config.max_depth ),
+        GpuBatch::Mesh { .. } => self.mesh.batch_draw( &self.gl, gpu_batch, &res, premultiplied, viewport, self.config.max_depth ),
       }
       Ok( () )
     }
