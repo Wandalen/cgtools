@@ -50,6 +50,7 @@ HAL once one exists.
 | [../invariant/001_depth_buffer_visibility_with_oit.md](../invariant/001_depth_buffer_visibility_with_oit.md) | Visibility contract realized by passes 1–3 |
 | [../invariant/002_pbr_metallic_roughness_baseline.md](../invariant/002_pbr_metallic_roughness_baseline.md) | Material contract realized by the scene side |
 | [../invariant/003_hdr_internal_tone_mapped_output.md](../invariant/003_hdr_internal_tone_mapped_output.md) | Range contract realized by the target topology and pass 5 |
+| [../invariant/004_gpu_resource_ownership.md](../invariant/004_gpu_resource_ownership.md) | Ownership contract for the scene graph's geometries, textures and skins |
 
 ### Pitfalls
 

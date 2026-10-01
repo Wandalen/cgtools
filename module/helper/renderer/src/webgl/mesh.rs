@@ -32,7 +32,7 @@ mod private
         // Fix(BUG-256): `s.clone()` cloned the `Rc` pointer itself, so the "cloned" `Mesh` ended
         // up aliasing the exact same `Rc< RefCell< Skeleton > > ` as `self` -- animating or
         // re-posing one instance's skeleton silently animated the other's too, breaking
-        // `Node::tree_clone`'s documented "new independent scene graph subtree" contract. The
+        // `Node::tree_clone`'s documented contract that every copy gets its own skeleton. The
         // `s.borrow().clone()` / `*s.borrow_mut() = clone` dance in between accomplished nothing
         // observable for the clone (it only overwrote `self`'s own `Skeleton` with a fresh,
         // identical-by-value clone of itself, as a side effect of calling `.clone()` on `self`)

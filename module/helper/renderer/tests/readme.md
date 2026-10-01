@@ -20,6 +20,17 @@
 | webgl/program_needs_recompile.rs | Tests `program_needs_recompile` invalidates a material's cached program on IBL-state change |
 | webgl/pass.rs | Tests `SwapFramebuffer::new`'s doc comment renderbuffer claim matches its body |
 | webgl/ibl.rs | Tests `ibl_texture_parameters_apply` targets `specular_1_texture`'s mip range, not `diffuse_texture`'s |
+| webgl/mod.rs | Connects the `webgl` test modules; configures the binary for a browser run and gates the live-context suites |
+| webgl/geometry_gl_lifecycle.rs | Live-context: `Geometry`'s `Drop` deletes its own VAO and leaves shared attribute / index buffers alone; a cloned `Primitive` shares its geometry |
+| webgl/texture_gl_lifecycle.rs | Live-context: an owning `Texture` is deleted once after its last clone drops; a view deletes nothing; `load_from_path` uploads into its own texture and skips the upload once dropped |
+| webgl/ibl_gl_lifecycle.rs | Live-context: `IBL` texture teardown and clone / double-free behaviour (`test_internals`) |
+| webgl/renderer_gl_lifecycle.rs | Live-context: `Renderer::gl_resources_free` and resize buffer replacement (`test_internals`) |
+| webgl/skeleton_gl_lifecycle.rs | Live-context: `TransformsData` / `DisplacementsData` texture teardown, clone-drop safety and upload-after-clone in either drop order (`test_internals`) |
+| webgl/shadow_gl_lifecycle.rs | Live-context: `ShadowBaker` framebuffer teardown and cull-face restoration (`test_internals`) |
+| webgl/gbuffer_gl_lifecycle.rs | Live-context: `GBuffer` VAO / framebuffer / depth buffer / texture teardown (`test_internals`) |
+| webgl/blend_gl_lifecycle.rs | Live-context: `BlendPass::gl_resources_free` program teardown (`test_internals`) |
+| webgl/unreal_bloom_gl_lifecycle.rs | Live-context: `UnrealBloomPass` drop-without-explicit-free teardown (`test_internals`) |
+| webgl/wide_outline_gl_lifecycle.rs | Live-context: `WideOutlinePass::gl_resources_free` owned-vs-borrowed teardown (`test_internals`) |
 | animation_tests.rs | Tests node animation system (transforms, rotation, scaling) |
 | gltf_light_parsing_test.rs | Tests glTF light resolution and direction/position derivation |
 | gltf_animation_loader_test.rs | Tests glTF animation channel decode + vec3 tween-sequence building |
@@ -27,6 +38,7 @@
 | color_grading_tests.rs | Tests color grading pipeline |
 | geometry_tests.rs | Tests `Geometry` attribute API (add_attribute duplicate handling) |
 | webgl/pbr_material.rs | Tests PBR material enums (`CullMode`, `AlphaMode`) — defaults, variants, clone/copy |
+| webgl/texture.rs | Tests `Texture`'s builder and `Default` both target `TEXTURE_2D` and make non-owning views |
 | scaler_tests.rs | Tests animation scaling |
 | skeleton_tests.rs | Tests skeleton stuff |
 | animation_graph_tests.rs | Tests animation graph stuff |

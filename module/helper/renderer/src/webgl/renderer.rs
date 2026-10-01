@@ -4,7 +4,6 @@ mod private
   use rustc_hash::{ FxHashMap, FxHashSet };
   use minwebgl as gl;
   use gl::{ GL, F32x3 };
-  use web_sys::WebGlTexture;
 
   use crate::webgl::
   {
@@ -33,7 +32,8 @@ mod private
     ShaderProgram,
     Scene,
     IBL,
-    Light
+    Light,
+    Texture
   };
 
   /// Manages WebGL2 framebuffers and associated renderbuffers/textures for a rendering
@@ -82,8 +82,6 @@ mod private
     pub transparent_revealage_texture : Option< gl::web_sys::WebGlTexture >,
     #[ allow( dead_code, reason = "never read back after attachment; held so the GPU resource outlives the framebuffer" ) ]
     pub depth_renderbuffer : Option< gl::web_sys::WebGlRenderbuffer >,
-    /// Texture with equirectangular map
-    pub skybox_texture : Option< gl::web_sys::WebGlTexture >,
   }
 
   /// Creates a multisampled renderbuffer and allocates `format` storage for it.
@@ -208,21 +206,20 @@ mod private
 
       Self
       {
-        texture_height,
         texture_width,
-        resolved_framebuffer,
+        texture_height,
         multisample_framebuffer,
+        resolved_framebuffer,
         multisample_depth_renderbuffer,
-        multisample_emission_renderbuffer,
         multisample_main_renderbuffer,
+        multisample_emission_renderbuffer,
         multisample_transparent_accumulate_renderbuffer,
         multisample_transparent_revealage_renderbuffer,
-        depth_renderbuffer,
         main_texture,
         emission_texture,
         transparent_accumulate_texture,
         transparent_revealage_texture,
-        skybox_texture : None
+        depth_renderbuffer,
       }
     }
 
@@ -379,7 +376,6 @@ mod private
       gl.delete_texture( self.emission_texture.as_ref() );
       gl.delete_texture( self.transparent_accumulate_texture.as_ref() );
       gl.delete_texture( self.transparent_revealage_texture.as_ref() );
-      gl.delete_texture( self.skybox_texture.as_ref() );
     }
   }
 
@@ -429,7 +425,11 @@ mod private
     /// Clear color
     clear_color : F32x3,
     /// Shader for drawing background
-    skybox_shader : SkyboxShader
+    skybox_shader : SkyboxShader,
+    /// Equirectangular background texture. Kept outside `framebuffer_ctx` so it
+    /// survives `resize()`; released only through `Texture`'s own ownership (an
+    /// owning texture is deleted once its last clone, this one included, drops).
+    skybox : Option< Texture >,
   }
 
   impl Renderer
@@ -487,7 +487,8 @@ mod private
           exposure,
           composite_shader,
           clear_color : F32x3::splat( 0.0 ),
-          skybox_shader
+          skybox_shader,
+          skybox : None,
         }
       )
     }
@@ -577,10 +578,17 @@ mod private
       self.exposure
     }
 
-    /// Sets the skybox cube map texture.
-    pub fn skybox_set( &mut self, texture : Option< WebGlTexture > )
+    /// Sets the skybox: an equirectangular map, bound and sampled as a 2D texture.
+    ///
+    /// The renderer keeps `texture` (a clone of a `Texture` shares its GPU owner),
+    /// so an owning texture such as [`Texture::load_from_path`]'s stays alive for as
+    /// long as it is the skybox, across `resize()`, and is released when it is
+    /// replaced, cleared with `None`, freed by [`Renderer::gl_resources_free`] or
+    /// dropped with the renderer, unless the caller still holds a clone. The renderer
+    /// never deletes the GPU texture itself; a non-owning view stays its creator's.
+    pub fn skybox_set( &mut self, texture : Option< Texture > )
     {
-      self.framebuffer_ctx.skybox_texture = texture;
+      self.skybox = texture;
     }
 
     /// Sets a new exposure value.
@@ -653,7 +661,7 @@ mod private
       let inv_view_loc = locations.get( "invView" ).unwrap();
 
       gl.active_texture( gl::TEXTURE0 );
-      gl.bind_texture( gl::TEXTURE_2D, self.framebuffer_ctx.skybox_texture.as_ref() );
+      gl.bind_texture( gl::TEXTURE_2D, self.skybox.as_ref().and_then( | t | t.source.as_ref() ) );
       gl.uniform1i( equirect_map_loc.as_ref(), 0_i32 );
       gl::uniform::matrix_upload( gl, inv_projection_loc.clone(), &camera.projection_matrix_get().inverse().unwrap().to_array(), true ).unwrap();
       gl::uniform::matrix_upload( gl, inv_view_loc.clone(), &camera.view_matrix_get().inverse().unwrap().to_array(), true ).unwrap();
@@ -1026,7 +1034,7 @@ mod private
 
       gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
 
-      if self.framebuffer_ctx.skybox_texture.is_some()
+      if self.skybox.is_some()
       {
         self.skybox_draw( gl, camera );
       }
@@ -1216,6 +1224,9 @@ mod private
       }
       gl.delete_program( Some( self.composite_shader.program() ) );
       gl.delete_program( Some( self.skybox_shader.program() ) );
+      // Releases the renderer's share of the skybox; `Texture` decides whether
+      // that deletes anything (see `skybox_set`).
+      self.skybox = None;
     }
   }
 

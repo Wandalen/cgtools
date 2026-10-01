@@ -27,6 +27,9 @@ mod camera;
 /// PBR material tests
 mod pbr_material;
 
+/// `Texture` builder and `Default` target / ownership defaults
+mod texture;
+
 /// Shadow-baking Light tests
 mod shadow;
 
@@ -65,6 +68,18 @@ mod pass;
 
 /// IBL loader texture-parameter / mip-range wiring tests
 mod ibl;
+
+// Live-context lifecycle suites for `Geometry` and `Texture`: wasm32-only, since
+// they need a `WebGl2RenderingContext`, but every handle they check is public, so
+// unlike the suites below they don't need `test_internals`.
+/// `Geometry` VAO teardown; shared attribute / index buffers survive; a cloned
+/// `Primitive` shares its geometry.
+#[ cfg( target_arch = "wasm32" ) ]
+mod geometry_gl_lifecycle;
+
+/// `Texture` owning-vs-view teardown and `load_from_path`'s pending upload.
+#[ cfg( target_arch = "wasm32" ) ]
+mod texture_gl_lifecycle;
 
 // The GL-resource-lifecycle suites below were inline `#[cfg(test)] mod tests`
 // blocks under `src/webgl/**` until `rulebook.md § Test placement` was changed
