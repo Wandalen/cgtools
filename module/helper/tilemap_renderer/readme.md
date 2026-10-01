@@ -158,7 +158,7 @@ let Output::String( doc ) = svg.output()? else { unreachable!() };
 > "over" blend plus premultiplied tinting, see `docs/feature/002_webgl2_backend_adapter.md`).
 > The other adapters ignore the flag and composite the pixels as straight alpha, so
 > semi-transparent texels of a premultiplied image come out darker. WebGPU and native
-> first need blend support at all (⁵); `Capabilities` has no field for this yet.
+> first need blend support at all (⁵). `Capabilities::premultiplied_images` reports the flag's support at runtime: `true` for WebGL only.
 
 ## known issues / TODO
 

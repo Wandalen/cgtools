@@ -1199,6 +1199,8 @@ mod private
         blend_modes : false,
         supported_blend_modes : &[ BlendMode::Normal, BlendMode::Add, BlendMode::Multiply, BlendMode::Screen ],
         text_on_path : false,
+        // `blend_apply` and `shaders/tint.glsl` honour `ImageAsset::premultiplied`.
+        premultiplied_images : true,
         max_texture_size,
       }
     }
