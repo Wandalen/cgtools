@@ -34,7 +34,7 @@ mod private
   use crate::assets::Assets;
   use crate::backend::{ RenderError, Backend, Output, Capabilities };
   use crate::commands::{ Clear, Mesh, Sprite, CreateSpriteBatch, CreateMeshBatch, BindBatch, AddSpriteInstance, AddMeshInstance, SetSpriteInstance, SetMeshInstance, RemoveInstance, SetSpriteBatchParams, SetMeshBatchParams, DrawBatch, DeleteBatch, RenderCommand };
-  use crate::types::{ FillRef, RenderConfig, ResourceId, Batch, MipmapMode, BlendMode, asset, SamplerFilter, WrapMode };
+  use crate::types::{ FillRef, RenderConfig, ResourceId, Batch, MipmapMode, BlendMode, asset };
 
   /// The tint every fragment shader applies ( `shaders/tint.glsl` ), kept in one
   /// place because its premultiplied branch is what the `ONE` source factor of
@@ -919,7 +919,7 @@ mod private
             // (guarded by prefix) once the browser has decoded it — unlike a
             // real path, nothing else keeps the URL alive.
             let generation = self.resources.borrow().generation;
-            let tex = image_upload_from_path( gl, &url, img.id, &self.resources, img.filter, img.mipmap, img.wrap, generation );
+            let tex = image_upload_from_path( gl, &url, img, &self.resources, generation );
             gl.bind_texture( gl::TEXTURE_2D, Some( &tex ) );
             ( tex, 0, 0 )
           }
@@ -932,7 +932,7 @@ mod private
             // texture is guaranteed to be complete (esp. for mipmap modes, which leave
             // the texture incomplete until generate_mipmap runs).
             let generation = self.resources.borrow().generation;
-            let tex = image_upload_from_path( gl, path, img.id, &self.resources, img.filter, img.mipmap, img.wrap, generation );
+            let tex = image_upload_from_path( gl, path, img, &self.resources, generation );
             gl.bind_texture( gl::TEXTURE_2D, Some( &tex ) );
             ( tex, 0, 0 )
           }
@@ -1502,20 +1502,19 @@ mod private
   }
 
   /// Like `gl::texture::d2::image_upload_from_path`, but updates
-  /// `GpuTexture.width` / `height` cells once the image loads.
-  #[ allow( clippy::too_many_arguments, reason = "each parameter is a distinct texture-loading input (source, id, resource table, and independent sampler settings); grouping into a struct would add indirection for this single-call-site private helper" ) ]
+  /// `GpuTexture.width` / `height` cells once the image loads. `src` is the
+  /// URL to load `asset` from ( its path, or a `blob:` URL for encoded bytes );
+  /// the id, sampler settings and premultiplied flag come from `asset`.
   fn image_upload_from_path
   (
     gl : &gl::GL,
     src : &str,
-    id : ResourceId< asset::Image >,
+    asset : &crate::assets::ImageAsset,
     resources : &Rc< RefCell< GpuResources > >,
-    filter : SamplerFilter,
-    mipmap : MipmapMode,
-    wrap : WrapMode,
     generation : u32,
   ) -> web_sys::WebGlTexture
   {
+    let ( id, filter, mipmap, wrap, premultiplied ) = ( asset.id, asset.filter, asset.mipmap, asset.wrap, asset.premultiplied );
     let document = web_sys::window().expect( "no window" ).document().expect( "no document" );
 
     let texture = gl.create_texture().expect( "failed to create texture" );
@@ -1566,7 +1565,19 @@ mod private
           return;
         }
 
+        // A premultiplied image's bytes go up as stored. The browser's default
+        // colour conversion ( an ICC profile or `gAMA` tag to sRGB ) treats them
+        // as straight colour and lifts an edge texel's colour above its alpha,
+        // which the `ONE` source factor composites as a bright halo.
+        if premultiplied
+        {
+          gl.pixel_storei( gl::UNPACK_COLORSPACE_CONVERSION_WEBGL, gl::NONE as i32 );
+        }
         gl::texture::d2::upload( &gl, Some( &texture ), &img );
+        if premultiplied
+        {
+          gl.pixel_storei( gl::UNPACK_COLORSPACE_CONVERSION_WEBGL, gl::BROWSER_DEFAULT_WEBGL as i32 );
+        }
 
         // Bind and apply all sampler state now that level 0 is populated. Binding
         // explicitly because upload() may leave a different texture bound, and

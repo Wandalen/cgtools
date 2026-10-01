@@ -419,3 +419,67 @@ fn mesh_batch_premultiplied_matches_straight()
   assert_pixel_close( straight, QUARTER_WHITE_OVER_GREY, "straight mesh batch, instance alpha 0.5" );
   assert_pixel_close( premultiplied, straight, "premultiplied mesh batch, instance alpha 0.5" );
 }
+
+/// Resolves after `ms` milliseconds, giving the browser a task to run the
+/// image decode in.
+async fn sleep( ms : i32 )
+{
+  let promise = gl::js_sys::Promise::new( &mut | resolve, _reject |
+  {
+    web_sys::window().unwrap().set_timeout_with_callback_and_timeout_and_arguments_0( &resolve, ms ).unwrap();
+  });
+  gl::JsFuture::from( promise ).await.unwrap();
+}
+
+/// A 1×1 RGBA PNG tagged with a linear `gAMA` chunk ( gamma 1.0 ), which tells
+/// the browser its values are linear light rather than sRGB.
+fn linear_tagged_png( texel : [ u8; 4 ] ) -> Vec< u8 >
+{
+  let mut bytes = Vec::new();
+  let mut encoder = png::Encoder::new( &mut bytes, 1, 1 );
+  encoder.set_color( png::ColorType::Rgba );
+  encoder.set_depth( png::BitDepth::Eight );
+  encoder.set_source_gamma( png::ScaledFloat::new( 1.0 ) );
+  let mut writer = encoder.write_header().unwrap();
+  writer.write_image_data( &texel ).unwrap();
+  writer.finish().unwrap();
+  bytes
+}
+
+/// A premultiplied image's bytes reach the texture unconverted, even when the
+/// file carries a colour tag the browser would convert. The conversion assumes
+/// straight colour and raises the stored 0.25 of a linear-tagged texel while
+/// its alpha stays 0.5, so under the `ONE` source factor the texel composites
+/// as a bright halo ( 191 here ) instead of 25% white over the grey ( ≈ 128 ).
+#[ wasm_bindgen_test ]
+async fn premultiplied_encoded_image_skips_colour_conversion()
+{
+  let mut assets = texel_assets( [ 0; 4 ], true );
+  assets.images[ 0 ].source = ImageSource::Encoded( linear_tagged_png( [ 64, 64, 64, 128 ] ) );
+  let gl = gl_init();
+  let config = RenderConfig::default();
+  let transform = Transform { scale : [ config.width as f32, config.height as f32 ], ..Transform::default() };
+  let mut backend = WebGlBackend::new( config, gl.clone() ).unwrap();
+  backend.assets_load( &assets ).unwrap();
+  let commands =
+  [
+    RenderCommand::Clear( Clear { color : BACKGROUND } ),
+    RenderCommand::Sprite( Sprite { transform, sprite : ResourceId::new( 0 ), tint : WHITE, blend : BlendMode::Normal, clip : None } ),
+  ];
+
+  // The sprite is skipped until the decode lands, so the clear reads back until then.
+  let background = [ 127; 4 ];
+  // The clear's alpha reads back 127 too, so the loop also ends on the drawn
+  // pixel, whose alpha is 191.
+  let mut pixel = background;
+  for _ in 0..200
+  {
+    sleep( 10 ).await;
+    backend.submit( &commands ).unwrap();
+    gl.read_pixels_with_opt_u8_array( 0, 0, 1, 1, gl::RGBA, gl::UNSIGNED_BYTE, Some( &mut pixel ) ).unwrap();
+    if pixel != background { break; }
+  }
+
+  let a = 128.0 / 255.0;
+  assert_pixel_close( pixel, reference_over_background( a, | dst | 64.0 / 255.0 + dst * ( 1.0 - a ) ), "linear-tagged premultiplied texel" );
+}
