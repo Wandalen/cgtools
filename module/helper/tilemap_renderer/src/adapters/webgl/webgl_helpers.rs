@@ -715,8 +715,8 @@ mod private
       // darken the destination more than the reference formula prescribes. Exact
       // when src_alpha = 1, or for premultiplied sources at any alpha (there
       // src.rgb already carries rgb*a, so dst*(rgb*a + 1 - a) is the reference).
-      // qqq(FBO): replace with Photoshop-accurate formula for straight sources —
-      // see BlendMode::Multiply doc.
+      // An FBO / custom-shader pass would be needed for the Photoshop-accurate
+      // formula — see the BlendMode::Multiply doc.
       // Color: src*dst + dst*(1-src_a). Alpha: standard over.
       BlendMode::Multiply => gl.blend_func_separate( gl::DST_COLOR, gl::ONE_MINUS_SRC_ALPHA, gl::ONE, gl::ONE_MINUS_SRC_ALPHA ),
       // Same class of approximation as Multiply: the ONE / ONE_MINUS_SRC_COLOR
