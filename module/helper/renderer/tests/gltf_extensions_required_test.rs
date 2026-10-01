@@ -155,6 +155,26 @@ fn document_validate_ignores_upstream_required_extension_list()
   assert!( document_validate( &gltf ).is_ok(), "only the upstream extensionsRequired rule may be skipped" );
 }
 
+const DRACO_REQUIRED_FIXTURE : &str = r#"
+{
+  "asset": { "version": "2.0" },
+  "extensionsRequired": [ "KHR_draco_mesh_compression" ],
+  "extensionsUsed": [ "KHR_draco_mesh_compression" ]
+}
+"#;
+
+#[ test ]
+fn document_validate_alone_rejects_unsupported_required_extension()
+{
+  // `document_validate` skips gltf-json's own extensionsRequired rule, so it must apply this
+  // loader's rule itself: a caller that validates with it alone must not accept an asset
+  // requiring an extension the loader can't decode.
+  let gltf = gltf::Gltf::from_slice_without_validation( DRACO_REQUIRED_FIXTURE.as_bytes() )
+  .expect( "fixture is well-formed JSON" );
+
+  assert!( document_validate( &gltf ).is_err(), "KHR_draco_mesh_compression is not supported" );
+}
+
 const DANGLING_NODE_FIXTURE : &str = r#"
 {
   "asset": { "version": "2.0" },

@@ -1341,8 +1341,8 @@ mod private
   /// # Errors
   ///
   /// Returns `WebglError` if fetching or parsing the glTF file or its buffers fails, or if the
-  /// glTF asset's `extensionsRequired` lists an extension this loader doesn't support ( see
-  /// [`required_extensions_check`] ).
+  /// glTF asset fails validation, including an `extensionsRequired` entry this loader doesn't
+  /// support ( see [`document_validate`] ).
   ///
   /// # Panics
   ///
@@ -1377,8 +1377,8 @@ mod private
       gl::WebglError::Other( "Failed to load gltf file" )
     } )?;
     // Parsed without `gltf`'s own validation, which would reject any required extension
-    // outside `gltf-json`'s typed list ( see `document_validate` ); the same checks minus
-    // that one run right below.
+    // outside `gltf-json`'s typed list ( see `document_validate` ); `document_validate` runs
+    // the same checks with this loader's extension rule right below.
     let mut gltf_file = gltf::Gltf::from_slice_without_validation( &gltf_slice )
     .map_err( | e |
     {
@@ -1389,8 +1389,8 @@ mod private
     // Per glTF 2.0's "Specifying Extensions", a conformant client MUST refuse to
     // load an asset whose `extensionsRequired` names an extension it doesn't
     // support. Checked immediately after parsing, before any buffer/image/GL work.
-    required_extensions_check( &gltf_file )?;
-    document_validate( &gltf_file )?;
+    document_validate( &gltf_file )
+    .inspect_err( | _ | gl::browser::error!( "Invalid gltf file '{gltf_path}'" ) )?;
 
     let buffers = buffers_load( &mut gltf_file, folder_path ).await?;
 

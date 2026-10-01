@@ -63,22 +63,27 @@ mod private
     Ok( () )
   }
 
-  /// Runs the `gltf-json` structural validation ( index bounds, required fields, ... ) that
-  /// `gltf::Gltf::from_slice` would run, minus its `extensionsRequired` rule.
+  /// Validates a document parsed with `gltf::Gltf::from_slice_without_validation`: this
+  /// loader's `extensionsRequired` rule ( [`required_extensions_check`] ), then the `gltf-json`
+  /// structural validation ( index bounds, required fields, ... ) that `gltf::Gltf::from_slice`
+  /// would run, minus its own `extensionsRequired` rule.
   ///
-  /// That rule checks against `gltf-json`'s compile-time list of extensions it has typed
+  /// That upstream rule checks against `gltf-json`'s compile-time list of extensions it has typed
   /// support for, which lacks extensions this loader reads by hand ( `KHR_materials_clearcoat`,
   /// `KHR_materials_anisotropy` ) and even `KHR_materials_specular`, so a valid asset requiring
-  /// one of them could never load. [`required_extensions_check`] enforces the same glTF rule
-  /// against `SUPPORTED_EXTENSIONS`, and `load` runs it first.
+  /// one of them could never load. This function replaces it with the same glTF rule against
+  /// `SUPPORTED_EXTENSIONS`, so it is complete on its own.
   ///
   /// # Errors
   ///
-  /// Returns `WebglError::Other` if any other validation error is reported; each one is logged
-  /// via `gl::browser::error!` with its JSON path.
+  /// Returns `WebglError::Other` if the asset requires an unsupported extension or any other
+  /// validation error is reported; each one is logged via `gl::browser::error!`, with its JSON
+  /// path for structural errors.
   pub fn document_validate( gltf_file : &gltf::Gltf ) -> Result< (), gl::WebglError >
   {
     use gltf::json::validation::Validate;
+
+    required_extensions_check( gltf_file )?;
 
     let root = gltf_file.document.as_json();
     let mut errors = Vec::new();
