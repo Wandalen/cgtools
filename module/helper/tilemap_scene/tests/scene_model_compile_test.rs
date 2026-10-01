@@ -198,18 +198,25 @@ fn compile_assets_allocates_one_image_and_one_sprite()
   assert_eq!( sprite.region, [ 0.0, 0.0, 72.0, 64.0 ], "frame 0 occupies top-left tile" );
 }
 
+/// `premultiplied` reaches the compiled `ImageAsset` from what a scene author
+/// writes. The asset is parsed from RON, as scene files are, so the serde side
+/// is pinned too: a rename or `skip_deserializing` on the field would read
+/// `premultiplied: true` as `false`, and a non-`false` default would flip every
+/// asset that omits it.
 #[ test ]
 fn compile_assets_propagates_premultiplied()
 {
-  // Default (serde / fixture) is false.
-  let default_compiled = assets_compile( &minimal_spec(), &PathResolver ).expect( "compile" );
-  assert!( !default_compiled.assets.images[ 0 ].premultiplied, "default premultiplied is false" );
+  let compiled = | premultiplied_field : &str |
+  {
+    let ron = format!( r#"Asset( id: "terrain", path: "terrain.png", kind: Atlas( tile_size: ( 72, 64 ), columns: 2 ){premultiplied_field} )"# );
+    let mut spec = minimal_spec();
+    spec.assets[ 0 ] = ron::from_str( &ron ).expect( "asset parses" );
+    assets_compile( &spec, &PathResolver ).expect( "compile" ).assets.images[ 0 ].premultiplied
+  };
 
-  // premultiplied: true on the source asset must reach the ImageAsset.
-  let mut spec = minimal_spec();
-  spec.assets[ 0 ].premultiplied = true;
-  let compiled = assets_compile( &spec, &PathResolver ).expect( "compile" );
-  assert!( compiled.assets.images[ 0 ].premultiplied, "premultiplied: true must propagate into ImageAsset" );
+  assert!( !compiled( "" ), "an asset that omits premultiplied compiles straight" );
+  assert!( compiled( ", premultiplied: true" ), "premultiplied: true must reach the ImageAsset" );
+  assert!( !compiled( ", premultiplied: false" ), "premultiplied: false must reach the ImageAsset" );
 }
 
 #[ test ]
