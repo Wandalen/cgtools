@@ -39,7 +39,7 @@ crosstalk.
 | `src/validate.rs` | `Validate` trait + partial impls for `RenderSpec` and `SceneSnapshot` — see [`docs/invariant/001_renderspec_referential_integrity.md`](docs/invariant/001_renderspec_referential_integrity.md) for exactly which rules are enforced today. |
 | `src/error.rs` | `LoadError`, `ValidationError`, `SnapshotLoadError`. |
 | `src/compile/` | Internal lowering passes called by `Renderer`. See sub-table. |
-| `tests/` | Integration tests — `scene_state_test`, `scene_events_test`, `renderer_test`, `renderer_cache_test`, `scene_model_compile_test`, `scene_model_test`. `tests/common/mod.rs` carries the shared `commands_to_sprites` / `BatchFlattener` helpers used to project batch streams back to pre-batch `Sprite` commands for assertions. |
+| `tests/` | Integration tests — `scene_state_test`, `scene_events_test`, `renderer_test`, `renderer_cache_test`, `scene_model_compile_test`, `vertex_corners_compile_test`, `layer_tint_compile_test`, `scene_model_test`. `tests/common/mod.rs` carries the shared `commands_to_sprites` / `BatchFlattener` helpers used to project batch streams back to pre-batch `Sprite` commands for assertions; `tests/common/compile.rs` the spec / scene / render fixtures shared by the compile tests. |
 | `docs/` | Design documentation as typed doc definitions — see [docs/definition/readme.md](docs/definition/readme.md) |
 | `roadmap.md` | Open work and design sketches. |
 

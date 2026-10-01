@@ -230,7 +230,7 @@ mod private
       //   - `compile/frame.rs::vertex_pass_compile` scans *every* object
       //     for VertexCorners layers with no anchor check at all —
       //     confirmed intentional by the explicit comment on the `blend`
-      //     object in `tests/scene_model_compile_test.rs`'s
+      //     object in `tests/vertex_corners_compile_test.rs`'s
       //     `vertex_corners_three_way_blend`: "anchor type of the owning
       //     object doesn't matter for VertexCorners pass". `Placement`
       //     (`src/instance.rs`) also has no `Vertex` variant at all, so

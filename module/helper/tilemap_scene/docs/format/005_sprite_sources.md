@@ -100,3 +100,4 @@ New leaf or composite variants are expected to be additive; so are new optional 
 | File | Relationship |
 |------|--------------|
 | `tests/scene_model_compile_test.rs` | Compile-time coverage of all 9 source variants across applicable anchors |
+| `tests/vertex_corners_compile_test.rs` | `VertexCorners` pattern matching and wildcards, `orient_to_grid` frame selection (corner, edge and full tiles; flat- and pointy-top; self id vs foreign id), `corner_source` channels and `offset` |

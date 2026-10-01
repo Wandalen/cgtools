@@ -19,7 +19,7 @@ Two levels coexist:
 | File | Responsibility |
 |------|----------------|
 | catalog_test.rs | Catalog and its builder API surface |
-| common/ | Shared fixture helpers for integration tests |
+| common/ | Shared fixture helpers for integration tests (`compile.rs`: spec / scene / render fixtures for the `*_compile_test.rs` files) |
 | compile_units_test.rs | Unit contracts of compile-layer primitives (ids, conditions, camera, edges, vertex, viewport, animation, coords) |
 | hash_test.rs | Known-answer determinism pins for normative SPEC §13 hashes |
 | hex_config_test.rs | HexConfig::from_hex_size grid-stride arithmetic |
@@ -31,6 +31,7 @@ Two levels coexist:
 | scene_model_test.rs | scene-model parsing, serde round-trip, loader API |
 | scene_state_test.rs | Retained-mode Scene mutation API |
 | sorted_batching_test.rs | Sorted-bucket DrawBatch collapsing |
+| vertex_corners_compile_test.rs | VertexCorners through the compile pipeline: pattern matching, orient_to_grid frame selection, corner_source channels, offset |
 
 ## Adding tests
 
