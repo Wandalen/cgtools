@@ -8,8 +8,13 @@
 //! Every case draws a 1×1 texel stretched over the whole viewport onto a known
 //! background and reads pixel `( 0, 0 )` back. The same visible colour
 //! is authored twice — once straight-alpha, once premultiplied — and the two
-//! results must match: a premultiplied texture is a storage format, not a
-//! different look.
+//! results must match under `Normal`, `Add` and the `Overlay` fallback: there a
+//! premultiplied texture is a storage format, not a different look.
+//!
+//! `Multiply` and `Screen` are the exception. Their GL factors approximate the
+//! reference formula for a straight source below full alpha, and compute it
+//! exactly for a premultiplied one, so the twins differ there; those cases
+//! check the premultiplied draw against the reference formula instead.
 
 #![ cfg( all( target_arch = "wasm32", feature = "adapter-webgl" ) ) ]
 
@@ -40,6 +45,9 @@ const BACKGROUND : [ f32; 4 ] = [ 0.5, 0.5, 0.5, 0.5 ];
 const STRAIGHT_TEXEL : [ u8; 4 ] = [ 255, 255, 255, 128 ];
 /// The same white at 50% coverage, stored premultiplied ( RGB = 255 · 128/255 ).
 const PREMULTIPLIED_TEXEL : [ u8; 4 ] = [ 128, 128, 128, 128 ];
+/// Mid grey at 50% coverage, stored premultiplied: unlike white, it changes the
+/// destination under both `Multiply` and `Screen`.
+const PREMULTIPLIED_GREY_TEXEL : [ u8; 4 ] = [ 64, 64, 64, 128 ];
 
 /// Identity tint.
 const WHITE : [ f32; 4 ] = [ 1.0, 1.0, 1.0, 1.0 ];
@@ -192,6 +200,17 @@ fn mesh_batch_pixel( assets : &Assets, tint : [ f32; 4 ] ) -> [ u8; 4 ]
   ])
 }
 
+/// The read-back pixel of a reference blend over [`BACKGROUND`]: `colour` maps the
+/// destination channel to the result, and alpha composites "over", as every
+/// mode's alpha factors do.
+fn reference_over_background( source_alpha : f32, colour : impl Fn( f32 ) -> f32 ) -> [ u8; 4 ]
+{
+  let dst = BACKGROUND[ 0 ];
+  let byte = | v : f32 | ( v.clamp( 0.0, 1.0 ) * 255.0 ).round() as u8;
+  let c = byte( colour( dst ) );
+  [ c, c, c, byte( source_alpha + BACKGROUND[ 3 ] * ( 1.0 - source_alpha ) ) ]
+}
+
 /// Asserts two read-back pixels agree within 8-bit rounding ( ±2 per channel ).
 fn assert_pixel_close( actual : [ u8; 4 ], expected : [ u8; 4 ], what : &str )
 {
@@ -259,6 +278,57 @@ fn sprite_premultiplied_add_matches_straight()
 
   assert_pixel_close( straight, HALF_WHITE_ADDED_TO_GREY, "straight texel, Add" );
   assert_pixel_close( premultiplied, straight, "premultiplied texel, Add" );
+}
+
+/// `Overlay` falls back to `Normal` and takes the same source factor swap. With
+/// `SRC_ALPHA` kept for a premultiplied texel, the fallback would read back
+/// ≈ `( 128, 128, 128, 191 )`, the darkened edge of the plain `Normal` case.
+#[ wasm_bindgen_test ]
+fn sprite_premultiplied_overlay_fallback_matches_straight()
+{
+  let straight = sprite_pixel( &texel_assets( STRAIGHT_TEXEL, false ), WHITE, BlendMode::Overlay );
+  let premultiplied = sprite_pixel( &texel_assets( PREMULTIPLIED_TEXEL, true ), WHITE, BlendMode::Overlay );
+
+  assert_pixel_close( straight, HALF_WHITE_OVER_GREY, "straight texel, Overlay fallback" );
+  assert_pixel_close( premultiplied, straight, "premultiplied texel, Overlay fallback" );
+}
+
+/// Under `Multiply` a premultiplied source composites the reference formula,
+/// `dst · ( src · a + 1 - a )` ( `BlendMode::Multiply` ), at any coverage: GL's
+/// `DST_COLOR` factor multiplies the destination by the stored `src · a`. The
+/// tint's alpha is folded into the colour first, so a faded sprite stays exact.
+/// A straight source takes the approximation `dst · ( src + 1 - a )` instead,
+/// which here reads back like `Normal` ( 127 ) rather than the reference ( 96 ).
+#[ wasm_bindgen_test ]
+fn sprite_premultiplied_multiply_follows_the_reference()
+{
+  let assets = texel_assets( PREMULTIPLIED_GREY_TEXEL, true );
+  let ( src, a ) = ( 128.0 / 255.0, 128.0 / 255.0 );
+
+  let full = sprite_pixel( &assets, WHITE, BlendMode::Multiply );
+  let faded = sprite_pixel( &assets, HALF_ALPHA, BlendMode::Multiply );
+
+  assert_pixel_close( full, reference_over_background( a, | dst | dst * ( src * a + 1.0 - a ) ), "premultiplied grey, Multiply" );
+  let a = a * 0.5;
+  assert_pixel_close( faded, reference_over_background( a, | dst | dst * ( src * a + 1.0 - a ) ), "premultiplied grey, Multiply, tint alpha 0.5" );
+}
+
+/// Under `Screen` a premultiplied source composites screen at its coverage,
+/// `dst + src · a - dst · src · a`: GL's `ONE` / `ONE_MINUS_SRC_COLOR` factors
+/// read the stored `src · a`. A straight source screens at full strength
+/// whatever its alpha, which here reads back 191 against the reference 160.
+#[ wasm_bindgen_test ]
+fn sprite_premultiplied_screen_follows_the_reference()
+{
+  let assets = texel_assets( PREMULTIPLIED_GREY_TEXEL, true );
+  let ( src, a ) = ( 128.0 / 255.0, 128.0 / 255.0 );
+
+  let full = sprite_pixel( &assets, WHITE, BlendMode::Screen );
+  let faded = sprite_pixel( &assets, HALF_ALPHA, BlendMode::Screen );
+
+  assert_pixel_close( full, reference_over_background( a, | dst | dst + src * a - dst * src * a ), "premultiplied grey, Screen" );
+  let a = a * 0.5;
+  assert_pixel_close( faded, reference_over_background( a, | dst | dst + src * a - dst * src * a ), "premultiplied grey, Screen, tint alpha 0.5" );
 }
 
 /// A textured mesh inherits its texture's flag ( `mesh_premultiplied` ), and
