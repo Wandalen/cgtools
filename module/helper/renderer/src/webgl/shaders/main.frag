@@ -619,7 +619,10 @@ float alpha_weight( float a )
     float det = max( dot( T, T ), dot( B, B ) );
 		float scale = ( det == 0.0 ) ? 0.0 : inversesqrt( det );
 
-		return mat3( T * scale, B * scale, surf_normal );
+    // B is the gradient of v, which points down the image: glTF puts the UV origin at the
+    // image's upper-left corner and images are uploaded unflipped. glTF's tangent space has +Y
+    // up the image, so the bitangent column is -B. T is kept, so mirrored UVs are still followed.
+    return mat3( T * scale, -B * scale, surf_normal );
   }
 #endif
 
