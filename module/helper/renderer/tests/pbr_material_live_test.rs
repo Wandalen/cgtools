@@ -22,6 +22,9 @@ mod tests
     TextureInfo { texture : Rc::new( RefCell::new( Texture::new() ) ), uv_position : 0 }
   }
 
+  /// A `PbrMaterial` texture setter.
+  type TextureSet = fn( &mut PbrMaterial, Option< TextureInfo > );
+
   fn gl_init() -> GL
   {
     gl::browser::setup( gl::browser::Config::default() );
@@ -145,7 +148,7 @@ mod tests
   fn texture_unit_table_pairs_each_sampler_with_its_own_texture()
   {
     let gl_context = gl_init();
-    let setters : [ ( &str, fn( &mut PbrMaterial, Option< TextureInfo > ) ); 12 ] =
+    let setters : [ ( &str, TextureSet ); 12 ] =
     [
       ( "metallicRoughnessTexture", PbrMaterial::metallic_roughness_texture_set ),
       ( "baseColorTexture", PbrMaterial::base_color_texture_set ),
