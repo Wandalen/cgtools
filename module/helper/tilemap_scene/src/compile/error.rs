@@ -63,7 +63,8 @@ mod private
     },
     /// A layer declares a draw-time behaviour the compiler does not yet
     /// implement — currently only `TintBehaviour::Masked`, which is rejected
-    /// rather than silently degraded to the global tint.
+    /// rather than silently degraded to the global tint. Use `Flat`, or drop
+    /// the tint behaviour, until `Masked` lands.
     UnsupportedBehaviour
     {
       /// Owning object id.

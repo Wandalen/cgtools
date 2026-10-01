@@ -3046,6 +3046,32 @@ fn global_tint_none_is_identity()
 }
 
 #[ test ]
+fn global_tint_unresolved_names_its_source()
+{
+  // `pipeline.global_tint` / `Scene::global_tint_set` are not checked against
+  // the declared tints before `render()`; the error must say where the id
+  // came from.
+  let mut spec = minimal_spec();
+  spec.pipeline.global_tint = Some( TintRef( "ghost".into() ) );
+  let scene = SceneSnapshot
+  {
+    tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "grass".into() ] } ],
+    ..minimal_scene_3x3()
+  };
+  let err = try_compile( &spec, &scene, &Camera::default() ).expect_err( "undeclared global tint must fail" );
+  assert!
+  (
+    matches!
+    (
+      &err,
+      CompileError::UnresolvedRef { kind : "tint", id, context }
+        if id == "ghost" && context == "scene.global_tint / pipeline.global_tint"
+    ),
+    "expected UnresolvedRef naming the global tint, got {err:?}",
+  );
+}
+
+#[ test ]
 fn global_tint_non_multiply_mode_is_rejected()
 {
   // A global tint can only be folded in as a multiplier; a spec built without

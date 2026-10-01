@@ -52,14 +52,21 @@ mod private
   /// Resolve a named [`TintRef`] to a strength-blended multiplier `[r,g,b,a]`.
   ///
   /// `strength` interpolates the parsed colour towards identity `[1,1,1,1]`, so
-  /// the result is ready to multiply straight into a `Sprite.tint`.
+  /// the result is ready to multiply straight into a `Sprite.tint`. `context`
+  /// names the referencing site in an unresolved-id error and is only built
+  /// on failure.
   ///
   /// # Errors
   ///
   /// [`CompileError::UnresolvedRef`] when the id names no declared tint or
   /// the tint's colour is not `"#rrggbb"` / `"#rrggbbaa"`;
   /// [`CompileError::UnsupportedTintMode`] when its `mode` is not `Multiply`.
-  pub fn resolve_tint_ref( spec : &RenderSpec, tint_ref : &TintRef ) -> Result< [ f32; 4 ], CompileError >
+  pub fn resolve_tint_ref
+  (
+    spec : &RenderSpec,
+    tint_ref : &TintRef,
+    context : impl FnOnce() -> String,
+  ) -> Result< [ f32; 4 ], CompileError >
   {
     let id = &tint_ref.0;
     let tint = spec.tints.iter().find( | t | &t.id == id )
@@ -67,7 +74,7 @@ mod private
       {
         kind : "tint",
         id : id.clone(),
-        context : "tint reference".into(),
+        context : context(),
       })?;
     tint_multiplier( tint )
   }
@@ -127,17 +134,17 @@ mod private
       Self { spec, resolved }
     }
 
-    /// The multiplier for `tint_ref`.
+    /// The multiplier for `tint_ref`; `context` as for [`resolve_tint_ref`].
     ///
     /// # Errors
     ///
     /// Same as [`resolve_tint_ref`].
-    pub fn get( &self, tint_ref : &TintRef ) -> Result< [ f32; 4 ], CompileError >
+    pub fn get( &self, tint_ref : &TintRef, context : impl FnOnce() -> String ) -> Result< [ f32; 4 ], CompileError >
     {
       match self.resolved.get( tint_ref.0.as_str() )
       {
         Some( Some( c ) ) => Ok( *c ),
-        _ => resolve_tint_ref( self.spec, tint_ref ),
+        _ => resolve_tint_ref( self.spec, tint_ref, context ),
       }
     }
   }
@@ -151,7 +158,7 @@ mod private
   {
     let tint_ref = scene.global_tint().cloned().or_else( || spec.pipeline.global_tint.clone() );
     let Some( tint_ref ) = tint_ref else { return Ok( [ 1.0, 1.0, 1.0, 1.0 ] ); };
-    resolve_tint_ref( spec, &tint_ref )
+    resolve_tint_ref( spec, &tint_ref, || "scene.global_tint / pipeline.global_tint".into() )
   }
 
   /// Resolve a layer's [`TintBehaviour`] into the base RGBA multiplier fed to
@@ -180,7 +187,7 @@ mod private
       TintBehaviour::None => Ok( global_tint ),
       TintBehaviour::Flat( tref ) =>
       {
-        let c = tints.get( tref )?;
+        let c = tints.get( tref, || format!( "object {:?} layer tint", object.id ) )?;
         Ok(
         [
           global_tint[ 0 ] * c[ 0 ],
@@ -192,7 +199,7 @@ mod private
       TintBehaviour::Masked { .. } => Err( CompileError::UnsupportedBehaviour
       {
         object : object.id.clone(),
-        behaviour : "Masked tint (not implemented — use Flat or remove the tint behaviour)",
+        behaviour : "Masked tint",
       }),
     }
   }

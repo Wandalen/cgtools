@@ -180,7 +180,11 @@ fn masked_tint_is_rejected_on_every_pass()
     let spec = spec_for( case, r#"Masked( mask: Static( ( "t", "1" ) ), tint: Ref( ( "half_blue" ) ) )"# );
     match render( case, &spec )
     {
-      Err( CompileError::UnsupportedBehaviour { object, .. } ) => assert_eq!( object, "subject", "{}", case.pass ),
+      Err( CompileError::UnsupportedBehaviour { object, behaviour } ) =>
+      {
+        assert_eq!( object, "subject", "{}", case.pass );
+        assert_eq!( behaviour, "Masked tint", "{}", case.pass );
+      }
       other => panic!( "{}: expected UnsupportedBehaviour, got {other:?}", case.pass ),
     }
   }
@@ -199,5 +203,22 @@ fn non_multiply_flat_tint_is_rejected_on_every_pass()
       Err( CompileError::UnsupportedTintMode { tint, .. } ) => assert_eq!( tint, "glow", "{}", case.pass ),
       other => panic!( "{}: expected UnsupportedTintMode, got {other:?}", case.pass ),
     }
+  }
+}
+
+/// A `Flat` tint naming no declared tint reports the object whose layer
+/// referenced it.
+#[ test ]
+fn unresolved_flat_tint_names_its_object()
+{
+  let case = &CASES[ 0 ];
+  match render( case, &spec_for( case, r#"Flat( ( "ghost" ) )"# ) )
+  {
+    Err( CompileError::UnresolvedRef { kind : "tint", id, context } ) =>
+    {
+      assert_eq!( id, "ghost" );
+      assert_eq!( context, r#"object "subject" layer tint"# );
+    }
+    other => panic!( "expected UnresolvedRef for tint 'ghost', got {other:?}" ),
   }
 }
