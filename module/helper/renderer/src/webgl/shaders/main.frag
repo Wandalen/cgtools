@@ -800,7 +800,9 @@ void main()
 
     material.anisotropicT = normalize( TBN * vec3( anisotropyDirection, 0.0 ) );
     material.anisotropicB = cross( geometricNormal, material.anisotropicT );
-    material.anisotropyStrength = anisotropyMagnitude;
+    // The extension defines the strength on [ 0, 1 ]; clamping here covers loaded assets and
+    // `anisotropy_strength_set` callers alike, as the coat's inputs are clamped.
+    material.anisotropyStrength = clamp( anisotropyMagnitude, 0.0, 1.0 );
   #endif
 
   // Geometric Specular Anti-Aliasing (Tokuyoshi & Kaplanyan 2019)

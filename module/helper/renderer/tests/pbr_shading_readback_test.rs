@@ -158,4 +158,26 @@ mod tests
 
     assert!( lit[ 0 ] > unlit[ 0 ].saturating_add( 10 ), "coat highlight missing: lit {lit:?}, unlit {unlit:?}" );
   }
+
+  /// `anisotropyStrength` is defined on [ 0, 1 ]. Out-of-range values, from an asset or from
+  /// `anisotropy_strength_set`, must shade like the nearest bound: above 1 the tangent roughness
+  /// leaves the GGX model, and a negative strength widens the lobe as if it were positive.
+  #[ wasm_bindgen_test ]
+  fn anisotropy_strength_is_clamped_to_its_range()
+  {
+    let gl = gl_init();
+    let light = ( [ 0.4, 0.3, 0.866_025 ], 20.0 );
+    let shade_with = | strength : f32 |
+    {
+      let mut material = black_dielectric( &gl );
+      material.roughness_factor = 0.5;
+      material.anisotropy_strength_set( Some( strength ) );
+      shade( &gl, &material, UPRIGHT, UPRIGHT, Some( light ) )
+    };
+    let ( none, full ) = ( shade_with( 0.0 ), shade_with( 1.0 ) );
+    assert_ne!( none, full, "precondition: anisotropy changes this pixel" );
+
+    assert_eq!( shade_with( 2.0 ), full, "strength 2 must shade as 1" );
+    assert_eq!( shade_with( -1.0 ), none, "strength -1 must shade as 0" );
+  }
 }
