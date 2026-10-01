@@ -278,5 +278,11 @@ void main()
 
   vWorldPos = worldPos.xyz;
 
+  #ifdef USE_TANGENTS
+    // A tangent is a direction along the surface, so it takes the world matrix itself (a normal
+    // takes its inverse transpose, normalMatrix): main.frag pairs it with the world-space vNormal.
+    vTangent.xyz = normalize( mat3( worldMatrix ) * vTangent.xyz );
+  #endif
+
   gl_Position = projectionMatrix * viewPos;
 }

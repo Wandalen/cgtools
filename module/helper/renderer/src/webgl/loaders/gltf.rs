@@ -1099,6 +1099,13 @@ mod private
           m.vertex_define_add( name.clone(), value );
         }
 
+        // Attribute defines are needed in the fragment stage too: `main.frag` builds its tangent
+        // frame from `vTangent` only under `USE_TANGENTS`.
+        for ( name, value ) in dummy_material.fragment_defines()
+        {
+          m.fragment_define_add( name.clone(), value );
+        }
+
         std::mem::drop( m );
         used_materials.push( material.clone() );
 
