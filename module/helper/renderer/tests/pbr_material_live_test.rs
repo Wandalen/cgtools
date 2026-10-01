@@ -124,17 +124,61 @@ mod tests
   }
 
   #[ wasm_bindgen_test ]
-  fn clearcoat_normal_texture_alone_enables_clearcoat_and_tbn()
+  fn clearcoat_normal_texture_needs_a_positive_factor()
   {
     let gl_context = gl_init();
     let mut mat = PbrMaterial::new( &gl_context );
     mat.clearcoat_normal_texture_set( Some( texture_info() ) );
-    let defines = mat.fragment_defines_str();
+    let defines = mat.fragment_defines_str().to_owned();
+    assert!( !defines.contains( "USE_KHR_materials_clearcoat" ), "no clearcoatFactor, no coat: {defines}" );
+    assert!( !defines.contains( "USE_TBN" ), "{defines}" );
 
+    mat.clearcoat_factor_set( Some( 0.5 ) );
+    let defines = mat.fragment_defines_str();
     assert!( defines.contains( "#define USE_KHR_materials_clearcoat" ), "{defines}" );
     assert!( defines.contains( "#define USE_CLEARCOAT_NORMAL_TEXTURE" ), "{defines}" );
     assert!( defines.contains( "#define USE_TBN" ), "a coat normal map needs the tangent frame: {defines}" );
     assert!( !defines.contains( "USE_KHR_materials_anisotropy" ), "{defines}" );
+  }
+
+  #[ wasm_bindgen_test ]
+  fn zero_layer_factors_select_no_layer_variant()
+  {
+    let gl_context = gl_init();
+    let mut mat = PbrMaterial::new( &gl_context );
+    mat.clearcoat_factor_set( Some( 0.0 ) );
+    mat.clearcoat_roughness_factor_set( Some( 0.5 ) );
+    mat.clearcoat_texture_set( Some( texture_info() ) );
+    mat.anisotropy_strength_set( Some( 0.0 ) );
+    mat.anisotropy_texture_set( Some( texture_info() ) );
+    let defines = mat.fragment_defines_str();
+
+    assert!( !defines.contains( "USE_KHR_materials_clearcoat" ), "{defines}" );
+    assert!( !defines.contains( "USE_CLEARCOAT_TEXTURE" ), "{defines}" );
+    assert!( !defines.contains( "USE_KHR_materials_anisotropy" ), "{defines}" );
+    assert!( !defines.contains( "USE_TBN" ), "{defines}" );
+  }
+
+  #[ wasm_bindgen_test ]
+  fn factor_change_within_a_variant_skips_the_recompile()
+  {
+    let gl_context = gl_init();
+    let mut mat = PbrMaterial::new( &gl_context );
+    mat.clearcoat_factor_set( Some( 1.0 ) );
+    mat.anisotropy_strength_set( Some( 0.5 ) );
+    mat.specular_factor_set( Some( 0.5 ) );
+    mat.recompile_flag_clear();
+    mat.needs_update_set( false );
+
+    mat.clearcoat_factor_set( Some( 0.5 ) );
+    mat.clearcoat_roughness_factor_set( Some( 0.2 ) );
+    mat.anisotropy_strength_set( Some( 0.8 ) );
+    mat.specular_factor_set( Some( 0.7 ) );
+    assert!( !mat.needs_recompile(), "the define set is unchanged" );
+    assert!( mat.needs_update(), "the new factors still have to be uploaded" );
+
+    mat.clearcoat_factor_set( Some( 0.0 ) );
+    assert!( mat.needs_recompile(), "a zero coat factor drops the coat variant" );
   }
 
   #[ wasm_bindgen_test ]
@@ -193,5 +237,24 @@ mod tests
     assert!( ( mat.clearcoat_normal_scale - 0.5 ).abs() < 1e-6 );
     assert_eq!( mat.anisotropy_strength(), Some( 0.4 ) );
     assert!( ( mat.anisotropy_rotation - 0.3 ).abs() < 1e-6 );
+  }
+
+  #[ wasm_bindgen_test ]
+  fn empty_layer_extension_objects_select_no_layer_variant()
+  {
+    let gltf = gltf::Gltf::from_slice_without_validation( br#"
+    {
+      "asset" : { "version" : "2.0" },
+      "materials" : [ { "extensions" : { "KHR_materials_clearcoat" : {}, "KHR_materials_anisotropy" : {} } } ]
+    }"# ).expect( "fixture parses" );
+    let gltf_m = gltf.materials().next().expect( "one material" );
+
+    let gl_context = gl_init();
+    let mut mat = PbrMaterial::new( &gl_context );
+    material_layer_extensions_apply( &gltf_m, &[], &mut mat );
+    let defines = mat.fragment_defines_str();
+
+    assert!( !defines.contains( "USE_KHR_materials_clearcoat" ), "clearcoatFactor defaults to 0: {defines}" );
+    assert!( !defines.contains( "USE_KHR_materials_anisotropy" ), "anisotropyStrength defaults to 0: {defines}" );
   }
 }

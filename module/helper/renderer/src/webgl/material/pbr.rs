@@ -365,8 +365,7 @@ mod private
     pub fn base_color_texture_set( &mut self, value : Option< TextureInfo > )
     {
       self.base_color_texture = value;
-      self.defines_cache_rebuild();
-      self.needs_recompile.set( true );
+      self.defines_update();
     }
 
     /// Returns the base color texture.
@@ -379,8 +378,7 @@ mod private
     pub fn metallic_roughness_texture_set( &mut self, value : Option< TextureInfo > )
     {
       self.metallic_roughness_texture = value;
-      self.defines_cache_rebuild();
-      self.needs_recompile.set( true );
+      self.defines_update();
     }
 
     /// Returns the metallic roughness texture.
@@ -393,8 +391,7 @@ mod private
     pub fn normal_texture_set( &mut self, value : Option< TextureInfo > )
     {
       self.normal_texture = value;
-      self.defines_cache_rebuild();
-      self.needs_recompile.set( true );
+      self.defines_update();
     }
 
     /// Returns the normal texture.
@@ -407,8 +404,7 @@ mod private
     pub fn occlusion_texture_set( &mut self, value : Option< TextureInfo > )
     {
       self.occlusion_texture = value;
-      self.defines_cache_rebuild();
-      self.needs_recompile.set( true );
+      self.defines_update();
     }
 
     /// Returns the occlusion texture.
@@ -421,8 +417,7 @@ mod private
     pub fn emissive_texture_set( &mut self, value : Option< TextureInfo > )
     {
       self.emissive_texture = value;
-      self.defines_cache_rebuild();
-      self.needs_recompile.set( true );
+      self.defines_update();
     }
 
     /// Returns the emissive texture.
@@ -435,8 +430,7 @@ mod private
     pub fn specular_texture_set( &mut self, value : Option< TextureInfo > )
     {
       self.specular_texture = value;
-      self.defines_cache_rebuild();
-      self.needs_recompile.set( true );
+      self.defines_update();
     }
 
     /// Returns the specular texture.
@@ -449,8 +443,7 @@ mod private
     pub fn specular_color_texture_set( &mut self, value : Option< TextureInfo > )
     {
       self.specular_color_texture = value;
-      self.defines_cache_rebuild();
-      self.needs_recompile.set( true );
+      self.defines_update();
     }
 
     /// Returns the specular color texture.
@@ -463,8 +456,7 @@ mod private
     pub fn light_map_set( &mut self, value : Option< TextureInfo > )
     {
       self.light_map = value;
-      self.defines_cache_rebuild();
-      self.needs_recompile.set( true );
+      self.defines_update();
     }
 
     /// Returns the light map texture.
@@ -477,8 +469,7 @@ mod private
     pub fn clearcoat_factor_set( &mut self, value : Option< f32 > )
     {
       self.clearcoat_factor = value;
-      self.defines_cache_rebuild();
-      self.needs_recompile.set( true );
+      self.defines_update();
     }
 
     /// Returns the clearcoat factor.
@@ -491,8 +482,7 @@ mod private
     pub fn clearcoat_texture_set( &mut self, value : Option< TextureInfo > )
     {
       self.clearcoat_texture = value;
-      self.defines_cache_rebuild();
-      self.needs_recompile.set( true );
+      self.defines_update();
     }
 
     /// Returns the clearcoat texture.
@@ -505,8 +495,7 @@ mod private
     pub fn clearcoat_roughness_factor_set( &mut self, value : Option< f32 > )
     {
       self.clearcoat_roughness_factor = value;
-      self.defines_cache_rebuild();
-      self.needs_recompile.set( true );
+      self.defines_update();
     }
 
     /// Returns the clearcoat roughness factor.
@@ -519,8 +508,7 @@ mod private
     pub fn clearcoat_roughness_texture_set( &mut self, value : Option< TextureInfo > )
     {
       self.clearcoat_roughness_texture = value;
-      self.defines_cache_rebuild();
-      self.needs_recompile.set( true );
+      self.defines_update();
     }
 
     /// Returns the clearcoat roughness texture.
@@ -533,8 +521,7 @@ mod private
     pub fn clearcoat_normal_texture_set( &mut self, value : Option< TextureInfo > )
     {
       self.clearcoat_normal_texture = value;
-      self.defines_cache_rebuild();
-      self.needs_recompile.set( true );
+      self.defines_update();
     }
 
     /// Returns the clearcoat normal texture.
@@ -547,8 +534,7 @@ mod private
     pub fn anisotropy_strength_set( &mut self, value : Option< f32 > )
     {
       self.anisotropy_strength = value;
-      self.defines_cache_rebuild();
-      self.needs_recompile.set( true );
+      self.defines_update();
     }
 
     /// Returns the anisotropy strength.
@@ -561,8 +547,7 @@ mod private
     pub fn anisotropy_texture_set( &mut self, value : Option< TextureInfo > )
     {
       self.anisotropy_texture = value;
-      self.defines_cache_rebuild();
-      self.needs_recompile.set( true );
+      self.defines_update();
     }
 
     /// Returns the anisotropy texture.
@@ -575,8 +560,7 @@ mod private
     pub fn alpha_mode_set( &mut self, value : AlphaMode )
     {
       self.alpha_mode = value;
-      self.defines_cache_rebuild();
-      self.needs_recompile.set( true );
+      self.defines_update();
     }
 
     /// Returns the alpha mode.
@@ -589,8 +573,7 @@ mod private
     pub fn specular_factor_set( &mut self, value : Option< f32 > )
     {
       self.specular_factor = value;
-      self.defines_cache_rebuild();
-      self.needs_recompile.set( true );
+      self.defines_update();
     }
 
     /// Returns the specular factor.
@@ -603,8 +586,7 @@ mod private
     pub fn specular_color_factor_set( &mut self, value : Option< gl::F32x3 > )
     {
       self.specular_color_factor = value;
-      self.defines_cache_rebuild();
-      self.needs_recompile.set( true );
+      self.defines_update();
     }
 
     /// Returns the specular color factor.
@@ -613,8 +595,20 @@ mod private
       self.specular_color_factor
     }
 
-    /// Rebuilds all cached defines strings from current state.
-    fn defines_cache_rebuild( &mut self )
+    /// Rebuilds the cached defines after a property change. A recompile is requested only when
+    /// the define set changed: a new value within the same shader variant just needs its uniform
+    /// uploaded again, which `needs_update` requests.
+    fn defines_update( &mut self )
+    {
+      if self.defines_cache_rebuild()
+      {
+        self.needs_recompile.set( true );
+      }
+      self.needs_update.set( true );
+    }
+
+    /// Rebuilds all cached defines strings from current state, and returns whether they changed.
+    fn defines_cache_rebuild( &mut self ) -> bool
     {
       let local_defines = self.local_defines();
 
@@ -640,25 +634,25 @@ mod private
       let mut combined = vertex_defines.clone();
       combined.push_str( &fragment_defines );
 
+      let changed = combined != self.cached_defines_str;
       self.cached_defines_str = combined;
       self.cached_vertex_defines_str = vertex_defines;
       self.cached_fragment_defines_str = fragment_defines;
+      changed
     }
 
     /// Added the specified name and value is #define directive to the material
     pub fn vertex_define_add< A : Into< Box< str > >, B : Into< String > >( &mut self, name : A, value : B )
     {
       self.vertex_defines.insert( name.into(), value.into() );
-      self.defines_cache_rebuild();
-      self.needs_recompile.set( true );
+      self.defines_update();
     }
 
     /// Added the specified name and value is #define directive to the material
     pub fn fragment_define_add< A : Into< Box< str > >, B : Into< String > >( &mut self, name : A, value : B )
     {
       self.fragment_defines.insert( name.into(), value.into() );
-      self.defines_cache_rebuild();
-      self.needs_recompile.set( true );
+      self.defines_update();
     }
 
     /// Added the specified name and value is #define directive to the material
@@ -668,8 +662,7 @@ mod private
       let value = value.into();
       self.vertex_defines.insert( name.clone(), value.clone() );
       self.fragment_defines.insert( name, value );
-      self.defines_cache_rebuild();
-      self.needs_recompile.set( true );
+      self.defines_update();
     }
 
     /// Generates `#define` directives to be inserted into the fragment shader based on the material's properties.
@@ -771,19 +764,20 @@ mod private
 
     /// Pushes the `KHR_materials_clearcoat` / `KHR_materials_anisotropy` defines onto `defines`
     /// and returns whether either extension needs the shared tangent frame (`USE_TBN`).
+    ///
+    /// Each layer's variant is selected by the value that turns it on, not by which properties
+    /// are set: per the extensions, a `clearcoatFactor` of 0 disables the whole coat (its texture
+    /// only multiplies the factor), and an `anisotropyStrength` of 0 leaves the roughness
+    /// isotropic. An empty extension object, whose factors default to 0, therefore costs nothing.
     fn layer_extension_defines_push( &self, defines : &mut String ) -> bool
     {
-      let use_clearcoat_texture = self.clearcoat_texture.is_some();
-      let use_clearcoat_roughness_texture = self.clearcoat_roughness_texture.is_some();
-      let use_clearcoat_normal_texture = self.clearcoat_normal_texture.is_some();
-      let use_khr_materials_clearcoat = self.clearcoat_factor.is_some()
-      || self.clearcoat_roughness_factor.is_some()
-      || use_clearcoat_texture
-      || use_clearcoat_roughness_texture
-      || use_clearcoat_normal_texture;
+      let use_khr_materials_clearcoat = self.clearcoat_factor.is_some_and( | f | f > 0.0 );
+      let use_clearcoat_texture = use_khr_materials_clearcoat && self.clearcoat_texture.is_some();
+      let use_clearcoat_roughness_texture = use_khr_materials_clearcoat && self.clearcoat_roughness_texture.is_some();
+      let use_clearcoat_normal_texture = use_khr_materials_clearcoat && self.clearcoat_normal_texture.is_some();
 
-      let use_anisotropy_texture = self.anisotropy_texture.is_some();
-      let use_khr_materials_anisotropy = self.anisotropy_strength.is_some() || use_anisotropy_texture;
+      let use_khr_materials_anisotropy = self.anisotropy_strength.is_some_and( | s | s > 0.0 );
+      let use_anisotropy_texture = use_khr_materials_anisotropy && self.anisotropy_texture.is_some();
 
       // KHR_materials_clearcoat extension related
       if use_khr_materials_clearcoat

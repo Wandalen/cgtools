@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`PbrMaterial` setters recompile only on a variant change**: every `*_set` method used to flag a program recompile, so changing a factor such as `specular_factor_set` at runtime relinked the program on the next frame. They now request a recompile only when the material's define set actually changes, and otherwise just mark the uniforms for re-upload (`needs_update`).
 - **IBL multiple-scattering energy compensation**: indirect specular now adds the multi-scatter term (`Fms * Ems` weighted by irradiance) on top of the single-scatter prefiltered reflection, matching three.js `computeMultiscattering()`. Without it, rough metals/plastics read as pure mirrors and the overall specular is too dim.
 - **Exposure applied uniformly**: `Renderer::set_exposure` now scales the entire lit result in the PBR shader (`color *= exp2( exposure )`) instead of only the IBL contribution. Previously exposure multiplied just the environment term, over-brightening reflections relative to direct lighting.
 - **ACES pre-exposure scaling**: the ACES tone mapping pass now divides by `0.6` before the RRT fit, matching three.js `ACESFilmicToneMapping` so identical exposure values produce identical brightness.
@@ -54,7 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **KHR_materials_clearcoat** and **KHR_materials_anisotropy**: the glTF loader reads both (including assets that list them in `extensionsRequired`), `PbrMaterial` gains `clearcoat_*_set` / `anisotropy_*_set` accessors, and the PBR shader adds a Fresnel-mixed dielectric coat lobe (direct and image-based, with its own normal, roughness and occlusion) and the anisotropic GGX distribution / visibility with a bent-normal IBL lookup.
+- **KHR_materials_clearcoat** and **KHR_materials_anisotropy**: the glTF loader reads both (including assets that list them in `extensionsRequired`), `PbrMaterial` gains `clearcoat_*_set` / `anisotropy_*_set` accessors, and the PBR shader adds a Fresnel-mixed dielectric coat lobe (direct and image-based, with its own normal, roughness and occlusion) and the anisotropic GGX distribution / visibility with a bent-normal IBL lookup. A layer's shader variant is compiled only when it is on: `clearcoatFactor` or `anisotropyStrength` above 0.
 - Named texture-unit constants for `PbrMaterial` (`PBR_*_UNIT`, `PBR_TEXTURE_UNITS`, `PBR_IBL_BASE_UNIT`); the IBL base unit moved from 10 to 16 to make room for the four new textures.
 - GPU PMREM generation (`webgl::loaders::pmrem::generate`): converts an equirectangular HDR into a full IBL set — equirect→cubemap, GGX importance-sampled prefiltered specular mips, cosine-weighted irradiance convolution, and a split-sum BRDF integration LUT.
 - `cull_mode` field to `PbrMaterial` for fine-grained face culling control
