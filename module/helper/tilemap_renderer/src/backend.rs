@@ -121,6 +121,12 @@ mod private
     pub supported_blend_modes : &'static [ BlendMode ],
     /// Supports text on a path.
     pub text_on_path : bool,
+    /// Honours [`crate::assets::ImageAsset::premultiplied`]: a premultiplied
+    /// image composites with the premultiplied "over" blend and draws like its
+    /// straight-alpha twin. `false` means the flag is ignored and the pixels are
+    /// used as stored, which draws a premultiplied image's semi-transparent
+    /// texels differently ( the readme's capability table says how, per adapter ).
+    pub premultiplied_images : bool,
     /// Maximum texture/image dimension. 0 = unlimited (e.g. SVG).
     pub max_texture_size : u32,
   }

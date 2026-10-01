@@ -13,7 +13,7 @@ Four resource kinds are declared once at the top level of a `RenderSpec` (see `f
 
 ### Data Model
 
-`Asset`: `id`, `path`, `kind: AssetKind`, `filter` (`Linear`/`Nearest`, default `Linear`), `mipmap` (`Off`/`Nearest`/`Linear`, default `Off`), `wrap` (`Clamp`/`Repeat`/`Mirror`, default `Clamp`). `AssetKind`:
+`Asset`: `id`, `path`, `kind: AssetKind`, `filter` (`Linear`/`Nearest`, default `Linear`), `mipmap` (`Off`/`Nearest`/`Linear`, default `Off`), `wrap` (`Clamp`/`Repeat`/`Mirror`, default `Clamp`), `premultiplied` (`bool`, default `false`). `AssetKind`:
 
 | Variant | Fields | Use case |
 |---------|--------|----------|
@@ -31,7 +31,7 @@ All four resource kinds are declared as flat top-level RON lists (`assets: [Asse
 
 ### Version Compatibility
 
-New `AssetKind`/`EffectKind`/`PhaseOffset` variants are expected to be additive across minor versions. `PhaseOffset::Instance` is itself an example already-shipped ahead of a formal specification update. Sampler parameters (`filter`/`mipmap`/`wrap`) are asset-wide, not per-sprite — splitting one image into separate `Asset` declarations is the documented path for a future spec wanting per-sprite sampling, rather than a schema change.
+New `AssetKind`/`EffectKind`/`PhaseOffset` variants are expected to be additive across minor versions. `PhaseOffset::Instance` is itself an example already-shipped ahead of a formal specification update. Sampler parameters (`filter`/`mipmap`/`wrap`) are asset-wide, not per-sprite — splitting one image into separate `Asset` declarations is the documented path for a future spec wanting per-sprite sampling, rather than a schema change. `premultiplied` is a second such already-shipped addition, and asset-wide too, but it is not a sampler parameter: it declares how the image's pixels are stored, not how they are sampled. It states the image's RGB channels already scaled by alpha, so the compositor uses the premultiplied "over" blend (`src + dst·(1-src_a)`) instead of the straight one, avoiding the double-alpha-scale darkening artefact on antialiased edges. Only `tilemap_renderer`'s WebGL2 adapter honours it. The others ignore it: SVG draws the pixels as straight alpha, so semi-transparent texels come out darker; the terminal adapter never samples image pixels; WebGPU and native have no blending yet (see that crate's readme capability table). Defaults to `false`.
 
 ### Algorithms
 

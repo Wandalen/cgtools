@@ -31,7 +31,9 @@ tilemap_renderer/
     ├── svg.rs      # SVG 1.1 document generation
     ├── webgl.rs    # WebGL2 hardware-accelerated rendering (wasm32)
     ├── webgl/
-    │   └── webgl_helpers.rs  # Self-contained WebGL types (ArrayBuffer, GPU handles, GL mappers)
+    │   ├── webgl_helpers.rs    # Self-contained WebGL types (ArrayBuffer, GPU handles, GL mappers)
+    │   ├── webgl_renderers.rs  # Sprite / mesh renderers: shader programs and draw calls
+    │   └── webgl_textures.rs   # Texture upload: sync bitmaps, async image loader
     ├── terminal.rs # ANSI-truecolor character-cell rendering (coarse resolution)
     ├── none.rs     # complete no-op — math-only simulation, no rendering
     ├── webgpu.rs   # WebGPU rendering via gpu_hal (browser, sprites only)
@@ -94,6 +96,7 @@ let Output::String( doc ) = svg.output()? else { unreachable!() };
 | Gradients | yes | — | — | — | — | — |
 | Effects | yes | — | — | — | — | — |
 | Blend modes | yes | partial² | partial⁷ | — | —⁵ | —⁵ |
+| Premultiplied images | —⁸ | yes | —⁸ | — | —⁸ | —⁸ |
 | Viewport pan/zoom | yes | partial | — | — | — | — |
 
 > **Terminal** adapter downsamples world coordinates onto a fixed character-cell grid
@@ -139,8 +142,10 @@ let Output::String( doc ) = svg.output()? else { unreachable!() };
 >
 > ⁴ Native sprites: unlike WebGPU, `gpu_hal`'s native surface does support pixel
 > upload (`Queue::texture_write`), so this path renders real image content — verified
-> by exact-byte pixel readback tests (`tests/native_backend_test.rs`), the only
-> pixel-verified adapter in this crate. See `docs/feature/006_native_backend_adapter.md`.
+> by exact-byte pixel readback tests (`tests/native_backend_test.rs`). It is the one
+> adapter whose whole declared scope is pixel-verified; WebGL2 has read-back tests for
+> its premultiplied compositing, pending-image and context-restore paths. See
+> `docs/feature/006_native_backend_adapter.md`.
 >
 > ⁵ Neither the WebGPU nor the native adapter reads `Sprite::blend` — the field is
 > accepted but not yet applied by either pipeline.
@@ -152,6 +157,19 @@ let Output::String( doc ) = svg.output()? else { unreachable!() };
 > ⁷ Terminal blend modes: only `BlendMode::Normal` — source-over (Porter-Duff "over") alpha
 > compositing on straight RGBA via `composite_over` — is evaluated; other variants fall back
 > to Normal. `Capabilities::supported_blend_modes` is `&[BlendMode::Normal]`.
+>
+> ⁸ `ImageAsset::premultiplied` is honoured by the WebGL adapter only (premultiplied
+> "over" blend plus premultiplied tinting, see `docs/feature/002_webgl2_backend_adapter.md`).
+> The other adapters ignore the flag, with different results:
+> - SVG embeds the pixels as a straight-alpha PNG, so a premultiplied image's
+>   semi-transparent texels draw darker.
+> - Terminal never samples image pixels ( a sprite paints its tint into one cell ), so
+>   the flag has nothing to change.
+> - WebGPU and native have no blending yet (⁵) and write texels unblended, premultiplied
+>   RGB included; WebGPU also doesn't upload image pixels yet (³).
+>
+> `Capabilities::premultiplied_images` reports the flag's support at runtime: `true` for
+> WebGL only.
 
 ## known issues / TODO
 

@@ -399,6 +399,7 @@ fn backend_capabilities_default_all_false()
   assert!( !c.effects );
   assert!( !c.blend_modes );
   assert!( !c.text_on_path );
+  assert!( !c.premultiplied_images );
   assert_eq!( c.max_texture_size, 0 );
   assert!( c.supported_blend_modes.is_empty() );
 }
