@@ -240,7 +240,9 @@ mod private
     /// is also the only mode implemented: tints fold into the multiplicative
     /// `Sprite.tint`, so validation rejects any other value
     /// (`ValidationError::UnsupportedTintMode`) instead of silently
-    /// multiplying.
+    /// multiplying, and compilation does too
+    /// (`CompileError::UnsupportedTintMode`) for a spec built without
+    /// `RenderSpec::load`.
     #[ serde( default = "default_blend_mode" ) ]
     pub mode : BlendMode,
   }

@@ -11,6 +11,7 @@ mod private
   use crate::scene::Scene;
   use crate::spec::RenderSpec;
   use rustc_hash::FxHashMap as HashMap;
+  use tilemap_renderer::types::BlendMode;
 
   /// Multiply the alpha channel of a tint by a per-layer alpha factor.
   #[ inline ]
@@ -51,13 +52,13 @@ mod private
   /// Resolve a named [`TintRef`] to a strength-blended multiplier `[r,g,b,a]`.
   ///
   /// `strength` interpolates the parsed colour towards identity `[1,1,1,1]`, so
-  /// the result is ready to multiply straight into a `Sprite.tint`. The tint's
-  /// `mode` is not read: validation admits only `Multiply`.
+  /// the result is ready to multiply straight into a `Sprite.tint`.
   ///
   /// # Errors
   ///
   /// [`CompileError::UnresolvedRef`] when the id names no declared tint or
-  /// the tint's colour is not `"#rrggbb"` / `"#rrggbbaa"`.
+  /// the tint's colour is not `"#rrggbb"` / `"#rrggbbaa"`;
+  /// [`CompileError::UnsupportedTintMode`] when its `mode` is not `Multiply`.
   pub fn resolve_tint_ref( spec : &RenderSpec, tint_ref : &TintRef ) -> Result< [ f32; 4 ], CompileError >
   {
     let id = &tint_ref.0;
@@ -72,8 +73,15 @@ mod private
   }
 
   /// Parses `tint.color` and blends it towards identity by `tint.strength`.
+  ///
+  /// A multiplier can only express `Multiply`; any other `mode` is an error
+  /// rather than a silent multiply.
   fn tint_multiplier( tint : &Tint ) -> Result< [ f32; 4 ], CompileError >
   {
+    if tint.mode != BlendMode::Multiply
+    {
+      return Err( CompileError::UnsupportedTintMode { tint : tint.id.clone(), mode : tint.mode } );
+    }
     let [ r, g, b, a ] = hex_rgba_parse( &tint.color ).ok_or_else( || CompileError::UnresolvedRef
     {
       kind : "tint color",
@@ -94,9 +102,9 @@ mod private
   ///
   /// `TintBehaviour::Flat` is looked up here for every emitted sprite;
   /// calling [`resolve_tint_ref`] instead would repeat a linear search over
-  /// `spec.tints` and a colour parse per sprite. A tint whose colour does not
-  /// parse is stored as `None`, so looking it up falls back to
-  /// [`resolve_tint_ref`] and reports exactly the error it always did.
+  /// `spec.tints` and a colour parse per sprite. A tint that does not resolve
+  /// (unparsable colour, non-`Multiply` mode) is stored as `None`, so looking
+  /// it up falls back to [`resolve_tint_ref`] and reports exactly its error.
   #[ derive( Debug ) ]
   pub struct TintTable< 'a >
   {

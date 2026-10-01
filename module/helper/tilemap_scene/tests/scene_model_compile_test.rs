@@ -3046,6 +3046,33 @@ fn global_tint_none_is_identity()
 }
 
 #[ test ]
+fn global_tint_non_multiply_mode_is_rejected()
+{
+  // A global tint can only be folded in as a multiplier; a spec built without
+  // `load()` must not render an `Add` tint as a plain multiply.
+  let mut spec = minimal_spec();
+  spec.tints.push( Tint
+  {
+    id : "glow".into(),
+    color : "#ff0000".into(),
+    strength : 1.0,
+    mode : BlendMode::Add,
+  });
+  spec.pipeline.global_tint = Some( TintRef( "glow".into() ) );
+  let scene = SceneSnapshot
+  {
+    tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "grass".into() ] } ],
+    ..minimal_scene_3x3()
+  };
+  let err = try_compile( &spec, &scene, &Camera::default() ).expect_err( "Add global tint must be rejected" );
+  assert!
+  (
+    matches!( &err, CompileError::UnsupportedTintMode { tint, mode : BlendMode::Add } if tint == "glow" ),
+    "expected UnsupportedTintMode for 'glow', got {err:?}",
+  );
+}
+
+#[ test ]
 fn layer_behaviour_blend_reaches_sprite_command()
 {
   // Regression for commit 6119a0d1: every Sprite emit site in compile/frame.rs

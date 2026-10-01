@@ -78,7 +78,8 @@ const CASES : &[ PassCase ] =
 ];
 
 /// `global_tint` is 50% grey at full strength; `half_blue` is pure blue at
-/// strength 0.5, i.e. the multiplier `[ 0.5, 0.5, 1, 1 ]`. The object has a
+/// strength 0.5, i.e. the multiplier `[ 0.5, 0.5, 1, 1 ]`; `glow` declares
+/// the unsupported `Add` mode. The object has a
 /// `priority` so the vertex pass reads it as the cell's terrain id.
 fn spec_for( case : &PassCase, tint : &str ) -> RenderSpec
 {
@@ -90,6 +91,7 @@ fn spec_for( case : &PassCase, tint : &str ) -> RenderSpec
       tints: [
         Tint( id: "grey", color: "#808080", strength: 1.0 ),
         Tint( id: "half_blue", color: "#0000ff", strength: 0.5 ),
+        Tint( id: "glow", color: "#ffffff", strength: 1.0, mode: Add ),
       ],
       objects: [
         Object(
@@ -113,7 +115,8 @@ fn spec_for( case : &PassCase, tint : &str ) -> RenderSpec
 }
 
 /// Compiles without `RenderSpec::load`, so specs load-time validation would
-/// reject (`Masked`) still reach the compile passes under test.
+/// reject (`Masked`, a non-`Multiply` tint) still reach the compile passes
+/// under test.
 fn render( case : &PassCase, spec : &RenderSpec ) -> Result< Vec< Sprite >, CompileError >
 {
   let snapshot = SceneSnapshot::from_ron_str( &format!( "SceneSnapshot( meta: (), bounds: ( min: ( -2, -2 ), max: ( 2, 2 ) ), {} )", case.placement ) )
@@ -179,6 +182,22 @@ fn masked_tint_is_rejected_on_every_pass()
     {
       Err( CompileError::UnsupportedBehaviour { object, .. } ) => assert_eq!( object, "subject", "{}", case.pass ),
       other => panic!( "{}: expected UnsupportedBehaviour, got {other:?}", case.pass ),
+    }
+  }
+}
+
+/// A `Flat` tint whose `mode` is not `Multiply` cannot be folded into the
+/// multiplicative sprite tint: every pass must fail with `UnsupportedTintMode`
+/// instead of drawing it as a plain multiply.
+#[ test ]
+fn non_multiply_flat_tint_is_rejected_on_every_pass()
+{
+  for case in CASES
+  {
+    match render( case, &spec_for( case, r#"Flat( ( "glow" ) )"# ) )
+    {
+      Err( CompileError::UnsupportedTintMode { tint, .. } ) => assert_eq!( tint, "glow", "{}", case.pass ),
+      other => panic!( "{}: expected UnsupportedTintMode, got {other:?}", case.pass ),
     }
   }
 }
