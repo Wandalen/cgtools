@@ -543,22 +543,27 @@ float ditherNoise( vec2 fragCoord )
     return min( lod, u_max_lod );
   }
 
+  #ifdef USE_KHR_materials_anisotropy
+    // Anisotropic IBL: the normal to reflect about, bent towards the anisotropic tangent frame
+    // (bent-normal approximation from the glTF-Sample-Renderer reference implementation).
+    // The LOD / envBRDF / multi-scatter terms stay driven by the original roughness — only the
+    // sampled direction changes.
+    vec3 anisotropicBentNormal( const in vec3 N, const in vec3 V, const in PhysicalMaterial material )
+    {
+      vec3 anisotropicTangent = cross( material.anisotropicB, V );
+      vec3 anisotropicNormal = cross( anisotropicTangent, material.anisotropicB );
+      float bendFactor = 1.0 - material.anisotropyStrength * ( 1.0 - material.roughness );
+      return normalize( mix( anisotropicNormal, N, pow4( bendFactor ) ) );
+    }
+  #endif
+
   void sampleEnvIrradiance( const in vec3 N, const in vec3 V, const in PhysicalMaterial material, inout ReflectedLight reflectedLight )
   {
     float dotNV = clamp( dot( N, V ), 0.01, 1.0 );
 
     vec3 R = reflect( -V, N );
-
-    // Anisotropic IBL: bend the reflection vector towards the anisotropic tangent frame
-    // (bent-normal approximation from the glTF-Sample-Renderer reference implementation).
-    // The LOD / envBRDF / multi-scatter terms below stay driven by the original roughness —
-    // only the sampled direction changes.
     #ifdef USE_KHR_materials_anisotropy
-      vec3 anisotropicTangent = cross( material.anisotropicB, V );
-      vec3 anisotropicNormal = cross( anisotropicTangent, material.anisotropicB );
-      float bendFactor = 1.0 - material.anisotropyStrength * ( 1.0 - material.roughness );
-      vec3 bentNormal = normalize( mix( anisotropicNormal, N, pow4( bendFactor ) ) );
-      R = reflect( -V, bentNormal );
+      R = reflect( -V, anisotropicBentNormal( N, V, material ) );
     #endif
 
     float lod = envLod( R, material.roughness );
@@ -645,6 +650,38 @@ float alpha_weight( float a )
   }
 #endif
 
+#ifdef USE_TBN
+  // The tangent frame shared by every tangent-space texture (base normal, clearcoat normal,
+  // anisotropy direction), around `geometricNormal`, which already faces the viewer.
+  mat3 tangentFrame( const in vec3 geometricNormal, const in float faceDirection )
+  {
+    #ifdef USE_TANGENTS
+      // On a back face the whole frame flips, not just the normal: geometricNormal is already
+      // negated, the bitangent derived from it follows, and the tangent must be negated too.
+      // Flipping only N and B would mirror tangent-space X relative to master and to the Khronos
+      // sample renderer (which negates t, b and ng together when !gl_FrontFacing).
+      vec3 tangent = vTangent.xyz * faceDirection;
+      vec3 bitangent = cross( geometricNormal, vTangent.xyz ) * vTangent.w;
+      return mat3( tangent, bitangent, geometricNormal );
+    #else
+      // Without vertex tangents the frame is reconstructed from the screen-space derivatives of
+      // a UV set. glTF derives a mesh's tangent frame from the texcoords of its normal texture,
+      // so use the base normal texture's UV set. Only when the material has no base normal
+      // texture does the next tangent-space texture's UV set stand in, and UV set 0 only when
+      // there is none.
+      #if defined( USE_NORMAL_TEXTURE )
+        return getTBN( geometricNormal, vWorldPos, vNormalUv );
+      #elif defined( USE_CLEARCOAT_NORMAL_TEXTURE )
+        return getTBN( geometricNormal, vWorldPos, vClearcoatNormalUv );
+      #elif defined( USE_ANISOTROPY_TEXTURE )
+        return getTBN( geometricNormal, vWorldPos, vAnisotropyUv );
+      #else
+        return getTBN( geometricNormal, vWorldPos, vUv_0 );
+      #endif
+    #endif
+  }
+#endif
+
 float adjustRoughnessNormalMap ( const in float roughness, const in vec3 normal )
 {
   float nlen2 = dot (normal, normal );
@@ -676,6 +713,87 @@ float specularOcclusion( const in float dotNV, const in float ao, const in float
 {
   return clamp( pow( dotNV + ao, exp2( -16.0 * roughness - 1.0 ) ) - 1.0 + ao, 0.0, 1.0 );
 }
+
+#ifdef USE_KHR_materials_clearcoat
+  // KHR_materials_clearcoat: an additional dielectric (IOR 1.5) coat layer with its own factor,
+  // roughness and normal. The normal starts from the *unperturbed* geometric normal, not the
+  // base normal map result; a coat normal map is read in the shared tangent frame `TBN`. Called
+  // after the base layer's GSAA, which it does not read.
+  // See https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_clearcoat/README.md
+  void clearcoatSetup( inout PhysicalMaterial material, const in mat3 TBN, const in vec3 geometricNormal )
+  {
+    material.clearcoatFactor = clearcoatFactor;
+    #ifdef USE_CLEARCOAT_TEXTURE
+      material.clearcoatFactor *= texture( clearcoatTexture, vClearcoatUv ).r;
+    #endif
+    material.clearcoatRoughness = clearcoatRoughnessFactor;
+    #ifdef USE_CLEARCOAT_ROUGHNESS_TEXTURE
+      material.clearcoatRoughness *= texture( clearcoatRoughnessTexture, vClearcoatRoughnessUv ).g;
+    #endif
+    material.clearcoatRoughness = clamp( material.clearcoatRoughness, 0.0, 1.0 );
+    material.clearcoatNormal = geometricNormal;
+    #ifdef USE_CLEARCOAT_NORMAL_TEXTURE
+      vec3 ccNormalSample = texture( clearcoatNormalTexture, vClearcoatNormalUv ).xyz * 2.0 - 1.0;
+      ccNormalSample.xy *= vec2( clearcoatNormalScale );
+      material.clearcoatNormal = normalize( TBN * ccNormalSample );
+    #endif
+
+    // The coat gets the same safeguards as the base layer, measured on the coat's own normal; the
+    // floor matters most here, since the glTF default clearcoatRoughness is 0.
+    material.clearcoatRoughness = gsaaRoughness( material.clearcoatNormal, material.clearcoatRoughness );
+  }
+#endif
+
+#ifdef USE_KHR_materials_clearcoat
+  // KHR_materials_clearcoat: fresnel_mix the base result `color` with the coat lobe. The coat's
+  // own Fresnel term is applied once here (not per light / per IBL term), and the emissive
+  // output is dampened by the same weight, matching the extension's "coated_emission" note.
+  void clearcoatMix
+  (
+    const in PhysicalMaterial material,
+    const in vec3 viewDir,
+    const in ReflectedLight reflectedLight,
+    inout vec3 color,
+    inout vec4 emissive
+  )
+  {
+    vec3 clearcoatFresnel = F_Schlick( vec3( 0.04 ), vec3( 1.0 ), clamp( dot( material.clearcoatNormal, viewDir ), 0.0, 1.0 ) );
+    vec3 clearcoatWeight = clamp( material.clearcoatFactor * clearcoatFresnel, 0.0, 1.0 );
+    vec3 clearcoatColor = reflectedLight.clearcoatSpecular + reflectedLight.clearcoatIndirectSpecular;
+    color = mix( color, clearcoatColor, clearcoatWeight );
+    emissive.rgb *= ( 1.0 - clearcoatWeight );
+  }
+#endif
+
+#ifdef USE_KHR_materials_anisotropy
+  // KHR_materials_anisotropy: the anisotropy direction in the shared tangent frame `TBN`, its
+  // strength, and the roughness split ( at / ab ) of the GSAA-adjusted base roughness, so this
+  // runs after the base layer's GSAA.
+  // See https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_anisotropy/README.md
+  void anisotropySetup( inout PhysicalMaterial material, const in mat3 TBN, const in vec3 geometricNormal )
+  {
+    vec2 anisotropyDirection = vec2( 1.0, 0.0 );
+    float anisotropyMagnitude = anisotropyStrength;
+    #ifdef USE_ANISOTROPY_TEXTURE
+      vec3 anisotropySample = texture( anisotropyTexture, vAnisotropyUv ).rgb;
+      anisotropyDirection = anisotropySample.rg * 2.0 - 1.0;
+      anisotropyMagnitude *= anisotropySample.b;
+    #endif
+    float anisoRotCos = cos( anisotropyRotation );
+    float anisoRotSin = sin( anisotropyRotation );
+    anisotropyDirection = mat2( anisoRotCos, anisoRotSin, -anisoRotSin, anisoRotCos ) * normalize( anisotropyDirection );
+
+    material.anisotropicT = normalize( TBN * vec3( anisotropyDirection, 0.0 ) );
+    material.anisotropicB = cross( geometricNormal, material.anisotropicT );
+    // The extension defines the strength on [ 0, 1 ]; clamping here covers loaded assets and
+    // `anisotropy_strength_set` callers alike, as the coat's inputs are clamped.
+    material.anisotropyStrength = clamp( anisotropyMagnitude, 0.0, 1.0 );
+
+    float anisotropyBaseAlpha = pow2( material.roughness );
+    material.at = mix( anisotropyBaseAlpha, 1.0, pow2( material.anisotropyStrength ) );
+    material.ab = clamp( anisotropyBaseAlpha, 0.001, 1.0 );
+  }
+#endif
 
 void main()
 {
@@ -742,33 +860,11 @@ void main()
   float faceDirection = gl_FrontFacing ? 1.0 : -1.0;
   vec3 geometricNormal = normalize( vNormal ) * faceDirection;
 
+  // The shared tangent frame, built only under USE_TBN, where a tangent-space texture or
+  // anisotropy reads it.
+  mat3 TBN = mat3( 1.0 );
   #ifdef USE_TBN
-    mat3 TBN;
-    #ifdef USE_TANGENTS
-      // On a back face the whole frame flips, not just the normal: geometricNormal is already
-      // negated, the bitangent derived from it follows, and the tangent must be negated too.
-      // Flipping only N and B would mirror tangent-space X relative to master and to the Khronos
-      // sample renderer (which negates t, b and ng together when !gl_FrontFacing).
-      vec3 tangent = vTangent.xyz * faceDirection;
-      vec3 bitangent = cross( geometricNormal, vTangent.xyz ) * vTangent.w;
-      TBN = mat3( tangent, bitangent, geometricNormal );
-    #else
-      // Without vertex tangents the frame is reconstructed from the screen-space derivatives of
-      // a UV set. glTF derives a mesh's tangent frame from the texcoords of its normal texture,
-      // and the frame is shared by every tangent-space texture (base normal, clearcoat normal,
-      // anisotropy direction), so use the base normal texture's UV set. Only when the material
-      // has no base normal texture does the next tangent-space texture's UV set stand in, and
-      // UV set 0 only when there is none.
-      #if defined( USE_NORMAL_TEXTURE )
-        TBN = getTBN( geometricNormal, vWorldPos, vNormalUv );
-      #elif defined( USE_CLEARCOAT_NORMAL_TEXTURE )
-        TBN = getTBN( geometricNormal, vWorldPos, vClearcoatNormalUv );
-      #elif defined( USE_ANISOTROPY_TEXTURE )
-        TBN = getTBN( geometricNormal, vWorldPos, vAnisotropyUv );
-      #else
-        TBN = getTBN( geometricNormal, vWorldPos, vUv_0 );
-      #endif
-    #endif
+    TBN = tangentFrame( geometricNormal, faceDirection );
   #endif
 
   vec3 normal = geometricNormal;
@@ -779,61 +875,12 @@ void main()
     normal = normalize( TBN * normalSample );
   #endif
 
-  // KHR_materials_clearcoat: an additional dielectric (IOR 1.5) coat layer, using its own
-  // normal (starting from the *unperturbed* geometric normal, not the base normal map result)
-  // and roughness. See https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_clearcoat/README.md
-  #ifdef USE_KHR_materials_clearcoat
-    material.clearcoatFactor = clearcoatFactor;
-    #ifdef USE_CLEARCOAT_TEXTURE
-      material.clearcoatFactor *= texture( clearcoatTexture, vClearcoatUv ).r;
-    #endif
-    material.clearcoatRoughness = clearcoatRoughnessFactor;
-    #ifdef USE_CLEARCOAT_ROUGHNESS_TEXTURE
-      material.clearcoatRoughness *= texture( clearcoatRoughnessTexture, vClearcoatRoughnessUv ).g;
-    #endif
-    material.clearcoatRoughness = clamp( material.clearcoatRoughness, 0.0, 1.0 );
-    material.clearcoatNormal = geometricNormal;
-    #ifdef USE_CLEARCOAT_NORMAL_TEXTURE
-      vec3 ccNormalSample = texture( clearcoatNormalTexture, vClearcoatNormalUv ).xyz * 2.0 - 1.0;
-      ccNormalSample.xy *= vec2( clearcoatNormalScale );
-      material.clearcoatNormal = normalize( TBN * ccNormalSample );
-    #endif
-  #endif
-
-  // KHR_materials_anisotropy: tangent/bitangent frame construction. The roughness split
-  // (material.at / material.ab) is computed further below, once the final (GSAA-adjusted)
-  // roughness is known.
-  // See https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_anisotropy/README.md
-  #ifdef USE_KHR_materials_anisotropy
-    vec2 anisotropyDirection = vec2( 1.0, 0.0 );
-    float anisotropyMagnitude = anisotropyStrength;
-    #ifdef USE_ANISOTROPY_TEXTURE
-      vec3 anisotropySample = texture( anisotropyTexture, vAnisotropyUv ).rgb;
-      anisotropyDirection = anisotropySample.rg * 2.0 - 1.0;
-      anisotropyMagnitude *= anisotropySample.b;
-    #endif
-    float anisoRotCos = cos( anisotropyRotation );
-    float anisoRotSin = sin( anisotropyRotation );
-    anisotropyDirection = mat2( anisoRotCos, anisoRotSin, -anisoRotSin, anisoRotCos ) * normalize( anisotropyDirection );
-
-    material.anisotropicT = normalize( TBN * vec3( anisotropyDirection, 0.0 ) );
-    material.anisotropicB = cross( geometricNormal, material.anisotropicT );
-    // The extension defines the strength on [ 0, 1 ]; clamping here covers loaded assets and
-    // `anisotropy_strength_set` callers alike, as the coat's inputs are clamped.
-    material.anisotropyStrength = clamp( anisotropyMagnitude, 0.0, 1.0 );
-  #endif
-
   material.roughness = gsaaRoughness( normal, material.roughness );
-  // The coat gets the same safeguards as the base layer, measured on the coat's own normal; the
-  // floor matters most here, since the glTF default clearcoatRoughness is 0.
   #ifdef USE_KHR_materials_clearcoat
-    material.clearcoatRoughness = gsaaRoughness( material.clearcoatNormal, material.clearcoatRoughness );
+    clearcoatSetup( material, TBN, geometricNormal );
   #endif
-
   #ifdef USE_KHR_materials_anisotropy
-    float anisotropyBaseAlpha = pow2( material.roughness );
-    material.at = mix( anisotropyBaseAlpha, 1.0, pow2( material.anisotropyStrength ) );
-    material.ab = clamp( anisotropyBaseAlpha, 0.001, 1.0 );
+    anisotropySetup( material, TBN, geometricNormal );
   #endif
 
   vec3 color = vec3( 0.0 );
@@ -872,15 +919,8 @@ void main()
   reflectedLight.directDiffuse +
   reflectedLight.directSpecular;
 
-  // KHR_materials_clearcoat: fresnel_mix the base result with the coat lobe. The coat's own
-  // Fresnel term is applied once here (not per light / per IBL term), and the emissive
-  // output is dampened by the same weight, matching the extension's "coated_emission" note.
   #ifdef USE_KHR_materials_clearcoat
-    vec3 clearcoatFresnel = F_Schlick( vec3( 0.04 ), vec3( 1.0 ), clamp( dot( material.clearcoatNormal, viewDir ), 0.0, 1.0 ) );
-    vec3 clearcoatWeight = clamp( material.clearcoatFactor * clearcoatFresnel, 0.0, 1.0 );
-    vec3 clearcoatColor = reflectedLight.clearcoatSpecular + reflectedLight.clearcoatIndirectSpecular;
-    color = mix( color, clearcoatColor, clearcoatWeight );
-    emissive_color.rgb *= ( 1.0 - clearcoatWeight );
+    clearcoatMix( material, viewDir, reflectedLight, color, emissive_color );
   #endif
 
   // Exposure is applied uniformly to the whole lit result here ( the tone mapping
