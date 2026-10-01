@@ -68,7 +68,9 @@ mod private
     /// The WebGL context, kept so `Drop` can release GPU resources.
     gl : gl::GL,
     /// The WebGL Vertex Array Object that stores the state for attribute bindings.
-    pub vao : gl::WebGlVertexArrayObject,
+    /// Created by [`Geometry::new`] and deleted by `Drop`; private so it cannot be
+    /// reassigned to another geometry's VAO (which `Drop` would then delete).
+    vao : gl::WebGlVertexArrayObject,
     /// The primitive drawing mode (e.g., `gl::TRIANGLES`, `gl::LINES`).
     pub draw_mode : u32,
     /// The number of vertices in the geometry (used for non-indexed drawing).
@@ -218,6 +220,13 @@ mod private
       self.attributes.get( "positions" )
       .expect( "Poisitions attribute not found on geometry")
       .bounding_box
+    }
+
+    /// The Vertex Array Object this geometry created and deletes on drop.
+    #[ must_use ]
+    pub fn vao( &self ) -> &gl::WebGlVertexArrayObject
+    {
+      &self.vao
     }
 
     /// Binds the geometry's Vertex Array Object.

@@ -63,13 +63,13 @@ fn geometry_drop_deletes_own_vao_but_not_shared_buffers()
   survivor.index_add( &gl, index_info ).unwrap();
   gl.bind_vertex_array( None );
 
-  let dropped_vao = dropped.vao.clone();
+  let dropped_vao = dropped.vao().clone();
   assert!( gl.is_vertex_array( Some( &dropped_vao ) ) );
 
   drop( dropped );
 
   assert!( !gl.is_vertex_array( Some( &dropped_vao ) ), "Geometry::drop must delete its own VAO" );
-  assert!( gl.is_vertex_array( Some( &survivor.vao ) ), "the other geometry's VAO must survive" );
+  assert!( gl.is_vertex_array( Some( survivor.vao() ) ), "the other geometry's VAO must survive" );
   assert!( gl.is_buffer( Some( &vertices ) ), "a shared attribute buffer must survive the drop" );
   assert!( gl.is_buffer( Some( &indices ) ), "a shared index buffer must survive the drop" );
   survivor.upload( &gl ).expect( "the survivor must still re-upload against the shared buffers" );
