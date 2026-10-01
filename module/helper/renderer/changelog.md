@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **BREAKING**: `required_extensions_check` moved from `webgl::loaders::gltf` to `webgl::loaders::gltf_extensions`, which also exports the new `document_validate`; each now has that one public path. Migration: import them from `loaders::gltf_extensions`.
 - **`PbrMaterial` setters recompile only on a variant change**: every `*_set` method used to flag a program recompile, so changing a factor such as `specular_factor_set` at runtime relinked the program on the next frame. They now request a recompile only when the material's define set actually changes, and otherwise just mark the uniforms for re-upload (`needs_update`).
 - **IBL multiple-scattering energy compensation**: indirect specular now adds the multi-scatter term (`Fms * Ems` weighted by irradiance) on top of the single-scatter prefiltered reflection, matching three.js `computeMultiscattering()`. Without it, rough metals/plastics read as pure mirrors and the overall specular is too dim.
 - **Exposure applied uniformly**: `Renderer::set_exposure` now scales the entire lit result in the PBR shader (`color *= exp2( exposure )`) instead of only the IBL contribution. Previously exposure multiplied just the environment term, over-brightening reflections relative to direct lighting.

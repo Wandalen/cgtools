@@ -2,10 +2,7 @@ mod private
 {
   use std::{ cell::RefCell, rc::Rc };
   use gltf::mesh::iter::MorphTargets;
-  use crate::webgl::loaders::gltf_extensions::material_layer_extensions_apply;
-  // Extension support lives in `gltf_extensions`; re-exported so these keep their
-  // `loaders::gltf::` paths.
-  pub use crate::webgl::loaders::gltf_extensions::{ document_validate, required_extensions_check };
+  use crate::webgl::loaders::gltf_extensions::{ document_validate, material_layer_extensions_apply };
   use mingl::F32x3;
   use minwebgl as gl;
   use gl::
@@ -1463,8 +1460,6 @@ crate::mod_interface!
   {
     GLTF,
     load,
-    required_extensions_check,
-    document_validate,
     asset_uri_resolve,
     light_list_get,
     light_get,

@@ -1,14 +1,16 @@
 //! Reading `KHR_materials_clearcoat` / `KHR_materials_anisotropy` extension JSON
-//! ( `renderer::webgl::loaders::gltf_extensions::{ clearcoat_parse, anisotropy_parse }` ).
+//! ( `renderer::webgl::loaders::gltf_extensions::internal::{ clearcoat_parse, anisotropy_parse }`,
+//! reachable under the `test_internals` feature ).
 //!
 //! The `gltf` crate has no typed accessor for either extension, so the loader reads their JSON
 //! by hand; these pure, off-GPU checks pin the defaults, `texCoord`, the coat normal `scale` and
 //! the rotation, which no other test would notice going wrong.
 
+#![ cfg( feature = "test_internals" ) ]
 #![ expect( clippy::float_cmp, reason = "parsed factors pass through unchanged from the JSON literals; exact comparison is the point" ) ]
 
 use gltf::json::Value;
-use renderer::webgl::loaders::gltf_extensions::
+use renderer::webgl::loaders::gltf_extensions::internal::
 {
   anisotropy_parse,
   clearcoat_parse,

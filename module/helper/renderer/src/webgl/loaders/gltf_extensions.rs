@@ -249,11 +249,17 @@ mod private
 crate::mod_interface!
 {
   own use material_layer_extensions_apply;
-  own use clearcoat_parse;
-  own use anisotropy_parse;
-  own use ClearcoatParams;
-  own use AnisotropyParams;
-  own use ExtensionTextureRef;
   own use required_extensions_check;
   own use document_validate;
+}
+
+/// The extension JSON parsing `tests/` reaches, exposed only under `test_internals`.
+///
+/// Not part of the surface: with the feature off, the default and what every dependent gets,
+/// this module does not exist.
+#[ cfg( feature = "test_internals" ) ]
+#[ doc( hidden ) ]
+pub mod internal
+{
+  pub use super::private::{ anisotropy_parse, clearcoat_parse, AnisotropyParams, ClearcoatParams, ExtensionTextureRef };
 }

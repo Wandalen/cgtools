@@ -1,5 +1,5 @@
 //! Verifies the glTF loader's required-extension gate
-//! ( `renderer::webgl::loaders::gltf::required_extensions_check` ) -- the pure,
+//! ( `renderer::webgl::loaders::gltf_extensions::required_extensions_check` ) -- the pure,
 //! off-GPU check that enforces glTF 2.0's "Specifying Extensions" rule: a
 //! conformant client MUST refuse to load an asset whose `extensionsRequired`
 //! names an extension it doesn't support, rather than silently proceeding and
@@ -21,7 +21,7 @@
 //! `required_extensions_check` from that separate, unrelated upstream gate, so
 //! these tests exercise exactly the logic added to `gltf.rs`.
 
-use renderer::webgl::loaders::gltf::{ document_validate, required_extensions_check };
+use renderer::webgl::loaders::gltf_extensions::{ document_validate, required_extensions_check };
 
 const UNSUPPORTED_REQUIRED_FIXTURE : &str = r#"
 {
