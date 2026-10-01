@@ -7,6 +7,7 @@
 
 mod private
 {
+  use crate::compile::neighbors::VOID_ID;
   use crate::pipeline::TilingStrategy;
   use crate::source::TriBlendPattern;
 
@@ -44,17 +45,20 @@ mod private
   ///   • edge tile   (2 present, 1 absent) → align the single ABSENT corner, base 300°, 6 frames
   ///   • full tile   (3 present)           → base 60°, 2 frames (▲/▽ parity only)
   ///
-  /// "Present" means *this object's own id* (`self_id`, taken from its `(X,X,X)`
-  /// full pattern), NOT a lexicographic property of the canonical triple. That
-  /// distinction matters once a triangle holds two DIFFERENT non-void ids — e.g.
-  /// two adjacent players' regions: for `region_1`'s edge tile the corners are
+  /// "Present" is decided against the layer's *self id* — the id of its solid
+  /// `(X,X,X)` pattern ([`TriBlendPattern::self_id`]) — NOT by a lexicographic
+  /// property of the canonical triple. That distinction matters once a
+  /// triangle holds two DIFFERENT non-void ids — e.g. two adjacent players'
+  /// regions: for `region_1`'s edge tile the corners are
   /// `(region_1, region_1, region_0)`, and `"region_0" < "region_1"` sorts the
-  /// foreign id FIRST, so the old canonical-order test misread the edge as a
-  /// corner and pointed the petals at the neighbour's centre. Counting matches of
-  /// `self_id` instead is exactly what the matched pattern meant by self vs.
-  /// wildcard, so terrain (`self_id = "hexagon"`, absent = `"void"`) is unchanged
-  /// while cross-region boundaries orient correctly. When `self_id` is `None`
-  /// (object has no `(X,X,X)` pattern) we fall back to the canonical-order rule.
+  /// foreign id FIRST, so a canonical-order test misreads the edge as a corner
+  /// and points the petals at the neighbour's centre. Counting matches of
+  /// `self_id` treats a foreign id exactly like void.
+  ///
+  /// A layer with no solid pattern (`self_id` is `None`) has no own id to
+  /// count, so every non-void corner is present. A sort-based fallback would
+  /// be wrong for any id that sorts after `"void"`: `(water, water, void)`
+  /// sorts to `(void, water, water)` and would read as a corner.
   ///
   /// NOTE: still assumes at most two distinct ids per triangle drive one object's
   /// shape (present vs. not-present). A genuine three-id chiral junction's ▲/▽
@@ -63,7 +67,6 @@ mod private
   pub fn dual_orientation_index
   (
     raw : &[ String; 3 ],
-    canonical : &[ String; 3 ],
     self_id : Option< &str >,
     corner_px : &[ ( f32, f32 ); 3 ],
     wx : f32,
@@ -85,40 +88,27 @@ mod private
       TilingStrategy::HexPointyTop => FRAC_PI_6,
       _ => 0.0,
     };
-    let ( base, period, dist_idx ) = if let Some( sid ) = self_id
+    let present : [ bool; 3 ] = match self_id
     {
-      // Classify by how many corners are THIS object's own id ("present").
-      let present = [ raw[ 0 ] == sid, raw[ 1 ] == sid, raw[ 2 ] == sid ];
-      match present.iter().filter( | p | **p ).count()
+      Some( sid ) => core::array::from_fn( | i | raw[ i ] == sid ),
+      None => core::array::from_fn( | i | raw[ i ] != VOID_ID ),
+    };
+    let ( base, period, dist_idx ) = match present.iter().filter( | p | **p ).count()
+    {
+      // edge: the lone NOT-present corner is the distinguishing (void) one.
+      2 =>
       {
-        // edge: the lone NOT-present corner is the distinguishing (void) one.
-        2 =>
-        {
-          let idx = present.iter().position( | p | !*p ).unwrap_or( 0 );
-          ( FRAC_PI_3 * 5.0, ORIENTED_FRAMES, idx )
-        }
-        // corner: the lone PRESENT corner is the distinguishing one.
-        1 =>
-        {
-          let idx = present.iter().position( | p | *p ).unwrap_or( 0 );
-          ( FRAC_PI_3, ORIENTED_FRAMES, idx )
-        }
-        // full (3) — or the degenerate 0 — are 3-fold symmetric: parity only.
-        _ => ( FRAC_PI_3, SYMMETRIC_FRAMES, 0 ),
+        let idx = present.iter().position( | p | !*p ).unwrap_or( 0 );
+        ( FRAC_PI_3 * 5.0, ORIENTED_FRAMES, idx )
       }
-    }
-    else
-    {
-      // Legacy fallback: derive the distinguishing corner from canonical order
-      // (valid when the absent id sorts after the present id, e.g. literal void).
-      let ( unique, base, period ) =
-        if canonical[ 0 ] == canonical[ 2 ]      { ( None,                  FRAC_PI_3,       SYMMETRIC_FRAMES ) }
-        else if canonical[ 0 ] == canonical[ 1 ] { ( Some( &canonical[ 2 ] ), FRAC_PI_3 * 5.0, ORIENTED_FRAMES ) }
-        else                                     { ( Some( &canonical[ 0 ] ), FRAC_PI_3,       ORIENTED_FRAMES ) };
-      let dist_idx = unique
-        .and_then( | v | raw.iter().position( | c | c == v ) )
-        .unwrap_or( 0 );
-      ( base, period, dist_idx )
+      // corner: the lone PRESENT corner is the distinguishing one.
+      1 =>
+      {
+        let idx = present.iter().position( | p | *p ).unwrap_or( 0 );
+        ( FRAC_PI_3, ORIENTED_FRAMES, idx )
+      }
+      // full (3) — or the degenerate 0 — are 3-fold symmetric: parity only.
+      _ => ( FRAC_PI_3, SYMMETRIC_FRAMES, 0 ),
     };
     let ( cx, cy ) = corner_px[ dist_idx ];
     let bearing = ( cy - wy ).atan2( cx - wx );

@@ -309,7 +309,7 @@ mod private
         // `transform.rotation` stays 0 — no runtime sprite rotation.
         let rot_index = if *orient_to_grid
         {
-          dual_orientation_index( &corners.raw, &corners.canonical, *self_id, &corner_px, wx, wy, ctx.tiling )
+          dual_orientation_index( &corners.raw, *self_id, &corner_px, wx, wy, ctx.tiling )
         }
         else
         {

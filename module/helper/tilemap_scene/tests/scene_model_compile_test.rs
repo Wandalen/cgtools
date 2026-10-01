@@ -1870,9 +1870,65 @@ fn vertex_corners_orient_to_grid_up_down_distinct()
   assert!( n0 > 0 && n1 > 0, "both ▲ and ▽ full frames must appear; got full_0={n0}, full_1={n1}" );
 }
 
+/// Without a solid `( X, X, X )` pattern an orient layer has no self id, so
+/// every non-void corner counts as present. The frame pick must not depend on
+/// how the object's id sorts against `"void"`: `"water"` sorts after it, so a
+/// sort-based reading would take `( water, water, void )` for a corner. Over a
+/// 7-hex flower, the edge and corner frames of the layer without a solid
+/// pattern must match `dual_orient_spec`'s (self id `hexagon`) for an id
+/// sorting either side of `"void"`.
+#[ test ]
+fn vertex_corners_orient_without_solid_pattern_ignores_id_order()
+{
+  let neigh = [ ( 0, 0 ), ( 0, -1 ), ( 1, -1 ), ( 1, 0 ), ( 0, 1 ), ( -1, 1 ), ( -1, 0 ) ];
+  // `position → frame name` of every edge / corner sprite `id`'s flower emits.
+  let frame_map = | spec : &RenderSpec, id : &str |
+  {
+    let tiles = neigh.iter().map( | &pos | Tile { pos, objects : vec![ id.into() ] } ).collect();
+    let scene = SceneSnapshot { tiles, ..minimal_scene_3x3() };
+    let compiled = assets_compile( spec, &PathResolver ).expect( "assets" );
+    let names : std::collections::HashMap< _, String > = ( 0..6 )
+      .flat_map( | o | [ format!( "dual_edge_{o}" ), format!( "dual_corner_{o}" ) ] )
+      .filter_map( | n | compiled.ids.sprite( "dual", &n ).map( | sid | ( sid, n ) ) )
+      .collect();
+    let cmds = at_time_compile( spec, &scene, &Camera::default(), 0.0 );
+    sprite_commands( &cmds ).into_iter()
+      .filter_map( | s | names.get( &s.sprite ).map( | n |
+        ( format!( "{:.2},{:.2}", s.transform.position[ 0 ], s.transform.position[ 1 ] ), n.clone() ) ) )
+      .collect::< std::collections::BTreeMap< _, _ > >()
+  };
+  // `dual_orient_spec` with its solid pattern dropped and `hexagon` renamed.
+  let without_solid = | id : &str |
+  {
+    let mut spec = dual_orient_spec();
+    let object = &mut spec.objects[ 0 ];
+    object.id = id.into();
+    let layer = &mut object.states.get_mut( "default" ).expect( "default state" )[ 0 ];
+    let SpriteSource::VertexCorners { patterns, .. } = &mut layer.sprite_source
+    else { panic!( "dual_orient_spec layer 0 must be VertexCorners" ) };
+    patterns.retain( | p | p.self_id().is_none() );
+    for p in patterns.iter_mut()
+    {
+      for c in [ &mut p.corners.0, &mut p.corners.1, &mut p.corners.2 ]
+      {
+        if c == "hexagon" { *c = id.into(); }
+      }
+    }
+    spec
+  };
+
+  let with_self_id = frame_map( &dual_orient_spec(), "hexagon" );
+  assert!( with_self_id.values().any( | n | n.starts_with( "dual_edge_" ) ), "flower rim must emit edge tiles; got {with_self_id:?}" );
+  assert!( with_self_id.values().any( | n | n.starts_with( "dual_corner_" ) ), "flower rim must emit corner tiles; got {with_self_id:?}" );
+  for id in [ "hexagon", "water" ]
+  {
+    assert_eq!( frame_map( &without_solid( id ), id ), with_self_id, "{id}: a layer without a solid pattern must orient like one with it" );
+  }
+}
+
 /// Regression: a bare `("*","*","*")` wildcard pattern with `orient_to_grid:
 /// true` must still compile. The wildcard is excluded from `self_id` detection,
-/// so the frame pass falls to the 6-orientation legacy path and can pick
+/// so the layer has no self id, counts non-void corners as present and can pick
 /// `{rot}` up to 5. Pre-allocation must therefore reserve six frames, not the
 /// two it would for a genuine fully-symmetric (all-equal) pattern — otherwise
 /// rendering hits `CompileError::UnresolvedRef`.
@@ -1946,7 +2002,7 @@ fn vertex_corners_orient_to_grid_triple_wildcard_allocates_six()
     );
   }
 
-  // A lone hex's surrounding corner triangles hit the legacy path and can pick
+  // A lone hex's surrounding corner triangles orient by their non-void corner and can pick
   // `{rot}` up to 5 — rendering must resolve every frame, not error.
   let scene = SceneSnapshot
   {
