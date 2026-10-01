@@ -119,26 +119,25 @@ fn displacements_data_drop_frees_displacements_texture()
 }
 
 /// ## Root Cause
-/// `TransformsData`'s `Clone` copied `gl` together with the aliased `global_texture` /
-/// `inverse_texture` handles, so a clone dropped before its own first `upload()` ran the
-/// BUG-437 `Drop` with `gl = Some` and deleted the original's live textures.
+/// `TransformsData`'s `Clone` copied the `global_texture` / `inverse_texture` handles together
+/// with `gl`, so a clone dropped before its own first `upload()` ran the BUG-437 `Drop` and
+/// deleted the original's live textures.
 ///
 /// ## Why Not Caught
 /// The BUG-437 reproducers above only drop an owning value; nothing cloned an uploaded
 /// `TransformsData` and dropped the clone first.
 ///
 /// ## Fix Applied
-/// `Clone` sets `gl : None`: the clone owns no GPU texture until its own `upload()` allocates
-/// fresh ones (`need_clone_inner`), so dropping it deletes nothing.
+/// `Clone` resets both texture handles (and `gl`) to `None`: the clone holds none of the
+/// original's textures, and its own first `upload()` allocates fresh ones.
 ///
 /// ## Prevention
-/// Clones an owning `TransformsData`, drops only the clone, and asserts both of the
-/// original's textures are still live GL objects, then drops the original and asserts they
-/// are freed exactly by it.
+/// Clones an owning `TransformsData`, asserts the clone holds no texture handle, drops only
+/// the clone, and asserts both of the original's textures are still live GL objects, then
+/// drops the original and asserts they are freed exactly by it.
 ///
 /// ## Pitfall
-/// The field that arms a `Drop` (`gl` here) must be reset, never copied, by `Clone` while the
-/// clone still aliases the original's handles.
+/// `Clone` must never copy a GPU handle that `Drop` deletes.
 // test_kind: bug_reproducer(BUG-533)
 #[ wasm_bindgen_test::wasm_bindgen_test ]
 fn transforms_data_clone_drop_keeps_original_textures()
@@ -152,6 +151,7 @@ fn transforms_data_clone_drop_keeps_original_textures()
 
   let original = TransformsData::new_owning_for_test( global_texture.clone(), inverse_texture.clone(), &gl );
   let clone = original.clone();
+  assert_eq!( clone.textures_for_test(), ( None, None ), "a clone must not hold the original's textures" );
   drop( clone );
 
   assert!( gl.is_texture( global_texture.as_ref() ), "dropping a clone must not delete the original's global_texture" );
@@ -164,18 +164,18 @@ fn transforms_data_clone_drop_keeps_original_textures()
 
 /// ## Root Cause
 /// Same as `transforms_data_clone_drop_keeps_original_textures`: `DisplacementsData`'s `Clone`
-/// copied `gl`, so a clone dropped before its first `upload()` deleted the original's
-/// `displacements_texture`.
+/// copied the texture handle together with `gl`, so a clone dropped before its first
+/// `upload()` deleted the original's `displacements_texture`.
 ///
 /// ## Why Not Caught
 /// The BUG-437 reproducer never cloned an owning `DisplacementsData`.
 ///
 /// ## Fix Applied
-/// `Clone` sets `gl : None`.
+/// `Clone` resets `displacements_texture` (and `gl`) to `None`.
 ///
 /// ## Prevention
-/// Clones an owning `DisplacementsData`, drops the clone, and asserts the original's texture
-/// survives until the original itself is dropped.
+/// Clones an owning `DisplacementsData`, asserts the clone holds no texture handle, drops the
+/// clone, and asserts the original's texture survives until the original itself is dropped.
 ///
 /// ## Pitfall
 /// See `transforms_data_clone_drop_keeps_original_textures`.
@@ -190,6 +190,7 @@ fn displacements_data_clone_drop_keeps_original_texture()
 
   let original = DisplacementsData::new_owning_for_test( displacements_texture.clone(), &gl );
   let clone = original.clone();
+  assert_eq!( clone.texture_for_test(), None, "a clone must not hold the original's texture" );
   drop( clone );
 
   assert!( gl.is_texture( displacements_texture.as_ref() ), "dropping a clone must not delete the original's displacements_texture" );
