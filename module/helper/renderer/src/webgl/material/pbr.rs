@@ -155,63 +155,63 @@ mod private
     /// The base color factor, multiplied with the base color texture. Defaults to white (1, 1, 1, 1).
     pub base_color_factor : gl::F32x4,
     /// Optional texture providing the base color.
-    base_color_texture : Option< TextureInfo >,
+    pub( super ) base_color_texture : Option< TextureInfo >,
     /// Scaling factor for the metallic component.
     pub metallic_factor : f32,
     /// Scaling factor for the roughness component.
     pub roughness_factor : f32,
     /// Optional texture providing the metallic and roughness values. Metalness is sampled from the B channel and roughness from the G channel.
-    metallic_roughness_texture : Option< TextureInfo >,
+    pub( super ) metallic_roughness_texture : Option< TextureInfo >,
 
     /// Scaling factor applied to each normal vector of the normal texture.
     pub normal_scale : f32,
     /// Optional texture containing normal vectors.
-    normal_texture : Option< TextureInfo >,
+    pub( super ) normal_texture : Option< TextureInfo >,
 
     /// Scalar multiplier applied to the AO values sampled from the occlusion texture.
     pub occlusion_strength : f32,
     /// Optional texture providing ambient occlusion values.
-    occlusion_texture : Option< TextureInfo >,
+    pub( super ) occlusion_texture : Option< TextureInfo >,
 
     /// Optional texture providing the emission color of the material.
-    emissive_texture : Option< TextureInfo >,
+    pub( super ) emissive_texture : Option< TextureInfo >,
     /// Scaling factor for the emission intensity
     pub emissive_factor : gl::F32x3,
 
     /// Optional scaling factor for the specular intensity. (KHR_materials_specular extension)
-    specular_factor : Option< f32 >,
+    pub( super ) specular_factor : Option< f32 >,
     /// Optional texture providing the specular intensity. (KHR_materials_specular extension)
-    specular_texture : Option< TextureInfo >,
+    pub( super ) specular_texture : Option< TextureInfo >,
     /// Optional color factor for the specular highlight. (KHR_materials_specular extension)
-    specular_color_factor : Option< gl::F32x3 >,
+    pub( super ) specular_color_factor : Option< gl::F32x3 >,
     /// Optional texture providing the specular color. (KHR_materials_specular extension)
-    specular_color_texture : Option< TextureInfo >,
+    pub( super ) specular_color_texture : Option< TextureInfo >,
     /// Optional lightmap texture containing pre-baked lighting (shadows)
-    light_map : Option< TextureInfo >,
+    pub( super ) light_map : Option< TextureInfo >,
 
     /// Optional scaling factor for the clearcoat layer intensity. (KHR_materials_clearcoat extension)
-    clearcoat_factor : Option< f32 >,
+    pub( super ) clearcoat_factor : Option< f32 >,
     /// Optional texture providing the clearcoat intensity in the R channel. (KHR_materials_clearcoat extension)
-    clearcoat_texture : Option< TextureInfo >,
+    pub( super ) clearcoat_texture : Option< TextureInfo >,
     /// Optional roughness factor for the clearcoat layer. (KHR_materials_clearcoat extension)
-    clearcoat_roughness_factor : Option< f32 >,
+    pub( super ) clearcoat_roughness_factor : Option< f32 >,
     /// Optional texture providing the clearcoat roughness in the G channel. (KHR_materials_clearcoat extension)
-    clearcoat_roughness_texture : Option< TextureInfo >,
+    pub( super ) clearcoat_roughness_texture : Option< TextureInfo >,
     /// Scaling factor applied to each normal vector of the clearcoat normal texture. (KHR_materials_clearcoat extension)
     pub clearcoat_normal_scale : f32,
     /// Optional texture containing normal vectors for the clearcoat layer. (KHR_materials_clearcoat extension)
-    clearcoat_normal_texture : Option< TextureInfo >,
+    pub( super ) clearcoat_normal_texture : Option< TextureInfo >,
 
     /// Optional strength of the anisotropy effect. (KHR_materials_anisotropy extension)
-    anisotropy_strength : Option< f32 >,
+    pub( super ) anisotropy_strength : Option< f32 >,
     /// Rotation of the anisotropy direction, in radians. (KHR_materials_anisotropy extension)
     pub anisotropy_rotation : f32,
     /// Optional texture providing the anisotropy direction (RG) and strength (B). (KHR_materials_anisotropy extension)
-    anisotropy_texture : Option< TextureInfo >,
+    pub( super ) anisotropy_texture : Option< TextureInfo >,
     /// Alpha cutoff value for mask mode. Fragments with alpha below this value are discarded.
     pub alpha_cutoff : f32,
     /// The alpha blending mode for the material. Defaults to `Opaque`.
-    alpha_mode : AlphaMode,
+    pub( super ) alpha_mode : AlphaMode,
     /// Determines wheter to draw both or one side of the primitive
     pub double_sided : bool,
     /// Face culling mode. `None` means culling is disabled.
@@ -221,17 +221,17 @@ mod private
     pub mipmap_distance_range : std::ops::Range< f32 >,
 
     /// Hash map of defines in (value, name) format
-    vertex_defines : FxHashMap< Box< str >, String >,
+    pub( super ) vertex_defines : FxHashMap< Box< str >, String >,
     /// Hash map of defines in (value, name) format
-    fragment_defines : FxHashMap< Box< str >, String >,
+    pub( super ) fragment_defines : FxHashMap< Box< str >, String >,
 
     /// Returns answer need use IBL for current material instance or not
-    need_use_ibl : bool,
+    pub( super ) need_use_ibl : bool,
     /// Signal for updating material uniforms.
     /// Use `needs_update_set(true)` after changing material properties.
     needs_update : Cell< bool >,
     /// Signal that shader defines have changed and program needs recompilation.
-    needs_recompile : Cell< bool >,
+    pub( super ) needs_recompile : Cell< bool >,
     /// Cached combined defines string
     cached_defines_str : String,
     /// Cached vertex defines string
@@ -361,261 +361,10 @@ mod private
       mat
     }
 
-    /// Enables or disables Image-Based Lighting (IBL) for this material.
-    /// If the value changes, the shader program will be marked for recompilation.
-    pub fn need_use_ibl_set( &mut self, value : bool )
-    {
-      if value != self.need_use_ibl
-      {
-        self.needs_recompile.set( true );
-      }
-      self.need_use_ibl = value;
-    }
-
-    /// Returns whether Image-Based Lighting (IBL) is enabled for this material.
-    pub fn need_use_ibl( &self ) -> bool
-    {
-      self.need_use_ibl
-    }
-
-    /// Sets the base color texture.
-    pub fn base_color_texture_set( &mut self, value : Option< TextureInfo > )
-    {
-      self.base_color_texture = value;
-      self.defines_update();
-    }
-
-    /// Returns the base color texture.
-    pub fn base_color_texture( &self ) -> Option< &TextureInfo >
-    {
-      self.base_color_texture.as_ref()
-    }
-
-    /// Sets the metallic roughness texture.
-    pub fn metallic_roughness_texture_set( &mut self, value : Option< TextureInfo > )
-    {
-      self.metallic_roughness_texture = value;
-      self.defines_update();
-    }
-
-    /// Returns the metallic roughness texture.
-    pub fn metallic_roughness_texture( &self ) -> Option< &TextureInfo >
-    {
-      self.metallic_roughness_texture.as_ref()
-    }
-
-    /// Sets the normal texture.
-    pub fn normal_texture_set( &mut self, value : Option< TextureInfo > )
-    {
-      self.normal_texture = value;
-      self.defines_update();
-    }
-
-    /// Returns the normal texture.
-    pub fn normal_texture( &self ) -> Option< &TextureInfo >
-    {
-      self.normal_texture.as_ref()
-    }
-
-    /// Sets the occlusion texture.
-    pub fn occlusion_texture_set( &mut self, value : Option< TextureInfo > )
-    {
-      self.occlusion_texture = value;
-      self.defines_update();
-    }
-
-    /// Returns the occlusion texture.
-    pub fn occlusion_texture( &self ) -> Option< &TextureInfo >
-    {
-      self.occlusion_texture.as_ref()
-    }
-
-    /// Sets the emissive texture.
-    pub fn emissive_texture_set( &mut self, value : Option< TextureInfo > )
-    {
-      self.emissive_texture = value;
-      self.defines_update();
-    }
-
-    /// Returns the emissive texture.
-    pub fn emissive_texture( &self ) -> Option< &TextureInfo >
-    {
-      self.emissive_texture.as_ref()
-    }
-
-    /// Sets the specular texture.
-    pub fn specular_texture_set( &mut self, value : Option< TextureInfo > )
-    {
-      self.specular_texture = value;
-      self.defines_update();
-    }
-
-    /// Returns the specular texture.
-    pub fn specular_texture( &self ) -> Option< &TextureInfo >
-    {
-      self.specular_texture.as_ref()
-    }
-
-    /// Sets the specular color texture.
-    pub fn specular_color_texture_set( &mut self, value : Option< TextureInfo > )
-    {
-      self.specular_color_texture = value;
-      self.defines_update();
-    }
-
-    /// Returns the specular color texture.
-    pub fn specular_color_texture( &self ) -> Option< &TextureInfo >
-    {
-      self.specular_color_texture.as_ref()
-    }
-
-    /// Sets the light map texture.
-    pub fn light_map_set( &mut self, value : Option< TextureInfo > )
-    {
-      self.light_map = value;
-      self.defines_update();
-    }
-
-    /// Returns the light map texture.
-    pub fn light_map( &self ) -> Option< &TextureInfo >
-    {
-      self.light_map.as_ref()
-    }
-
-    /// Sets the clearcoat factor.
-    pub fn clearcoat_factor_set( &mut self, value : Option< f32 > )
-    {
-      self.clearcoat_factor = value;
-      self.defines_update();
-    }
-
-    /// Returns the clearcoat factor.
-    pub fn clearcoat_factor( &self ) -> Option< f32 >
-    {
-      self.clearcoat_factor
-    }
-
-    /// Sets the clearcoat texture.
-    pub fn clearcoat_texture_set( &mut self, value : Option< TextureInfo > )
-    {
-      self.clearcoat_texture = value;
-      self.defines_update();
-    }
-
-    /// Returns the clearcoat texture.
-    pub fn clearcoat_texture( &self ) -> Option< &TextureInfo >
-    {
-      self.clearcoat_texture.as_ref()
-    }
-
-    /// Sets the clearcoat roughness factor.
-    pub fn clearcoat_roughness_factor_set( &mut self, value : Option< f32 > )
-    {
-      self.clearcoat_roughness_factor = value;
-      self.defines_update();
-    }
-
-    /// Returns the clearcoat roughness factor.
-    pub fn clearcoat_roughness_factor( &self ) -> Option< f32 >
-    {
-      self.clearcoat_roughness_factor
-    }
-
-    /// Sets the clearcoat roughness texture.
-    pub fn clearcoat_roughness_texture_set( &mut self, value : Option< TextureInfo > )
-    {
-      self.clearcoat_roughness_texture = value;
-      self.defines_update();
-    }
-
-    /// Returns the clearcoat roughness texture.
-    pub fn clearcoat_roughness_texture( &self ) -> Option< &TextureInfo >
-    {
-      self.clearcoat_roughness_texture.as_ref()
-    }
-
-    /// Sets the clearcoat normal texture.
-    pub fn clearcoat_normal_texture_set( &mut self, value : Option< TextureInfo > )
-    {
-      self.clearcoat_normal_texture = value;
-      self.defines_update();
-    }
-
-    /// Returns the clearcoat normal texture.
-    pub fn clearcoat_normal_texture( &self ) -> Option< &TextureInfo >
-    {
-      self.clearcoat_normal_texture.as_ref()
-    }
-
-    /// Sets the anisotropy strength.
-    pub fn anisotropy_strength_set( &mut self, value : Option< f32 > )
-    {
-      self.anisotropy_strength = value;
-      self.defines_update();
-    }
-
-    /// Returns the anisotropy strength.
-    pub fn anisotropy_strength( &self ) -> Option< f32 >
-    {
-      self.anisotropy_strength
-    }
-
-    /// Sets the anisotropy texture.
-    pub fn anisotropy_texture_set( &mut self, value : Option< TextureInfo > )
-    {
-      self.anisotropy_texture = value;
-      self.defines_update();
-    }
-
-    /// Returns the anisotropy texture.
-    pub fn anisotropy_texture( &self ) -> Option< &TextureInfo >
-    {
-      self.anisotropy_texture.as_ref()
-    }
-
-    /// Sets the alpha mode.
-    pub fn alpha_mode_set( &mut self, value : AlphaMode )
-    {
-      self.alpha_mode = value;
-      self.defines_update();
-    }
-
-    /// Returns the alpha mode.
-    pub fn alpha_mode( &self ) -> AlphaMode
-    {
-      self.alpha_mode
-    }
-
-    /// Sets the specular factor.
-    pub fn specular_factor_set( &mut self, value : Option< f32 > )
-    {
-      self.specular_factor = value;
-      self.defines_update();
-    }
-
-    /// Returns the specular factor.
-    pub fn specular_factor( &self ) -> Option< f32 >
-    {
-      self.specular_factor
-    }
-
-    /// Sets the specular color factor.
-    pub fn specular_color_factor_set( &mut self, value : Option< gl::F32x3 > )
-    {
-      self.specular_color_factor = value;
-      self.defines_update();
-    }
-
-    /// Returns the specular color factor.
-    pub fn specular_color_factor( &self ) -> Option< gl::F32x3 >
-    {
-      self.specular_color_factor
-    }
-
     /// Rebuilds the cached defines after a property change. A recompile is requested only when
     /// the define set changed: a new value within the same shader variant just needs its uniform
     /// uploaded again, which `needs_update` requests.
-    fn defines_update( &mut self )
+    pub( super ) fn defines_update( &mut self )
     {
       if self.defines_cache_rebuild()
       {
@@ -656,30 +405,6 @@ mod private
       self.cached_vertex_defines_str = vertex_defines;
       self.cached_fragment_defines_str = fragment_defines;
       changed
-    }
-
-    /// Added the specified name and value is #define directive to the material
-    pub fn vertex_define_add< A : Into< Box< str > >, B : Into< String > >( &mut self, name : A, value : B )
-    {
-      self.vertex_defines.insert( name.into(), value.into() );
-      self.defines_update();
-    }
-
-    /// Added the specified name and value is #define directive to the material
-    pub fn fragment_define_add< A : Into< Box< str > >, B : Into< String > >( &mut self, name : A, value : B )
-    {
-      self.fragment_defines.insert( name.into(), value.into() );
-      self.defines_update();
-    }
-
-    /// Added the specified name and value is #define directive to the material
-    pub fn define_add< A : Into< Box< str > >, B : Into< String > >( &mut self, name : A, value : B )
-    {
-      let name = name.into();
-      let value = value.into();
-      self.vertex_defines.insert( name.clone(), value.clone() );
-      self.fragment_defines.insert( name, value );
-      self.defines_update();
     }
 
     /// Generates `#define` directives to be inserted into the fragment shader based on the material's properties.
@@ -827,18 +552,6 @@ mod private
       }
 
       use_clearcoat_normal_texture || use_khr_materials_anisotropy
-    }
-
-    /// Returns an immutable reference to the local vertex defines map
-    pub fn vertex_defines( &self ) -> &FxHashMap< Box< str >, String >
-    {
-      &self.vertex_defines
-    }
-
-    /// Returns an immutable reference to the local fragment defines map
-    pub fn fragment_defines( &self ) -> &FxHashMap< Box< str >, String >
-    {
-      &self.fragment_defines
     }
   }
 
@@ -1120,6 +833,9 @@ mod private
 
 crate::mod_interface!
 {
+  /// `PbrMaterial`'s property getters and setters.
+  layer accessors;
+
   orphan use
   {
     MAX_POINT_LIGHTS,
