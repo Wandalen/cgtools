@@ -522,6 +522,27 @@ float ditherNoise( vec2 fragCoord )
 
 #ifdef USE_IBL
 
+  // Mip of prefilterEnvMap to sample along reflection `R` for `roughness`. No fixed floor (e.g.
+  // `max( .., 1.0 )`) is applied: with the PMREM prefilter, mip 0 of prefilterEnvMap is the sharp
+  // environment, which is the correct, physically expected result for a mirror-smooth surface.
+  // Specular aliasing comes from the reflection vector being under-sampled across a pixel
+  // (curved geometry, silhouettes, grazing angles) — exactly the case where the screen-space
+  // variance term below is large and raises the LOD. On flat smooth surfaces reflVariance ~ 0,
+  // there is no sub-pixel variation to alias, so sampling mip 0 there is safe; a fixed floor
+  // would only blur legitimate mirror reflections.
+  float envLod( const in vec3 R, const in float roughness )
+  {
+    float lod = roughness * u_max_lod;
+
+    // GSAA-style specular antialiasing: widen the filter where the reflected direction changes
+    // rapidly in screen space.
+    vec3 dRdx = dFdx( R );
+    vec3 dRdy = dFdy( R );
+    float reflVariance = dot( dRdx, dRdx ) + dot( dRdy, dRdy );
+    lod = max( lod, 0.5 * log2( max( reflVariance, 1e-6 ) ) + 4.0 );
+    return min( lod, u_max_lod );
+  }
+
   void sampleEnvIrradiance( const in vec3 N, const in vec3 V, const in PhysicalMaterial material, inout ReflectedLight reflectedLight )
   {
     float dotNV = clamp( dot( N, V ), 0.01, 1.0 );
@@ -540,23 +561,7 @@ float ditherNoise( vec2 fragCoord )
       R = reflect( -V, bentNormal );
     #endif
 
-    // Base LOD from roughness. No fixed floor (e.g. `max( .., 1.0 )`) is applied: with the
-    // PMREM prefilter, mip 0 of prefilterEnvMap is the sharp environment, which is the correct,
-    // physically expected result for a mirror-smooth surface. Specular aliasing comes from the
-    // reflection vector being under-sampled across a pixel (curved geometry, silhouettes,
-    // grazing angles) — exactly the case where the screen-space variance term below is large
-    // and raises the LOD. On flat smooth surfaces reflVariance ~ 0, there is no sub-pixel
-    // variation to alias, so sampling mip 0 there is safe; a fixed floor would only blur
-    // legitimate mirror reflections.
-    float lod = material.roughness * u_max_lod;
-
-    // GSAA-style specular antialiasing: widen the filter where the reflected direction changes
-    // rapidly in screen space.
-    vec3 dRdx = dFdx( R );
-    vec3 dRdy = dFdy( R );
-    float reflVariance = dot( dRdx, dRdx ) + dot( dRdy, dRdy );
-    lod = max( lod, 0.5 * log2( max( reflVariance, 1e-6 ) ) + 4.0 );
-    lod = min( lod, u_max_lod );
+    float lod = envLod( R, material.roughness );
 
     float dither = ( ditherNoise( gl_FragCoord.xy ) - 0.5 ) / 512.0;
 
@@ -590,14 +595,7 @@ float ditherNoise( vec2 fragCoord )
     // mix with the base result (see KHR_materials_clearcoat's fresnel_mix in main()).
     #ifdef USE_KHR_materials_clearcoat
       vec3 Rc = reflect( -V, material.clearcoatNormal );
-      // Same LOD rule as the base sample above: roughness, widened where the coat's
-      // reflection direction varies quickly across the pixel.
-      float lodc = material.clearcoatRoughness * u_max_lod;
-      vec3 dRcdx = dFdx( Rc );
-      vec3 dRcdy = dFdy( Rc );
-      float reflVarianceC = dot( dRcdx, dRcdx ) + dot( dRcdy, dRcdy );
-      lodc = max( lodc, 0.5 * log2( max( reflVarianceC, 1e-6 ) ) + 4.0 );
-      lodc = min( lodc, u_max_lod );
+      float lodc = envLod( Rc, material.clearcoatRoughness );
       reflectedLight.clearcoatIndirectSpecular += textureLod( prefilterEnvMap, Rc, lodc ).xyz;
     #endif
   }
@@ -657,6 +655,26 @@ float adjustRoughnessNormalMap ( const in float roughness, const in vec3 normal 
     return min(1.0, sqrt(roughness * roughness + 1.0 / kappa));
   }
   return roughness;
+}
+
+// Geometric Specular Anti-Aliasing (Tokuyoshi & Kaplanyan 2019): widens `roughness` where the
+// screen-space derivatives of the shading normal `n` are large (geometry edges), which selects
+// blurrier environment map mip levels and prevents specular aliasing. The 0.0525 floor keeps
+// D_GGX finite: at roughness 0 it is zero off the exact mirror direction and 0/0 on it, so a
+// smooth surface would show no highlight or a single flickering pixel.
+float gsaaRoughness( const in vec3 n, const in float roughness )
+{
+  vec3 dNdx = dFdx( n );
+  vec3 dNdy = dFdy( n );
+  float variance = dot( dNdx, dNdx ) + dot( dNdy, dNdy );
+  return max( sqrt( clamp( pow2( roughness ) + 0.5 * variance, 0.0, 1.0 ) ), 0.0525 );
+}
+
+// Specular occlusion for ambient occlusion `ao`, from the view angle and roughness of the lobe
+// it darkens (Lagarde & de Rousiers 2014).
+float specularOcclusion( const in float dotNV, const in float ao, const in float roughness )
+{
+  return clamp( pow( dotNV + ao, exp2( -16.0 * roughness - 1.0 ) ) - 1.0 + ao, 0.0, 1.0 );
 }
 
 void main()
@@ -805,25 +823,11 @@ void main()
     material.anisotropyStrength = clamp( anisotropyMagnitude, 0.0, 1.0 );
   #endif
 
-  // Geometric Specular Anti-Aliasing (Tokuyoshi & Kaplanyan 2019)
-  // Increases roughness where screen-space normal derivatives are large (geometry edges),
-  // which selects blurrier environment map mip levels and prevents specular aliasing.
-  vec3 dNdx = dFdx( normal );
-  vec3 dNdy = dFdy( normal );
-  float geometricVariance = dot( dNdx, dNdx ) + dot( dNdy, dNdy );
-  material.roughness = sqrt( clamp( material.roughness * material.roughness + 0.5 * geometricVariance, 0.0, 1.0 ) );
-  material.roughness = max( material.roughness, 0.0525 );
-
-  // The coat gets the same safeguards as the base layer. Without the floor, the glTF default
-  // clearcoatRoughness of 0 makes D_GGX zero off the exact mirror direction and 0/0 on it, so a
-  // smooth coat shows no highlight or a single flickering pixel; the variance term antialiases
-  // a smooth coat on curved geometry, measured on the coat's own normal.
+  material.roughness = gsaaRoughness( normal, material.roughness );
+  // The coat gets the same safeguards as the base layer, measured on the coat's own normal; the
+  // floor matters most here, since the glTF default clearcoatRoughness is 0.
   #ifdef USE_KHR_materials_clearcoat
-    vec3 dCcNdx = dFdx( material.clearcoatNormal );
-    vec3 dCcNdy = dFdy( material.clearcoatNormal );
-    float clearcoatVariance = dot( dCcNdx, dCcNdx ) + dot( dCcNdy, dCcNdy );
-    material.clearcoatRoughness = sqrt( clamp( pow2( material.clearcoatRoughness ) + 0.5 * clearcoatVariance, 0.0, 1.0 ) );
-    material.clearcoatRoughness = max( material.clearcoatRoughness, 0.0525 );
+    material.clearcoatRoughness = gsaaRoughness( material.clearcoatNormal, material.clearcoatRoughness );
   #endif
 
   #ifdef USE_KHR_materials_anisotropy
@@ -848,14 +852,12 @@ void main()
     float ao = 1.0 + occlusionStrength * ( occlusion - 1.0 );
     reflectedLight.indirectDiffuse *= ao;
     float dotNV = clamp( dot( normal, viewDir ), 0.0, 1.0 );
-    float specOcclusion = clamp( pow( dotNV + ao, exp2( -16.0 * material.roughness - 1.0 ) ) - 1.0 + ao, 0.0, 1.0 );
-    reflectedLight.indirectSpecular *= specOcclusion;
+    reflectedLight.indirectSpecular *= specularOcclusion( dotNV, ao, material.roughness );
     #ifdef USE_KHR_materials_clearcoat
       // The coat's environment reflection is occluded like the base one, but with the coat's
       // own normal and roughness.
       float ccDotNV = clamp( dot( material.clearcoatNormal, viewDir ), 0.0, 1.0 );
-      float ccSpecOcclusion = clamp( pow( ccDotNV + ao, exp2( -16.0 * material.clearcoatRoughness - 1.0 ) ) - 1.0 + ao, 0.0, 1.0 );
-      reflectedLight.clearcoatIndirectSpecular *= ccSpecOcclusion;
+      reflectedLight.clearcoatIndirectSpecular *= specularOcclusion( ccDotNV, ao, material.clearcoatRoughness );
     #endif
   #endif
 

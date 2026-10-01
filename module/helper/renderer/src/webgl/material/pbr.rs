@@ -975,9 +975,9 @@ mod private
       // KHR_materials_clearcoat / KHR_materials_anisotropy defaults: all three factors are 0.
       upload( "clearcoatFactor", self.clearcoat_factor.unwrap_or( 0.0 ) )?;
       upload( "clearcoatRoughnessFactor", self.clearcoat_roughness_factor.unwrap_or( 0.0 ) )?;
-      gl::uniform::upload( gl, locations.get( "clearcoatNormalScale" ).expect( "PBRShader::impl_locations! missing \"clearcoatNormalScale\"" ).clone(), &self.clearcoat_normal_scale )?;
+      upload( "clearcoatNormalScale", self.clearcoat_normal_scale )?;
       upload( "anisotropyStrength", self.anisotropy_strength.unwrap_or( 0.0 ) )?;
-      gl::uniform::upload( gl, locations.get( "anisotropyRotation" ).expect( "PBRShader::impl_locations! missing \"anisotropyRotation\"" ).clone(), &self.anisotropy_rotation )?;
+      upload( "anisotropyRotation", self.anisotropy_rotation )?;
 
       Ok( () )
     }
