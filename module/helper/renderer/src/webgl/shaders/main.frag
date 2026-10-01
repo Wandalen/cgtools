@@ -602,7 +602,13 @@ float alpha_weight( float a )
 }
 
 #ifndef USE_TANGENTS
-  // http://www.thetenthplanet.de/archives/1180
+  // The per-pixel counterpart of the MikkTSpace frame glTF specifies for meshes without
+  // tangents. T is the surface direction in which u increases, made orthogonal to the normal.
+  // B is perpendicular to both, on the side up the image: glTF's tangent space has +Y up, the
+  // UV origin is the image's upper-left corner, and images are uploaded unflipped, so up is the
+  // direction in which v decreases. Mirrored UVs are followed. The frame is orthonormal, so an
+  // anisotropy direction keeps its angle where u and v have different texel density or are
+  // sheared, which a frame built from the UV gradients does not.
   mat3 getTBN( vec3 surf_normal, vec3 pos, vec2 uv )
   {
     vec3 dE1 = dFdx( pos );
@@ -610,19 +616,16 @@ float alpha_weight( float a )
     vec2 dUv1 = dFdx( uv );
     vec2 dUv2 = dFdy( uv );
 
-    vec3 q1perp = cross( dE2, surf_normal );
-		vec3 q0perp = cross( surf_normal, dE1 );
+    // Surface directions in which u and v increase: the inverse of the UV Jacobian, scaled by
+    // its determinant, whose sign restores their orientation.
+    float det = dUv1.x * dUv2.y - dUv2.x * dUv1.y;
+    vec3 dPdu = ( dUv2.y * dE1 - dUv1.y * dE2 ) * sign( det );
+    vec3 dPdv = ( dUv1.x * dE2 - dUv2.x * dE1 ) * sign( det );
 
-    vec3 T = q1perp * dUv1.x + q0perp * dUv2.x;
-		vec3 B = q1perp * dUv1.y + q0perp * dUv2.y;
-
-    float det = max( dot( T, T ), dot( B, B ) );
-		float scale = ( det == 0.0 ) ? 0.0 : inversesqrt( det );
-
-    // B is the gradient of v, which points down the image: glTF puts the UV origin at the
-    // image's upper-left corner and images are uploaded unflipped. glTF's tangent space has +Y
-    // up the image, so the bitangent column is -B. T is kept, so mirrored UVs are still followed.
-    return mat3( T * scale, -B * scale, surf_normal );
+    vec3 T = normalize( dPdu - surf_normal * dot( surf_normal, dPdu ) );
+    vec3 B = cross( surf_normal, T );
+    B *= dot( B, dPdv ) > 0.0 ? -1.0 : 1.0;
+    return mat3( T, B, surf_normal );
   }
 #endif
 

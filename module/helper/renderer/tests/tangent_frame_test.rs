@@ -139,4 +139,29 @@ void main()
     assert_near( frame_column( &gl, mirrored, 0 ), [ -1.0, 0.0, 0.0 ], "tangent" );
     assert_near( frame_column( &gl, mirrored, 1 ), [ 0.0, 1.0, 0.0 ], "bitangent" );
   }
+
+  /// With u = x and v = -2y, v has twice u's texel density. The frame must stay orthonormal:
+  /// an anisotropy direction mapped through unequal columns turns 45° into 63.4°.
+  #[ wasm_bindgen_test ]
+  fn derivative_frame_is_orthonormal_with_unequal_uv_density()
+  {
+    let gl = gl_init();
+    let stretched = [ 1.0, 0.0, 0.0, 0.0, -2.0, 0.0, 0.0, 0.0, 1.0 ];
+
+    assert_near( frame_column( &gl, stretched, 0 ), [ 1.0, 0.0, 0.0 ], "tangent" );
+    assert_near( frame_column( &gl, stretched, 1 ), [ 0.0, 1.0, 0.0 ], "bitangent" );
+  }
+
+  /// With u = x + y / 2 and v = -y, u increases along +X on the surface, while its gradient
+  /// leans 26.6° towards +Y. The tangent must follow the surface direction, as a MikkTSpace
+  /// tangent does, or even an anisotropy rotation of 0 renders at the wrong angle.
+  #[ wasm_bindgen_test ]
+  fn derivative_frame_tangent_follows_u_on_sheared_uvs()
+  {
+    let gl = gl_init();
+    let sheared = [ 1.0, 0.0, 0.0, 0.5, -1.0, 0.0, 0.0, 0.0, 1.0 ];
+
+    assert_near( frame_column( &gl, sheared, 0 ), [ 1.0, 0.0, 0.0 ], "tangent" );
+    assert_near( frame_column( &gl, sheared, 1 ), [ 0.0, 1.0, 0.0 ], "bitangent" );
+  }
 }
