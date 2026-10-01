@@ -312,30 +312,8 @@ mod private
     /// Returns error if shader compilation fails.
     pub fn new( config : RenderConfig, gl : gl::GL ) -> Result< Self, RenderError >
     {
-      let map_err = | e : gl::WebglError | RenderError::BackendError( format!( "{e:?}" ) );
-
-      let sprite = SpriteRenderer::new( &gl ).map_err( map_err )?;
-      let mesh = MeshRenderer::new( &gl ).map_err( map_err )?;
-
-      // Initial GL state
-      gl.viewport( 0, 0, config.width as i32, config.height as i32 );
-      gl.enable( gl::BLEND );
-      // Use separate factors for the alpha channel so the framebuffer alpha follows
-      // the Porter-Duff "over" rule: a = src_a + dst_a * (1 - src_a). Using the same
-      // SRC_ALPHA factor on alpha would yield src_a^2 + dst_a*(1-src_a), corrupting
-      // alpha when the canvas is composited against a transparent page or read via
-      // readPixels.
-      //
-      // This is just the initial state; `blend_apply` reprograms the blend func
-      // per draw from each sprite/mesh's `BlendMode` and its texture's
-      // premultiplied flag (see `blend_apply`).
-      gl.blend_func_separate( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA, gl::ONE, gl::ONE_MINUS_SRC_ALPHA );
-
-      // LEQUAL (not LESS) so equal-depth draws fall back to submission order rather
-      // than rejecting the second one — keeps the default (all depth = 0) case
-      // rendering identically to the pre-depth implementation.
-      gl.enable( gl::DEPTH_TEST );
-      gl.depth_func( gl::LEQUAL );
+      let ( sprite, mesh ) = Self::renderers_new( &gl )?;
+      Self::gl_state_init( &gl, &config );
 
       // Query the actual hardware limit; fall back to the WebGL2 guaranteed minimum.
       // get_parameter returns a JsValue; as_f64() is the idiomatic way to extract it.
@@ -361,6 +339,38 @@ mod private
         recording_batch : None,
         context_lost,
       })
+    }
+
+    /// Compiles the sprite and mesh shader programs.
+    fn renderers_new( gl : &gl::GL ) -> Result< ( SpriteRenderer, MeshRenderer ), RenderError >
+    {
+      let map_err = | e : gl::WebglError | RenderError::BackendError( format!( "{e:?}" ) );
+      Ok( ( SpriteRenderer::new( gl ).map_err( map_err )?, MeshRenderer::new( gl ).map_err( map_err )? ) )
+    }
+
+    /// Sets the GL state every draw relies on but none re-applies: viewport,
+    /// blending and depth testing. Run by `new` and again by `assets_load` after
+    /// a context restore, which resets all of it to the defaults.
+    fn gl_state_init( gl : &gl::GL, config : &RenderConfig )
+    {
+      gl.viewport( 0, 0, config.width as i32, config.height as i32 );
+      gl.enable( gl::BLEND );
+      // Use separate factors for the alpha channel so the framebuffer alpha follows
+      // the Porter-Duff "over" rule: a = src_a + dst_a * (1 - src_a). Using the same
+      // SRC_ALPHA factor on alpha would yield src_a^2 + dst_a*(1-src_a), corrupting
+      // alpha when the canvas is composited against a transparent page or read via
+      // readPixels.
+      //
+      // This is just the initial state; `blend_apply` reprograms the blend func
+      // per draw from each sprite/mesh's `BlendMode` and its texture's
+      // premultiplied flag (see `blend_apply`).
+      gl.blend_func_separate( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA, gl::ONE, gl::ONE_MINUS_SRC_ALPHA );
+
+      // LEQUAL (not LESS) so equal-depth draws fall back to submission order rather
+      // than rejecting the second one — keeps the default (all depth = 0) case
+      // rendering identically to the pre-depth implementation.
+      gl.enable( gl::DEPTH_TEST );
+      gl.depth_func( gl::LEQUAL );
     }
 
     /// Registers persistent `webglcontextlost` / `webglcontextrestored` listeners on the
@@ -1226,6 +1236,23 @@ mod private
   {
     fn assets_load( &mut self, assets : &Assets ) -> Result< (), RenderError >
     {
+      // After a loss, the GPU state this backend built in `new` is gone too: a
+      // restored context has none of the objects created before the loss and
+      // starts from default GL state. Rebuild the shader programs and re-apply
+      // that state before re-uploading, or every draw would use a program from
+      // the lost context with blending and depth testing off. While the context
+      // is still lost nothing can be uploaded, so report that instead of
+      // clearing `context_lost` over an empty context.
+      if self.context_lost.get()
+      {
+        if self.gl.is_context_lost()
+        {
+          return Err( RenderError::ContextLost );
+        }
+        ( self.sprite, self.mesh ) = Self::renderers_new( &self.gl )?;
+        Self::gl_state_init( &self.gl, &self.config );
+      }
+
       // Reset all GPU state: textures, sprites, geometries, and batches.
       // GpuBatch::drop calls delete_vertex_array; ArrayBuffer::drop calls delete_buffer.
       // Safe to call multiple times (e.g. level transitions).
