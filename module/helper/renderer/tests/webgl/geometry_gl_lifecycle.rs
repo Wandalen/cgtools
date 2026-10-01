@@ -54,7 +54,13 @@ fn geometry_drop_deletes_own_vao_but_not_shared_buffers()
   let gl = gl_init();
   let vertices = bound_buffer( &gl, gl::ARRAY_BUFFER );
   let indices = bound_buffer( &gl, gl::ELEMENT_ARRAY_BUFFER );
-  let index_info = IndexInfo { buffer : indices.clone(), count : 3, offset : 0, data_type : gl::UNSIGNED_SHORT };
+  let index_info = IndexInfo
+  {
+    buffer : indices.clone(),
+    count : 3,
+    offset : 0,
+    data_type : gl::UNSIGNED_SHORT,
+  };
 
   let mut dropped = Geometry::new( &gl ).unwrap();
   dropped.attribute_add( &gl, "positions", position_info( &vertices ) ).unwrap();
@@ -93,7 +99,8 @@ fn primitive_clone_shares_geometry()
   geometry.borrow().bind( &gl );
   let vao = geometry.borrow().vao().clone();
   assert!( gl.is_vertex_array( Some( &vao ) ) );
-  let material : Rc< RefCell< Box< dyn Material > > > = Rc::new( RefCell::new( Box::new( PbrMaterial::new( &gl ) ) ) );
+  let material : Box< dyn Material > = Box::new( PbrMaterial::new( &gl ) );
+  let material = Rc::new( RefCell::new( material ) );
   let original = Primitive { geometry, material };
   let clone = original.clone();
   assert!( Rc::ptr_eq( &original.geometry, &clone.geometry ), "a cloned primitive must share its geometry" );

@@ -75,7 +75,13 @@ mod private
     /// Use it for a GPU texture created for this `Texture` alone; wrap textures
     /// managed elsewhere with the `Former` builder, which makes a non-owning view.
     #[ must_use ]
-    pub fn owning( gl : &gl::GL, target : u32, source : gl::web_sys::WebGlTexture, sampler : Sampler ) -> Self
+    pub fn owning
+    (
+      gl : &gl::GL,
+      target : u32,
+      source : gl::web_sys::WebGlTexture,
+      sampler : Sampler,
+    ) -> Self
     {
       let owner = Rc::new( TextureOwner { gl : gl.clone(), texture : source.clone() } );
       Self { target, source : Some( source ), sampler, owner : Some( owner ) }

@@ -65,7 +65,11 @@ fn view_texture_drop_leaves_source_alive()
 }
 
 /// A 1x1 opaque red PNG.
-const RED_PIXEL_PNG : &str = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==";
+const RED_PIXEL_PNG : &str = concat!
+(
+  "data:image/png;base64,",
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==",
+);
 
 /// Resolves after `ms` milliseconds, long enough for a data-URI image to load.
 async fn sleep_ms( ms : i32 )

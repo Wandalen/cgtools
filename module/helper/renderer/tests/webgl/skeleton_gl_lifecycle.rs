@@ -155,8 +155,16 @@ fn transforms_data_clone_drop_keeps_original_textures()
   assert_eq!( clone.textures_for_test(), ( None, None ), "a clone must not hold the original's textures" );
   drop( clone );
 
-  assert!( gl.is_texture( global_texture.as_ref() ), "dropping a clone must not delete the original's global_texture" );
-  assert!( gl.is_texture( inverse_texture.as_ref() ), "dropping a clone must not delete the original's inverse_texture" );
+  assert!
+  (
+    gl.is_texture( global_texture.as_ref() ),
+    "dropping a clone must not delete the original's global_texture",
+  );
+  assert!
+  (
+    gl.is_texture( inverse_texture.as_ref() ),
+    "dropping a clone must not delete the original's inverse_texture",
+  );
 
   drop( original );
   assert!( !gl.is_texture( global_texture.as_ref() ), "the original still frees global_texture" );
@@ -194,10 +202,18 @@ fn displacements_data_clone_drop_keeps_original_texture()
   assert_eq!( clone.texture_for_test(), None, "a clone must not hold the original's texture" );
   drop( clone );
 
-  assert!( gl.is_texture( displacements_texture.as_ref() ), "dropping a clone must not delete the original's displacements_texture" );
+  assert!
+  (
+    gl.is_texture( displacements_texture.as_ref() ),
+    "dropping a clone must not delete the original's displacements_texture",
+  );
 
   drop( original );
-  assert!( !gl.is_texture( displacements_texture.as_ref() ), "the original still frees displacements_texture" );
+  assert!
+  (
+    !gl.is_texture( displacements_texture.as_ref() ),
+    "the original still frees displacements_texture",
+  );
 }
 
 /// Every uniform name the skinning and morph-target uploads look up, with no

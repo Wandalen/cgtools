@@ -329,10 +329,8 @@ mod private
   // leaked both GPU textures every time.
   // Root cause: the struct had no `impl Drop` and no manual `gl_resources_free`-style method;
   // nothing in the type ever called `gl.delete_texture` on either field.
-  // Pitfall: freeing unconditionally in `Drop` is safe only because no two values hold the
-  // same texture handle: `Clone` resets both handles to `None` ( BUG-533 ) instead of copying
-  // them, so the clone allocates its own in `upload()`. Copying a handle in `Clone` again
-  // would make whichever value drops first delete the other's texture.
+  // Pitfall: freeing unconditionally in `Drop` is safe only because `Clone` resets both
+  // handles to `None` ( BUG-533 ) instead of copying them, so no two values share a texture.
   impl Drop for TransformsData
   {
     fn drop( &mut self )
