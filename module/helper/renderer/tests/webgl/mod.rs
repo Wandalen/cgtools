@@ -69,6 +69,18 @@ mod pass;
 /// IBL loader texture-parameter / mip-range wiring tests
 mod ibl;
 
+// Live-context lifecycle suites for `Geometry` and `Texture`: wasm32-only, since
+// they need a `WebGl2RenderingContext`, but every handle they check is public, so
+// unlike the suites below they don't need `test_internals`.
+/// `Geometry` VAO teardown; shared attribute / index buffers survive; a cloned
+/// `Primitive` shares its geometry.
+#[ cfg( target_arch = "wasm32" ) ]
+mod geometry_gl_lifecycle;
+
+/// `Texture` owning-vs-view teardown and `load_from_path`'s pending upload.
+#[ cfg( target_arch = "wasm32" ) ]
+mod texture_gl_lifecycle;
+
 // The GL-resource-lifecycle suites below were inline `#[cfg(test)] mod tests`
 // blocks under `src/webgl/**` until `rulebook.md § Test placement` was changed
 // to put every test in `tests/`. Each covers one type's teardown contract:
@@ -82,16 +94,6 @@ mod ibl;
 // makes the `_for_test` accessors that hand them over exist. Run them with
 // `--features test_internals`; without it these modules compile away entirely
 // and the suites above still run on their own.
-/// `Geometry` VAO teardown; shared attribute / index buffers survive. Needs only
-/// a live context (the handles it checks are public), not `test_internals`.
-#[ cfg( target_arch = "wasm32" ) ]
-mod geometry_gl_lifecycle;
-
-/// `Texture` owning-vs-view teardown. Needs only a live context, not
-/// `test_internals`.
-#[ cfg( target_arch = "wasm32" ) ]
-mod texture_gl_lifecycle;
-
 /// `IBL` texture teardown and clone/double-free behaviour
 #[ cfg( all( target_arch = "wasm32", feature = "test_internals" ) ) ]
 mod ibl_gl_lifecycle;

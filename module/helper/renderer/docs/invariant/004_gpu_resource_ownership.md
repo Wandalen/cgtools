@@ -24,7 +24,7 @@ the handles.
 - `src/webgl/geometry.rs`: `impl Drop for Geometry` deletes only `vao`; `Geometry` derives only `Debug`.
 - `src/webgl/texture.rs`: only `Texture::owning` can make a `TextureOwner` (its fields are private and it has no public constructor), and the `Former` builder has no `owner` setter; `TextureOwner` is the only type with a texture-deleting `Drop`.
 - `src/webgl/skeleton.rs`: both `Clone` impls set `gl : None` (`Fix(BUG-533)`).
-- Tests (`tests/webgl/`, wasm32, live context): `geometry_gl_lifecycle.rs` (shared buffers survive a dropped geometry), `texture_gl_lifecycle.rs` (owning texture outlives all but its last clone; views delete nothing), `skeleton_gl_lifecycle.rs` (a dropped clone keeps the original's textures).
+- Tests (`tests/webgl/`, wasm32, live context; run with `wasm-pack test --headless --chrome -- --features test_internals --test tests`, since `skeleton_gl_lifecycle.rs` and `renderer_gl_lifecycle.rs` compile only with `test_internals`): `geometry_gl_lifecycle.rs` (shared buffers survive a dropped geometry; a cloned primitive shares its geometry), `texture_gl_lifecycle.rs` (owning texture outlives all but its last clone; views delete nothing; a dropped `load_from_path` texture skips its pending upload), `skeleton_gl_lifecycle.rs` (a clone holds none of the original's textures and uploads its own, in either drop order), `renderer_gl_lifecycle.rs` (the renderer keeps an owning skybox across `resize()` and never deletes a view).
 
 ### Violation Consequences
 
