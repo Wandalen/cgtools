@@ -462,6 +462,18 @@ void computeSpotLight
   applyLightContribution( lightDir, viewDir, normal, material, light.color, attenuation, reflectedLight );
 }
 
+// Whether light from `lightDir` reaches a layer: the base through `normal` or, with a clearcoat,
+// the coat through its own normal. Only an early-out, since every BRDF term clamps its own N.L,
+// but it must not skip the coat where a base normal map turns the base away from the light.
+bool lightFacing( const in vec3 lightDir, const in vec3 normal, const in PhysicalMaterial material )
+{
+  float dotNL = dot( normal, lightDir );
+  #ifdef USE_KHR_materials_clearcoat
+    dotNL = max( dotNL, dot( material.clearcoatNormal, lightDir ) );
+  #endif
+  return dotNL > 0.0;
+}
+
 void computeLights
 (
   const in vec3 viewDir,
@@ -473,9 +485,8 @@ void computeLights
   for( int i = 0; i < min( pointLightsCount, MAX_POINT_LIGHTS ); i++ )
   {
     vec3 lightDir = pointLights[ i ].position - vWorldPos;
-    float dotNL = clamp( dot( normal, lightDir ), 0.0, 1.0 );
 
-    if ( dotNL > 0.0 )
+    if ( lightFacing( lightDir, normal, material ) )
     {
       computePointLight( pointLights[ i ], viewDir, normal, material, reflectedLight );
     }
@@ -483,9 +494,7 @@ void computeLights
 
   for( int i = 0; i < min( directLightsCount, MAX_DIRECT_LIGHTS ); i++ )
   {
-    float dotNL = clamp( dot( normal, directLights[ i ].direction ), 0.0, 1.0 );
-
-    if ( dotNL > 0.0 )
+    if ( lightFacing( directLights[ i ].direction, normal, material ) )
     {
       computeDirectLight( directLights[ i ], viewDir, normal, material, reflectedLight );
     }
@@ -493,10 +502,9 @@ void computeLights
 
   for( int i = 0; i < min( spotLightsCount, MAX_SPOT_LIGHTS ); i++ )
   {
-    vec3 lightDir = normalize( spotLights[ i ].position - vWorldPos );
-    float dotNL = clamp( dot( normal, lightDir ), 0.0, 1.0 );
+    vec3 lightDir = spotLights[ i ].position - vWorldPos;
 
-    if ( dotNL > 0.0 )
+    if ( lightFacing( lightDir, normal, material ) )
     {
       computeSpotLight( spotLights[ i ], viewDir, normal, material, reflectedLight );
     }
