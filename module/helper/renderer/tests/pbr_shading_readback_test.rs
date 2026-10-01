@@ -1,13 +1,14 @@
 //! Pixel readback of the real PBR program ( `main.vert` / `main.frag` ) shading a full-screen quad.
 //!
-//! A `PbrMaterial`'s program is compiled from its defines, and the material uploads its own
+//! A `PbrMaterial`'s program is compiled from the sources `renderer.rs` compiles
+//! ( `material::shader_sources`, reachable under `test_internals` ), and the material uploads its own
 //! uniforms and binds its own textures, as the renderer does; the test sets only the matrices
 //! ( identity, so the quad's world position is its clip position, facing +Z ), the camera and
 //! one directional light. No IBL, so a black base color leaves only direct light. The checks
 //! compare pixels between two setups instead of pinning exact values, so they only depend on
 //! the property under test.
 
-#[ cfg( target_arch = "wasm32" ) ]
+#[ cfg( all( target_arch = "wasm32", feature = "test_internals" ) ) ]
 #[ cfg( test ) ]
 mod tests
 {
@@ -18,7 +19,7 @@ mod tests
   use gl::GL;
   use renderer::webgl::
   {
-    material::{ PbrMaterial, PBRShader },
+    material::{ internal::shader_sources, PbrMaterial, PBRShader },
     Material,
     MaterialUploadContext,
     Node,
@@ -81,8 +82,7 @@ mod tests
   /// light ), and returns the center pixel.
   fn shade( gl : &GL, material : &PbrMaterial, uv_0 : [ f32; 8 ], uv_1 : [ f32; 8 ], light : Option< Light > ) -> [ u8; 4 ]
   {
-    let vs = format!( "#version 300 es\n{}\n{}", material.vertex_defines_str(), material.vertex_shader() );
-    let fs = format!( "#version 300 es\n{}\n\n{}", material.fragment_defines_str(), material.fragment_shader() );
+    let ( vs, fs ) = shader_sources( material, false );
     let program = gl::ProgramFromSources::new( &vs, &fs ).compile_and_link( gl ).expect( "PBR program compiles" );
     let shader = PBRShader::new( gl, &program );
     gl.use_program( Some( &program ) );
@@ -157,6 +157,32 @@ mod tests
     let unlit = shade( &gl, &material, UPRIGHT, UPRIGHT, None );
 
     assert!( lit[ 0 ] > unlit[ 0 ].saturating_add( 10 ), "coat highlight missing: lit {lit:?}, unlit {unlit:?}" );
+  }
+
+  /// Without vertex tangents the frame must come from the normal texture's own UV set. Here UV
+  /// set 0 is constant and the normal map reads UV set 1, along which u increases up the quad, so
+  /// a map texel tilted to +X turns the normal up ( +Y ): a light from above lights the quad and
+  /// one from below doesn't. A frame taken from UV set 0 has no direction to follow, and the tilt
+  /// no longer points up.
+  #[ wasm_bindgen_test ]
+  fn normal_map_frame_follows_the_normal_texture_uv_set()
+  {
+    let gl = gl_init();
+    let mut material = PbrMaterial::new( &gl );
+    material.metallic_factor = 0.0;
+    material.normal_texture_set( Some( solid_texture( &gl, normal_texel( [ 1.0, 0.0, 0.05 ] ), 1 ) ) );
+    let constant = [ 0.5; 8 ];
+    // u = ( 1 + y ) / 2, v = ( 1 + x ) / 2.
+    let rotated = [ 0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.0 ];
+
+    let from_above = shade( &gl, &material, constant, rotated, Some( ( [ 0.0, 0.6, 0.8 ], 3.0 ) ) );
+    let from_below = shade( &gl, &material, constant, rotated, Some( ( [ 0.0, -0.6, 0.8 ], 3.0 ) ) );
+
+    assert!
+    (
+      from_above[ 0 ] > from_below[ 0 ].saturating_add( 40 ),
+      "the normal map must tilt the normal up: from above {from_above:?}, from below {from_below:?}"
+    );
   }
 
   /// `anisotropyStrength` is defined on [ 0, 1 ]. Out-of-range values, from an asset or from

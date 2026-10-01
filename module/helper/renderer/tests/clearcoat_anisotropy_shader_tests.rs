@@ -1,13 +1,15 @@
 //! Structural shader-compilation tests for `KHR_materials_clearcoat` / `KHR_materials_anisotropy`.
 //!
-//! These compile the real `main.vert` / `main.frag` sources (via the same `ProgramFromSources`
-//! path `renderer.rs` uses at draw time) in a headless WebGL2 context, for every `#define`
-//! combination the new extension code introduces. They do not verify pixel-level correctness
+//! These compile the real `main.vert` / `main.frag` sources, assembled by the same
+//! `material::shader_sources` `renderer.rs` compiles from ( reachable under `test_internals` ),
+//! in a headless WebGL2 context, for every `#define` combination the new extension code
+//! introduces. Each texture samples its own UV set, so every `v<Name>Uv` macro resolves to a
+//! distinct varying. They do not verify pixel-level correctness
 //! (that still relies on visual inspection of the `gltf_viewer` example, matching
 //! `pmrem_tests.rs`'s philosophy) — they catch GLSL syntax/type errors that only surface at
 //! runtime shader-compile time.
 
-#[ cfg( target_arch = "wasm32" ) ]
+#[ cfg( all( target_arch = "wasm32", feature = "test_internals" ) ) ]
 #[ cfg( test ) ]
 mod tests
 {
@@ -18,7 +20,7 @@ mod tests
   use std::{ cell::RefCell, rc::Rc };
   use minwebgl as gl;
   use gl::GL;
-  use renderer::webgl::{ material::PbrMaterial, Material, Texture, TextureInfo };
+  use renderer::webgl::{ material::{ internal::shader_sources, PbrMaterial }, Texture, TextureInfo };
 
   fn gl_init() -> GL
   {
@@ -29,20 +31,18 @@ mod tests
   }
 
   /// Texture contents are irrelevant to a shader-compile test — only its presence flips on the
-  /// `USE_*_TEXTURE` defines and the corresponding `sampler2D` uniform.
-  fn dummy_texture_info() -> TextureInfo
+  /// `USE_*_TEXTURE` defines and the corresponding `sampler2D` uniform. `uv_position` is the UV
+  /// set ( 0 to 4 ) the texture samples.
+  fn dummy_texture_info( uv_position : u32 ) -> TextureInfo
   {
-    TextureInfo { texture : Rc::new( RefCell::new( Texture::new() ) ), uv_position : 0 }
+    TextureInfo { texture : Rc::new( RefCell::new( Texture::new() ) ), uv_position }
   }
 
-  /// Compiles `material`'s shaders exactly the way `renderer.rs` does (same `#version` header,
-  /// same per-stage defines, same optional `USE_IBL` injection), and panics with the GL error on
-  /// failure.
+  /// Compiles `material`'s shaders from the sources `renderer.rs` compiles ( `shader_sources` ),
+  /// and panics with the GL error on failure.
   fn assert_compiles( gl : &GL, material : &PbrMaterial, with_ibl : bool, label : &str )
   {
-    let ibl_define = if with_ibl { "#define USE_IBL\n" } else { "" };
-    let vs_src = format!( "#version 300 es\n{}\n{}", material.vertex_defines_str(), material.vertex_shader() );
-    let fs_src = format!( "#version 300 es\n{}\n{}\n{}", material.fragment_defines_str(), ibl_define, material.fragment_shader() );
+    let ( vs_src, fs_src ) = shader_sources( material, with_ibl );
 
     gl::ProgramFromSources::new( &vs_src, &fs_src )
     .compile_and_link( gl )
@@ -65,9 +65,9 @@ mod tests
     let gl = gl_init();
     let mut material = PbrMaterial::new( &gl );
     material.clearcoat_factor_set( Some( 1.0 ) );
-    material.clearcoat_texture_set( Some( dummy_texture_info() ) );
-    material.clearcoat_roughness_texture_set( Some( dummy_texture_info() ) );
-    material.clearcoat_normal_texture_set( Some( dummy_texture_info() ) );
+    material.clearcoat_texture_set( Some( dummy_texture_info( 1 ) ) );
+    material.clearcoat_roughness_texture_set( Some( dummy_texture_info( 2 ) ) );
+    material.clearcoat_normal_texture_set( Some( dummy_texture_info( 3 ) ) );
     assert_compiles( &gl, &material, false, "clearcoat with all textures (derivative TBN fallback)" );
   }
 
@@ -86,21 +86,22 @@ mod tests
     let gl = gl_init();
     let mut material = PbrMaterial::new( &gl );
     material.anisotropy_strength_set( Some( 0.8 ) );
-    material.anisotropy_texture_set( Some( dummy_texture_info() ) );
+    material.anisotropy_texture_set( Some( dummy_texture_info( 4 ) ) );
     assert_compiles( &gl, &material, false, "anisotropy with texture" );
   }
 
-  /// Base normal map without vertex tangents: the derivative frame must be built from the
-  /// normal texture's own UV set (`vNormalUv`), the branch the clearcoat / anisotropy cases
-  /// above never reach.
+  /// Base normal map without vertex tangents: compiles the branch that builds the derivative
+  /// frame from the normal texture's UV set ( `vNormalUv` ), which the clearcoat / anisotropy
+  /// cases above never reach. Which UV set the frame follows is checked by pixel readback in
+  /// `pbr_shading_readback_test.rs`.
   #[ wasm_bindgen_test( async ) ]
   async fn normal_map_and_clearcoat_normal_without_tangents_compiles()
   {
     let gl = gl_init();
     let mut material = PbrMaterial::new( &gl );
-    material.normal_texture_set( Some( dummy_texture_info() ) );
+    material.normal_texture_set( Some( dummy_texture_info( 1 ) ) );
     material.clearcoat_factor_set( Some( 1.0 ) );
-    material.clearcoat_normal_texture_set( Some( dummy_texture_info() ) );
+    material.clearcoat_normal_texture_set( Some( dummy_texture_info( 2 ) ) );
     assert_compiles( &gl, &material, false, "base + clearcoat normal maps, derivative TBN from vNormalUv" );
   }
 
@@ -110,7 +111,7 @@ mod tests
     let gl = gl_init();
     let mut material = PbrMaterial::new( &gl );
     material.anisotropy_strength_set( Some( 0.5 ) );
-    material.normal_texture_set( Some( dummy_texture_info() ) );
+    material.normal_texture_set( Some( dummy_texture_info( 1 ) ) );
     // Mirrors what the gltf loader does when a TANGENT attribute is present, exercising the
     // real-tangent TBN branch (shared between normal mapping and anisotropy) instead of the
     // screen-space-derivative fallback.
@@ -124,11 +125,43 @@ mod tests
     let gl = gl_init();
     let mut material = PbrMaterial::new( &gl );
     material.clearcoat_factor_set( Some( 1.0 ) );
-    material.clearcoat_normal_texture_set( Some( dummy_texture_info() ) );
+    material.clearcoat_normal_texture_set( Some( dummy_texture_info( 1 ) ) );
     material.anisotropy_strength_set( Some( 0.8 ) );
-    material.anisotropy_texture_set( Some( dummy_texture_info() ) );
+    material.anisotropy_texture_set( Some( dummy_texture_info( 2 ) ) );
     material.specular_factor_set( Some( 0.5 ) ); // also exercised alongside the existing KHR_materials_specular path
-    material.occlusion_texture_set( Some( dummy_texture_info() ) ); // coat IBL specular occlusion branch
-    assert_compiles( &gl, &material, true, "clearcoat + anisotropy + specular + occlusion + IBL, worst-case combo" );
+    material.occlusion_texture_set( Some( dummy_texture_info( 3 ) ) ); // coat IBL specular occlusion branch
+    assert_compiles( &gl, &material, true, "clearcoat + anisotropy + specular + occlusion + IBL" );
+  }
+
+  /// Every one of the twelve material textures, each on a UV set of its own, with both layers on
+  /// and IBL: the largest program the material can produce, 15 fragment samplers, must compile
+  /// and link within WebGL2's guaranteed 16.
+  #[ wasm_bindgen_test( async ) ]
+  async fn every_texture_with_both_layers_and_ibl_compiles()
+  {
+    let gl = gl_init();
+    let mut material = PbrMaterial::new( &gl );
+    material.clearcoat_factor_set( Some( 1.0 ) );
+    material.anisotropy_strength_set( Some( 0.8 ) );
+    let setters : [ fn( &mut PbrMaterial, Option< TextureInfo > ); 12 ] =
+    [
+      PbrMaterial::metallic_roughness_texture_set,
+      PbrMaterial::base_color_texture_set,
+      PbrMaterial::normal_texture_set,
+      PbrMaterial::occlusion_texture_set,
+      PbrMaterial::emissive_texture_set,
+      PbrMaterial::specular_texture_set,
+      PbrMaterial::specular_color_texture_set,
+      PbrMaterial::light_map_set,
+      PbrMaterial::clearcoat_texture_set,
+      PbrMaterial::clearcoat_roughness_texture_set,
+      PbrMaterial::clearcoat_normal_texture_set,
+      PbrMaterial::anisotropy_texture_set,
+    ];
+    for ( i, set ) in ( 0_u32.. ).zip( setters )
+    {
+      set( &mut material, Some( dummy_texture_info( i % 5 ) ) );
+    }
+    assert_compiles( &gl, &material, true, "all twelve material textures + clearcoat + anisotropy + IBL" );
   }
 }
