@@ -31,8 +31,10 @@ mod private
     /// The sampler associated with the texture, which defines how the texture is sampled.
     pub sampler : Sampler,
     /// Shared owner of the GPU texture this `Texture` was created around by
-    /// [`Texture::owning`]; `None` for a view. Private so ownership can only be
-    /// established by that constructor.
+    /// [`Texture::owning`]; `None` for a view. Ownership can only be established by
+    /// that constructor: [`TextureOwner`] has private fields and no public
+    /// constructor, and the builder gets no setter for this field.
+    #[ scalar( setter = false ) ]
     owner : Option< Rc< TextureOwner > >,
   }
 
@@ -78,8 +80,12 @@ mod private
       Self { target, source : Some( source ), sampler, owner : Some( owner ) }
     }
 
-    /// Whether this `Texture` shares ownership of its GPU texture (built by
+    /// Whether this `Texture` shares ownership of a GPU texture (built by
     /// [`Texture::owning`]) rather than being a view.
+    ///
+    /// It refers to the texture the value was built around, which `source` no
+    /// longer names if `source` has been reassigned since; the owned texture is
+    /// still the one deleted.
     #[ must_use ]
     pub fn is_owning( &self ) -> bool
     {
