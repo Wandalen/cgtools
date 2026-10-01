@@ -6,7 +6,7 @@ An **invariant** is a guarantee this crate enforces and callers may rely on. In 
 
 - **Purpose**: Navigational hub for `renderer`'s correctness guarantees — the d3 stack's defining invariants, pinned where they are enforced.
 - **Responsibility**: Document each invariant's statement, enforcement mechanism, and violation consequences.
-- **In Scope**: Properties every scene rendered through this crate can rely on: visibility resolution, the material baseline, light-transport range.
+- **In Scope**: Properties every scene rendered through this crate can rely on: visibility resolution, the material baseline, light-transport range, GPU resource ownership.
 - **Out of Scope**: Pipeline structure and subsystem design (see `feature/`); environment-dependent traps (see `pitfall/`).
 
 ### Overview Table
