@@ -7,10 +7,11 @@
 //! `skeleton_gl_lifecycle.rs`: dropping a handle wrapper frees nothing by
 //! itself, only the context can tell a released object from a forgotten one.
 
+use std::{ cell::RefCell, rc::Rc };
 use minwebgl as gl;
 use gl::GL;
 use mingl::geometry::BoundingBox;
-use ::renderer::webgl::{ AttributeInfo, Geometry, IndexInfo };
+use ::renderer::webgl::{ AttributeInfo, Geometry, IndexInfo, Material, Primitive, material::PbrMaterial };
 
 fn gl_init() -> GL
 {
@@ -72,5 +73,35 @@ fn geometry_drop_deletes_own_vao_but_not_shared_buffers()
   assert!( gl.is_vertex_array( Some( survivor.vao() ) ), "the other geometry's VAO must survive" );
   assert!( gl.is_buffer( Some( &vertices ) ), "a shared attribute buffer must survive the drop" );
   assert!( gl.is_buffer( Some( &indices ) ), "a shared index buffer must survive the drop" );
-  survivor.upload( &gl ).expect( "the survivor must still re-upload against the shared buffers" );
+
+  // `upload` only fails on a data-type conversion; binding a deleted buffer is a
+  // silent GL error, so the context's error flag is what shows the buffers are usable.
+  while gl.get_error() != gl::NO_ERROR {}
+  survivor.upload( &gl ).expect( "the survivor's attribute descriptors are valid" );
+  assert_eq!( gl.get_error(), gl::NO_ERROR, "the survivor must still re-upload against the shared buffers" );
+}
+
+/// `Primitive::clone` shares its geometry instead of copying it (`Geometry` is
+/// not `Clone`): both primitives hold the same `Rc`, so the VAO outlives the
+/// first primitive dropped and is deleted once, with the last.
+#[ wasm_bindgen_test::wasm_bindgen_test ]
+fn primitive_clone_shares_geometry()
+{
+  let gl = gl_init();
+  let geometry = Rc::new( RefCell::new( Geometry::new( &gl ).unwrap() ) );
+  // WebGL only reports a VAO name as a vertex array once it has been bound.
+  geometry.borrow().bind( &gl );
+  let vao = geometry.borrow().vao().clone();
+  assert!( gl.is_vertex_array( Some( &vao ) ) );
+  let material : Rc< RefCell< Box< dyn Material > > > = Rc::new( RefCell::new( Box::new( PbrMaterial::new( &gl ) ) ) );
+  let original = Primitive { geometry, material };
+  let clone = original.clone();
+  assert!( Rc::ptr_eq( &original.geometry, &clone.geometry ), "a cloned primitive must share its geometry" );
+  gl.bind_vertex_array( None );
+
+  drop( original );
+  assert!( gl.is_vertex_array( Some( &vao ) ), "the shared VAO must outlive the first primitive dropped" );
+
+  drop( clone );
+  assert!( !gl.is_vertex_array( Some( &vao ) ), "the last primitive sharing the geometry deletes its VAO" );
 }
