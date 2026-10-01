@@ -126,6 +126,8 @@ mod tests
     assert_eq!( cloned.base_color_factor, original.base_color_factor, "Clone must preserve scalar/vector state" );
   }
 
+  /// A coat normal texture alone adds no coat: an absent or zero `clearcoatFactor` disables the
+  /// whole layer. A positive factor turns on the coat, its normal texture and the tangent frame.
   #[ wasm_bindgen_test ]
   fn clearcoat_normal_texture_needs_a_positive_factor()
   {
@@ -144,6 +146,8 @@ mod tests
     assert!( !defines.contains( "USE_KHR_materials_anisotropy" ), "{defines}" );
   }
 
+  /// Each texture set through its setter is returned by its own sampler's row of
+  /// `PBR_TEXTURE_UNITS` and no other, so `bind()` puts it on the unit that sampler reads.
   #[ wasm_bindgen_test ]
   fn texture_unit_table_pairs_each_sampler_with_its_own_texture()
   {
@@ -176,6 +180,8 @@ mod tests
     }
   }
 
+  /// A texture on a UV set `main.frag` doesn't declare ( above 4 ) falls back to UV set 0:
+  /// `vUv_5` would fail the program's compile on every frame.
   #[ wasm_bindgen_test ]
   fn uv_set_beyond_the_shader_falls_back_to_set_zero()
   {
@@ -193,6 +199,8 @@ mod tests
     assert!( defines.contains( "#define vBaseColorUv vUv_0" ), "{defines}" );
   }
 
+  /// Zero layer factors select no layer variant, whatever textures are set: a zero
+  /// `clearcoatFactor` disables the coat, and a zero `anisotropyStrength` is isotropic.
   #[ wasm_bindgen_test ]
   fn zero_layer_factors_select_no_layer_variant()
   {
@@ -211,6 +219,8 @@ mod tests
     assert!( !defines.contains( "USE_TBN" ), "{defines}" );
   }
 
+  /// A factor change that keeps the define set only marks the uniforms for upload; one that
+  /// changes it, a coat factor going to 0, still requests a recompile.
   #[ wasm_bindgen_test ]
   fn factor_change_within_a_variant_skips_the_recompile()
   {
@@ -233,6 +243,8 @@ mod tests
     assert!( mat.needs_recompile(), "a zero coat factor drops the coat variant" );
   }
 
+  /// A positive anisotropy strength alone turns on the anisotropy variant and the tangent frame
+  /// its direction needs, with no texture define and no coat.
   #[ wasm_bindgen_test ]
   fn anisotropy_strength_alone_enables_anisotropy_and_tbn()
   {
@@ -247,6 +259,7 @@ mod tests
     assert!( !defines.contains( "USE_KHR_materials_clearcoat" ), "{defines}" );
   }
 
+  /// A material without layer properties compiles neither layer nor the tangent frame.
   #[ wasm_bindgen_test ]
   fn plain_material_enables_no_layer_extension()
   {
@@ -258,12 +271,12 @@ mod tests
     assert!( !defines.contains( "USE_TBN" ), "{defines}" );
   }
 
+  /// Material 0 names each of the four extension textures in range, each with its own texture
+  /// and UV set; material 1 names an index past the asset's three textures, which must leave
+  /// that texture unset rather than panic.
   #[ wasm_bindgen_test ]
   fn layer_extensions_apply_maps_json_onto_material()
   {
-    // Material 0 names each of the four extension textures in range, each with its own texture
-    // and UV set; material 1 names an index past the asset's three textures, which must leave
-    // that texture unset rather than panic.
     let gltf = gltf::Gltf::from_slice_without_validation( br#"
     {
       "asset" : { "version" : "2.0" },
@@ -311,6 +324,8 @@ mod tests
     assert!( out_of_range.clearcoat_texture().is_none(), "out-of-range texture index must leave the texture unset" );
   }
 
+  /// An asset's empty clearcoat / anisotropy objects default their factors to 0, so they add
+  /// no shader variant.
   #[ wasm_bindgen_test ]
   fn empty_layer_extension_objects_select_no_layer_variant()
   {

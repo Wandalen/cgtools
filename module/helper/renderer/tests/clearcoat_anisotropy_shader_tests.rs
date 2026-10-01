@@ -49,6 +49,7 @@ mod tests
     .unwrap_or_else( | e | panic!( "{label} failed to compile/link: {e:?}" ) );
   }
 
+  /// The coat variant from factors alone: no coat texture and no tangent frame.
   #[ wasm_bindgen_test( async ) ]
   async fn clearcoat_factor_only_compiles()
   {
@@ -59,6 +60,8 @@ mod tests
     assert_compiles( &gl, &material, false, "clearcoat factor-only" );
   }
 
+  /// The coat with its three textures; the coat normal map builds the derivative tangent frame
+  /// from its own UV set.
   #[ wasm_bindgen_test( async ) ]
   async fn clearcoat_with_all_textures_compiles()
   {
@@ -71,6 +74,7 @@ mod tests
     assert_compiles( &gl, &material, false, "clearcoat with all textures (derivative TBN fallback)" );
   }
 
+  /// Anisotropy without a texture: the default direction in the derivative frame from UV set 0.
   #[ wasm_bindgen_test( async ) ]
   async fn anisotropy_strength_only_compiles()
   {
@@ -80,6 +84,7 @@ mod tests
     assert_compiles( &gl, &material, false, "anisotropy strength-only (derivative TBN fallback)" );
   }
 
+  /// Anisotropy with a direction / strength texture, whose UV set the derivative frame follows.
   #[ wasm_bindgen_test( async ) ]
   async fn anisotropy_with_texture_compiles()
   {
@@ -105,6 +110,8 @@ mod tests
     assert_compiles( &gl, &material, false, "base + clearcoat normal maps, derivative TBN from vNormalUv" );
   }
 
+  /// With vertex tangents ( `USE_TANGENTS` ), anisotropy and the base normal map share the
+  /// vertex-tangent frame instead of the derivative one.
   #[ wasm_bindgen_test( async ) ]
   async fn anisotropy_with_real_tangents_and_normal_map_compiles()
   {
@@ -119,6 +126,8 @@ mod tests
     assert_compiles( &gl, &material, false, "anisotropy + base normal map sharing a real-tangent TBN" );
   }
 
+  /// Both layers with specular, occlusion and IBL, which adds the coat's environment sample and
+  /// its specular occlusion.
   #[ wasm_bindgen_test( async ) ]
   async fn clearcoat_and_anisotropy_combined_with_ibl_compiles()
   {

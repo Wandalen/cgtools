@@ -127,23 +127,23 @@ const MATERIAL_LAYER_EXTENSIONS_REQUIRED_FIXTURE : &str = r#"
 }
 "#;
 
+/// `material_layer_extensions_apply` reads both extensions' JSON by hand, so an asset that
+/// requires them must pass this loader's own gate.
 #[ test ]
 fn accepts_required_clearcoat_and_anisotropy()
 {
-  // `material_layer_extensions_apply` reads both extensions' JSON by hand, so an asset that
-  // requires them must pass this loader's own gate.
   let gltf = gltf::Gltf::from_slice_without_validation( MATERIAL_LAYER_EXTENSIONS_REQUIRED_FIXTURE.as_bytes() )
   .expect( "fixture is well-formed JSON" );
 
   assert!( required_extensions_check( &gltf ).is_ok(), "clearcoat / anisotropy are implemented -- must not be rejected" );
 }
 
+/// `gltf::Gltf::from_slice` rejects this valid asset: gltf-json's own extensionsRequired rule
+/// only knows the extensions it has typed support for. `load` therefore parses without that
+/// validation and runs `document_validate`, which must accept the asset.
 #[ test ]
 fn document_validate_ignores_upstream_required_extension_list()
 {
-  // `gltf::Gltf::from_slice` rejects this valid asset: gltf-json's own extensionsRequired rule
-  // only knows the extensions it has typed support for. `load` therefore parses without that
-  // validation and runs `document_validate`, which must accept the asset.
   assert!
   (
     gltf::Gltf::from_slice( MATERIAL_LAYER_EXTENSIONS_REQUIRED_FIXTURE.as_bytes() ).is_err(),
@@ -163,12 +163,12 @@ const DRACO_REQUIRED_FIXTURE : &str = r#"
 }
 "#;
 
+/// `document_validate` skips gltf-json's own extensionsRequired rule, so it must apply this
+/// loader's rule itself: a caller that validates with it alone must not accept an asset
+/// requiring an extension the loader can't decode.
 #[ test ]
 fn document_validate_alone_rejects_unsupported_required_extension()
 {
-  // `document_validate` skips gltf-json's own extensionsRequired rule, so it must apply this
-  // loader's rule itself: a caller that validates with it alone must not accept an asset
-  // requiring an extension the loader can't decode.
   let gltf = gltf::Gltf::from_slice_without_validation( DRACO_REQUIRED_FIXTURE.as_bytes() )
   .expect( "fixture is well-formed JSON" );
 
@@ -182,11 +182,11 @@ const DANGLING_NODE_FIXTURE : &str = r#"
 }
 "#;
 
+/// Skipping the upstream extension rule must not skip the rest of gltf-json's validation:
+/// a scene naming a node that doesn't exist is still an error.
 #[ test ]
 fn document_validate_still_reports_structural_errors()
 {
-  // Skipping the upstream extension rule must not skip the rest of gltf-json's validation:
-  // a scene naming a node that doesn't exist is still an error.
   let gltf = gltf::Gltf::from_slice_without_validation( DANGLING_NODE_FIXTURE.as_bytes() )
   .expect( "fixture is well-formed JSON" );
 

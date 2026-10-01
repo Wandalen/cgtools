@@ -24,6 +24,8 @@ fn json( s : &str ) -> Value
   gltf::json::deserialize::from_str( s ).expect( "fixture is valid JSON" )
 }
 
+/// An empty `KHR_materials_clearcoat` object takes every default the extension defines:
+/// factors 0, no textures, normal scale 1.
 #[ test ]
 fn clearcoat_empty_object_uses_extension_defaults()
 {
@@ -43,6 +45,8 @@ fn clearcoat_empty_object_uses_extension_defaults()
   );
 }
 
+/// Every clearcoat field is read: both factors, the three textures with their `texCoord`
+/// ( 0 when absent ), and the coat normal's `scale`.
 #[ test ]
 fn clearcoat_reads_factors_textures_tex_coord_and_normal_scale()
 {
@@ -63,6 +67,7 @@ fn clearcoat_reads_factors_textures_tex_coord_and_normal_scale()
   assert_eq!( cc.normal_scale, 0.5 );
 }
 
+/// A coat normal texture without `scale` keeps the default 1 instead of being flattened.
 #[ test ]
 fn clearcoat_normal_texture_without_scale_keeps_unit_scale()
 {
@@ -70,21 +75,21 @@ fn clearcoat_normal_texture_without_scale_keeps_unit_scale()
   assert_eq!( cc.normal_scale, 1.0 );
 }
 
+/// A textureInfo without a usable index can't name a texture; it must not become index 0.
 #[ test ]
 fn texture_without_integer_index_is_ignored()
 {
-  // A textureInfo without a usable index can't name a texture; it must not become index 0.
   let cc = clearcoat_parse( &json( r#"{ "clearcoatTexture" : { "texCoord" : 1 }, "clearcoatRoughnessTexture" : { "index" : -1 } }"# ) );
   assert_eq!( cc.texture, None );
   assert_eq!( cc.roughness_texture, None );
 }
 
+/// A UV set the shader doesn't declare is bounded where its define is written, for core and
+/// extension textures alike; parsing keeps it. A negative or fractional texCoord isn't a UV
+/// set at all and reads as the default, 0.
 #[ test ]
 fn tex_coord_keeps_any_set_and_falls_back_to_zero_when_malformed()
 {
-  // A UV set the shader doesn't declare is bounded where its define is written, for core and
-  // extension textures alike; parsing keeps it. A negative or fractional texCoord isn't a UV
-  // set at all and reads as the default, 0.
   let cc = clearcoat_parse( &json( r#"
   {
     "clearcoatTexture" : { "index" : 0, "texCoord" : 5 },
@@ -97,12 +102,16 @@ fn tex_coord_keeps_any_set_and_falls_back_to_zero_when_malformed()
   assert_eq!( cc.normal_texture, Some( ExtensionTextureRef { index : 2, tex_coord : 0 } ) );
 }
 
+/// An empty `KHR_materials_anisotropy` object takes the extension's defaults: strength 0,
+/// rotation 0, no texture.
 #[ test ]
 fn anisotropy_empty_object_uses_extension_defaults()
 {
   assert_eq!( anisotropy_parse( &json( "{}" ) ), AnisotropyParams { strength : 0.0, rotation : 0.0, texture : None } );
 }
 
+/// Strength, rotation ( radians ) and the direction texture with its `texCoord` are read as
+/// written.
 #[ test ]
 fn anisotropy_reads_strength_rotation_and_texture()
 {

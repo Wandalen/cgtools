@@ -24,6 +24,8 @@ fn all_units() -> Vec< ( String, u32 ) >
   units
 }
 
+/// No two samplers share a unit, across the material's, the skinning / morph slots and IBL's:
+/// a shared unit makes one sampler read the other's texture.
 #[ test ]
 fn pbr_texture_units_are_disjoint()
 {
@@ -37,6 +39,8 @@ fn pbr_texture_units_are_disjoint()
   }
 }
 
+/// The fragment stage's samplers fit the 16 WebGL2 guarantees, or the largest program fails to
+/// link on devices that offer only the minimum.
 #[ test ]
 fn pbr_fragment_samplers_fit_webgl2_minimum()
 {
@@ -50,6 +54,8 @@ fn pbr_fragment_samplers_fit_webgl2_minimum()
   );
 }
 
+/// IBL's units start after the skinning / morph slots, so `PBR_IBL_BASE_UNIT` follows them
+/// if those slots move.
 #[ test ]
 fn pbr_ibl_units_follow_skinning_slots()
 {
