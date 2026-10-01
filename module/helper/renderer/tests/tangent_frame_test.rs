@@ -164,4 +164,26 @@ void main()
     assert_near( frame_column( &gl, sheared, 0 ), [ 1.0, 0.0, 0.0 ], "tangent" );
     assert_near( frame_column( &gl, sheared, 1 ), [ 0.0, 1.0, 0.0 ], "bitangent" );
   }
+
+  /// Where the UV set has no usable gradient there is no tangent direction, but the frame must
+  /// still be finite: a mesh without TEXCOORD_0 reads a constant `vUv_0`, and palette-style UVs
+  /// collapse onto a point or a line. A zero tangent turns the anisotropic highlight and the
+  /// bent environment normal into NaN, even at strength 0.
+  #[ wasm_bindgen_test ]
+  fn derivative_frame_is_finite_without_a_uv_gradient()
+  {
+    let gl = gl_init();
+    let constant = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.3, 0.6, 1.0 ];
+    let collinear = [ 1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0 ];
+
+    for ( uv_map, label ) in [ ( constant, "constant UVs" ), ( collinear, "UVs on a line" ) ]
+    {
+      let t = frame_column( &gl, uv_map, 0 );
+      let b = frame_column( &gl, uv_map, 1 );
+      let length = | v : [ f32; 3 ] | v.iter().map( | c | c * c ).sum::< f32 >().sqrt();
+      assert!( ( length( t ) - 1.0 ).abs() < 2.0 * EPS, "{label}: tangent {t:?} must be a unit vector" );
+      assert!( ( length( b ) - 1.0 ).abs() < 2.0 * EPS, "{label}: bitangent {b:?} must be a unit vector" );
+      assert!( t[ 2 ].abs() < EPS && b[ 2 ].abs() < EPS, "{label}: frame {t:?} / {b:?} must lie around the normal" );
+    }
+  }
 }

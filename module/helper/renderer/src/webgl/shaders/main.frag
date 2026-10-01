@@ -622,7 +622,17 @@ float alpha_weight( float a )
     vec3 dPdu = ( dUv2.y * dE1 - dUv1.y * dE2 ) * sign( det );
     vec3 dPdv = ( dUv1.x * dE2 - dUv2.x * dE1 ) * sign( det );
 
-    vec3 T = normalize( dPdu - surf_normal * dot( surf_normal, dPdu ) );
+    vec3 T = dPdu - surf_normal * dot( surf_normal, dPdu );
+    // No usable UV gradient ( constant UVs, e.g. a mesh without TEXCOORD_0, or UVs collapsed onto
+    // a line ): there is no tangent direction, and normalizing the zero vector gives NaN, which
+    // would reach the anisotropic lobe and the bent environment normal even at strength 0. Any
+    // tangent around the normal keeps the frame finite.
+    if ( dot( T, T ) < 1e-30 )
+    {
+      vec3 axis = abs( surf_normal.x ) < 0.9 ? vec3( 1.0, 0.0, 0.0 ) : vec3( 0.0, 1.0, 0.0 );
+      T = axis - surf_normal * dot( surf_normal, axis );
+    }
+    T = normalize( T );
     vec3 B = cross( surf_normal, T );
     B *= dot( B, dPdv ) > 0.0 ? -1.0 : 1.0;
     return mat3( T, B, surf_normal );
