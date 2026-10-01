@@ -10,7 +10,7 @@ mod common;
 
 use alloc::sync::Arc;
 use tilemap_renderer::commands::{ RenderCommand, Sprite };
-use tilemap_scene::{ Camera, CompileError, PathResolver, RenderSpec, Renderer, Scene, SceneSnapshot };
+use tilemap_scene::{ Camera, CompileError, PathResolver, RenderSpec, Renderer, Scene, SceneSnapshot, SpriteRef };
 
 extern crate alloc;
 
@@ -31,6 +31,13 @@ const CASES : &[ PassCase ] =
     pass : "hex instance",
     anchor : "Hex",
     source : r#"Static( ( "t", "0" ) )"#,
+    placement : r#"tiles: [ ( pos: ( 0, 0 ), objects: [ "subject" ] ) ]"#,
+  },
+  PassCase
+  {
+    pass : "hex external",
+    anchor : "Hex",
+    source : r#"External( slot: "body" )"#,
     placement : r#"tiles: [ ( pos: ( 0, 0 ), objects: [ "subject" ] ) ]"#,
   },
   PassCase
@@ -63,6 +70,13 @@ const CASES : &[ PassCase ] =
   },
   PassCase
   {
+    pass : "free position external",
+    anchor : "FreePos",
+    source : r#"External( slot: "body" )"#,
+    placement : r#"free_instances: [ ( pos: ( 10.0, 5.0 ), object: "subject" ) ]"#,
+  },
+  PassCase
+  {
     pass : "viewport single",
     anchor : "Viewport",
     source : r#"ViewportTiled( content: Static( ( "t", "0" ) ), tiling: Center, anchor_point: Center )"#,
@@ -79,7 +93,9 @@ const CASES : &[ PassCase ] =
 
 /// `global_tint` is 50% grey at full strength; `half_blue` is pure blue at
 /// strength 0.5, i.e. the multiplier `[ 0.5, 0.5, 1, 1 ]`; `glow` declares
-/// the unsupported `Add` mode. The object has a
+/// the unsupported `Add` mode. `frame_keeper` is never placed: it only makes
+/// the asset pass allocate frame `"0"`, which an `External` slot can name but
+/// not allocate. The object has a
 /// `priority` so the vertex pass reads it as the cell's terrain id.
 fn spec_for( case : &PassCase, tint : &str ) -> RenderSpec
 {
@@ -101,6 +117,12 @@ fn spec_for( case : &PassCase, tint : &str ) -> RenderSpec
           priority: Some( 1 ),
           states: {{ "default": [ ( sprite_source: {source}, behaviour: ( tint: {tint} ) ) ] }},
         ),
+        Object(
+          id: "frame_keeper",
+          anchor: Hex,
+          global_layer: "main",
+          states: {{ "default": [ ( sprite_source: Static( ( "t", "0" ) ) ) ] }},
+        ),
       ],
       pipeline: (
         hex: ( tiling: HexFlatTop, grid_stride: ( 72, 64 ) ),
@@ -116,13 +138,19 @@ fn spec_for( case : &PassCase, tint : &str ) -> RenderSpec
 
 /// Compiles without `RenderSpec::load`, so specs load-time validation would
 /// reject (`Masked`, a non-`Multiply` tint) still reach the compile passes
-/// under test.
+/// under test. Every instance's `"body"` slot is filled, so `External` cases
+/// emit a sprite; other sources ignore the slot.
 fn render( case : &PassCase, spec : &RenderSpec ) -> Result< Vec< Sprite >, CompileError >
 {
   let snapshot = SceneSnapshot::from_ron_str( &format!( "SceneSnapshot( meta: (), bounds: ( min: ( -2, -2 ), max: ( 2, 2 ) ), {} )", case.placement ) )
     .unwrap_or_else( | e | panic!( "{}: scene parses: {e}", case.pass ) );
   let mut renderer = Renderer::new( spec, &PathResolver )?;
-  let scene = Scene::from_snapshot( &snapshot, Arc::new( spec.clone() ) ).expect( "scene" );
+  let mut scene = Scene::from_snapshot( &snapshot, Arc::new( spec.clone() ) ).expect( "scene" );
+  let handles : Vec< _ > = scene.instances().map( | ( h, _ ) | h ).collect();
+  for h in handles
+  {
+    scene.external_sprite_set( h, "body", SpriteRef { asset : "t".into(), frame : "0".into() } );
+  }
   let raw = renderer.render( &scene, &Camera::default() )?;
   // World-space passes emit `Sprite`, the viewport pass `ScreenSpaceSprite`.
   Ok( common::commands_to_sprites( raw ).into_iter().filter_map( | c | match c
