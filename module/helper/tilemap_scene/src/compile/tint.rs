@@ -13,14 +13,6 @@ mod private
   use rustc_hash::FxHashMap as HashMap;
   use tilemap_renderer::types::BlendMode;
 
-  /// Multiply the alpha channel of a tint by a per-layer alpha factor.
-  #[ inline ]
-  #[ must_use ]
-  pub fn tinted( [ r, g, b, a ] : [ f32; 4 ], alpha : f32 ) -> [ f32; 4 ]
-  {
-    [ r, g, b, a * alpha ]
-  }
-
   /// Parse a `"#rrggbb"` or `"#rrggbbaa"` colour string into linear-ish
   /// `[f32; 4]`. Returns `None` on malformed input — caller decides whether
   /// to error or fall back.
@@ -105,7 +97,10 @@ mod private
     ])
   }
 
-  /// Every declared tint resolved once per frame, keyed by id.
+  /// The frame's tint state: the resolved global tint plus every declared
+  /// tint resolved once, keyed by id. Every sprite-emitting pass gets its
+  /// final tint from [`FrameTints::sprite_tint`], so no emit site can pass
+  /// the bare global tint and drop the layer's own tint.
   ///
   /// `TintBehaviour::Flat` is looked up here for every emitted sprite;
   /// calling [`resolve_tint_ref`] instead would repeat a linear search over
@@ -113,116 +108,105 @@ mod private
   /// (unparsable colour, non-`Multiply` mode) is stored as `None`, so looking
   /// it up falls back to [`resolve_tint_ref`] and reports exactly its error.
   #[ derive( Debug ) ]
-  pub struct TintTable< 'a >
+  pub struct FrameTints< 'a >
   {
     spec : &'a RenderSpec,
+    global : [ f32; 4 ],
     resolved : HashMap< &'a str, Option< [ f32; 4 ] > >,
   }
 
-  impl< 'a > TintTable< 'a >
+  impl< 'a > FrameTints< 'a >
   {
-    /// Resolves every tint `spec` declares.
-    #[ must_use ]
-    pub fn new( spec : &'a RenderSpec ) -> Self
+    /// Resolves the effective global tint (`Scene`'s runtime override, else
+    /// `pipeline.global_tint`, else identity) and every tint `spec` declares.
+    ///
+    /// # Errors
+    ///
+    /// Same as [`resolve_tint_ref`] for the selected global tint.
+    pub fn new( spec : &'a RenderSpec, scene : &Scene ) -> Result< Self, CompileError >
     {
+      let global = match scene.global_tint().or( spec.pipeline.global_tint.as_ref() )
+      {
+        Some( tint_ref ) => resolve_tint_ref( spec, tint_ref, || "scene.global_tint / pipeline.global_tint".into() )?,
+        None => [ 1.0, 1.0, 1.0, 1.0 ],
+      };
       let mut resolved = HashMap::default();
       for tint in &spec.tints
       {
         // First declaration wins, like `resolve_tint_ref`'s `find`.
         resolved.entry( tint.id.as_str() ).or_insert_with( || tint_multiplier( tint ).ok() );
       }
-      Self { spec, resolved }
+      Ok( Self { spec, global, resolved } )
     }
 
-    /// The multiplier for `tint_ref`; `context` as for [`resolve_tint_ref`].
+    /// The final tint of one sprite: [`Self::layer_base_tint`] with the layer
+    /// alpha folded into the alpha channel, times the instance tint.
     ///
     /// # Errors
     ///
-    /// Same as [`resolve_tint_ref`].
-    pub fn get( &self, tint_ref : &TintRef, context : impl FnOnce() -> String ) -> Result< [ f32; 4 ], CompileError >
+    /// Same as [`Self::layer_base_tint`].
+    pub fn sprite_tint
+    (
+      &self,
+      object : &Object,
+      behaviour : &LayerBehaviour,
+      inst : Option< [ f32; 4 ] >,
+    ) -> Result< [ f32; 4 ], CompileError >
     {
-      match self.resolved.get( tint_ref.0.as_str() )
+      let [ r, g, b, a ] = self.layer_base_tint( object, behaviour )?;
+      let composed = [ r, g, b, a * behaviour.alpha ];
+      Ok( match inst
       {
-        Some( Some( c ) ) => Ok( *c ),
-        _ => resolve_tint_ref( self.spec, tint_ref, context ),
-      }
-    }
-  }
-
-  /// Resolve the effective global tint, honouring `Scene`'s runtime override.
-  ///
-  /// # Errors
-  ///
-  /// Same as [`resolve_tint_ref`] for the selected tint.
-  pub fn scene_global_tint_resolve( spec : &RenderSpec, scene : &Scene ) -> Result< [ f32; 4 ], CompileError >
-  {
-    let tint_ref = scene.global_tint().cloned().or_else( || spec.pipeline.global_tint.clone() );
-    let Some( tint_ref ) = tint_ref else { return Ok( [ 1.0, 1.0, 1.0, 1.0 ] ); };
-    resolve_tint_ref( spec, &tint_ref, || "scene.global_tint / pipeline.global_tint".into() )
-  }
-
-  /// Resolve a layer's [`TintBehaviour`] into the base RGBA multiplier fed to
-  /// [`final_tint`].
-  ///
-  /// - `None` → the global tint unchanged.
-  /// - `Flat(ref)` → global tint multiplied by the named tint, so each layer
-  ///   (e.g. a per-player region overlay) can be coloured independently.
-  /// - `Masked` → rejected with [`CompileError::UnsupportedBehaviour`]; it is
-  ///   not yet implemented and must not silently degrade to the global tint.
-  ///
-  /// # Errors
-  ///
-  /// [`CompileError::UnsupportedBehaviour`] for `Masked`; otherwise the
-  /// errors of [`resolve_tint_ref`].
-  pub fn layer_base_tint
-  (
-    global_tint : [ f32; 4 ],
-    tints : &TintTable< '_ >,
-    object : &Object,
-    behaviour : &LayerBehaviour,
-  ) -> Result< [ f32; 4 ], CompileError >
-  {
-    match &behaviour.tint
-    {
-      TintBehaviour::None => Ok( global_tint ),
-      TintBehaviour::Flat( tref ) =>
-      {
-        let c = tints.get( tref, || format!( "object {:?} layer tint", object.id ) )?;
-        Ok(
+        None => composed,
+        Some( [ ir, ig, ib, ia ] ) =>
         [
-          global_tint[ 0 ] * c[ 0 ],
-          global_tint[ 1 ] * c[ 1 ],
-          global_tint[ 2 ] * c[ 2 ],
-          global_tint[ 3 ] * c[ 3 ],
-        ])
-      }
-      TintBehaviour::Masked { .. } => Err( CompileError::UnsupportedBehaviour
-      {
-        object : object.id.clone(),
-        behaviour : "Masked tint",
-      }),
+          composed[ 0 ] * ir,
+          composed[ 1 ] * ig,
+          composed[ 2 ] * ib,
+          composed[ 3 ] * ia,
+        ],
+      })
     }
-  }
 
-  /// Compose the per-sprite tint as
-  /// `base * layer_alpha (alpha-channel only) * instance_tint`, where `base`
-  /// is the layer's resolved tint from [`layer_base_tint`].
-  #[ inline ]
-  #[ must_use ]
-  pub fn final_tint( base : [ f32; 4 ], layer_alpha : f32, inst : Option< [ f32; 4 ] > ) -> [ f32; 4 ]
-  {
-    let [ gr, gg, gb, ga ] = base;
-    let composed = [ gr, gg, gb, ga * layer_alpha ];
-    match inst
+    /// Resolve a layer's [`TintBehaviour`] into its base RGBA multiplier.
+    ///
+    /// - `None` → the global tint unchanged.
+    /// - `Flat(ref)` → global tint multiplied by the named tint, so each layer
+    ///   (e.g. a per-player region overlay) can be coloured independently.
+    /// - `Masked` → rejected with [`CompileError::UnsupportedBehaviour`]; it is
+    ///   not yet implemented and must not silently degrade to the global tint.
+    ///
+    /// # Errors
+    ///
+    /// [`CompileError::UnsupportedBehaviour`] for `Masked`; otherwise the
+    /// errors of [`resolve_tint_ref`].
+    pub fn layer_base_tint( &self, object : &Object, behaviour : &LayerBehaviour ) -> Result< [ f32; 4 ], CompileError >
     {
-      None => composed,
-      Some( [ ir, ig, ib, ia ] ) =>
-      [
-        composed[ 0 ] * ir,
-        composed[ 1 ] * ig,
-        composed[ 2 ] * ib,
-        composed[ 3 ] * ia,
-      ],
+      let global = self.global;
+      match &behaviour.tint
+      {
+        TintBehaviour::None => Ok( global ),
+        TintBehaviour::Flat( tref ) =>
+        {
+          let c = match self.resolved.get( tref.0.as_str() )
+          {
+            Some( Some( c ) ) => *c,
+            _ => resolve_tint_ref( self.spec, tref, || format!( "object {:?} layer tint", object.id ) )?,
+          };
+          Ok(
+          [
+            global[ 0 ] * c[ 0 ],
+            global[ 1 ] * c[ 1 ],
+            global[ 2 ] * c[ 2 ],
+            global[ 3 ] * c[ 3 ],
+          ])
+        }
+        TintBehaviour::Masked { .. } => Err( CompileError::UnsupportedBehaviour
+        {
+          object : object.id.clone(),
+          behaviour : "Masked tint",
+        }),
+      }
     }
   }
 
@@ -230,11 +214,7 @@ mod private
 
 mod_interface::mod_interface!
 {
-  own use tinted;
   own use hex_rgba_parse;
   own use resolve_tint_ref;
-  own use TintTable;
-  own use scene_global_tint_resolve;
-  own use layer_base_tint;
-  own use final_tint;
+  own use FrameTints;
 }

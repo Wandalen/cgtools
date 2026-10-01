@@ -141,7 +141,7 @@ These are small-to-medium-size and independent. Implement when a real
 game use-case demands one.
 
 1. ~~**`TintBehaviour::Flat` for `VertexCorners`.**~~ *Shipped.* `TintBehaviour::Flat`
-   is implemented for **all** layer types via the shared `layer_base_tint` helper
+   is implemented for **all** layer types via the shared `FrameTints::sprite_tint` helper
    (instance, edge, viewport, free, and `VertexCorners` passes), not only
    `compile_vertex_pass` — the flat tint multiplies the global tint so per-player
    region overlays can be coloured independently. `TintBehaviour::Masked` is
@@ -251,7 +251,7 @@ game use-case demands one.
     `BlendMode::default()`.
 13. ~~**🐛 LayerBehaviour.alpha not propagated in compile/frame.rs.**~~ *Fixed.*
     All 7 emit sites now apply `layer.behaviour.alpha` to the sprite's tint alpha
-    channel via the `tinted()` helper. Also fixed: `LayerBehaviour::default()` now
+    channel (now via `FrameTints::sprite_tint` in `compile/tint.rs`). Also fixed: `LayerBehaviour::default()` now
     returns `alpha: 1.0` (was `0.0` via `f32::default()`, inconsistent with the
     serde default).
 

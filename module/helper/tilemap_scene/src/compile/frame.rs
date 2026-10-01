@@ -35,7 +35,7 @@ mod private
     tile_max_priority,
   };
   use crate::compile::orient::dual_orientation_index;
-  use crate::compile::tint::{ TintTable, final_tint, layer_base_tint, scene_global_tint_resolve, tinted };
+  use crate::compile::tint::FrameTints;
   use crate::compile::vertex::
   {
     canonicalize,
@@ -75,11 +75,9 @@ mod private
     /// Scene-level seed folded to `u32` for `coord_hash`. Consumed by
     /// `VariantSelection::Random`.
     scene_seed : u32,
-    /// Resolved global tint multiplier — `[1,1,1,1]` when `pipeline.global_tint`
-    /// is `None`. Multiplied into every emitted `Sprite.tint`.
-    global_tint : [ f32; 4 ],
-    /// Declared tints resolved once for this frame (`TintBehaviour::Flat`).
-    tints : TintTable< 'a >,
+    /// Global tint and declared tints resolved once for this frame; the only
+    /// source of an emitted `Sprite.tint` (see [`FrameTints::sprite_tint`]).
+    tints : FrameTints< 'a >,
   }
 
   fn transform_make( sx : f32, sy : f32, zoom : f32 ) -> Transform
@@ -331,11 +329,6 @@ mod private
         let ( ox, oy ) = offset.unwrap_or( ( 0.0, 0.0 ) );
         let transform = point_to_transform( wx + ox, wy + oy, object.pivot, sprite_id, ctx );
 
-        // Per-object tint: a `Flat` named tint multiplies the global tint, so
-        // an object (e.g. a per-player region) can be coloured independently.
-        // This is universal — `layer_base_tint` resolves `Flat` for every layer
-        // type, not just VertexCorners. `Masked` is rejected (not yet implemented).
-        let layer_tint = layer_base_tint( ctx.global_tint, &ctx.tints, object, &layer.behaviour )?;
 
         out.push
         ((
@@ -344,7 +337,7 @@ mod private
           {
             transform,
             sprite : sprite_id,
-            tint : tinted( layer_tint, layer.behaviour.alpha ),
+            tint : ctx.tints.sprite_tint( object, &layer.behaviour, None )?,
             blend : layer.behaviour.blend,
             clip : None,
           },
@@ -679,7 +672,6 @@ mod private
     let edge_lookup = build_edge_lookup( &synthetic_edges, spec.pipeline.hex.tiling );
     let seed = scene.seed();
     let scene_seed = ( seed as u32 ) ^ ( ( seed >> 32 ) as u32 );
-    let global_tint = scene_global_tint_resolve( spec, scene )?;
     let ctx = FrameContext
     {
       spec,
@@ -692,8 +684,7 @@ mod private
       grid_stride : spec.pipeline.hex.grid_stride,
       viewport_size,
       scene_seed,
-      global_tint,
-      tints : TintTable::new( spec ),
+      tints : FrameTints::new( spec, scene )?,
     };
 
     let mut buckets = Vec::with_capacity( spec.pipeline.layers.len() );
@@ -902,7 +893,7 @@ mod private
           {
             transform,
             sprite : sprite_id,
-            tint : final_tint( layer_base_tint( ctx.global_tint, &ctx.tints, object, &layer.behaviour )?, layer.behaviour.alpha, inst.tint ),
+            tint : ctx.tints.sprite_tint( object, &layer.behaviour, inst.tint )?,
             blend : layer.behaviour.blend,
             clip : None,
           },
@@ -935,7 +926,7 @@ mod private
         {
           transform,
           sprite : sprite_id,
-          tint : final_tint( layer_base_tint( ctx.global_tint, &ctx.tints, object, &layer.behaviour )?, layer.behaviour.alpha, inst.tint ),
+          tint : ctx.tints.sprite_tint( object, &layer.behaviour, inst.tint )?,
           blend : layer.behaviour.blend,
           clip : None,
         },
@@ -1055,7 +1046,7 @@ mod private
         {
           transform,
           sprite : sprite_id,
-          tint : final_tint( layer_base_tint( ctx.global_tint, &ctx.tints, object, behaviour )?, behaviour.alpha, inst.tint ),
+          tint : ctx.tints.sprite_tint( object, behaviour, inst.tint )?,
           blend : behaviour.blend,
           clip : None,
         },
@@ -1148,7 +1139,7 @@ mod private
           {
             transform,
             sprite : sprite_id,
-            tint : final_tint( layer_base_tint( ctx.global_tint, &ctx.tints, object, &layer.behaviour )?, layer.behaviour.alpha, inst.tint ),
+            tint : ctx.tints.sprite_tint( object, &layer.behaviour, inst.tint )?,
             blend : layer.behaviour.blend,
             clip : None,
           },
@@ -1234,7 +1225,7 @@ mod private
             {
               transform,
               sprite : sprite_id,
-              tint : final_tint( layer_base_tint( ctx.global_tint, &ctx.tints, object, &layer.behaviour )?, layer.behaviour.alpha, inst.tint ),
+              tint : ctx.tints.sprite_tint( object, &layer.behaviour, inst.tint )?,
               blend : layer.behaviour.blend,
               clip : None,
             },
@@ -1265,7 +1256,7 @@ mod private
           {
             transform,
             sprite : sprite_id,
-            tint : final_tint( layer_base_tint( ctx.global_tint, &ctx.tints, object, &layer.behaviour )?, layer.behaviour.alpha, inst.tint ),
+            tint : ctx.tints.sprite_tint( object, &layer.behaviour, inst.tint )?,
             blend : layer.behaviour.blend,
             clip : None,
           },
@@ -1361,7 +1352,7 @@ mod private
             {
               transform,
               sprite : sprite_id,
-              tint : final_tint( layer_base_tint( ctx.global_tint, &ctx.tints, object, &layer.behaviour )?, layer.behaviour.alpha, inst.tint ),
+              tint : ctx.tints.sprite_tint( object, &layer.behaviour, inst.tint )?,
               blend : layer.behaviour.blend,
               clip : None,
             }));
@@ -1382,7 +1373,7 @@ mod private
           {
             transform,
             sprite : sprite_id,
-            tint : final_tint( layer_base_tint( ctx.global_tint, &ctx.tints, object, &layer.behaviour )?, layer.behaviour.alpha, inst.tint ),
+            tint : ctx.tints.sprite_tint( object, &layer.behaviour, inst.tint )?,
             blend : layer.behaviour.blend,
             clip : None,
           }));

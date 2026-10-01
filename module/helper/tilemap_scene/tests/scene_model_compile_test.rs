@@ -3130,7 +3130,7 @@ fn layer_behaviour_blend_reaches_sprite_command()
 fn layer_behaviour_alpha_multiplies_into_sprite_tint()
 {
   // Regression for commit 28ced311: every Sprite emit site in compile/frame.rs
-  // must pipe `LayerBehaviour.alpha` through the `tinted()` helper that
+  // must pipe `LayerBehaviour.alpha` through `FrameTints::sprite_tint`, which
   // multiplies the alpha channel. Without global tint, alpha = 0.5 should
   // produce tint = [ 1, 1, 1, 0.5 ].
   let mut spec = minimal_spec();
