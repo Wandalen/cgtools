@@ -110,11 +110,10 @@ mod private
       )
     }
 
-    // Adds a new vertex attribute to the geometry.
+    /// Adds a new vertex attribute to the geometry.
     ///
     /// * `name`: The name of the attribute.
     /// * `info`: The `AttributeInfo` for the attribute.
-    /// * `as_define`: A boolean indicating whether to add a `#define USE_UPPERCASE_NAME` to the `defines` string.
     ///
     /// It binds the VAO, uploads the attribute, and stores the `AttributeInfo`.
     /// Returns `Err` if an attribute with the same name already exists.
@@ -161,7 +160,9 @@ mod private
     ///
     /// # Errors
     ///
-    /// Returns `WebglError` if uploading the index buffer fails.
+    /// Never returns `Err` today: binding the index buffer reports failures through the
+    /// context's `getError`, not as a value. The `Result` keeps the signature stable for a
+    /// fallible implementation.
     pub fn index_add
     (
       &mut self,
@@ -182,7 +183,9 @@ mod private
     ///
     /// # Errors
     ///
-    /// Returns `WebglError` if any attribute or the index buffer fails to upload.
+    /// Returns `WebglError` if an attribute's pointer can't be configured from its descriptor
+    /// (a data-type conversion). GL errors, such as binding a deleted buffer, are reported
+    /// through the context's `getError`, not here.
     pub fn upload( &self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
     {
       self.bind( gl );
