@@ -55,6 +55,8 @@ crosstalk.
 | `viewport.rs` | `viewport_transform` / `tiled_positions` — screen-space transforms for `ViewportTiled` sources, Y-up convention. |
 | `edges.rs` | Edge-anchor canonicalisation, neighbour resolution, world-pixel placement, sprite rotation. |
 | `vertex.rs` | Vertex-corner pattern resolution for `VertexCorners` sources. |
+| `orient.rs` | `orient_to_grid` frame pick for a `VertexCorners` dual triangle (`dual_orientation_index`) and the frame-count rule (`orient_frame_count`) shared with the asset pass. |
+| `tint.rs` | Tint resolution: named tints, the global tint, a layer's `TintBehaviour`, and the per-sprite composition with layer alpha and instance tint. |
 | `neighbors.rs` | Hex-anchor neighbour mask computation feeding `NeighborBitmask` / `NeighborCondition`. |
 | `conditions.rs` | `NeighborCondition` rule evaluation. |
 | `animation.rs` | `animation_frame_resolve` — deterministic per-tile frame pick given timing + phase offset. Also exposes `animation_duration_seconds` / `declared_phase_seconds` consumed by `Scene::tick`. |
