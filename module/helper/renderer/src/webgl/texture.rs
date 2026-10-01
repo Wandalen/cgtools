@@ -1,8 +1,9 @@
 mod private
 {
   use mingl::Former;
-  use minwebgl::{ self as gl };
+  use minwebgl::{ self as gl, JsCast };
   use std::rc::Rc;
+  use web_sys::wasm_bindgen::prelude::Closure;
   use crate::webgl::{ Sampler, MinFilterMode, MagFilterMode, WrappingMode };
 
 
@@ -97,11 +98,20 @@ mod private
     /// example that loaded a texture from a path before this helper existed. `flip` controls
     /// whether the image is flipped vertically on upload ( WebGL's texture origin is
     /// bottom-left; most image formats decode top-left first ). The GPU texture is created for
-    /// this `Texture` alone, so the result is [owning](Texture::owning).
+    /// this `Texture` alone, so the result is [owning](Texture::owning): keep it, or a clone,
+    /// alive while its `source` is in use.
+    ///
+    /// The image uploads when it arrives. If every clone of the returned `Texture` has
+    /// been dropped by then, the GPU texture is already deleted and the upload is skipped.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the browser has no `window`/`document`, or if the `<img>` element or the
+    /// WebGL texture can't be created.
     #[ must_use ]
     pub fn load_from_path( gl : &gl::WebGl2RenderingContext, image_path : &str, flip : bool ) -> Self
     {
-      let source = gl::texture::d2::image_upload_from_path( gl, image_path, flip );
+      let source = gl.create_texture().expect( "Failed to create a texture" );
 
       let sampler = Sampler::former()
       .min_filter( MinFilterMode::Linear )
@@ -110,7 +120,49 @@ mod private
       .wrap_t( WrappingMode::Repeat )
       .end();
 
-      Self::owning( gl, gl::TEXTURE_2D, source, sampler )
+      let texture = Self::owning( gl, gl::TEXTURE_2D, source, sampler );
+      let owner = Rc::downgrade( texture.owner.as_ref().expect( "Texture::owning sets an owner" ) );
+
+      let document = web_sys::window().expect( "Can't get window" ).document().expect( "Can't get document" );
+      let img = document.create_element( "img" )
+      .expect( "Can't create img" )
+      .dyn_into::< web_sys::HtmlImageElement >()
+      .expect( "Can't convert to HtmlImageElement" );
+
+      // Not minwebgl's `image_upload_from_path`: its forgotten `onload` closure holds the
+      // raw handle, so once this owning `Texture` dropped it would still bind the deleted
+      // texture. WebGL rejects that with INVALID_OPERATION and keeps the previous binding,
+      // so the image and filter settings would land in whatever texture is bound. A
+      // forgotten closure can't be cancelled; it reaches the texture through a `Weak`
+      // owner instead (a strong `Rc` there would keep the texture alive forever).
+      let load : Closure< dyn Fn() > = Closure::new
+      (
+        {
+          let gl = gl.clone();
+          let img = img.clone();
+          move ||
+          {
+            if let Some( owner ) = owner.upgrade()
+            {
+              if flip
+              {
+                gl::texture::d2::upload( &gl, Some( &owner.texture ), &img );
+              }
+              else
+              {
+                gl::texture::d2::upload_no_flip( &gl, Some( &owner.texture ), &img );
+              }
+              gl::texture::d2::filter_linear( &gl );
+            }
+            img.remove();
+          }
+        }
+      );
+      img.set_onload( Some( load.as_ref().unchecked_ref() ) );
+      img.set_src( image_path );
+      load.forget();
+
+      texture
     }
 
     /// This function binds the texture to the given WebGL context and then uploads the sampler

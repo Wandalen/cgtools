@@ -22,7 +22,7 @@
 | webgl/ibl.rs | Tests `ibl_texture_parameters_apply` targets `specular_1_texture`'s mip range, not `diffuse_texture`'s |
 | webgl/mod.rs | Connects the `webgl` test modules; configures the binary for a browser run and gates the live-context suites |
 | webgl/geometry_gl_lifecycle.rs | Live-context: `Geometry`'s `Drop` deletes its own VAO and leaves shared attribute / index buffers alone |
-| webgl/texture_gl_lifecycle.rs | Live-context: an owning `Texture` is deleted once after its last clone drops; a view deletes nothing |
+| webgl/texture_gl_lifecycle.rs | Live-context: an owning `Texture` is deleted once after its last clone drops; a view deletes nothing; `load_from_path` uploads into its own texture and skips the upload once dropped |
 | webgl/ibl_gl_lifecycle.rs | Live-context: `IBL` texture teardown and clone / double-free behaviour (`test_internals`) |
 | webgl/renderer_gl_lifecycle.rs | Live-context: `Renderer::gl_resources_free` and resize buffer replacement (`test_internals`) |
 | webgl/skeleton_gl_lifecycle.rs | Live-context: `TransformsData` / `DisplacementsData` texture teardown and clone-drop safety (`test_internals`) |
