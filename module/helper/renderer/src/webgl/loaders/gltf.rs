@@ -2,6 +2,7 @@ mod private
 {
   use std::{ cell::RefCell, rc::Rc };
   use gltf::mesh::iter::MorphTargets;
+  use crate::webgl::loaders::gltf_extensions::{ document_validate, material_layer_extensions_apply };
   use mingl::F32x3;
   use minwebgl as gl;
   use gl::
@@ -805,6 +806,8 @@ mod private
         material.specular_color_texture_set( make_texture_info( s.specular_color_texture() ) );
       }
 
+      material_layer_extensions_apply( &gltf_m, textures, &mut material );
+
       if let Some( n ) = gltf_m.normal_texture()
       {
         material.normal_scale = n.scale();
@@ -1093,6 +1096,13 @@ mod private
           m.vertex_define_add( name.clone(), value );
         }
 
+        // Attribute defines are needed in the fragment stage too: `main.frag` builds its tangent
+        // frame from `vTangent` only under `USE_TANGENTS`.
+        for ( name, value ) in dummy_material.fragment_defines()
+        {
+          m.fragment_define_add( name.clone(), value );
+        }
+
         std::mem::drop( m );
         used_materials.push( material.clone() );
 
@@ -1323,57 +1333,13 @@ mod private
     scenes
   }
 
-  /// glTF extensions this loader actually implements support for. Kept in sync
-  /// with the `gltf`-crate extension Cargo features this crate enables in
-  /// `Cargo.toml` ( `[dependencies.gltf].features` ) -- an extension whose
-  /// Cargo feature isn't turned on has no typed accessor exposed by the `gltf`
-  /// crate at all, so this loader could not act on it even if it were listed
-  /// here. Cross-checked against this file's own code, not just the feature
-  /// list: `KHR_lights_punctual` is read in [`light_list_get`] / [`light_get`];
-  /// `KHR_materials_specular` is read in `materials_create`'s `gltf_m.specular()`
-  /// branch.
-  const SUPPORTED_EXTENSIONS : &[ &str ] = &[ "KHR_lights_punctual", "KHR_materials_specular" ];
-
-  /// Validates a parsed glTF document's `extensionsRequired` against
-  /// [`SUPPORTED_EXTENSIONS`], per glTF 2.0's "Specifying Extensions" : a
-  /// conformant client MUST refuse to load an asset that requires an extension
-  /// it doesn't support, rather than silently proceeding and producing
-  /// incomplete/incorrect output ( e.g. silently ignoring
-  /// `KHR_materials_transmission` or `KHR_draco_mesh_compression` content ).
-  /// Pure check over the parsed document -- no GL calls -- so it can run
-  /// immediately after parsing, before any buffer/image/GL work begins, and be
-  /// unit-tested without a live `WebGl2RenderingContext`.
-  ///
-  /// # Errors
-  ///
-  /// Returns `WebglError::Other` if any entry in `extensionsRequired` is not in
-  /// [`SUPPORTED_EXTENSIONS`] -- the offending extension name and the full
-  /// supported list are logged via `gl::browser::error!` before returning,
-  /// since `WebglError::Other` itself only carries a static summary.
-  pub fn required_extensions_check( gltf_file : &gltf::Gltf ) -> Result< (), gl::WebglError >
-  {
-    for required in gltf_file.extensions_required()
-    {
-      if !SUPPORTED_EXTENSIONS.contains( &required )
-      {
-        gl::browser::error!
-        (
-          "glTF asset requires unsupported extension '{required}' ( loader supports: {SUPPORTED_EXTENSIONS:?} )"
-        );
-        return Err( gl::WebglError::Other( "glTF asset requires an unsupported extension" ) );
-      }
-    }
-
-    Ok( () )
-  }
-
   /// Asynchronously loads a glTF (GL Transmission Format) file and its associated resources.
   ///
   /// # Errors
   ///
   /// Returns `WebglError` if fetching or parsing the glTF file or its buffers fails, or if the
-  /// glTF asset's `extensionsRequired` lists an extension this loader doesn't support ( see
-  /// [`required_extensions_check`] ).
+  /// glTF asset fails validation, including an `extensionsRequired` entry this loader doesn't
+  /// support ( see [`document_validate`] ).
   ///
   /// # Panics
   ///
@@ -1407,7 +1373,10 @@ mod private
       gl::browser::error!( "Failed to load gltf file '{gltf_path}': {e:?}" );
       gl::WebglError::Other( "Failed to load gltf file" )
     } )?;
-    let mut gltf_file = gltf::Gltf::from_slice( &gltf_slice )
+    // Parsed without `gltf`'s own validation, which would reject any required extension
+    // outside `gltf-json`'s typed list ( see `document_validate` ); `document_validate` runs
+    // the same checks with this loader's extension rule right below.
+    let mut gltf_file = gltf::Gltf::from_slice_without_validation( &gltf_slice )
     .map_err( | e |
     {
       gl::browser::error!( "Failed to parse gltf file '{gltf_path}': {e}" );
@@ -1417,7 +1386,8 @@ mod private
     // Per glTF 2.0's "Specifying Extensions", a conformant client MUST refuse to
     // load an asset whose `extensionsRequired` names an extension it doesn't
     // support. Checked immediately after parsing, before any buffer/image/GL work.
-    required_extensions_check( &gltf_file )?;
+    document_validate( &gltf_file )
+    .inspect_err( | _ | gl::browser::error!( "Invalid gltf file '{gltf_path}'" ) )?;
 
     let buffers = buffers_load( &mut gltf_file, folder_path ).await?;
 
@@ -1490,7 +1460,6 @@ crate::mod_interface!
   {
     GLTF,
     load,
-    required_extensions_check,
     asset_uri_resolve,
     light_list_get,
     light_get,

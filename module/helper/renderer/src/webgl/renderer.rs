@@ -850,8 +850,7 @@ mod private
           //   shader stages caused fragment-only defines to appear in the vertex shader and vice versa.
           // Pitfall: defines_str() remains correct as the cache key (it covers all variants) — only
           //   the per-stage compilation calls must use the stage-specific accessors.
-          let vs_src = format!( "#version 300 es\n{}\n{}", material.vertex_defines_str(), material.vertex_shader() );
-          let fs_src = format!( "#version 300 es\n{}\n{}\n{}", material.fragment_defines_str(), ibl_define, material.fragment_shader() );
+          let ( vs_src, fs_src ) = crate::webgl::material::shader_sources( &**material, use_ibl );
           let program = gl::ProgramFromSources::new( &vs_src, &fs_src ).compile_and_link( gl )?;
           let shader_program = material.shader_program_make( gl, &program );
           let new_id = uuid::Uuid::new_v4();

@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **BREAKING**: `required_extensions_check` moved from `webgl::loaders::gltf` to `webgl::loaders::gltf_extensions`, which also exports the new `document_validate`; each now has that one public path. Migration: import them from `loaders::gltf_extensions`.
+- **`PbrMaterial` setters recompile only on a variant change**: every `*_set` method used to flag a program recompile, so changing a factor such as `specular_factor_set` at runtime relinked the program on the next frame. They now request a recompile only when the material's define set actually changes, and otherwise just mark the uniforms for re-upload (`needs_update`).
 - **IBL multiple-scattering energy compensation**: indirect specular now adds the multi-scatter term (`Fms * Ems` weighted by irradiance) on top of the single-scatter prefiltered reflection, matching three.js `computeMultiscattering()`. Without it, rough metals/plastics read as pure mirrors and the overall specular is too dim.
 - **Exposure applied uniformly**: `Renderer::set_exposure` now scales the entire lit result in the PBR shader (`color *= exp2( exposure )`) instead of only the IBL contribution. Previously exposure multiplied just the environment term, over-brightening reflections relative to direct lighting.
 - **ACES pre-exposure scaling**: the ACES tone mapping pass now divides by `0.6` before the RRT fit, matching three.js `ACESFilmicToneMapping` so identical exposure values produce identical brightness.
@@ -32,6 +34,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Unsupported UV sets no longer break the program**: a texture on UV set 5 or above became `vUv_5`, which `main.frag` doesn't declare, so the program failed to compile and every frame retried and drew nothing. `PbrMaterial` now falls back to UV set 0 with a warning, for core and extension textures alike.
+- **glTF vertex tangents are used**: the loader copied a primitive's attribute defines to the vertex stage only, so `USE_TANGENTS` never reached `main.frag` and every asset that ships TANGENT data was shaded with the derivative frame instead of its authored tangents. The defines now reach both stages, and `main.vert` moves the tangent into world space with the world matrix, so it pairs with the world-space normal.
+- **Tangent frame without vertex tangents**: `main.frag`'s `getTBN` now points the bitangent up the image, as glTF's tangent space does (+Y up, UV origin at the upper-left, images uploaded unflipped). It pointed down the image, so every normal map on a mesh without tangents had its green channel inverted, and the clearcoat normal map and the anisotropy direction, which share the frame, were mirrored the same way. The frame is also orthonormal now, the per-pixel counterpart of the MikkTSpace frame glTF specifies: its tangent follows the surface direction in which u increases, where the old one followed u's gradient with columns of unequal length, which skewed directions wherever u and v had different texel density or were sheared.
 - **Screen-space pass culling**: all post-processing passes (tonemapping, sRGB, bloom, color-grading, blend, shadow-to-color) and the OIT composite now explicitly call `gl.disable(CULL_FACE)` before drawing the fullscreen triangle. The fullscreen triangle is back-facing from the camera's perspective, so any preceding opaque pass that leaves `CULL_FACE` enabled would silently cull it, producing a black frame.
 - **Bloom alpha channel corruption**: `unreal_bloom.frag` now writes `alpha = 0.0` instead of `1.0`. The main framebuffer alpha channel is used to distinguish geometry pixels (alpha `1`) from background (alpha `0`) for tone mapping and subsequent passes. Writing alpha `1` from the additive bloom blit was overwriting that signal.
 - Clear-color background is no longer affected by exposure or tone mapping. The main color target is cleared with alpha `0` to mark background pixels (geometry and skybox write alpha `1`), and the tone mapping pass leaves alpha-`0` pixels untouched — mirroring three.js, where the clear color bypasses tone mapping.
@@ -52,6 +57,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **KHR_materials_clearcoat** and **KHR_materials_anisotropy**: the glTF loader reads both (including assets that list them in `extensionsRequired`), `PbrMaterial` gains `clearcoat_*_set` / `anisotropy_*_set` accessors, and the PBR shader adds a Fresnel-mixed dielectric coat lobe (direct and image-based, with its own normal, roughness and occlusion) and the anisotropic GGX distribution / visibility with a bent-normal IBL lookup. A layer's shader variant is compiled only when it is on: `clearcoatFactor` or `anisotropyStrength` above 0.
+- Named texture-unit constants for `PbrMaterial` (`PBR_*_UNIT`, `PBR_IBL_BASE_UNIT`) and the `PBR_TEXTURE_UNITS` table pairing each sampler with its unit and texture getter, which both `configure()` and `bind()` read; the IBL base unit moved from 10 to 16 to make room for the four new textures.
 - GPU PMREM generation (`webgl::loaders::pmrem::generate`): converts an equirectangular HDR into a full IBL set — equirect→cubemap, GGX importance-sampled prefiltered specular mips, cosine-weighted irradiance convolution, and a split-sum BRDF integration LUT.
 - `cull_mode` field to `PbrMaterial` for fine-grained face culling control
 - `Drop` implementation for `SwapFramebuffer` to prevent GPU memory leaks

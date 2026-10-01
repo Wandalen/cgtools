@@ -37,6 +37,18 @@ struct PhysicalMaterial
   float roughness;
   vec3 f0;
   vec3 f90;
+  #ifdef USE_KHR_materials_clearcoat
+    vec3 clearcoatNormal;
+    float clearcoatFactor;
+    float clearcoatRoughness;
+  #endif
+  #ifdef USE_KHR_materials_anisotropy
+    vec3 anisotropicT;
+    vec3 anisotropicB;
+    float at;
+    float ab;
+    float anisotropyStrength;
+  #endif
 };
 
 struct ReflectedLight
@@ -45,6 +57,12 @@ struct ReflectedLight
   vec3 indirectSpecular;
   vec3 directDiffuse;
   vec3 directSpecular;
+  #ifdef USE_KHR_materials_clearcoat
+    // Direct-light coat lobe; image-based coat light is kept apart so occlusion can darken it
+    // without darkening point / spot / directional highlights.
+    vec3 clearcoatSpecular;
+    vec3 clearcoatIndirectSpecular;
+  #endif
 };
 
 struct PointLight
@@ -107,6 +125,27 @@ uniform vec4 baseColorFactor; // Default: [1, 1, 1, 1]
   #endif
   #ifdef USE_SPECULAR_COLOR_TEXTURE
     uniform sampler2D specularColorTexture;
+  #endif
+#endif
+#ifdef USE_KHR_materials_clearcoat
+  uniform float clearcoatFactor;
+  uniform float clearcoatRoughnessFactor;
+  uniform float clearcoatNormalScale;
+  #ifdef USE_CLEARCOAT_TEXTURE
+    uniform sampler2D clearcoatTexture;
+  #endif
+  #ifdef USE_CLEARCOAT_ROUGHNESS_TEXTURE
+    uniform sampler2D clearcoatRoughnessTexture;
+  #endif
+  #ifdef USE_CLEARCOAT_NORMAL_TEXTURE
+    uniform sampler2D clearcoatNormalTexture;
+  #endif
+#endif
+#ifdef USE_KHR_materials_anisotropy
+  uniform float anisotropyStrength;
+  uniform float anisotropyRotation;
+  #ifdef USE_ANISOTROPY_TEXTURE
+    uniform sampler2D anisotropyTexture;
   #endif
 #endif
 #ifdef USE_MR_TEXTURE
@@ -258,6 +297,48 @@ float D_GGX( const in float alpha, const in float dotNH )
   return 0.3183098861837907 * a2 / pow2( denom );
 }
 
+#ifdef USE_KHR_materials_anisotropy
+// Anisotropic GGX normal distribution function.
+// https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_anisotropy/README.md
+float D_GGX_anisotropic( const in float dotNH, const in float dotTH, const in float dotBH, const in float at, const in float ab )
+{
+  float a2 = at * ab;
+  vec3 f = vec3( ab * dotTH, at * dotBH, a2 * dotNH );
+  float w2 = a2 / dot( f, f );
+  return a2 * w2 * w2 * RECIPROCAL_PI;
+}
+
+// Anisotropic visibility (masking-shadowing) function.
+float V_GGX_anisotropic
+(
+  const in float dotNL, const in float dotNV,
+  const in float dotBV, const in float dotTV,
+  const in float dotTL, const in float dotBL,
+  const in float at, const in float ab
+)
+{
+  float GGXV = dotNL * length( vec3( at * dotTV, ab * dotBV, dotNV ) );
+  float GGXL = dotNV * length( vec3( at * dotTL, ab * dotBL, dotNL ) );
+  return clamp( 0.5 / max( GGXV + GGXL, 1e-6 ), 0.0, 1.0 );
+}
+#endif
+
+#ifdef USE_KHR_materials_clearcoat
+// The clearcoat layer is modeled as a fixed-IOR (1.5) dielectric coat, using the same
+// isotropic GGX D/V terms as the base layer but with its own normal and roughness.
+// This is the extension's `clearcoat_brdf`: the microfacet lobe WITHOUT Fresnel. The coat
+// Fresnel is applied exactly once, by the fresnel_mix in main(), to direct and image-based
+// coat light alike; weighting it here as well would square it (~0.04^2 head-on).
+// https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_clearcoat/README.md
+float BRDF_Clearcoat( const in float dotNL, const in float dotNV, const in float dotNH, const in float roughness )
+{
+  float alpha = pow2( roughness );
+  float D = D_GGX( alpha, dotNH );
+  float V = V_GGX_SmithCorrelated( alpha, dotNL, dotNV );
+  return D * V * dotNL;
+}
+#endif
+
 void applyLightContribution
 (
   const in vec3 lightDir,
@@ -282,10 +363,20 @@ void applyLightContribution
   vec3 Fs = F_Schlick( material.f0, material.f90, dotVH );
   // Diffuse BRDF (Burley)
   vec3 Fd = Fd_Barley( alpha, dotNV, dotNL, dotLH );
-  // Visibility Geometry function
-  float V = V_GGX_SmithCorrelated( alpha, dotNL, dotNV );
-  // Normal distribution function
-  float D = D_GGX( alpha, dotNH );
+  // Visibility Geometry function and Normal distribution function
+  #ifdef USE_KHR_materials_anisotropy
+    float dotTL = dot( material.anisotropicT, lightDir );
+    float dotBL = dot( material.anisotropicB, lightDir );
+    float dotTV = dot( material.anisotropicT, viewDir );
+    float dotBV = dot( material.anisotropicB, viewDir );
+    float dotTH = dot( material.anisotropicT, halfDir );
+    float dotBH = dot( material.anisotropicB, halfDir );
+    float V = V_GGX_anisotropic( dotNL, dotNV, dotBV, dotTV, dotTL, dotBL, material.at, material.ab );
+    float D = D_GGX_anisotropic( dotNH, dotTH, dotBH, material.at, material.ab );
+  #else
+    float V = V_GGX_SmithCorrelated( alpha, dotNL, dotNV );
+    float D = D_GGX( alpha, dotNH );
+  #endif
 
   vec3 irradiance = lightColor * lightIntensity * dotNL;
   vec3 diffuseColor = material.diffuseColor * irradiance;
@@ -293,6 +384,13 @@ void applyLightContribution
 
   reflectedLight.directDiffuse += ( 1.0 - Fs ) * Fd * diffuseColor;
   reflectedLight.directSpecular += Fs * specularColor;
+
+  #ifdef USE_KHR_materials_clearcoat
+    float ccDotNL = clamp( dot( material.clearcoatNormal, lightDir ), 0.0, 1.0 );
+    float ccDotNV = clamp( dot( material.clearcoatNormal, viewDir ), 0.0, 1.0 );
+    float ccDotNH = clamp( dot( material.clearcoatNormal, halfDir ), 0.0, 1.0 );
+    reflectedLight.clearcoatSpecular += BRDF_Clearcoat( ccDotNL, ccDotNV, ccDotNH, material.clearcoatRoughness ) * lightColor * lightIntensity;
+  #endif
 }
 
 void computeDirectLight
@@ -361,26 +459,19 @@ void computeSpotLight
     }
   #endif
 
-  float dotNL = clamp( dot( normal, lightDir ), 0.0, 1.0 );
+  applyLightContribution( lightDir, viewDir, normal, material, light.color, attenuation, reflectedLight );
+}
 
-  float alpha = pow2( material.roughness );
-  vec3 halfDir = normalize( lightDir + viewDir );
-  float dotNV = clamp( dot( normal, viewDir ), 0.0, 1.0 );
-  float dotNH = clamp( dot( normal, halfDir ), 0.0, 1.0 );
-  float dotVH = clamp( dot( viewDir, halfDir ), 0.0, 1.0 );
-  float dotLH = clamp( dot( lightDir, halfDir ), 0.0, 1.0 );
-
-  vec3 Fs = F_Schlick( material.f0, material.f90, dotVH );
-  vec3 Fd = Fd_Barley( alpha, dotNV, dotNL, dotLH );
-  float V = V_GGX_SmithCorrelated( alpha, dotNL, dotNV );
-  float D = D_GGX( alpha, dotNH );
-
-  vec3 irradiance = light.color * attenuation * dotNL;
-  vec3 diffuseColor = material.diffuseColor * irradiance;
-  vec3 specularColor = D * V * irradiance;
-
-  reflectedLight.directDiffuse += ( 1.0 - Fs ) * Fd * diffuseColor;
-  reflectedLight.directSpecular += Fs * specularColor;
+// Whether light from `lightDir` reaches a layer: the base through `normal` or, with a clearcoat,
+// the coat through its own normal. Only an early-out, since every BRDF term clamps its own N.L,
+// but it must not skip the coat where a base normal map turns the base away from the light.
+bool lightFacing( const in vec3 lightDir, const in vec3 normal, const in PhysicalMaterial material )
+{
+  float dotNL = dot( normal, lightDir );
+  #ifdef USE_KHR_materials_clearcoat
+    dotNL = max( dotNL, dot( material.clearcoatNormal, lightDir ) );
+  #endif
+  return dotNL > 0.0;
 }
 
 void computeLights
@@ -394,9 +485,8 @@ void computeLights
   for( int i = 0; i < min( pointLightsCount, MAX_POINT_LIGHTS ); i++ )
   {
     vec3 lightDir = pointLights[ i ].position - vWorldPos;
-    float dotNL = clamp( dot( normal, lightDir ), 0.0, 1.0 );
 
-    if ( dotNL > 0.0 )
+    if ( lightFacing( lightDir, normal, material ) )
     {
       computePointLight( pointLights[ i ], viewDir, normal, material, reflectedLight );
     }
@@ -404,9 +494,7 @@ void computeLights
 
   for( int i = 0; i < min( directLightsCount, MAX_DIRECT_LIGHTS ); i++ )
   {
-    float dotNL = clamp( dot( normal, directLights[ i ].direction ), 0.0, 1.0 );
-
-    if ( dotNL > 0.0 )
+    if ( lightFacing( directLights[ i ].direction, normal, material ) )
     {
       computeDirectLight( directLights[ i ], viewDir, normal, material, reflectedLight );
     }
@@ -414,10 +502,9 @@ void computeLights
 
   for( int i = 0; i < min( spotLightsCount, MAX_SPOT_LIGHTS ); i++ )
   {
-    vec3 lightDir = normalize( spotLights[ i ].position - vWorldPos );
-    float dotNL = clamp( dot( normal, lightDir ), 0.0, 1.0 );
+    vec3 lightDir = spotLights[ i ].position - vWorldPos;
 
-    if ( dotNL > 0.0 )
+    if ( lightFacing( lightDir, normal, material ) )
     {
       computeSpotLight( spotLights[ i ], viewDir, normal, material, reflectedLight );
     }
@@ -435,21 +522,17 @@ float ditherNoise( vec2 fragCoord )
 
 #ifdef USE_IBL
 
-  void sampleEnvIrradiance( const in vec3 N, const in vec3 V, const in PhysicalMaterial material, inout ReflectedLight reflectedLight )
+  // Mip of prefilterEnvMap to sample along reflection `R` for `roughness`. No fixed floor (e.g.
+  // `max( .., 1.0 )`) is applied: with the PMREM prefilter, mip 0 of prefilterEnvMap is the sharp
+  // environment, which is the correct, physically expected result for a mirror-smooth surface.
+  // Specular aliasing comes from the reflection vector being under-sampled across a pixel
+  // (curved geometry, silhouettes, grazing angles) — exactly the case where the screen-space
+  // variance term below is large and raises the LOD. On flat smooth surfaces reflVariance ~ 0,
+  // there is no sub-pixel variation to alias, so sampling mip 0 there is safe; a fixed floor
+  // would only blur legitimate mirror reflections.
+  float envLod( const in vec3 R, const in float roughness )
   {
-    float dotNV = clamp( dot( N, V ), 0.01, 1.0 );
-
-    vec3 R = reflect( -V, N );
-
-    // Base LOD from roughness. No fixed floor (e.g. `max( .., 1.0 )`) is applied: with the
-    // PMREM prefilter, mip 0 of prefilterEnvMap is the sharp environment, which is the correct,
-    // physically expected result for a mirror-smooth surface. Specular aliasing comes from the
-    // reflection vector being under-sampled across a pixel (curved geometry, silhouettes,
-    // grazing angles) — exactly the case where the screen-space variance term below is large
-    // and raises the LOD. On flat smooth surfaces reflVariance ~ 0, there is no sub-pixel
-    // variation to alias, so sampling mip 0 there is safe; a fixed floor would only blur
-    // legitimate mirror reflections.
-    float lod = material.roughness * u_max_lod;
+    float lod = roughness * u_max_lod;
 
     // GSAA-style specular antialiasing: widen the filter where the reflected direction changes
     // rapidly in screen space.
@@ -457,7 +540,33 @@ float ditherNoise( vec2 fragCoord )
     vec3 dRdy = dFdy( R );
     float reflVariance = dot( dRdx, dRdx ) + dot( dRdy, dRdy );
     lod = max( lod, 0.5 * log2( max( reflVariance, 1e-6 ) ) + 4.0 );
-    lod = min( lod, u_max_lod );
+    return min( lod, u_max_lod );
+  }
+
+  #ifdef USE_KHR_materials_anisotropy
+    // Anisotropic IBL: the normal to reflect about, bent towards the anisotropic tangent frame
+    // (bent-normal approximation from the glTF-Sample-Renderer reference implementation).
+    // The LOD / envBRDF / multi-scatter terms stay driven by the original roughness — only the
+    // sampled direction changes.
+    vec3 anisotropicBentNormal( const in vec3 N, const in vec3 V, const in PhysicalMaterial material )
+    {
+      vec3 anisotropicTangent = cross( material.anisotropicB, V );
+      vec3 anisotropicNormal = cross( anisotropicTangent, material.anisotropicB );
+      float bendFactor = 1.0 - material.anisotropyStrength * ( 1.0 - material.roughness );
+      return normalize( mix( anisotropicNormal, N, pow4( bendFactor ) ) );
+    }
+  #endif
+
+  void sampleEnvIrradiance( const in vec3 N, const in vec3 V, const in PhysicalMaterial material, inout ReflectedLight reflectedLight )
+  {
+    float dotNV = clamp( dot( N, V ), 0.01, 1.0 );
+
+    vec3 R = reflect( -V, N );
+    #ifdef USE_KHR_materials_anisotropy
+      R = reflect( -V, anisotropicBentNormal( N, V, material ) );
+    #endif
+
+    float lod = envLod( R, material.roughness );
 
     float dither = ( ditherNoise( gl_FragCoord.xy ) - 0.5 ) / 512.0;
 
@@ -485,6 +594,15 @@ float ditherNoise( vec2 fragCoord )
     reflectedLight.indirectSpecular += radiance * singleScatter;
     reflectedLight.indirectSpecular += multiScatter * irradiance;
     reflectedLight.indirectDiffuse += diffuse * irradiance;
+
+    // Clearcoat IBL: raw prefiltered radiance sampled along the clearcoat normal, with no
+    // split-sum Fresnel weighting here — the coat's Fresnel is applied once, at the final
+    // mix with the base result (see KHR_materials_clearcoat's fresnel_mix in main()).
+    #ifdef USE_KHR_materials_clearcoat
+      vec3 Rc = reflect( -V, material.clearcoatNormal );
+      float lodc = envLod( Rc, material.clearcoatRoughness );
+      reflectedLight.clearcoatIndirectSpecular += textureLod( prefilterEnvMap, Rc, lodc ).xyz;
+    #endif
   }
 
 #endif
@@ -495,7 +613,13 @@ float alpha_weight( float a )
 }
 
 #ifndef USE_TANGENTS
-  // http://www.thetenthplanet.de/archives/1180
+  // The per-pixel counterpart of the MikkTSpace frame glTF specifies for meshes without
+  // tangents. T is the surface direction in which u increases, made orthogonal to the normal.
+  // B is perpendicular to both, on the side up the image: glTF's tangent space has +Y up, the
+  // UV origin is the image's upper-left corner, and images are uploaded unflipped, so up is the
+  // direction in which v decreases. Mirrored UVs are followed. The frame is orthonormal, so an
+  // anisotropy direction keeps its angle where u and v have different texel density or are
+  // sheared, which a frame built from the UV gradients does not.
   mat3 getTBN( vec3 surf_normal, vec3 pos, vec2 uv )
   {
     vec3 dE1 = dFdx( pos );
@@ -503,16 +627,58 @@ float alpha_weight( float a )
     vec2 dUv1 = dFdx( uv );
     vec2 dUv2 = dFdy( uv );
 
-    vec3 q1perp = cross( dE2, surf_normal );
-		vec3 q0perp = cross( surf_normal, dE1 );
+    // Surface directions in which u and v increase: the inverse of the UV Jacobian, scaled by
+    // its determinant, whose sign restores their orientation.
+    float det = dUv1.x * dUv2.y - dUv2.x * dUv1.y;
+    vec3 dPdu = ( dUv2.y * dE1 - dUv1.y * dE2 ) * sign( det );
+    vec3 dPdv = ( dUv1.x * dE2 - dUv2.x * dE1 ) * sign( det );
 
-    vec3 T = q1perp * dUv1.x + q0perp * dUv2.x;
-		vec3 B = q1perp * dUv1.y + q0perp * dUv2.y;
+    vec3 T = dPdu - surf_normal * dot( surf_normal, dPdu );
+    // No usable UV gradient ( constant UVs, e.g. a mesh without TEXCOORD_0, or UVs collapsed onto
+    // a line ): there is no tangent direction, and normalizing the zero vector gives NaN, which
+    // would reach the anisotropic lobe and the bent environment normal even at strength 0. Any
+    // tangent around the normal keeps the frame finite.
+    if ( dot( T, T ) < 1e-30 )
+    {
+      vec3 axis = abs( surf_normal.x ) < 0.9 ? vec3( 1.0, 0.0, 0.0 ) : vec3( 0.0, 1.0, 0.0 );
+      T = axis - surf_normal * dot( surf_normal, axis );
+    }
+    T = normalize( T );
+    vec3 B = cross( surf_normal, T );
+    B *= dot( B, dPdv ) > 0.0 ? -1.0 : 1.0;
+    return mat3( T, B, surf_normal );
+  }
+#endif
 
-    float det = max( dot( T, T ), dot( B, B ) );
-		float scale = ( det == 0.0 ) ? 0.0 : inversesqrt( det );
-
-		return mat3( T * scale, B * scale, surf_normal );
+#ifdef USE_TBN
+  // The tangent frame shared by every tangent-space texture (base normal, clearcoat normal,
+  // anisotropy direction), around `geometricNormal`, which already faces the viewer.
+  mat3 tangentFrame( const in vec3 geometricNormal, const in float faceDirection )
+  {
+    #ifdef USE_TANGENTS
+      // On a back face the whole frame flips, not just the normal: geometricNormal is already
+      // negated, the bitangent derived from it follows, and the tangent must be negated too.
+      // Flipping only N and B would mirror tangent-space X relative to master and to the Khronos
+      // sample renderer (which negates t, b and ng together when !gl_FrontFacing).
+      vec3 tangent = vTangent.xyz * faceDirection;
+      vec3 bitangent = cross( geometricNormal, vTangent.xyz ) * vTangent.w;
+      return mat3( tangent, bitangent, geometricNormal );
+    #else
+      // Without vertex tangents the frame is reconstructed from the screen-space derivatives of
+      // a UV set. glTF derives a mesh's tangent frame from the texcoords of its normal texture,
+      // so use the base normal texture's UV set. Only when the material has no base normal
+      // texture does the next tangent-space texture's UV set stand in, and UV set 0 only when
+      // there is none.
+      #if defined( USE_NORMAL_TEXTURE )
+        return getTBN( geometricNormal, vWorldPos, vNormalUv );
+      #elif defined( USE_CLEARCOAT_NORMAL_TEXTURE )
+        return getTBN( geometricNormal, vWorldPos, vClearcoatNormalUv );
+      #elif defined( USE_ANISOTROPY_TEXTURE )
+        return getTBN( geometricNormal, vWorldPos, vAnisotropyUv );
+      #else
+        return getTBN( geometricNormal, vWorldPos, vUv_0 );
+      #endif
+    #endif
   }
 #endif
 
@@ -528,10 +694,119 @@ float adjustRoughnessNormalMap ( const in float roughness, const in vec3 normal 
   return roughness;
 }
 
+// Geometric Specular Anti-Aliasing (Tokuyoshi & Kaplanyan 2019): widens `roughness` where the
+// screen-space derivatives of the shading normal `n` are large (geometry edges), which selects
+// blurrier environment map mip levels and prevents specular aliasing. The 0.0525 floor keeps
+// D_GGX finite: at roughness 0 it is zero off the exact mirror direction and 0/0 on it, so a
+// smooth surface would show no highlight or a single flickering pixel.
+float gsaaRoughness( const in vec3 n, const in float roughness )
+{
+  vec3 dNdx = dFdx( n );
+  vec3 dNdy = dFdy( n );
+  float variance = dot( dNdx, dNdx ) + dot( dNdy, dNdy );
+  return max( sqrt( clamp( pow2( roughness ) + 0.5 * variance, 0.0, 1.0 ) ), 0.0525 );
+}
+
+// Specular occlusion for ambient occlusion `ao`, from the view angle and roughness of the lobe
+// it darkens (Lagarde & de Rousiers 2014).
+float specularOcclusion( const in float dotNV, const in float ao, const in float roughness )
+{
+  return clamp( pow( dotNV + ao, exp2( -16.0 * roughness - 1.0 ) ) - 1.0 + ao, 0.0, 1.0 );
+}
+
+#ifdef USE_KHR_materials_clearcoat
+  // KHR_materials_clearcoat: an additional dielectric (IOR 1.5) coat layer with its own factor,
+  // roughness and normal. The normal starts from the *unperturbed* geometric normal, not the
+  // base normal map result; a coat normal map is read in the shared tangent frame `TBN`. Called
+  // after the base layer's GSAA, which it does not read.
+  // See https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_clearcoat/README.md
+  void clearcoatSetup( inout PhysicalMaterial material, const in mat3 TBN, const in vec3 geometricNormal )
+  {
+    material.clearcoatFactor = clearcoatFactor;
+    #ifdef USE_CLEARCOAT_TEXTURE
+      material.clearcoatFactor *= texture( clearcoatTexture, vClearcoatUv ).r;
+    #endif
+    material.clearcoatRoughness = clearcoatRoughnessFactor;
+    #ifdef USE_CLEARCOAT_ROUGHNESS_TEXTURE
+      material.clearcoatRoughness *= texture( clearcoatRoughnessTexture, vClearcoatRoughnessUv ).g;
+    #endif
+    material.clearcoatRoughness = clamp( material.clearcoatRoughness, 0.0, 1.0 );
+    material.clearcoatNormal = geometricNormal;
+    #ifdef USE_CLEARCOAT_NORMAL_TEXTURE
+      vec3 ccNormalSample = texture( clearcoatNormalTexture, vClearcoatNormalUv ).xyz * 2.0 - 1.0;
+      ccNormalSample.xy *= vec2( clearcoatNormalScale );
+      material.clearcoatNormal = normalize( TBN * ccNormalSample );
+    #endif
+
+    // The coat gets the same safeguards as the base layer, measured on the coat's own normal; the
+    // floor matters most here, since the glTF default clearcoatRoughness is 0.
+    material.clearcoatRoughness = gsaaRoughness( material.clearcoatNormal, material.clearcoatRoughness );
+  }
+#endif
+
+#ifdef USE_KHR_materials_clearcoat
+  // KHR_materials_clearcoat: fresnel_mix the base result `color` with the coat lobe. The coat's
+  // own Fresnel term is applied once here (not per light / per IBL term), and the emissive
+  // output is dampened by the same weight, matching the extension's "coated_emission" note.
+  void clearcoatMix
+  (
+    const in PhysicalMaterial material,
+    const in vec3 viewDir,
+    const in ReflectedLight reflectedLight,
+    inout vec3 color,
+    inout vec4 emissive
+  )
+  {
+    vec3 clearcoatFresnel = F_Schlick( vec3( 0.04 ), vec3( 1.0 ), clamp( dot( material.clearcoatNormal, viewDir ), 0.0, 1.0 ) );
+    vec3 clearcoatWeight = clamp( material.clearcoatFactor * clearcoatFresnel, 0.0, 1.0 );
+    vec3 clearcoatColor = reflectedLight.clearcoatSpecular + reflectedLight.clearcoatIndirectSpecular;
+    color = mix( color, clearcoatColor, clearcoatWeight );
+    emissive.rgb *= ( 1.0 - clearcoatWeight );
+  }
+#endif
+
+#ifdef USE_KHR_materials_anisotropy
+  // KHR_materials_anisotropy: the anisotropy direction in the shared tangent frame `TBN`, its
+  // strength, and the roughness split ( at / ab ) of the GSAA-adjusted base roughness, so this
+  // runs after the base layer's GSAA.
+  // See https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_anisotropy/README.md
+  void anisotropySetup( inout PhysicalMaterial material, const in mat3 TBN, const in vec3 geometricNormal )
+  {
+    vec2 anisotropyDirection = vec2( 1.0, 0.0 );
+    float anisotropyMagnitude = anisotropyStrength;
+    #ifdef USE_ANISOTROPY_TEXTURE
+      vec3 anisotropySample = texture( anisotropyTexture, vAnisotropyUv ).rgb;
+      anisotropyDirection = anisotropySample.rg * 2.0 - 1.0;
+      anisotropyMagnitude *= anisotropySample.b;
+    #endif
+    float anisoRotCos = cos( anisotropyRotation );
+    float anisoRotSin = sin( anisotropyRotation );
+    anisotropyDirection = mat2( anisoRotCos, anisoRotSin, -anisoRotSin, anisoRotCos ) * normalize( anisotropyDirection );
+
+    material.anisotropicT = normalize( TBN * vec3( anisotropyDirection, 0.0 ) );
+    material.anisotropicB = cross( geometricNormal, material.anisotropicT );
+    // The extension defines the strength on [ 0, 1 ]; clamping here covers loaded assets and
+    // `anisotropy_strength_set` callers alike, as the coat's inputs are clamped.
+    material.anisotropyStrength = clamp( anisotropyMagnitude, 0.0, 1.0 );
+
+    float anisotropyBaseAlpha = pow2( material.roughness );
+    material.at = mix( anisotropyBaseAlpha, 1.0, pow2( material.anisotropyStrength ) );
+    material.ab = clamp( anisotropyBaseAlpha, 0.001, 1.0 );
+  }
+#endif
+
 void main()
 {
   PhysicalMaterial material;
-  ReflectedLight reflectedLight = ReflectedLight( vec3( 0.0 ), vec3( 0.0 ), vec3( 0.0 ), vec3( 0.0 ) );
+  ReflectedLight reflectedLight;
+  reflectedLight.indirectDiffuse = vec3( 0.0 );
+  reflectedLight.indirectSpecular = vec3( 0.0 );
+  reflectedLight.directDiffuse = vec3( 0.0 );
+  reflectedLight.directSpecular = vec3( 0.0 );
+  #ifdef USE_KHR_materials_clearcoat
+    reflectedLight.clearcoatSpecular = vec3( 0.0 );
+    reflectedLight.clearcoatIndirectSpecular = vec3( 0.0 );
+  #endif
 
   float alpha = 1.0;
 
@@ -579,36 +854,34 @@ void main()
   material.f0 = mix( material.f0, material.diffuseColor, material.metallness );
   material.diffuseColor *= 1.0 - material.metallness;
 
-  vec3 normal = normalize( vNormal );
+  // faceDirection is applied to the geometric normal up front (before TBN / normal-map /
+  // clearcoat / anisotropy all consume it), so every one of those is consistently oriented
+  // on double-sided back faces.
+  float faceDirection = gl_FrontFacing ? 1.0 : -1.0;
+  vec3 geometricNormal = normalize( vNormal ) * faceDirection;
 
+  // The shared tangent frame, built only under USE_TBN, where a tangent-space texture or
+  // anisotropy reads it.
+  mat3 TBN = mat3( 1.0 );
+  #ifdef USE_TBN
+    TBN = tangentFrame( geometricNormal, faceDirection );
+  #endif
+
+  vec3 normal = geometricNormal;
   #ifdef USE_NORMAL_TEXTURE
     vec3 normalSample = texture( normalTexture, vNormalUv ).xyz * 2.0 - 1.0;
     //material.roughness = adjustRoughnessNormalMap( material.roughness, normalSample );
     normalSample.xy *= vec2( normalScale );
-
-    #ifdef USE_TANGENTS
-    {
-      vec3 bitangent = cross( normal, vTangent.xyz ) * vTangent.w;
-      mat3x3 TBN = mat3x3( vTangent.xyz, bitangent, normal );
-      normal = TBN * normalSample;
-    }
-    #else
-      normal = getTBN( normal, vWorldPos, vNormalUv ) * normalSample;
-    #endif
-    normal = normalize( normal );
+    normal = normalize( TBN * normalSample );
   #endif
 
-  float faceDirection = gl_FrontFacing ? 1.0 : -1.0;
-  normal *= faceDirection;
-
-  // Geometric Specular Anti-Aliasing (Tokuyoshi & Kaplanyan 2019)
-  // Increases roughness where screen-space normal derivatives are large (geometry edges),
-  // which selects blurrier environment map mip levels and prevents specular aliasing.
-  vec3 dNdx = dFdx( normal );
-  vec3 dNdy = dFdy( normal );
-  float geometricVariance = dot( dNdx, dNdx ) + dot( dNdy, dNdy );
-  material.roughness = sqrt( clamp( material.roughness * material.roughness + 0.5 * geometricVariance, 0.0, 1.0 ) );
-  material.roughness = max( material.roughness, 0.0525 );
+  material.roughness = gsaaRoughness( normal, material.roughness );
+  #ifdef USE_KHR_materials_clearcoat
+    clearcoatSetup( material, TBN, geometricNormal );
+  #endif
+  #ifdef USE_KHR_materials_anisotropy
+    anisotropySetup( material, TBN, geometricNormal );
+  #endif
 
   vec3 color = vec3( 0.0 );
   vec3 viewDir = normalize( cameraPosition - vWorldPos );
@@ -626,8 +899,13 @@ void main()
     float ao = 1.0 + occlusionStrength * ( occlusion - 1.0 );
     reflectedLight.indirectDiffuse *= ao;
     float dotNV = clamp( dot( normal, viewDir ), 0.0, 1.0 );
-    float specOcclusion = clamp( pow( dotNV + ao, exp2( -16.0 * material.roughness - 1.0 ) ) - 1.0 + ao, 0.0, 1.0 );
-    reflectedLight.indirectSpecular *= specOcclusion;
+    reflectedLight.indirectSpecular *= specularOcclusion( dotNV, ao, material.roughness );
+    #ifdef USE_KHR_materials_clearcoat
+      // The coat's environment reflection is occluded like the base one, but with the coat's
+      // own normal and roughness.
+      float ccDotNV = clamp( dot( material.clearcoatNormal, viewDir ), 0.0, 1.0 );
+      reflectedLight.clearcoatIndirectSpecular *= specularOcclusion( ccDotNV, ao, material.clearcoatRoughness );
+    #endif
   #endif
 
   emissive_color = vec4( emissiveFactor, 1.0 );
@@ -640,6 +918,10 @@ void main()
   reflectedLight.indirectSpecular +
   reflectedLight.directDiffuse +
   reflectedLight.directSpecular;
+
+  #ifdef USE_KHR_materials_clearcoat
+    clearcoatMix( material, viewDir, reflectedLight, color, emissive_color );
+  #endif
 
   // Exposure is applied uniformly to the whole lit result here ( the tone mapping
   // pass operates in display-referred space ). The clear-color background is not
