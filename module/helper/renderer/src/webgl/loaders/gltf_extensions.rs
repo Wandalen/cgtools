@@ -148,11 +148,25 @@ mod private
     json.get( key ).and_then( Value::as_f64 ).map_or( default, | v | v as f32 )
   }
 
-  /// Reads a glTF `textureInfo` object; `None` when it has no integer `index`.
+  /// Reads a glTF `textureInfo` object; `None` when it has no integer `index`. A `texCoord`
+  /// that isn't a non-negative integer reads as the default UV set 0. Both cases are logged.
   fn texture_ref_parse( json : &Value ) -> Option< ExtensionTextureRef >
   {
-    let index = usize::try_from( json.get( "index" )?.as_u64()? ).ok()?;
-    let tex_coord = json.get( "texCoord" ).and_then( Value::as_u64 ).and_then( | v | u32::try_from( v ).ok() ).unwrap_or( 0 );
+    let Some( index ) = json.get( "index" ).and_then( Value::as_u64 ).and_then( | v | usize::try_from( v ).ok() )
+    else
+    {
+      gl::warn!( "glTF material extension textureInfo {json} has no valid index, ignoring it" );
+      return None;
+    };
+    let tex_coord = match json.get( "texCoord" )
+    {
+      None => 0,
+      Some( v ) => v.as_u64().and_then( | v | u32::try_from( v ).ok() ).unwrap_or_else( ||
+      {
+        gl::warn!( "glTF material extension texture {index} has an invalid texCoord {v}, using UV set 0" );
+        0
+      }),
+    };
     Some( ExtensionTextureRef { index, tex_coord } )
   }
 
@@ -197,7 +211,13 @@ mod private
     let texture_info = | r : Option< ExtensionTextureRef > | -> Option< TextureInfo >
     {
       let r = r?;
-      textures.get( r.index ).map( | t | TextureInfo { texture : t.clone(), uv_position : r.tex_coord } )
+      let Some( texture ) = textures.get( r.index )
+      else
+      {
+        gl::warn!( "glTF material extension names texture {} of {}, leaving it unset", r.index, textures.len() );
+        return None;
+      };
+      Some( TextureInfo { texture : texture.clone(), uv_position : r.tex_coord } )
     };
 
     if let Some( json ) = gltf_m.extension_value( "KHR_materials_clearcoat" )

@@ -78,6 +78,24 @@ fn texture_without_integer_index_is_ignored()
 }
 
 #[ test ]
+fn tex_coord_keeps_any_set_and_falls_back_to_zero_when_malformed()
+{
+  // A UV set the shader doesn't declare is bounded where its define is written, for core and
+  // extension textures alike; parsing keeps it. A negative or fractional texCoord isn't a UV
+  // set at all and reads as the default, 0.
+  let cc = clearcoat_parse( &json( r#"
+  {
+    "clearcoatTexture" : { "index" : 0, "texCoord" : 5 },
+    "clearcoatRoughnessTexture" : { "index" : 1, "texCoord" : -1 },
+    "clearcoatNormalTexture" : { "index" : 2, "texCoord" : 1.5 }
+  }"# ) );
+
+  assert_eq!( cc.texture, Some( ExtensionTextureRef { index : 0, tex_coord : 5 } ) );
+  assert_eq!( cc.roughness_texture, Some( ExtensionTextureRef { index : 1, tex_coord : 0 } ) );
+  assert_eq!( cc.normal_texture, Some( ExtensionTextureRef { index : 2, tex_coord : 0 } ) );
+}
+
+#[ test ]
 fn anisotropy_empty_object_uses_extension_defaults()
 {
   assert_eq!( anisotropy_parse( &json( "{}" ) ), AnisotropyParams { strength : 0.0, rotation : 0.0, texture : None } );

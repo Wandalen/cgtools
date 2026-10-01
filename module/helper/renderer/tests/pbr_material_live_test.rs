@@ -174,6 +174,23 @@ mod tests
   }
 
   #[ wasm_bindgen_test ]
+  fn uv_set_beyond_the_shader_falls_back_to_set_zero()
+  {
+    let gl_context = gl_init();
+    let mut mat = PbrMaterial::new( &gl_context );
+    mat.clearcoat_factor_set( Some( 1.0 ) );
+    let mut info = texture_info();
+    info.uv_position = 5;
+    mat.clearcoat_texture_set( Some( info.clone() ) );
+    mat.base_color_texture_set( Some( info ) );
+    let defines = mat.fragment_defines_str();
+
+    assert!( !defines.contains( "vUv_5" ), "main.frag declares vUv_0 to vUv_4 only: {defines}" );
+    assert!( defines.contains( "#define vClearcoatUv vUv_0" ), "{defines}" );
+    assert!( defines.contains( "#define vBaseColorUv vUv_0" ), "{defines}" );
+  }
+
+  #[ wasm_bindgen_test ]
   fn zero_layer_factors_select_no_layer_variant()
   {
     let gl_context = gl_init();

@@ -240,12 +240,25 @@ mod private
     cached_fragment_defines_str : String,
   }
 
+  /// Number of UV sets `main.frag` declares ( `vUv_0` to `vUv_4` ).
+  const UV_SET_COUNT : u32 = 5;
+
   /// Pushes `#define <name>` for a texture the material samples, plus the macro that maps its
   /// per-texture UV varying (`uv_name`) onto the UV set the texture reads (`vUv_<n>`).
+  ///
+  /// Every texture's UV define is written here, core and extension textures alike, so this is
+  /// where the UV set is bounded: one the shader doesn't declare would fail the program's compile,
+  /// and a failed program isn't cached, so every frame would compile it again and draw nothing.
+  /// It falls back to UV set 0 with a warning.
   fn texture_define_push( defines : &mut String, name : &str, uv_name : &str, info : Option< &TextureInfo > )
   {
     let _ = writeln!( defines, "#define {name}" );
-    let uv_position = info.unwrap().uv_position;
+    let mut uv_position = info.unwrap().uv_position;
+    if uv_position >= UV_SET_COUNT
+    {
+      gl::warn!( "{name}: UV set {uv_position} is not supported ( vUv_0 to vUv_{} ), using UV set 0", UV_SET_COUNT - 1 );
+      uv_position = 0;
+    }
     let _ = writeln!( defines, "#define {uv_name} vUv_{uv_position}" );
   }
 
