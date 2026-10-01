@@ -1870,6 +1870,38 @@ fn vertex_corners_orient_to_grid_up_down_distinct()
   assert!( n0 > 0 && n1 > 0, "both ▲ and ▽ full frames must appear; got full_0={n0}, full_1={n1}" );
 }
 
+/// orient_to_grid edge tiles (two present corners): the six rim edge triangles
+/// of a 7-hex flower each point their absent corner a different way, so they
+/// must hit six distinct `dual_edge_*` frames. One is pinned to its frame: the
+/// easternmost rim triangle (between the NE and SE neighbours) has its absent
+/// corner due east of its centroid, bearing 0°, so with the 300° edge base it
+/// takes frame `round( ( 300° − 0° ) / 60° ) = 5`. A wrong base angle or
+/// distinguishing corner in the edge branch moves that index.
+#[ test ]
+fn vertex_corners_orient_to_grid_flower_edges()
+{
+  let flower = [ ( 0, 0 ), ( 0, -1 ), ( 1, -1 ), ( 1, 0 ), ( 0, 1 ), ( -1, 1 ), ( -1, 0 ) ];
+  let tiles = flower.iter().map( | &pos | Tile { pos, objects : vec![ "hexagon".into() ] } ).collect();
+  let spec = dual_orient_spec();
+  let scene = SceneSnapshot { tiles, ..minimal_scene_3x3() };
+  let compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
+  let cmds = at_time_compile( &spec, &scene, &Camera::default(), 0.0 );
+
+  let edge_ids : Vec< _ > = ( 0..6 )
+    .map( | o | compiled.ids.sprite( "dual", &format!( "dual_edge_{o}" ) ).expect( "edge frame allocated" ) )
+    .collect();
+  // `( frame index, x )` of every edge sprite.
+  let edges : Vec< ( usize, f32 ) > = sprite_commands( &cmds ).into_iter()
+    .filter_map( | s | edge_ids.iter().position( | id | *id == s.sprite ).map( | o | ( o, s.transform.position[ 0 ] ) ) )
+    .collect();
+
+  assert_eq!( edges.len(), 6, "a flower has six rim edge triangles; got {edges:?}" );
+  let distinct : std::collections::HashSet< usize > = edges.iter().map( | ( o, _ ) | *o ).collect();
+  assert_eq!( distinct.len(), 6, "rim edges must hit six distinct dual_edge frames; got {edges:?}" );
+  let east = edges.iter().max_by( | a, b | a.1.total_cmp( &b.1 ) ).expect( "edges" );
+  assert_eq!( east.0, 5, "easternmost rim edge (absent corner at 0°) must take dual_edge_5; got {edges:?}" );
+}
+
 /// Without a solid `( X, X, X )` pattern an orient layer has no self id, so
 /// every non-void corner counts as present. The frame pick must not depend on
 /// how the object's id sorts against `"void"`: `"water"` sorts after it, so a
