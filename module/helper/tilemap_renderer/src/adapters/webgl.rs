@@ -224,6 +224,8 @@ mod private
       if let Some( tex_id ) = params.texture
         && let Some( gpu_tex ) = resources.texture( tex_id )
       {
+        // A pending image is skipped, as in `cmd_mesh`.
+        if gpu_tex.width.get() == 0 || gpu_tex.height.get() == 0 { return; }
         gl.active_texture( gl::TEXTURE0 );
         gl.bind_texture( gl::TEXTURE_2D, Some( &gpu_tex.texture ) );
         use_texture = true;
@@ -464,6 +466,10 @@ mod private
       let mut use_texture = false;
       if let Some( tex_id ) = m.texture && let Some( gpu_tex ) = res.texture( tex_id )
       {
+        // Skipped like `cmd_sprite` skips a pending sheet: the image's async
+        // decode hasn't landed ( or failed ), and a texture with no level-0
+        // image samples as opaque black.
+        if gpu_tex.width.get() == 0 || gpu_tex.height.get() == 0 { return Ok( () ); }
         self.gl.active_texture( gl::TEXTURE0 );
         self.gl.bind_texture( gl::TEXTURE_2D, Some( &gpu_tex.texture ) );
         use_texture = true;
