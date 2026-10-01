@@ -1678,7 +1678,7 @@ fn vertex_corners_wildcard_edge_fade()
 /// Build the single-terrain dual-grid spec used by the orient_to_grid tests:
 /// one `hexagon` object that both marks terrain (`priority`) and carries the
 /// `VertexCorners` layer (`orient_to_grid: true`) routing the canonical
-/// full/edge/corner frames. Mirrors `asset/dual_assets/render_spec.ron`.
+/// full/edge/corner frames.
 fn dual_orient_spec() -> RenderSpec
 {
   let mut spec = minimal_spec();
