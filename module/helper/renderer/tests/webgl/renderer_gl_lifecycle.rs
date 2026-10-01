@@ -13,7 +13,7 @@
 
 use minwebgl as gl;
 use gl::GL;
-use ::renderer::webgl::Renderer;
+use ::renderer::webgl::{ Renderer, Sampler, Texture };
 
 /// Unlike most `gl_init()` helpers in this crate, `Renderer::new` unconditionally builds
 /// its `FramebufferContext` with `RGBA16F`/`R16F` multisample color attachments regardless
@@ -145,4 +145,56 @@ fn renderer_resize_replaces_bloom_and_swap_buffer_cleanly_across_repeated_resize
   // The struct-level invariant the fix protects: at no point after `resize()` returns `Ok`
   // is either field ever `None` while `use_emission` is true, nor holding a stale handle --
   // each `resize()` call fully replaces both fields before returning.
+}
+
+/// A texture `gl.is_texture` recognises: WebGL only reports a texture name as a
+/// texture once it has been bound.
+fn bound_texture( gl : &GL ) -> gl::web_sys::WebGlTexture
+{
+  let texture = gl.create_texture().unwrap();
+  gl.bind_texture( gl::TEXTURE_2D, Some( &texture ) );
+  gl.bind_texture( gl::TEXTURE_2D, None );
+  texture
+}
+
+/// The renderer keeps the skybox `Texture` it is given: an owning skybox whose
+/// caller kept no clone (as `Texture::load_from_path`'s callers do) must stay
+/// alive while it is the skybox, survive `resize()`, and be deleted once
+/// clearing the skybox drops its last owner. Before, `skybox_set` stored only
+/// the raw handle, so the owning `Texture` deleted it as soon as the caller's
+/// copy dropped, and `resize()` deleted it a second time.
+#[ wasm_bindgen_test::wasm_bindgen_test ]
+fn renderer_keeps_owning_skybox_alive_across_resize()
+{
+  let gl = gl_init();
+  let mut renderer = Renderer::new( &gl, 64, 64, 4 )
+  .expect( "Renderer::new should succeed on a valid context" );
+  let source = bound_texture( &gl );
+
+  renderer.skybox_set( Some( Texture::owning( &gl, gl::TEXTURE_2D, source.clone(), Sampler::default() ) ) );
+  assert!( gl.is_texture( Some( &source ) ), "the renderer must keep an owning skybox alive" );
+
+  renderer.resize( &gl, 32, 32, 4 ).expect( "resize should succeed" );
+  assert!( gl.is_texture( Some( &source ) ), "resize() must not delete the skybox" );
+
+  renderer.skybox_set( None );
+  assert!( !gl.is_texture( Some( &source ) ), "clearing the skybox must release its last owner" );
+}
+
+/// A non-owning skybox view stays its creator's: neither `resize()` nor
+/// `gl_resources_free` may delete it.
+#[ wasm_bindgen_test::wasm_bindgen_test ]
+fn renderer_never_deletes_a_view_skybox()
+{
+  let gl = gl_init();
+  let mut renderer = Renderer::new( &gl, 64, 64, 4 )
+  .expect( "Renderer::new should succeed on a valid context" );
+  let source = bound_texture( &gl );
+
+  renderer.skybox_set( Some( Texture::former().source( source.clone() ).form() ) );
+  renderer.resize( &gl, 32, 32, 4 ).expect( "resize should succeed" );
+  assert!( gl.is_texture( Some( &source ) ), "resize() must not delete a view skybox" );
+
+  renderer.gl_resources_free( &gl );
+  assert!( gl.is_texture( Some( &source ) ), "gl_resources_free must not delete a view skybox" );
 }
