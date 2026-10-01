@@ -4,7 +4,7 @@
 //! by one shared helper, but each pass calls it from its own emit site; a
 //! pass that went back to passing the bare global tint would drop the layer
 //! tint silently. Every case below places one object whose single layer is
-//! drawn by a different pass, and checks both behaviours on it.
+//! drawn by a different pass, and checks every behaviour on it.
 
 mod common;
 
@@ -129,6 +129,30 @@ fn render( case : &PassCase, spec : &RenderSpec ) -> Result< Vec< Sprite >, Comp
   }).collect() )
 }
 
+/// Asserts every sprite `case` emits under `tint` carries `expected`.
+fn tint_assert( case : &PassCase, tint : &str, expected : [ f32; 4 ] )
+{
+  let sprites = render( case, &spec_for( case, tint ) )
+    .unwrap_or_else( | e | panic!( "{}: render: {e}", case.pass ) );
+  assert!( !sprites.is_empty(), "{}: the case must emit at least one sprite", case.pass );
+  for sprite in &sprites
+  {
+    let close = sprite.tint.iter().zip( expected ).all( | ( a, e ) | ( a - e ).abs() < 1e-5 );
+    assert!( close, "{}: tint {:?}, expected {expected:?}", case.pass, sprite.tint );
+  }
+}
+
+/// `None` leaves the global tint unchanged on every pass.
+#[ test ]
+fn no_tint_keeps_global_tint_on_every_pass()
+{
+  let grey = 128.0 / 255.0;
+  for case in CASES
+  {
+    tint_assert( case, "None", [ grey, grey, grey, 1.0 ] );
+  }
+}
+
 /// `Flat` multiplies the named tint into the global tint on every pass, with
 /// the tint's `strength` blending its colour towards identity:
 /// grey `[ 128/255; 3 ]` × half-strength blue `[ 0.5, 0.5, 1, 1 ]`.
@@ -139,14 +163,7 @@ fn flat_tint_composes_with_global_tint_on_every_pass()
   let expected = [ grey * 0.5, grey * 0.5, grey, 1.0 ];
   for case in CASES
   {
-    let sprites = render( case, &spec_for( case, r#"Flat( ( "half_blue" ) )"# ) )
-      .unwrap_or_else( | e | panic!( "{}: render: {e}", case.pass ) );
-    assert!( !sprites.is_empty(), "{}: the case must emit at least one sprite", case.pass );
-    for sprite in &sprites
-    {
-      let close = sprite.tint.iter().zip( expected ).all( | ( a, e ) | ( a - e ).abs() < 1e-5 );
-      assert!( close, "{}: tint {:?}, expected {expected:?}", case.pass, sprite.tint );
-    }
+    tint_assert( case, r#"Flat( ( "half_blue" ) )"#, expected );
   }
 }
 

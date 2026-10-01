@@ -58,7 +58,6 @@ use tilemap_scene::
   Tile,
   TilingStrategy,
   Tint,
-  TintBehaviour,
   TintRef,
   TriBlendPattern,
   Validate,
@@ -1957,91 +1956,6 @@ fn vertex_corners_orient_to_grid_triple_wildcard_allocates_six()
   assert!( try_compile( &spec, &scene, &Camera::default() ).is_ok(), "triple-wildcard orient scene must compile without UnresolvedRef" );
 }
 
-/// A per-object `behaviour.tint: Flat(..)` must colour every dual-grid
-/// (VertexCorners) sprite that object emits — the path used by per-player
-/// region overlays. Before this was wired, `compile_vertex_pass` hardcoded the
-/// global tint and silently ignored the layer's own tint. A lone hex with a
-/// pure-red flat tint should emit corner sprites tinted ≈ [1, 0, 0, 1].
-#[ test ]
-fn vertex_corners_layer_flat_tint_colours_sprites()
-{
-  let mut spec = dual_orient_spec();
-  spec.tints.push( Tint
-  {
-    id : "red".into(),
-    color : "#ff0000".into(),
-    strength : 1.0,
-    mode : BlendMode::Multiply,
-  });
-  // Set the hexagon object's VertexCorners layer to a flat red tint.
-  let stack = spec.objects[ 0 ].states.get_mut( "default" ).expect( "default state" );
-  stack[ 0 ].behaviour.tint = TintBehaviour::Flat( TintRef( "red".into() ) );
-
-  let scene = SceneSnapshot
-  {
-    tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "hexagon".into() ] } ],
-    ..minimal_scene_3x3()
-  };
-  let _compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
-  let cmds = at_time_compile( &spec, &scene, &Camera::default(), 0.0 );
-
-  let sprites = sprite_commands( &cmds );
-  assert!( !sprites.is_empty(), "lone hex must emit dual corner sprites" );
-  for s in &sprites
-  {
-    let t = s.tint;
-    assert!( ( t[ 0 ] - 1.0 ).abs() < 1e-5, "red preserved: {t:?}" );
-    assert!( t[ 1 ].abs() < 1e-5, "green zeroed by flat tint: {t:?}" );
-    assert!( t[ 2 ].abs() < 1e-5, "blue zeroed by flat tint: {t:?}" );
-    assert!( ( t[ 3 ] - 1.0 ).abs() < 1e-5, "alpha unchanged: {t:?}" );
-  }
-}
-
-/// Regression: a VertexCorners layer with the default `TintBehaviour::None`
-/// still emits the global tint (here identity white), proving the per-object
-/// tint change didn't disturb the untinted path.
-#[ test ]
-fn vertex_corners_layer_no_tint_is_identity()
-{
-  let spec = dual_orient_spec();
-  let scene = SceneSnapshot
-  {
-    tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "hexagon".into() ] } ],
-    ..minimal_scene_3x3()
-  };
-  let _compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
-  let cmds = at_time_compile( &spec, &scene, &Camera::default(), 0.0 );
-  let sprites = sprite_commands( &cmds );
-  assert!( !sprites.is_empty() );
-  for s in &sprites
-  {
-    assert_eq!( s.tint, [ 1.0, 1.0, 1.0, 1.0 ], "untinted dual sprite stays white" );
-  }
-}
-
-/// `TintBehaviour::Masked` is not implemented for VertexCorners. It must be
-/// rejected with `CompileError::UnsupportedBehaviour` rather than silently
-/// falling through to the global tint (which discards the mask + tint).
-#[ test ]
-fn vertex_corners_layer_masked_tint_is_rejected()
-{
-  let mut spec = dual_orient_spec();
-  let stack = spec.objects[ 0 ].states.get_mut( "default" ).expect( "default state" );
-  stack[ 0 ].behaviour.tint = TintBehaviour::Masked
-  {
-    mask : Box::new( SpriteSource::Static( SpriteRef { asset : "dual".into(), frame : "dual_full_0".into() } ) ),
-    tint : tilemap_scene::MaskTint::TeamColor,
-  };
-
-  let scene = SceneSnapshot
-  {
-    tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "hexagon".into() ] } ],
-    ..minimal_scene_3x3()
-  };
-  let err = try_compile( &spec, &scene, &Camera::default() ).expect_err( "Masked must be rejected" );
-  assert!( matches!( err, CompileError::UnsupportedBehaviour { .. } ), "expected UnsupportedBehaviour, got {err:?}" );
-}
-
 /// `offset: Some((dx,dy))` must shift every emitted VertexCorners sprite's
 /// position by exactly that world delta — and nothing else. Same scene with and
 /// without the offset must pick the SAME frames (offset does not touch corner
@@ -2128,65 +2042,6 @@ fn vertex_corners_offset_sorts_at_unshifted_centroid()
     let dy = copy.transform.position[ 1 ] - plain.transform.position[ 1 ];
     assert!( ( dy - DY ).abs() < 1e-3, "second of each pair must be the shifted copy (dy = {DY}); got {dy}" );
   }
-}
-
-/// `TintBehaviour::Flat` must colour a regular hex instance layer, not only
-/// VertexCorners. Before this was wired, `compile_instance_layer` passed the
-/// global tint straight to `final_tint` and silently discarded the layer's
-/// `Flat` tint. A grass tile with a pure-red flat tint should emit ≈[1,0,0,1].
-#[ test ]
-fn instance_layer_flat_tint_colours_sprite()
-{
-  let mut spec = minimal_spec();
-  spec.tints.push( Tint
-  {
-    id : "red".into(),
-    color : "#ff0000".into(),
-    strength : 1.0,
-    mode : BlendMode::Multiply,
-  });
-  let stack = spec.objects[ 0 ].states.get_mut( "default" ).expect( "default state" );
-  stack[ 0 ].behaviour.tint = TintBehaviour::Flat( TintRef( "red".into() ) );
-
-  let scene = SceneSnapshot
-  {
-    tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "grass".into() ] } ],
-    ..minimal_scene_3x3()
-  };
-  let cmds = compile( &spec, &scene, &Camera::default() );
-  let sprites = sprite_commands( &cmds );
-  assert!( !sprites.is_empty(), "grass tile must emit a sprite" );
-  for s in &sprites
-  {
-    let t = s.tint;
-    assert!( ( t[ 0 ] - 1.0 ).abs() < 1e-5, "red preserved on instance layer: {t:?}" );
-    assert!( t[ 1 ].abs() < 1e-5, "green zeroed by flat tint: {t:?}" );
-    assert!( t[ 2 ].abs() < 1e-5, "blue zeroed by flat tint: {t:?}" );
-    assert!( ( t[ 3 ] - 1.0 ).abs() < 1e-5, "alpha unchanged: {t:?}" );
-  }
-}
-
-/// `TintBehaviour::Masked` on a regular instance layer is rejected with
-/// `UnsupportedBehaviour` (same contract as the VertexCorners path) rather than
-/// silently falling back to the global tint.
-#[ test ]
-fn instance_layer_masked_tint_is_rejected()
-{
-  let mut spec = minimal_spec();
-  let stack = spec.objects[ 0 ].states.get_mut( "default" ).expect( "default state" );
-  stack[ 0 ].behaviour.tint = TintBehaviour::Masked
-  {
-    mask : Box::new( SpriteSource::Static( SpriteRef { asset : "terrain".into(), frame : "0".into() } ) ),
-    tint : tilemap_scene::MaskTint::TeamColor,
-  };
-
-  let scene = SceneSnapshot
-  {
-    tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "grass".into() ] } ],
-    ..minimal_scene_3x3()
-  };
-  let err = try_compile( &spec, &scene, &Camera::default() ).expect_err( "Masked must be rejected" );
-  assert!( matches!( err, CompileError::UnsupportedBehaviour { .. } ), "expected UnsupportedBehaviour, got {err:?}" );
 }
 
 /// `corner_source`: two independent dual grids in ONE scene. A cell carrying

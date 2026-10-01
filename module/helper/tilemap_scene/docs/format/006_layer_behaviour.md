@@ -66,5 +66,6 @@ New `BlendMode` variants are owned by `tilemap_renderer`, not this crate — a b
 
 | File | Relationship |
 |------|--------------|
-| `tests/scene_model_compile_test.rs` | Behaviour field coverage: `Flat` tint composition and compile-time `Masked` rejection |
+| `tests/scene_model_compile_test.rs` | `blend` and `alpha` field coverage, and `alpha` composed with the global tint |
+| `tests/layer_tint_compile_test.rs` | `None` pass-through, `Flat` tint composition and compile-time `Masked` rejection on every sprite-emitting compile pass |
 | `tests/scene_model_test.rs` | `Masked` parsing and its load-time rejection by `validate()` |
