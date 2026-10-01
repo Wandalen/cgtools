@@ -22,7 +22,9 @@ mod private
   #[ derive( Former, Clone, Debug ) ]
   pub struct Texture
   {
-    /// The target of the texture (e.g., `TEXTURE_2D`, `TEXTURE_CUBE_MAP`).  Defaults to `TEXTURE_2D`.
+    /// The target of the texture (e.g., `TEXTURE_2D`, `TEXTURE_CUBE_MAP`).  Defaults to `TEXTURE_2D`,
+    /// for the `Former` builder as well as `Default`.
+    #[ former( default = gl::TEXTURE_2D ) ]
     pub target : u32,
     /// The actual WebGL texture object.  Wrapped in an `Option` as it may not always be initialized.
     pub source : Option< gl::web_sys::WebGlTexture >,

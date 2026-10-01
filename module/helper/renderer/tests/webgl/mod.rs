@@ -27,6 +27,9 @@ mod camera;
 /// PBR material tests
 mod pbr_material;
 
+/// `Texture` builder and `Default` target / ownership defaults
+mod texture;
+
 /// Shadow-baking Light tests
 mod shadow;
 
