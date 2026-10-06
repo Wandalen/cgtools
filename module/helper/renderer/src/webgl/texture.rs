@@ -109,6 +109,8 @@ mod private
     ///
     /// The image uploads when it arrives. If every clone of the returned `Texture` has
     /// been dropped by then, the GPU texture is already deleted and the upload is skipped.
+    /// If the image fails to load, the failure is logged to the console and the texture
+    /// stays without image data.
     ///
     /// # Panics
     ///
@@ -139,34 +141,45 @@ mod private
       // raw handle, so once this owning `Texture` dropped it would still bind the deleted
       // texture. WebGL rejects that with INVALID_OPERATION and keeps the previous binding,
       // so the image and filter settings would land in whatever texture is bound. A
-      // forgotten closure can't be cancelled; it reaches the texture through a `Weak`
+      // pending handler can't be cancelled; it reaches the texture through a `Weak`
       // owner instead (a strong `Rc` there would keep the texture alive forever).
-      let load : Closure< dyn Fn() > = Closure::new
+      //
+      // One `FnOnce` handler serves as both `onload` and `onerror`. The image fires
+      // exactly one of them, and wasm-bindgen frees a `once_into_js` closure, with the
+      // image and the `gl` clone it holds, after its call, instead of keeping a
+      // forgotten closure alive for the page's lifetime.
+      let settle = Closure::once_into_js
       (
         {
           let gl = gl.clone();
           let img = img.clone();
-          move ||
+          let image_path = image_path.to_owned();
+          move | event : web_sys::Event |
           {
-            if let Some( owner ) = owner.upgrade()
+            img.set_onload( None );
+            img.set_onerror( None );
+            if event.type_() == "error"
             {
-              if flip
-              {
-                gl::texture::d2::upload( &gl, Some( &owner.texture ), &img );
-              }
-              else
-              {
-                gl::texture::d2::upload_no_flip( &gl, Some( &owner.texture ), &img );
-              }
-              gl::texture::d2::filter_linear( &gl );
+              gl::browser::error!( "Failed to load texture image '{image_path}'" );
+              return;
             }
-            img.remove();
+            // Every clone dropped: the texture is deleted, so there is nothing to upload into.
+            let Some( owner ) = owner.upgrade() else { return };
+            if flip
+            {
+              gl::texture::d2::upload( &gl, Some( &owner.texture ), &img );
+            }
+            else
+            {
+              gl::texture::d2::upload_no_flip( &gl, Some( &owner.texture ), &img );
+            }
+            gl::texture::d2::filter_linear( &gl );
           }
         }
       );
-      img.set_onload( Some( load.as_ref().unchecked_ref() ) );
+      img.set_onload( Some( settle.unchecked_ref() ) );
+      img.set_onerror( Some( settle.unchecked_ref() ) );
       img.set_src( image_path );
-      load.forget();
 
       texture
     }
