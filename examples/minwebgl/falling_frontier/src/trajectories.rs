@@ -67,7 +67,7 @@ impl Trajectories
 
   /// Uploads the frame's view/projection/resolution to every ribbon and
   /// draws it. Whether to draw at all is the caller's call
-  /// (`GridTuning::show_trajectories`).
+  /// (`RenderLayers::show_trajectories`, held as `GridTuning::layers`).
   pub fn draw( &mut self, gl : &GL, view : gl::F32x4x4, projection : gl::F32x4x4, resolution : [ f32; 2 ] )
   {
     for line in &mut self.ribbons
