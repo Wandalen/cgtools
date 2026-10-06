@@ -207,7 +207,7 @@ mod private
       if let Some( tex_id ) = params.texture
         && let Some( gpu_tex ) = resources.texture( tex_id )
       {
-        // A pending image is skipped, as in `cmd_mesh`.
+        // Fix(BUG-537): a pending image is skipped, as in `cmd_mesh`.
         if gpu_tex.width.get() == 0 || gpu_tex.height.get() == 0 { return; }
         gl.active_texture( gl::TEXTURE0 );
         gl.bind_texture( gl::TEXTURE_2D, Some( &gpu_tex.texture ) );

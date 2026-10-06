@@ -253,9 +253,12 @@ mod private
       let mut use_texture = false;
       if let Some( tex_id ) = m.texture && let Some( gpu_tex ) = res.texture( tex_id )
       {
-        // Skipped like `cmd_sprite` skips a pending sheet: the image's async
-        // decode hasn't landed ( or failed ), and a texture with no level-0
-        // image samples as opaque black.
+        // Fix(BUG-537): skipped like `cmd_sprite` skips a pending sheet: the
+        // image's async decode hasn't landed ( or failed ), and a texture with
+        // no level-0 image samples as opaque black.
+        // Root cause: `Path` / `Encoded` images are registered 0×0 until
+        // `on_load` uploads them, and only the sprite paths checked the size.
+        // Pitfall: every draw path that binds an image texture has to check it.
         if gpu_tex.width.get() == 0 || gpu_tex.height.get() == 0 { return Ok( () ); }
         self.gl.active_texture( gl::TEXTURE0 );
         self.gl.bind_texture( gl::TEXTURE_2D, Some( &gpu_tex.texture ) );
@@ -1015,13 +1018,17 @@ mod private
   {
     fn assets_load( &mut self, assets : &Assets ) -> Result< (), RenderError >
     {
-      // After a loss, the GPU state this backend built in `new` is gone too: a
-      // restored context has none of the objects created before the loss and
-      // starts from default GL state. Rebuild the shader programs and re-apply
-      // that state before re-uploading, or every draw would use a program from
-      // the lost context with blending and depth testing off. While the context
-      // is still lost nothing can be uploaded, so report that instead of
-      // clearing `context_lost` over an empty context.
+      // Fix(BUG-538): after a loss, the GPU state this backend built in `new`
+      // is gone too: a restored context has none of the objects created before
+      // the loss and starts from default GL state. Rebuild the shader programs
+      // and re-apply that state before re-uploading, or every draw would use a
+      // program from the lost context with blending and depth testing off.
+      // While the context is still lost nothing can be uploaded, so report that
+      // instead of clearing `context_lost` over an empty context.
+      // Root cause: only `new` built the programs and GL state, and BUG-441's
+      // fix re-uploaded the assets alone before clearing the flag.
+      // Pitfall: a restored context keeps nothing from before the loss, not
+      // even programs or enabled capabilities.
       if self.context_lost.get()
       {
         if self.gl.is_context_lost()

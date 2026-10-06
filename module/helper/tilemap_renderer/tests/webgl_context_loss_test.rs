@@ -121,6 +121,29 @@ fn red_sprite_assets() -> Assets
 /// starts from default state, so `assets_load` has to rebuild the shader
 /// programs and re-apply `new()`'s GL state too. Before it did, the sprite
 /// below used a program from the lost context and only the clear showed.
+///
+/// ## Root Cause
+/// Only `new` built the shader programs and the GL state, and BUG-441's fix had
+/// `assets_load` re-upload the assets alone before clearing `context_lost`. It
+/// also cleared the flag while the context was still lost, over nothing.
+///
+/// ## Why Not Caught
+/// BUG-441's test simulates the loss by setting the flag, so the context and
+/// its programs were never actually lost.
+///
+/// ## Fix Applied
+/// `assets_load` after a loss returns `ContextLost` while the context is still
+/// lost, and otherwise rebuilds both renderers and re-applies `new`'s GL state
+/// ( `renderers_new` / `gl_state_init` ) before re-uploading.
+///
+/// ## Prevention
+/// Drives a real loss and restore through `WEBGL_lose_context` and requires
+/// both the `ContextLost` error during the loss and a drawn sprite after it.
+///
+/// ## Pitfall
+/// A restored context keeps nothing from before the loss, not even programs or
+/// enabled capabilities; a simulated loss can't show that.
+// test_kind: bug_reproducer(BUG-538)
 #[ wasm_bindgen_test ]
 async fn assets_load_after_real_restore_draws_again()
 {

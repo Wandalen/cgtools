@@ -114,6 +114,24 @@ fn pixel_before_decode( draw : impl FnOnce( Transform ) -> Vec< RenderCommand > 
 
 /// A textured mesh whose image is still decoding is skipped, like a sprite on
 /// a pending sheet, instead of sampling the empty texture as opaque black.
+///
+/// ## Root Cause
+/// `Path` / `Encoded` images are registered as a 0×0 texture with no level-0
+/// image until the decode lands, and only the sprite paths skipped such a
+/// texture; both mesh paths bound it and sampled opaque black.
+///
+/// ## Why Not Caught
+/// No test drew a mesh on an image that loads asynchronously.
+///
+/// ## Fix Applied
+/// `cmd_mesh` and `MeshRenderer::batch_draw` return early on a 0×0 texture.
+///
+/// ## Prevention
+/// Draws the mesh in the same task as `assets_load` and requires the clear.
+///
+/// ## Pitfall
+/// Every draw path that binds an image texture has to check that it has pixels.
+// test_kind: bug_reproducer(BUG-537)
 #[ wasm_bindgen_test ]
 fn textured_mesh_waits_for_its_image()
 {
@@ -135,6 +153,25 @@ fn textured_mesh_waits_for_its_image()
 }
 
 /// The mesh batch path skips a pending texture the same way.
+///
+/// ## Root Cause
+/// `Path` / `Encoded` images are registered as a 0×0 texture with no level-0
+/// image until the decode lands, and only the sprite paths skipped such a
+/// texture; both mesh paths bound it and sampled opaque black.
+///
+/// ## Why Not Caught
+/// No test drew a mesh on an image that loads asynchronously.
+///
+/// ## Fix Applied
+/// `cmd_mesh` and `MeshRenderer::batch_draw` return early on a 0×0 texture.
+///
+/// ## Prevention
+/// Draws the mesh batch in the same task as `assets_load` and requires the
+/// clear.
+///
+/// ## Pitfall
+/// Every draw path that binds an image texture has to check that it has pixels.
+// test_kind: bug_reproducer(BUG-537)
 #[ wasm_bindgen_test ]
 fn textured_mesh_batch_waits_for_its_image()
 {
@@ -163,6 +200,25 @@ fn textured_mesh_batch_waits_for_its_image()
 
 /// The skip only lasts until the decode lands: the same textured mesh, drawn
 /// again once the browser has decoded the image, shows the white texel.
+///
+/// ## Root Cause
+/// `Path` / `Encoded` images are registered as a 0×0 texture with no level-0
+/// image until the decode lands, and only the sprite paths skipped such a
+/// texture; both mesh paths bound it and sampled opaque black.
+///
+/// ## Why Not Caught
+/// No test drew a mesh on an image that loads asynchronously.
+///
+/// ## Fix Applied
+/// `cmd_mesh` and `MeshRenderer::batch_draw` return early on a 0×0 texture.
+///
+/// ## Prevention
+/// Waits for the decode and requires the white texel. Before the fix the
+/// first frame already drew black, so the wait ended there and the check failed.
+///
+/// ## Pitfall
+/// Every draw path that binds an image texture has to check that it has pixels.
+// test_kind: bug_reproducer(BUG-537)
 #[ wasm_bindgen_test ]
 async fn textured_mesh_draws_once_its_image_decodes()
 {
