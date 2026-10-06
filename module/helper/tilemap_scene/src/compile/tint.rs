@@ -139,12 +139,14 @@ mod private
       Ok( Self { spec, global, resolved } )
     }
 
-    /// The final tint of one sprite: [`Self::layer_base_tint`] with the layer
-    /// alpha folded into the alpha channel, times the instance tint.
+    /// The final tint of one sprite: the layer's base tint (the global tint,
+    /// times the `Flat` tint if the layer declares one) with the layer alpha
+    /// folded into the alpha channel, times the instance tint.
     ///
     /// # Errors
     ///
-    /// Same as [`Self::layer_base_tint`].
+    /// [`CompileError::UnsupportedBehaviour`] for a `Masked` layer tint;
+    /// otherwise the errors of [`resolve_tint_ref`] for a `Flat` one.
     pub fn sprite_tint
     (
       &self,
@@ -169,6 +171,8 @@ mod private
     }
 
     /// Resolve a layer's [`TintBehaviour`] into its base RGBA multiplier.
+    /// Private on purpose: an emit site that took it directly would skip the
+    /// layer alpha and instance tint that [`Self::sprite_tint`] folds in.
     ///
     /// - `None` → the global tint unchanged.
     /// - `Flat(ref)` → global tint multiplied by the named tint, so each layer
@@ -180,7 +184,7 @@ mod private
     ///
     /// [`CompileError::UnsupportedBehaviour`] for `Masked`; otherwise the
     /// errors of [`resolve_tint_ref`].
-    pub fn layer_base_tint( &self, object : &Object, behaviour : &LayerBehaviour ) -> Result< [ f32; 4 ], CompileError >
+    fn layer_base_tint( &self, object : &Object, behaviour : &LayerBehaviour ) -> Result< [ f32; 4 ], CompileError >
     {
       let global = self.global;
       match &behaviour.tint
