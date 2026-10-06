@@ -27,6 +27,7 @@ tests/
   webgl_backend_test.rs — WebGlBackend::declared_capabilities pure-function contract (feature adapter-webgl)
   webgl_context_loss_test.rs — WebGlBackend context_lost lifecycle against a live context (feature adapter-webgl + test_internals, wasm32)
   webgl_premultiplied_test.rs — WebGlBackend premultiplied-alpha compositing, pixel read-back against a live context (feature adapter-webgl, wasm32)
+  webgl_pending_image_test.rs — WebGlBackend draws on an image still decoding, pixel read-back against a live context (feature adapter-webgl, wasm32)
   command_consistency_test.rs — cross-backend capabilities-vs-submit() consistency (none/svg/native)
   types_test.rs         — Transform, ResourceId, RenderConfig
 ```
