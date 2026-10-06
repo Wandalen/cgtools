@@ -13,6 +13,7 @@ and what the expected outcome is.
 tests/
   helpers/
     mod.rs              — shared fixtures (empty_assets, …)
+    webgl.rs            — live WebGL2 context fixtures for the browser suites (gl_init, sleep, pixel_read, f32_bytes; wasm32 + adapter-webgl)
   manual/
     readme.md            — scripted browsee browser pixel-verification procedure (adapter-webgpu, adapter-webgl)
   assets_test.rs        — Assets validation domain

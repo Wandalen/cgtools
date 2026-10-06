@@ -13,6 +13,10 @@
 
 #![ cfg( all( target_arch = "wasm32", feature = "adapter-webgl", feature = "test_internals" ) ) ]
 
+mod helpers;
+
+use helpers::empty_assets;
+use helpers::webgl::{ gl_init, pixel_read, sleep };
 use minwebgl as gl;
 use tilemap_renderer::adapters::webgl::WebGlBackend;
 use tilemap_renderer::assets::{ Assets, ImageAsset, ImageSource, PixelFormat, SpriteAsset };
@@ -23,40 +27,12 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen_test::wasm_bindgen_test;
 
 // Browser, not Node: `web_sys::window()` is `None` under Node, so `gl_init`
-// below fails at runtime there with a misleading
+// ( `helpers/webgl.rs` ) fails at runtime there with a misleading
 // `CanvasRetrievingError("Failed to get window")` rather than at compile time.
 // Each file under `tests/` is its own binary, so this call belongs in each of
 // them — it used to live in `src/lib.rs`'s `mod private`, back when this test
 // was inline and therefore part of the `--lib` test binary.
 wasm_bindgen_test::wasm_bindgen_test_configure!( run_in_browser );
-
-/// Builds a real, live WebGL2 context via a headless browser canvas. Same helper shape as
-/// `renderer`'s `tests/webgl/*.rs::gl_init()` ( `gl::browser::setup` / `gl::canvas::make` /
-/// `gl::context::from_canvas_with` ) — `tilemap_renderer` had no prior live-context test of
-/// its own to reuse, so this mirrors that crate's proven pattern rather than introducing a
-/// new one.
-fn gl_init() -> gl::GL
-{
-  gl::browser::setup( gl::browser::Config::default() );
-  let options = gl::context::ContextOptions::default();
-  let canvas = gl::canvas::make().unwrap();
-  gl::context::from_canvas_with( &canvas, options ).unwrap()
-}
-
-fn empty_assets() -> Assets
-{
-  Assets
-  {
-    fonts : Vec::new(),
-    images : Vec::new(),
-    sprites : Vec::new(),
-    geometries : Vec::new(),
-    gradients : Vec::new(),
-    patterns : Vec::new(),
-    clip_masks : Vec::new(),
-    paths : Vec::new(),
-  }
-}
 
 /// ## Root Cause
 /// `context_lost` used to be cleared by the `webglcontextrestored` DOM listener the
@@ -107,17 +83,6 @@ fn assets_load_clears_context_lost_after_simulated_loss()
   assert!( !backend.context_lost_for_test(), "assets_load must clear context_lost after re-uploading GPU state" );
   assert!( backend.submit( &[] ).is_ok(), "submit must succeed again once assets_load has run" );
   assert!( backend.output().is_ok(), "output must succeed again once assets_load has run" );
-}
-
-/// Resolves after `ms` milliseconds, giving the browser a task to dispatch the
-/// context events in.
-async fn sleep( ms : i32 )
-{
-  let promise = gl::js_sys::Promise::new( &mut | resolve, _reject |
-  {
-    web_sys::window().unwrap().set_timeout_with_callback_and_timeout_and_arguments_0( &resolve, ms ).unwrap();
-  });
-  gl::JsFuture::from( promise ).await.unwrap();
 }
 
 /// Calls `method` ( `loseContext` / `restoreContext` ) on a `WEBGL_lose_context`
@@ -191,7 +156,6 @@ async fn assets_load_after_real_restore_draws_again()
     RenderCommand::Sprite( Sprite { transform, sprite : ResourceId::new( 0 ), tint : [ 1.0; 4 ], blend : BlendMode::Normal, clip : None } ),
   ]).unwrap();
 
-  let mut pixel = [ 0_u8; 4 ];
-  gl.read_pixels_with_opt_u8_array( 0, 0, 1, 1, gl::RGBA, gl::UNSIGNED_BYTE, Some( &mut pixel ) ).unwrap();
+  let pixel = pixel_read( &gl );
   assert_eq!( pixel, [ 255, 0, 0, 255 ], "the sprite must draw after the restore" );
 }

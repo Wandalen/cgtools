@@ -18,7 +18,9 @@
 
 #![ cfg( all( target_arch = "wasm32", feature = "adapter-webgl" ) ) ]
 
-use minwebgl as gl;
+mod helpers;
+
+use helpers::webgl::{ f32_bytes, gl_init, pixel_read, sleep };
 use tilemap_renderer::adapters::webgl::WebGlBackend;
 use tilemap_renderer::assets::{ Assets, DataType, GeometryAsset, ImageAsset, ImageSource, PixelFormat, Source, SpriteAsset };
 use tilemap_renderer::backend::Backend;
@@ -63,21 +65,6 @@ const QUARTER_WHITE_OVER_GREY : [ u8; 4 ] = [ 159, 159, 159, 159 ];
 /// 50% white added to [`BACKGROUND`]: colour `0.502 + 0.5` saturates, alpha
 /// still composites "over" as under `Normal`.
 const HALF_WHITE_ADDED_TO_GREY : [ u8; 4 ] = [ 255, 255, 255, 191 ];
-
-/// Same live-context helper as `webgl_context_loss_test.rs::gl_init`.
-fn gl_init() -> gl::GL
-{
-  gl::browser::setup( gl::browser::Config::default() );
-  let options = gl::context::ContextOptions::default();
-  let canvas = gl::canvas::make().unwrap();
-  gl::context::from_canvas_with( &canvas, options ).unwrap()
-}
-
-/// Little-endian `f32` bytes for a geometry `Source::Bytes` buffer.
-fn f32_bytes( values : &[ f32 ] ) -> Vec< u8 >
-{
-  values.iter().flat_map( | v | v.to_le_bytes() ).collect()
-}
 
 /// One 1×1 RGBA image ( id 0 ), one sprite ( id 0 ) covering it and one unit
 /// quad geometry ( id 0, non-indexed triangle list with matching UVs ).
@@ -133,9 +120,7 @@ fn pixel_after( assets : &Assets, draw : impl FnOnce( Transform ) -> Vec< Render
   commands.extend( draw( full_view ) );
   backend.submit( &commands ).unwrap();
 
-  let mut pixel = [ 0_u8; 4 ];
-  gl.read_pixels_with_opt_u8_array( 0, 0, 1, 1, gl::RGBA, gl::UNSIGNED_BYTE, Some( &mut pixel ) ).unwrap();
-  pixel
+  pixel_read( &gl )
 }
 
 /// Single `Sprite` command over the whole viewport.
@@ -403,17 +388,6 @@ fn mesh_batch_premultiplied_matches_straight()
   assert_pixel_close( premultiplied, straight, "premultiplied mesh batch, instance alpha 0.5" );
 }
 
-/// Resolves after `ms` milliseconds, giving the browser a task to run the
-/// image decode in.
-async fn sleep( ms : i32 )
-{
-  let promise = gl::js_sys::Promise::new( &mut | resolve, _reject |
-  {
-    web_sys::window().unwrap().set_timeout_with_callback_and_timeout_and_arguments_0( &resolve, ms ).unwrap();
-  });
-  gl::JsFuture::from( promise ).await.unwrap();
-}
-
 /// A 1×1 RGBA PNG tagged with a linear `gAMA` chunk ( gamma 1.0 ), which tells
 /// the browser its values are linear light rather than sRGB.
 fn linear_tagged_png( texel : [ u8; 4 ] ) -> Vec< u8 >
@@ -452,8 +426,7 @@ async fn premultiplied_encoded_image_skips_colour_conversion()
   // the loop also ends on the drawn pixel, whose alpha is 191.
   let clear = [ RenderCommand::Clear( Clear { color : BACKGROUND } ) ];
   backend.submit( &clear ).unwrap();
-  let mut background = [ 0_u8; 4 ];
-  gl.read_pixels_with_opt_u8_array( 0, 0, 1, 1, gl::RGBA, gl::UNSIGNED_BYTE, Some( &mut background ) ).unwrap();
+  let background = pixel_read( &gl );
 
   let commands =
   [
@@ -465,7 +438,7 @@ async fn premultiplied_encoded_image_skips_colour_conversion()
   {
     sleep( 10 ).await;
     backend.submit( &commands ).unwrap();
-    gl.read_pixels_with_opt_u8_array( 0, 0, 1, 1, gl::RGBA, gl::UNSIGNED_BYTE, Some( &mut pixel ) ).unwrap();
+    pixel = pixel_read( &gl );
     if pixel != background { break; }
   }
 
