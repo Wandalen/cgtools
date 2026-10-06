@@ -3,9 +3,12 @@
 //! panel (`layers_panel`); held as `GridTuning::layers`, so the panel, the
 //! frame loop and the pick pass all read the one shared tuning state.
 
-/// One switch per distinct draw call/pass in `main.rs`'s frame closure, so
-/// any combination of scene layers can be shown alone or hidden alone (e.g.
-/// "only the grid", "everything but asteroids").
+/// The scene layers (grid, background, starfield, asteroids, ships,
+/// station) are one switch per draw pass in `main.rs`'s frame closure, so
+/// any combination of them can be shown alone or hidden alone (e.g. "only
+/// the grid", "everything but asteroids"). The other switches change how
+/// those passes look rather than drawing anything by themselves - see
+/// `layers_panel`'s module doc for how the panel groups them.
 ///
 /// `lighting_enabled` is deliberately separate from `shadows_enabled`: the
 /// former drops `hull.frag` to a flat unlit `u_color` (see hull.frag's
@@ -19,6 +22,10 @@ pub struct RenderLayers
 {
   /// Defaults to `true`, as the three.js original's grid toggle started on.
   pub show_grid : bool,
+  /// The grid pass's selection focus around a selected ship: the view-zone
+  /// ribbon together with the in-zone brightening and the asteroid glow,
+  /// which `grid.frag` computes in the same branch. Part of the grid pass,
+  /// so it has no effect while `show_grid` is off.
   pub show_view_ribbon : bool,
   pub show_background : bool,
   pub show_starfield : bool,

@@ -1,11 +1,19 @@
 //! Standalone "Render Layers" dev panel - every renderer-aspect visibility
-//! switch (grid, background, starfield, per-object-type hull rendering,
-//! view-zone ribbon, selection gizmo, lighting, shadows, CRT scanlines)
-//! united in one place, separate from `grid_tuning_panel`'s slider-heavy
-//! shader tuning controls and from `hud`'s in-game "real UI". Lets any
-//! combination of scene layers be isolated (e.g. "only the grid") or hidden
-//! (e.g. "everything but asteroids") from a single menu; the HUD no longer
-//! carries visibility toggles of its own.
+//! switch united in one place, separate from `grid_tuning_panel`'s
+//! slider-heavy shader tuning controls and from `hud`'s in-game "real UI";
+//! the HUD carries no visibility toggles of its own.
+//!
+//! The rows come in two groups. **Scene layers** (`SCENE_TOGGLES`: grid,
+//! background, starfield, asteroids, ships, station) are each a draw pass of
+//! their own, so any combination of them can be shown alone (e.g. "only the
+//! grid") or hidden alone (e.g. "everything but asteroids"). **Overlays and
+//! lighting** (`OPTION_TOGGLES`: view-zone ribbon, selection gizmo,
+//! lighting, shadows, CRT scanlines) change how the scene layers look rather
+//! than drawing a layer by themselves - the ribbon is part of the grid pass,
+//! the gizmo follows the selection, lighting and shadows shade the hulls -
+//! so they are left alone by the solo gestures. A row that only means
+//! something under another one is greyed out while that one is off:
+//! View-Zone Ribbon under Tactical Grid, Shadows under Lighting.
 //!
 //! Trajectories and ship animation have no rows here. Ship animation is
 //! driven by the HUD's Pause/Play/Fast buttons (`GridTuning::animate_ships`
@@ -16,15 +24,15 @@
 //! from `trajectories.rs`, not just hidden.
 //!
 //! Left click flips just the clicked row, same as any checkbox. Right click
-//! (`contextmenu`, default browser menu suppressed) is an unconditional
-//! "solo" gesture: the clicked row turns on and every other row turns off,
-//! no matter what was on beforehand. Shift+right click is the inverse
-//! "isolate out" gesture: the clicked row turns off and every other row
-//! turns on. Both are one-shot with no memory of prior state to toggle back
-//! to; re-solo a different row, or plain-click things back individually, to
-//! undo. Both paths go through `sync_dom` so the checkboxes (and the
-//! scanlines overlay, which lives in `hud`'s DOM, not this panel's) always
-//! reflect whatever `tuning` ends up holding.
+//! on a scene row (`contextmenu`, default browser menu suppressed) is an
+//! unconditional "solo" gesture: that layer turns on and every other scene
+//! layer turns off, no matter what was on beforehand. Shift+right click is
+//! the inverse "isolate out" gesture: that layer turns off and every other
+//! scene layer turns on. Both are one-shot with no memory of prior state to
+//! toggle back to (`scene_solo`); re-solo a different row, or plain-click
+//! things back individually, to undo. Both paths go through `sync_dom` so
+//! the checkboxes (and the scanlines overlay, which lives in `hud`'s DOM,
+//! not this panel's) always reflect whatever `tuning` ends up holding.
 //!
 //! Built via raw DOM calls (web-sys), same reasoning as `grid_tuning_panel`
 //! and `hud` - no GUI crate integration exists anywhere in this workspace.
@@ -39,23 +47,31 @@ use gl::web_sys::
 
 use super::{ grid_tuning::GridTuning, input_by_id, render_layers::RenderLayers };
 
+const SOLO_HINT : &str = "Right click: show only this scene layer&#10;Shift+Right click: hide it, show the other scene layers";
+
 /// A `label` wrapping both the text and the checkbox, so a left click
-/// anywhere on the row toggles it, as its pointer cursor promises.
-fn checkbox_row_html( id : &str, label : &str, checked : bool ) -> String
+/// anywhere on the row toggles it, as its pointer cursor promises. Scene rows
+/// carry the solo gestures' tooltip; a disabled row (see
+/// `LayerToggle::enabled`) is greyed out by the panel's own stylesheet.
+fn checkbox_row_html( toggle : &LayerToggle, t : &RenderLayers ) -> String
 {
-  let checked = if checked { "checked" } else { "" };
+  let id = toggle.id;
+  let label = toggle.label;
+  let checked = if ( toggle.get )( t ) { "checked" } else { "" };
+  let disabled = if ( toggle.enabled )( t ) { "" } else { "disabled" };
+  let title = if toggle.scene { format!( r#" title="{SOLO_HINT}""# ) } else { String::new() };
   format!
   (
-    r#"<label id="{id}-row" title="Right click: solo this layer&#10;Shift+Right click: hide this layer, show the rest" style="display:flex;justify-content:space-between;align-items:center;font-size:10px;color:#7dd3fc;margin-bottom:6px;cursor:pointer">
+    r#"<label id="{id}-row"{title} style="display:flex;justify-content:space-between;align-items:center;font-size:10px;color:#7dd3fc;margin-bottom:6px;cursor:pointer">
       <span>{label}</span>
-      <input type="checkbox" id="{id}" {checked} style="accent-color:#22d3ee">
+      <input type="checkbox" id="{id}" {checked} {disabled} style="accent-color:#22d3ee">
     </label>"#
   )
 }
 
 /// One row's id + label + the `RenderLayers` bool field it reads and writes,
 /// so every row (and the solo gesture, which needs to reach every *other*
-/// row's field too) shares one path instead of each repeating its own
+/// scene row's field too) shares one path instead of each repeating its own
 /// borrow/read/write sequence. Built with `layer_toggle!`, which writes both
 /// accessors from the one field name so they can't name different fields.
 struct LayerToggle
@@ -64,53 +80,99 @@ struct LayerToggle
   label : &'static str,
   get : fn( &RenderLayers ) -> bool,
   set : fn( &mut RenderLayers, bool ),
+  /// A scene layer the solo gestures sweep (see the module doc).
+  scene : bool,
+  /// Whether the row can be changed: `false` greys it out while the row it
+  /// depends on is off.
+  enabled : fn( &RenderLayers ) -> bool,
 }
 
 macro_rules! layer_toggle
 {
-  ( $id : literal, $label : literal, $field : ident ) =>
+  ( $id : literal, $label : literal, $field : ident, scene ) =>
   {
-    LayerToggle { id : $id, label : $label, get : | t | t.$field, set : | t, on | t.$field = on }
+    LayerToggle
+    {
+      id : $id, label : $label, get : | t | t.$field, set : | t, on | t.$field = on,
+      scene : true, enabled : | _ | true,
+    }
+  };
+  ( $id : literal, $label : literal, $field : ident, option ) =>
+  {
+    layer_toggle!( $id, $label, $field, option, | _ | true )
+  };
+  ( $id : literal, $label : literal, $field : ident, option, $enabled : expr ) =>
+  {
+    LayerToggle
+    {
+      id : $id, label : $label, get : | t | t.$field, set : | t, on | t.$field = on,
+      scene : false, enabled : $enabled,
+    }
   };
 }
 
-const LAYER_TOGGLES : &[ LayerToggle ] =
+/// Rows that are draw passes of their own - the ones the solo gestures sweep.
+const SCENE_TOGGLES : &[ LayerToggle ] =
 &[
-  layer_toggle!( "layers-show-grid", "Tactical Grid", show_grid ),
-  layer_toggle!( "layers-show-view-ribbon", "View-Zone Ribbon", show_view_ribbon ),
-  layer_toggle!( "layers-show-background", "Background", show_background ),
-  layer_toggle!( "layers-show-starfield", "Starfield", show_starfield ),
-  layer_toggle!( "layers-show-asteroids", "Asteroids", show_asteroids ),
-  layer_toggle!( "layers-show-ships", "Ships", show_ships ),
-  layer_toggle!( "layers-show-station", "Station", show_station ),
-  layer_toggle!( "layers-show-gizmo", "Selection Gizmo", show_gizmo ),
-  layer_toggle!( "layers-lighting-enabled", "Lighting", lighting_enabled ),
-  layer_toggle!( "layers-shadows-enabled", "Shadows", shadows_enabled ),
-  layer_toggle!( "layers-show-scanlines", "CRT Scanlines", show_scanlines ),
+  layer_toggle!( "layers-show-grid", "Tactical Grid", show_grid, scene ),
+  layer_toggle!( "layers-show-background", "Background", show_background, scene ),
+  layer_toggle!( "layers-show-starfield", "Starfield", show_starfield, scene ),
+  layer_toggle!( "layers-show-asteroids", "Asteroids", show_asteroids, scene ),
+  layer_toggle!( "layers-show-ships", "Ships", show_ships, scene ),
+  layer_toggle!( "layers-show-station", "Station", show_station, scene ),
 ];
 
+/// Rows that change how the scene layers look; the solo gestures leave them
+/// alone.
+const OPTION_TOGGLES : &[ LayerToggle ] =
+&[
+  layer_toggle!( "layers-show-view-ribbon", "View-Zone Ribbon", show_view_ribbon, option, | t | t.show_grid ),
+  layer_toggle!( "layers-show-gizmo", "Selection Gizmo", show_gizmo, option ),
+  layer_toggle!( "layers-lighting-enabled", "Lighting", lighting_enabled, option ),
+  layer_toggle!( "layers-shadows-enabled", "Shadows", shadows_enabled, option, | t | t.lighting_enabled ),
+  layer_toggle!( "layers-show-scanlines", "CRT Scanlines", show_scanlines, option ),
+];
+
+/// Every row, scene layers first, in panel order.
+fn all_toggles() -> impl Iterator< Item = &'static LayerToggle >
+{
+  SCENE_TOGGLES.iter().chain( OPTION_TOGGLES )
+}
+
+/// The solo gestures on scene row `row`: with `isolate_out` false (right
+/// click) `row` turns on and every other scene layer off; with it true
+/// (Shift+right click) `row` turns off and every other scene layer on. The
+/// overlay and lighting rows keep whatever they held.
+fn scene_solo( t : &mut RenderLayers, row : &LayerToggle, isolate_out : bool )
+{
+  for other in SCENE_TOGGLES { ( other.set )( t, isolate_out ); }
+  ( row.set )( t, !isolate_out );
+}
+
 /// One `label: value` line per Render Layers row, for `grid_tuning_panel`'s
-/// Copy Settings text. Built from `LAYER_TOGGLES` itself, so a row added to
-/// the panel lands in the copied settings too instead of silently missing.
+/// Copy Settings text. Built from the row tables themselves, so a row added
+/// to the panel lands in the copied settings too instead of silently missing.
 pub fn layers_summary( t : &RenderLayers ) -> String
 {
-  LAYER_TOGGLES.iter()
+  all_toggles()
   .map( | toggle | format!( "{}: {}", toggle.label.to_lowercase(), ( toggle.get )( t ) ) )
   .collect::< Vec< _ > >()
   .join( "\n" )
 }
 
-/// Makes every row's checkbox (and the `hud`-owned CRT scanlines overlay)
-/// match `t` - the one place both the plain left-click path and the solo
-/// right-click path funnel through, so neither has to remember the other's
-/// side effects. A missing row or overlay is a bug in the panel's or the
-/// HUD's own markup, so it panics like `input_by_id` instead of being
-/// skipped.
+/// Makes every row's checkbox (its value and whether it is greyed out) and
+/// the `hud`-owned CRT scanlines overlay match `t` - the one place both the
+/// plain left-click path and the solo right-click path funnel through, so
+/// neither has to remember the other's side effects. A missing row or
+/// overlay is a bug in the panel's or the HUD's own markup, so it panics
+/// like `input_by_id` instead of being skipped.
 fn sync_dom( document : &Document, t : &RenderLayers )
 {
-  for toggle in LAYER_TOGGLES
+  for toggle in all_toggles()
   {
-    input_by_id( document, toggle.id ).set_checked( ( toggle.get )( t ) );
+    let input = input_by_id( document, toggle.id );
+    input.set_checked( ( toggle.get )( t ) );
+    input.set_disabled( !( toggle.enabled )( t ) );
   }
 
   // `ff-scanlines` is created by `hud::setup_hud`, not this module - by the
@@ -120,9 +182,8 @@ fn sync_dom( document : &Document, t : &RenderLayers )
   overlay.set_class_name( if t.show_scanlines { "ff-scanlines visible" } else { "ff-scanlines" } );
 }
 
-/// Left-click path: flip just `toggle`'s own field, then resync (only
-/// matters for the scanlines row's overlay side effect, but running it
-/// unconditionally is simpler than special-casing that one row).
+/// Left-click path: flip just `toggle`'s own field, then resync (for the
+/// scanlines row's overlay and for the rows greyed out under this one).
 fn bind_toggle( document : &Document, tuning : &Rc< RefCell< GridTuning > >, toggle : &'static LayerToggle )
 {
   let element = input_by_id( document, toggle.id );
@@ -144,11 +205,7 @@ fn bind_toggle( document : &Document, tuning : &Rc< RefCell< GridTuning > >, tog
   closure.forget();
 }
 
-/// Right-click "solo" path on `toggle`'s row: unconditionally turns `toggle`
-/// on and every other row off, regardless of whatever was on beforehand.
-/// Shift+right-click is the inverse "isolate out" gesture: `toggle` turns
-/// off and every other row turns on. Neither remembers prior state to
-/// restore - each click is a fresh, one-shot "set it all to this" command.
+/// Right-click "solo" path on scene row `toggle` (see `scene_solo`).
 fn bind_solo( document : &Document, tuning : &Rc< RefCell< GridTuning > >, toggle : &'static LayerToggle )
 {
   let row = document.get_element_by_id( &format!( "{}-row", toggle.id ) ).unwrap();
@@ -159,12 +216,7 @@ fn bind_solo( document : &Document, tuning : &Rc< RefCell< GridTuning > >, toggl
     move | e : MouseEvent |
     {
       e.prevent_default();
-      let isolate_out = e.shift_key();
-      {
-        let mut t = tuning.borrow_mut();
-        for other in LAYER_TOGGLES { ( other.set )( &mut t.layers, isolate_out ); }
-        ( toggle.set )( &mut t.layers, !isolate_out );
-      }
+      scene_solo( &mut tuning.borrow_mut().layers, toggle, e.shift_key() );
       sync_dom( &document, &tuning.borrow().layers );
     }
   );
@@ -178,19 +230,31 @@ fn bind_solo( document : &Document, tuning : &Rc< RefCell< GridTuning > >, toggl
 pub fn setup_layers_panel( document : &Document, tuning : &Rc< RefCell< GridTuning > > )
 {
   let t = tuning.borrow().layers;
-
-  let rows_html : String = LAYER_TOGGLES.iter()
-  .map( | toggle | checkbox_row_html( toggle.id, toggle.label, ( toggle.get )( &t ) ) )
-  .collect();
+  let rows_html = | toggles : &[ LayerToggle ] | -> String
+  {
+    toggles.iter().map( | toggle | checkbox_row_html( toggle, &t ) ).collect()
+  };
+  let scene_rows = rows_html( SCENE_TOGGLES );
+  let option_rows = rows_html( OPTION_TOGGLES );
+  let group_heading = | text : &str | format!
+  (
+    r#"<div style="font-size:9px;color:#0e7490;text-transform:uppercase;letter-spacing:0.05em;padding-top:4px;margin-bottom:4px">{text}</div>"#
+  );
+  let scene_heading = group_heading( "Scene layers" );
+  let option_heading = group_heading( "Overlays &amp; lighting" );
 
   let panel_html = format!
   (
-    r#"<div style="position:fixed;bottom:12px;left:12px;z-index:30;width:190px;max-height:85vh;overflow-y:auto;
+    r#"<style>#layers-panel label:has(input:disabled) {{ opacity:0.4; cursor:default; }}</style>
+    <div id="layers-panel" style="position:fixed;bottom:12px;left:12px;z-index:30;width:190px;max-height:85vh;overflow-y:auto;
         background:rgba(8,17,26,0.9);border:1px solid #164e63;border-radius:8px;padding:10px;
         font-family:monospace;font-size:11px;color:#e0f2fe">
       <div style="font-weight:bold;text-transform:uppercase;border-bottom:1px solid #164e63;padding-bottom:4px;margin-bottom:4px">Render Layers (dev)</div>
-      <div style="color:#38708a;font-size:9px;line-height:1.4;margin-bottom:8px">Right click: solo layer<br>Shift+Right click: hide layer, show rest</div>
-      {rows_html}
+      <div style="color:#38708a;font-size:9px;line-height:1.4;margin-bottom:8px">Right click a scene layer: solo it<br>Shift+Right click: hide it, show the rest</div>
+      {scene_heading}
+      {scene_rows}
+      {option_heading}
+      {option_rows}
     </div>"#
   );
 
@@ -198,9 +262,12 @@ pub fn setup_layers_panel( document : &Document, tuning : &Rc< RefCell< GridTuni
   panel.set_inner_html( &panel_html );
   document.body().unwrap().append_child( &panel ).unwrap();
 
-  for toggle in LAYER_TOGGLES
+  for toggle in all_toggles()
   {
     bind_toggle( document, tuning, toggle );
+  }
+  for toggle in SCENE_TOGGLES
+  {
     bind_solo( document, tuning, toggle );
   }
 }
@@ -208,7 +275,7 @@ pub fn setup_layers_panel( document : &Document, tuning : &Rc< RefCell< GridTuni
 #[ cfg( test ) ]
 mod tests
 {
-  use super::{ layers_summary, LAYER_TOGGLES };
+  use super::{ all_toggles, layers_summary, scene_solo, OPTION_TOGGLES, SCENE_TOGGLES };
   use crate::debug::RenderLayers;
 
   /// Every switch off, so turning one row on shows exactly which field it
@@ -239,7 +306,7 @@ mod tests
   fn every_row_owns_a_distinct_field()
   {
     let mut written : Vec< RenderLayers > = Vec::new();
-    for toggle in LAYER_TOGGLES
+    for toggle in all_toggles()
     {
       let mut t = all_off();
       ( toggle.set )( &mut t, true );
@@ -252,12 +319,72 @@ mod tests
     assert_eq!( written.len(), 11 );
   }
 
+  /// Right click on a scene row: only that scene layer stays on, and the
+  /// overlay and lighting rows keep their values.
+  #[ test ]
+  fn solo_keeps_one_scene_layer_and_leaves_the_options_alone()
+  {
+    for ( index, row ) in SCENE_TOGGLES.iter().enumerate()
+    {
+      let before = RenderLayers { show_scanlines : true, shadows_enabled : false, ..RenderLayers::default() };
+      let mut t = before;
+      scene_solo( &mut t, row, false );
+      for ( other_index, other ) in SCENE_TOGGLES.iter().enumerate()
+      {
+        assert_eq!( ( other.get )( &t ), other_index == index, "solo {:?}: scene row {:?}", row.label, other.label );
+      }
+      for option in OPTION_TOGGLES
+      {
+        assert_eq!( ( option.get )( &t ), ( option.get )( &before ), "solo {:?} changed option {:?}", row.label, option.label );
+      }
+    }
+  }
+
+  /// Shift+right click on a scene row: every other scene layer turns on, that
+  /// one off, and the overlay and lighting rows keep their values - in
+  /// particular the scanline overlay doesn't come on.
+  #[ test ]
+  fn isolate_out_hides_one_scene_layer_and_leaves_the_options_alone()
+  {
+    for ( index, row ) in SCENE_TOGGLES.iter().enumerate()
+    {
+      let before = all_off();
+      let mut t = before;
+      scene_solo( &mut t, row, true );
+      for ( other_index, other ) in SCENE_TOGGLES.iter().enumerate()
+      {
+        assert_eq!( ( other.get )( &t ), other_index != index, "isolate {:?}: scene row {:?}", row.label, other.label );
+      }
+      for option in OPTION_TOGGLES
+      {
+        assert_eq!( ( option.get )( &t ), ( option.get )( &before ), "isolate {:?} changed option {:?}", row.label, option.label );
+      }
+    }
+  }
+
+  /// The ribbon row is greyed out exactly while the grid is off, the shadows
+  /// row exactly while lighting is off, and nothing else ever is.
+  #[ test ]
+  fn dependent_rows_grey_out_under_their_parent()
+  {
+    let enabled = | label : &str, t : &RenderLayers | ( all_toggles().find( | r | r.label == label ).unwrap().enabled )( t );
+    let on = RenderLayers::default();
+    assert!( enabled( "View-Zone Ribbon", &on ) );
+    assert!( !enabled( "View-Zone Ribbon", &RenderLayers { show_grid : false, ..on } ) );
+    assert!( enabled( "Shadows", &on ) );
+    assert!( !enabled( "Shadows", &RenderLayers { lighting_enabled : false, ..on } ) );
+    for row in all_toggles().filter( | r | r.label != "View-Zone Ribbon" && r.label != "Shadows" )
+    {
+      assert!( ( row.enabled )( &all_off() ), "row {:?} greys out", row.label );
+    }
+  }
+
   #[ test ]
   fn summary_has_one_line_per_row()
   {
     let summary = layers_summary( &RenderLayers::default() );
-    assert_eq!( summary.lines().count(), LAYER_TOGGLES.len() );
-    for toggle in LAYER_TOGGLES
+    assert_eq!( summary.lines().count(), all_toggles().count() );
+    for toggle in all_toggles()
     {
       let prefix = format!( "{}: ", toggle.label.to_lowercase() );
       assert!( summary.lines().any( | line | line.starts_with( &prefix ) ), "missing row {:?} in {summary}", toggle.label );

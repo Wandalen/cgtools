@@ -102,11 +102,14 @@ delete once no longer needed, not part of the deliverable.
   `Ships`' `sensor_radius` spec field and `GridTuning::show_sensor_rings`
   are gone. M7's entry below still describes them as delivered.
 - **Visibility switches moved out of the HUD** into a new Render Layers dev
-  panel (`src/debug/layers_panel.rs`, bottom left): one row per draw pass
-  (grid, view-zone ribbon, background, starfield, asteroids, ships,
-  station, selection gizmo) plus lighting, shadows and CRT scanlines. A
-  click toggles a row, right click shows only that layer, Shift + right
-  click hides it and shows the rest. The switches live in `RenderLayers`,
+  panel (`src/debug/layers_panel.rs`, bottom left): one row per scene draw
+  pass (grid, background, starfield, asteroids, ships, station), plus
+  overlay and lighting rows (view-zone ribbon, selection gizmo, lighting,
+  shadows, CRT scanlines). A click toggles a row; on a scene row, right
+  click shows only that layer and Shift + right click hides it and shows
+  the other scene layers, leaving the overlay and lighting rows alone. The
+  ribbon row is part of the grid pass and is greyed out while the grid is
+  off; shadows likewise under lighting. The switches live in `RenderLayers`,
   held as `GridTuning::layers`; a hidden asteroid/ship/station layer is also
   left out of the shadow pass and the pick pass. The HUD keeps only
   Pause/Play/Fast and Reset Camera, so M8's toolbar toggles, including
