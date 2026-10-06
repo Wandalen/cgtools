@@ -262,28 +262,36 @@ fn transforms_data_clone_uploads_its_own_textures_in_either_drop_order()
   let gl = gl_init();
   let live = | t : &gl::web_sys::WebGlTexture | gl.is_texture( Some( t ) );
   let original = transforms_upload( &gl, TransformsData::new( vec![] ) );
-  let ( og, oi ) = original.textures_for_test();
-  let ( og, oi ) = ( og.unwrap(), oi.unwrap() );
+  let ( original_global, original_inverse ) = original.textures_for_test();
+  let ( original_global, original_inverse ) = ( original_global.unwrap(), original_inverse.unwrap() );
 
   while gl.get_error() != gl::NO_ERROR {}
   let first = transforms_upload( &gl, original.clone() );
   let second = transforms_upload( &gl, original.clone() );
   assert_eq!( gl.get_error(), gl::NO_ERROR, "a clone's upload must not touch a deleted texture" );
-  let ( fg, fi ) = first.textures_for_test();
-  let ( fg, fi ) = ( fg.unwrap(), fi.unwrap() );
-  assert!( fg != og && fi != oi, "an uploaded clone must hold textures of its own" );
+  let ( first_global, first_inverse ) = first.textures_for_test();
+  let ( first_global, first_inverse ) = ( first_global.unwrap(), first_inverse.unwrap() );
+  assert!
+  (
+    first_global != original_global && first_inverse != original_inverse,
+    "an uploaded clone must hold textures of its own"
+  );
 
   // Clone dropped first: the original keeps its textures.
   drop( first );
-  assert!( !live( &fg ) && !live( &fi ), "a dropped clone frees its own textures" );
-  assert!( live( &og ) && live( &oi ), "the original's textures survive the clone" );
+  assert!( !live( &first_global ) && !live( &first_inverse ), "a dropped clone frees its own textures" );
+  assert!
+  (
+    live( &original_global ) && live( &original_inverse ),
+    "the original's textures survive the clone"
+  );
 
   // Original dropped first: the other clone keeps its textures and still uploads.
   drop( original );
-  assert!( !live( &og ) && !live( &oi ), "the original frees its own textures" );
-  let ( sg, si ) = second.textures_for_test();
-  let ( sg, si ) = ( sg.unwrap(), si.unwrap() );
-  assert!( live( &sg ) && live( &si ), "a clone's textures survive the original" );
+  assert!( !live( &original_global ) && !live( &original_inverse ), "the original frees its own textures" );
+  let ( second_global, second_inverse ) = second.textures_for_test();
+  let ( second_global, second_inverse ) = ( second_global.unwrap(), second_inverse.unwrap() );
+  assert!( live( &second_global ) && live( &second_inverse ), "a clone's textures survive the original" );
   let second = transforms_upload( &gl, second );
   assert_eq!( gl.get_error(), gl::NO_ERROR, "the surviving clone must still upload" );
   drop( second );
@@ -295,26 +303,26 @@ fn transforms_data_clone_uploads_its_own_textures_in_either_drop_order()
 fn displacements_data_clone_uploads_its_own_texture_in_either_drop_order()
 {
   let gl = gl_init();
-  let ot = gl.create_texture().unwrap();
-  gl.bind_texture( gl::TEXTURE_2D, Some( &ot ) );
+  let original_texture = gl.create_texture().unwrap();
+  gl.bind_texture( gl::TEXTURE_2D, Some( &original_texture ) );
   gl.bind_texture( gl::TEXTURE_2D, None );
-  let original = DisplacementsData::new_owning_for_test( Some( ot.clone() ), &gl );
+  let original = DisplacementsData::new_owning_for_test( Some( original_texture.clone() ), &gl );
 
   while gl.get_error() != gl::NO_ERROR {}
   let first = displacements_upload( &gl, original.clone() );
   let second = displacements_upload( &gl, original.clone() );
   assert_eq!( gl.get_error(), gl::NO_ERROR, "a clone's upload must not touch a deleted texture" );
-  let ft = first.texture_for_test().unwrap();
-  assert!( ft != ot, "an uploaded clone must hold a texture of its own" );
+  let first_texture = first.texture_for_test().unwrap();
+  assert!( first_texture != original_texture, "an uploaded clone must hold a texture of its own" );
 
   drop( first );
-  assert!( !gl.is_texture( Some( &ft ) ), "a dropped clone frees its own texture" );
-  assert!( gl.is_texture( Some( &ot ) ), "the original's texture survives the clone" );
+  assert!( !gl.is_texture( Some( &first_texture ) ), "a dropped clone frees its own texture" );
+  assert!( gl.is_texture( Some( &original_texture ) ), "the original's texture survives the clone" );
 
   drop( original );
-  assert!( !gl.is_texture( Some( &ot ) ), "the original frees its own texture" );
-  let st = second.texture_for_test().unwrap();
-  assert!( gl.is_texture( Some( &st ) ), "a clone's texture survives the original" );
+  assert!( !gl.is_texture( Some( &original_texture ) ), "the original frees its own texture" );
+  let second_texture = second.texture_for_test().unwrap();
+  assert!( gl.is_texture( Some( &second_texture ) ), "a clone's texture survives the original" );
   let second = displacements_upload( &gl, second );
   assert_eq!( gl.get_error(), gl::NO_ERROR, "the surviving clone must still upload" );
   drop( second );
