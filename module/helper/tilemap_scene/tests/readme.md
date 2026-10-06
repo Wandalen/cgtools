@@ -26,6 +26,7 @@ Two levels coexist:
 | layer_tint_compile_test.rs | LayerBehaviour.tint (None pass-through, Flat composition, Masked and non-Multiply tint rejection) through every sprite-emitting compile pass |
 | renderer_cache_test.rs | Renderer per-frame idle-replay cache acceptance |
 | renderer_test.rs | Renderer asset-compile-once and per-instance override contract |
+| ron_syntax_error_test.rs | Invalid RON reported as `LoadError::Ron`, kept distinct from validation failures |
 | scene_events_test.rs | Scene::tick event-stream semantics |
 | scene_model_compile_test.rs | Compile pipeline integration (assets_compile + compile_frame) |
 | scene_model_test.rs | scene-model parsing, serde round-trip, loader API |
