@@ -246,6 +246,10 @@ mod private
     /// replaced, cleared with `None`, freed by [`Renderer::gl_resources_free`] or
     /// dropped with the renderer, unless the caller still holds a clone. The renderer
     /// never deletes the GPU texture itself; a non-owning view stays its creator's.
+    ///
+    /// The skybox is always bound to `TEXTURE_2D` and drawn with the GL texture's own
+    /// parameters: `texture`'s `target` and `sampler` are not applied. A `texture`
+    /// with no `source` draws no skybox, the same as `None`.
     pub fn skybox_set( &mut self, texture : Option< Texture > )
     {
       self.skybox = texture;
@@ -694,7 +698,9 @@ mod private
 
       gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
 
-      if self.skybox.is_some()
+      // A sourceless skybox would bind no texture, and the shader would write the
+      // unbound sampler's black at alpha 1 over the whole background.
+      if self.skybox.as_ref().is_some_and( | t | t.source.is_some() )
       {
         self.skybox_draw( gl, camera );
       }
