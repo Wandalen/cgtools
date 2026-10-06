@@ -9,6 +9,8 @@
 use minwebgl as gl;
 use gl::GL;
 
+use crate::debug::RenderLayers;
+
 /// A normally-lit part (asteroid rock, ship/station hull plating).
 pub const AMBIENT_LIT : f32 = 0.35;
 /// A fully self-lit part (engine glow, beacon light) - stands in for
@@ -147,8 +149,7 @@ impl HullProgram
   (
     &self, gl : &GL, view_proj : gl::F32x4x4, camera_position : gl::F32x3,
     light_dir : gl::F32x3, light_color : [ f32; 3 ], light_intensity : f32, light_size : f32,
-    light_view_proj : gl::F32x4x4, shadow_map : Option< &gl::web_sys::WebGlTexture >, shadows_enabled : bool,
-    lighting_enabled : bool,
+    light_view_proj : gl::F32x4x4, shadow_map : Option< &gl::web_sys::WebGlTexture >, layers : &RenderLayers,
   )
   {
     gl.use_program( Some( &self.program ) );
@@ -160,8 +161,8 @@ impl HullProgram
     gl::uniform::upload( gl, u.light_intensity.clone(), &light_intensity ).unwrap();
     gl::uniform::upload( gl, u.light_size.clone(), &light_size ).unwrap();
     gl::uniform::matrix_upload( gl, u.light_view_proj.clone(), light_view_proj.to_array().as_slice(), true ).unwrap();
-    gl::uniform::upload( gl, u.shadows_enabled.clone(), &if shadows_enabled { 1.0f32 } else { 0.0f32 } ).unwrap();
-    gl::uniform::upload( gl, u.lighting_enabled.clone(), &if lighting_enabled { 1.0f32 } else { 0.0f32 } ).unwrap();
+    gl::uniform::upload( gl, u.shadows_enabled.clone(), &if layers.shadows_enabled { 1.0f32 } else { 0.0f32 } ).unwrap();
+    gl::uniform::upload( gl, u.lighting_enabled.clone(), &if layers.lighting_enabled { 1.0f32 } else { 0.0f32 } ).unwrap();
 
     gl.active_texture( GL::TEXTURE0 );
     gl.bind_texture( GL::TEXTURE_2D, shadow_map );

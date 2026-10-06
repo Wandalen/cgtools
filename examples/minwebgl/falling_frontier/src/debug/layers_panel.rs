@@ -34,7 +34,7 @@ use std::{ cell::RefCell, rc::Rc };
 use gl::web_sys::
 {
   wasm_bindgen::{ prelude::Closure, JsCast },
-  Document, Element, HtmlInputElement, MouseEvent,
+  Document, Element, MouseEvent,
 };
 
 use super::{ grid_tuning::GridTuning, input_by_id, render_layers::RenderLayers };
@@ -53,30 +53,40 @@ fn checkbox_row_html( id : &str, label : &str, checked : bool ) -> String
   )
 }
 
-/// One row's id + label + the `RenderLayers` bool field it reads/writes.
-/// `field` is a projection (`|t| &mut t.some_bool`), so every row (and the
-/// solo gesture, which needs to reach every *other* row's field too) shares
-/// one path instead of each repeating its own borrow/read/write sequence.
+/// One row's id + label + the `RenderLayers` bool field it reads and writes,
+/// so every row (and the solo gesture, which needs to reach every *other*
+/// row's field too) shares one path instead of each repeating its own
+/// borrow/read/write sequence. Built with `layer_toggle!`, which writes both
+/// accessors from the one field name so they can't name different fields.
 struct LayerToggle
 {
   id : &'static str,
   label : &'static str,
-  field : fn( &mut RenderLayers ) -> &mut bool,
+  get : fn( &RenderLayers ) -> bool,
+  set : fn( &mut RenderLayers, bool ),
+}
+
+macro_rules! layer_toggle
+{
+  ( $id : literal, $label : literal, $field : ident ) =>
+  {
+    LayerToggle { id : $id, label : $label, get : | t | t.$field, set : | t, on | t.$field = on }
+  };
 }
 
 const LAYER_TOGGLES : &[ LayerToggle ] =
 &[
-  LayerToggle { id : "layers-show-grid", label : "Tactical Grid", field : | t | &mut t.show_grid },
-  LayerToggle { id : "layers-show-view-ribbon", label : "View-Zone Ribbon", field : | t | &mut t.show_view_ribbon },
-  LayerToggle { id : "layers-show-background", label : "Background", field : | t | &mut t.show_background },
-  LayerToggle { id : "layers-show-starfield", label : "Starfield", field : | t | &mut t.show_starfield },
-  LayerToggle { id : "layers-show-asteroids", label : "Asteroids", field : | t | &mut t.show_asteroids },
-  LayerToggle { id : "layers-show-ships", label : "Ships", field : | t | &mut t.show_ships },
-  LayerToggle { id : "layers-show-station", label : "Station", field : | t | &mut t.show_station },
-  LayerToggle { id : "layers-show-gizmo", label : "Selection Gizmo", field : | t | &mut t.show_gizmo },
-  LayerToggle { id : "layers-lighting-enabled", label : "Lighting", field : | t | &mut t.lighting_enabled },
-  LayerToggle { id : "layers-shadows-enabled", label : "Shadows", field : | t | &mut t.shadows_enabled },
-  LayerToggle { id : "layers-show-scanlines", label : "CRT Scanlines", field : | t | &mut t.show_scanlines },
+  layer_toggle!( "layers-show-grid", "Tactical Grid", show_grid ),
+  layer_toggle!( "layers-show-view-ribbon", "View-Zone Ribbon", show_view_ribbon ),
+  layer_toggle!( "layers-show-background", "Background", show_background ),
+  layer_toggle!( "layers-show-starfield", "Starfield", show_starfield ),
+  layer_toggle!( "layers-show-asteroids", "Asteroids", show_asteroids ),
+  layer_toggle!( "layers-show-ships", "Ships", show_ships ),
+  layer_toggle!( "layers-show-station", "Station", show_station ),
+  layer_toggle!( "layers-show-gizmo", "Selection Gizmo", show_gizmo ),
+  layer_toggle!( "layers-lighting-enabled", "Lighting", lighting_enabled ),
+  layer_toggle!( "layers-shadows-enabled", "Shadows", shadows_enabled ),
+  layer_toggle!( "layers-show-scanlines", "CRT Scanlines", show_scanlines ),
 ];
 
 /// One `label: value` line per Render Layers row, for `grid_tuning_panel`'s
@@ -85,11 +95,7 @@ const LAYER_TOGGLES : &[ LayerToggle ] =
 pub fn layers_summary( t : &RenderLayers ) -> String
 {
   LAYER_TOGGLES.iter()
-  .map( | toggle |
-  {
-    let mut snapshot = *t;
-    format!( "{}: {}", toggle.label.to_lowercase(), *( toggle.field )( &mut snapshot ) )
-  } )
+  .map( | toggle | format!( "{}: {}", toggle.label.to_lowercase(), ( toggle.get )( t ) ) )
   .collect::< Vec< _ > >()
   .join( "\n" )
 }
@@ -97,26 +103,21 @@ pub fn layers_summary( t : &RenderLayers ) -> String
 /// Makes every row's checkbox (and the `hud`-owned CRT scanlines overlay)
 /// match `t` - the one place both the plain left-click path and the solo
 /// right-click path funnel through, so neither has to remember the other's
-/// side effects.
+/// side effects. A missing row or overlay is a bug in the panel's or the
+/// HUD's own markup, so it panics like `input_by_id` instead of being
+/// skipped.
 fn sync_dom( document : &Document, t : &RenderLayers )
 {
   for toggle in LAYER_TOGGLES
   {
-    let mut snapshot = *t;
-    let checked = *( toggle.field )( &mut snapshot );
-    if let Some( input ) = document.get_element_by_id( toggle.id ).and_then( | el | el.dyn_into::< HtmlInputElement >().ok() )
-    {
-      input.set_checked( checked );
-    }
+    input_by_id( document, toggle.id ).set_checked( ( toggle.get )( t ) );
   }
 
   // `ff-scanlines` is created by `hud::setup_hud`, not this module - by the
   // time either event handler below can fire, `main.rs` has already called
-  // both setup functions, so the element is guaranteed to exist.
-  if let Some( overlay ) = document.get_element_by_id( "ff-scanlines" )
-  {
-    overlay.set_class_name( if t.show_scanlines { "ff-scanlines visible" } else { "ff-scanlines" } );
-  }
+  // both setup functions, so the element exists.
+  let overlay = document.get_element_by_id( "ff-scanlines" ).expect( "hud::setup_hud creates #ff-scanlines" );
+  overlay.set_class_name( if t.show_scanlines { "ff-scanlines visible" } else { "ff-scanlines" } );
 }
 
 /// Left-click path: flip just `toggle`'s own field, then resync (only
@@ -134,7 +135,7 @@ fn bind_toggle( document : &Document, tuning : &Rc< RefCell< GridTuning > >, tog
       let input = input_by_id( &document, toggle.id );
       {
         let mut t = tuning.borrow_mut();
-        *( toggle.field )( &mut t.layers ) = input.checked();
+        ( toggle.set )( &mut t.layers, input.checked() );
       }
       sync_dom( &document, &tuning.borrow().layers );
     }
@@ -161,8 +162,8 @@ fn bind_solo( document : &Document, tuning : &Rc< RefCell< GridTuning > >, toggl
       let isolate_out = e.shift_key();
       {
         let mut t = tuning.borrow_mut();
-        for other in LAYER_TOGGLES { *( other.field )( &mut t.layers ) = isolate_out; }
-        *( toggle.field )( &mut t.layers ) = !isolate_out;
+        for other in LAYER_TOGGLES { ( other.set )( &mut t.layers, isolate_out ); }
+        ( toggle.set )( &mut t.layers, !isolate_out );
       }
       sync_dom( &document, &tuning.borrow().layers );
     }
@@ -179,11 +180,7 @@ pub fn setup_layers_panel( document : &Document, tuning : &Rc< RefCell< GridTuni
   let t = tuning.borrow().layers;
 
   let rows_html : String = LAYER_TOGGLES.iter()
-  .map( | toggle |
-  {
-    let mut snapshot = t;
-    checkbox_row_html( toggle.id, toggle.label, *( toggle.field )( &mut snapshot ) )
-  } )
+  .map( | toggle | checkbox_row_html( toggle.id, toggle.label, ( toggle.get )( &t ) ) )
   .collect();
 
   let panel_html = format!
@@ -213,6 +210,47 @@ mod tests
 {
   use super::{ layers_summary, LAYER_TOGGLES };
   use crate::debug::RenderLayers;
+
+  /// Every switch off, so turning one row on shows exactly which field it
+  /// writes.
+  fn all_off() -> RenderLayers
+  {
+    RenderLayers
+    {
+      show_grid : false,
+      show_view_ribbon : false,
+      show_background : false,
+      show_starfield : false,
+      show_asteroids : false,
+      show_ships : false,
+      show_station : false,
+      show_gizmo : false,
+      lighting_enabled : false,
+      shadows_enabled : false,
+      show_scanlines : false,
+      show_trajectories : false,
+    }
+  }
+
+  /// Each row reads back what it writes and writes a field no other row
+  /// writes; with eleven rows over the twelve fields, only
+  /// `show_trajectories` (which has no row) is left unwritten.
+  #[ test ]
+  fn every_row_owns_a_distinct_field()
+  {
+    let mut written : Vec< RenderLayers > = Vec::new();
+    for toggle in LAYER_TOGGLES
+    {
+      let mut t = all_off();
+      ( toggle.set )( &mut t, true );
+      assert!( ( toggle.get )( &t ), "row {:?} doesn't read back what it wrote", toggle.label );
+      assert_ne!( t, all_off(), "row {:?} writes nothing", toggle.label );
+      assert!( !written.contains( &t ), "row {:?} writes a field another row already writes", toggle.label );
+      assert!( !t.show_trajectories, "row {:?} writes show_trajectories", toggle.label );
+      written.push( t );
+    }
+    assert_eq!( written.len(), 11 );
+  }
 
   #[ test ]
   fn summary_has_one_line_per_row()

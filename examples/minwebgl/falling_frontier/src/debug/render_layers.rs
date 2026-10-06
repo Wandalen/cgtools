@@ -14,7 +14,7 @@
 /// `show_station` also gate that object's contribution to the shadow-caster
 /// pass and the pick pass, not just its own visible draw - a hidden object
 /// shouldn't still cast a shadow or take a click.
-#[ derive( Clone, Copy ) ]
+#[ derive( Clone, Copy, Debug, PartialEq, Eq ) ]
 pub struct RenderLayers
 {
   /// Defaults to `true`, as the three.js original's grid toggle started on.
