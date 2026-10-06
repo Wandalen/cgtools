@@ -74,7 +74,7 @@ const CSS : &str = r"
   }
   .ff-btn:hover { background: rgba(0, 229, 255, 0.2); border-color: #22d3ee; color: #fff; }
   .ff-btn.active { background: rgba(0, 229, 255, 0.3); border-color: #22d3ee; color: #fff; }
-  .ff-mid { display: flex; justify-content: flex-end; align-items: flex-start; flex: 1; padding: 12px 0; }
+  .ff-mid { display: flex; justify-content: space-between; align-items: flex-start; flex: 1; padding: 12px 0; }
   .ff-unit-panel {
     position: fixed; top: 70px; right: 240px; width: 260px; padding: 12px;
     display: none; z-index: 17;

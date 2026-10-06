@@ -10,7 +10,6 @@ in vec2 v_ndc;
 
 uniform mat4 u_inv_view_proj;
 uniform vec3 u_camera_position;
-uniform float u_time;
 
 out vec4 frag_color;
 
@@ -71,7 +70,9 @@ void main()
   vec3 ray_dir = normalize( far.xyz - u_camera_position );
 
   float elevation = ray_dir.y;
-  vec3 sky_pos = ray_dir * 2.5 + vec3( u_time * 0.02, 0.0, u_time * 0.008 );
+  // No time term: this formula is only ever evaluated by the one-time cube
+  // map bake, so the clouds are a fixed backdrop rather than drifting.
+  vec3 sky_pos = ray_dir * 2.5;
 
   float clouds = fbm( sky_pos );
   clouds = smoothstep( 0.35, 0.85, clouds );

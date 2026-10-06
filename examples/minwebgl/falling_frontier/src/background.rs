@@ -7,7 +7,8 @@
 //! too expensive to run every frame for what is, in the end, a static
 //! backdrop the camera orbits but never approaches. `Background::new` bakes
 //! that formula once into a cube map (one draw per face, camera at the
-//! origin, `u_time` frozen at 0 - see `bake_cubemap`) and every subsequent
+//! origin - see `bake_cubemap`; with no per-frame evaluation the clouds no
+//! longer drift, so the formula has no time term) and every subsequent
 //! frame just samples it (`shaders/skybox.frag`), one texture fetch instead
 //! of the whole noise stack. Drawn first each frame with depth test/write
 //! both off, so it always sits behind every other draw call regardless of
@@ -59,7 +60,6 @@ fn bake_cubemap( gl : &GL ) -> gl::web_sys::WebGlTexture
 
   let inv_view_proj_loc = gl.get_uniform_location( &program, "u_inv_view_proj" );
   let camera_position_loc = gl.get_uniform_location( &program, "u_camera_position" );
-  let time_loc = gl.get_uniform_location( &program, "u_time" );
 
   // No attributes, same reasoning as `Background`'s own runtime vao below.
   let vao = gl::vao::create( gl ).unwrap();
@@ -86,7 +86,6 @@ fn bake_cubemap( gl : &GL ) -> gl::web_sys::WebGlTexture
   gl.use_program( Some( &program ) );
   gl.bind_vertex_array( Some( &vao ) );
   gl::uniform::upload( gl, camera_position_loc, gl::F32x3::ZERO.to_array().as_slice() ).unwrap();
-  gl::uniform::upload( gl, time_loc, &0.0f32 ).unwrap();
 
   for ( i, view_proj ) in cube_face_view_proj().iter().enumerate()
   {
