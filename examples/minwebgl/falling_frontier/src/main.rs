@@ -20,15 +20,15 @@ mod station;
 mod starfield;
 mod background;
 mod grid;
+mod frame;
 
 use minwebgl as gl;
 use gl::GL;
 use renderer::webgl::Camera;
-use renderer::webgl::shadow::{ ShadowMap, Light };
+use renderer::webgl::shadow::ShadowMap;
 use std::{ cell::{ Cell, RefCell }, rc::Rc };
 use debug::{ GridTuning, RenderLayers, setup_grid_tuning_panel, setup_layers_panel, refresh_selection_status };
 use hud::{ setup_hud, refresh_unit_panel, bind_reset_camera };
-use boundary::{ build_boundary_polyline, MAX_BOUNDARY_PTS };
 use hull::{ HullPart, HullProgram };
 use gpu_picking::{ IdProgram, PickBuffer };
 use gizmo::{ Gizmo, GizmoMode };
@@ -38,15 +38,8 @@ use station::Station;
 use trajectories::Trajectories;
 use starfield::Starfield;
 use background::Background;
-use grid::{ FocusState, TacticalGrid, MAX_ASTEROID_GLOW };
-
-// Shadow map sizing - deliberately covers just the ships/station/asteroid
-// cluster (see asteroids.rs's ASTEROID_SPECS, all within roughly ±175 on
-// X/Z), not the whole `grid::PLANE_SIZE` plane, so the ortho frustum stays tight
-// enough for reasonable shadow resolution at SHADOW_MAP_RESOLUTION.
-const SHADOW_MAP_RESOLUTION : u32 = 1024;
-const SHADOW_HALF_EXTENT : f32 = 260.0;
-const SHADOW_LIGHT_DISTANCE : f32 = 400.0;
+use grid::TacticalGrid;
+use frame::{ ships_advance, RibbonInputs, sun_light, shadow_pass, trajectories_draw, SHADOW_MAP_RESOLUTION };
 
 // Pick-id ranges handed out to each pickable group (see `picking.rs`) -
 // asteroids first, then ships, then the station gets the one id left over.
@@ -227,17 +220,6 @@ fn rotate_selected( kind : PickedKind, rotation_y : f32, asteroids : &mut Astero
     PickedKind::Ship( i ) => ships.rotate_to( i, rotation_y ),
     PickedKind::Station => station.rotate_to( rotation_y ),
   }
-}
-
-/// Converts the dev panel's azimuth/elevation (degrees) into a normalized
-/// world-space direction pointing *toward* the light - the convention
-/// `hull.frag`'s `n_dot_l = dot(normal, light_dir)` and `ShadowMap`'s light
-/// placement (see `app_run`) both expect.
-fn light_direction( azimuth_deg : f32, elevation_deg : f32 ) -> gl::F32x3
-{
-  let az = azimuth_deg.to_radians();
-  let el = elevation_deg.to_radians();
-  gl::F32x3::new( el.cos() * az.cos(), el.sin(), el.cos() * az.sin() )
 }
 
 fn canvas_size( canvas : &gl::web_sys::HtmlCanvasElement ) -> ( u32, u32 )
@@ -536,13 +518,7 @@ fn app_run() -> Result< (), gl::WebglError >
       ctx.latest_view_proj.set( view_proj );
 
       let tuning_snapshot = *tuning.borrow();
-      // A Render Layers row (or a solo gesture) hid the selected object's
-      // layer: drop the selection, so its unit card, ribbon and gizmo go
-      // with it instead of outliving the object on screen.
-      if let Some( kind ) = ctx.selected_id.get().and_then( classify_pick ) && !kind_visible( kind, &tuning_snapshot.layers )
-      {
-        deselect( &ctx );
-      }
+      selection_drop_if_hidden( &ctx, &tuning_snapshot.layers );
       let selected = ctx.selected_id.get();
       let selected_kind = selected.and_then( classify_pick );
 
@@ -551,81 +527,18 @@ fn app_run() -> Result< (), gl::WebglError >
         background.draw( &gl, view_proj, camera.eye_get() );
       }
 
-      // M7: advance every ship along its patrol path, except whichever one
-      // is currently selected - matches `main.js`'s `updateFleetMotion`
-      // skipping `excludeMesh` (the gizmo-attached ship) so a drag isn't
-      // fought by the path animation.
-      if tuning_snapshot.animate_ships
-      {
-        let mut ships = ctx.ships.borrow_mut();
-        for i in 0 .. ships::SHIP_COUNT
-        {
-          if Some( SHIP_ID_BASE + i as i32 ) == selected { continue; }
-          let speed = ships.speed( i ) * tuning_snapshot.speed_multiplier;
-          ships.advance( i, speed );
-        }
-      }
+      ships_advance( &mut ctx.ships.borrow_mut(), &tuning_snapshot, selected );
 
       let asteroids = ctx.asteroids.borrow();
       let ships = ctx.ships.borrow();
       let station = ctx.station.borrow();
 
-      // Only a selected ship drives the ribbon - matches `main.js`'s
-      // `animate()`, which points the grid's focus at `gizmo.object` only
-      // when it defines a `viewRadius` (only ships do in `fleet.js`; the
-      // station and asteroids have none, so selecting them highlights the
-      // object but leaves the ribbon off).
-      let focus_snapshot = match ribbon_ship( selected_kind, &tuning_snapshot.layers )
-      {
-        Some( i ) => FocusState { active : true, point : ships.position( i ) },
-        None => FocusState::default(),
-      };
+      let ribbon = RibbonInputs::new( selected_kind, &tuning_snapshot, &asteroids, &ships );
 
-      let mut boundary_buf = [ [ 0.0f32; 2 ]; MAX_BOUNDARY_PTS ];
-      let mut boundary_count = 0;
-      let mut glow : Vec< ( [ f32; 2 ], f32 ) > = Vec::new();
-      // Hidden asteroids neither notch the ribbon nor glow on the grid.
-      if focus_snapshot.active && tuning_snapshot.layers.show_asteroids
-      {
-        let blockers = asteroids.blockers();
-        boundary_count = build_boundary_polyline
-        (
-          focus_snapshot.point[ 0 ], focus_snapshot.point[ 1 ],
-          tuning_snapshot.view_radius, &blockers, &mut boundary_buf
-        );
-        glow = asteroids.glow_candidates( focus_snapshot.point, tuning_snapshot.view_radius );
-        glow.truncate( MAX_ASTEROID_GLOW );
-      }
-
-      // Directional light + shadow map for the hull material - the ortho
-      // frustum is centered on the ship/station/asteroid cluster (not the
-      // whole grid) and placed SHADOW_LIGHT_DISTANCE back along the light
-      // direction, matching the `-light_dir` "camera looks back down at the
-      // scene" convention `Light::view_projection` expects.
-      let light_dir = light_direction( tuning_snapshot.light_azimuth, tuning_snapshot.light_elevation );
-      let shadow_scene_center = gl::F32x3::new( 0.0, 12.0, 0.0 );
-      let shadow_projection = gl::math::mat3x3h::orthographic_rh_gl
-      (
-        -SHADOW_HALF_EXTENT, SHADOW_HALF_EXTENT, -SHADOW_HALF_EXTENT, SHADOW_HALF_EXTENT,
-        1.0, SHADOW_LIGHT_DISTANCE + SHADOW_HALF_EXTENT,
-      );
-      let mut light = Light::new( shadow_scene_center + light_dir * SHADOW_LIGHT_DISTANCE, -light_dir, shadow_projection, tuning_snapshot.light_size );
-      let light_view_proj = light.view_projection();
-
+      let ( light_dir, light_view_proj ) = sun_light( &tuning_snapshot );
       if tuning_snapshot.layers.shadows_drawn()
       {
-        shadow_map.bind();
-        shadow_map.clear();
-        // A hidden object (per the Render Layers toggles below) shouldn't
-        // still be casting a shadow onto the rest of the scene, so the same
-        // per-type visibility gates apply here, not just to the visible draw
-        // further down.
-        for part in visible_parts( &tuning_snapshot.layers, &asteroids, &ships, &station )
-        {
-          shadow_map.mvp_upload( light_view_proj * part.model );
-          gl.bind_vertex_array( Some( &part.vao ) );
-          gl.draw_elements_with_i32( GL::TRIANGLES, part.index_count, GL::UNSIGNED_INT, 0 );
-        }
+        shadow_pass( &gl, &shadow_map, light_view_proj, visible_parts( &tuning_snapshot.layers, &asteroids, &ships, &station ) );
       }
       gl.bind_framebuffer( GL::FRAMEBUFFER, None );
       gl.viewport( 0, 0, w as i32, h as i32 );
@@ -648,32 +561,15 @@ fn app_run() -> Result< (), gl::WebglError >
 
       if tuning_snapshot.layers.show_trajectories
       {
-        if trajectories.is_none()
-        {
-          match Trajectories::new( &gl, &ships, camera.projection_matrix_get(), [ w as f32, h as f32 ] )
-          {
-            Ok( built ) => trajectories = Some( built ),
-            Err( e ) =>
-            {
-              // Switch the layer back off so a failing build isn't retried
-              // (and warned about) every frame.
-              web_sys::console::warn_1( &format!( "Falling Frontier: trajectory ribbons unavailable: {e}" ).into() );
-              tuning.borrow_mut().layers.show_trajectories = false;
-            }
-          }
-        }
-        if let Some( trajectories ) = &mut trajectories
-        {
-          trajectories.draw( &gl, camera.view_matrix_get(), camera.projection_matrix_get(), [ w as f32, h as f32 ] );
-        }
+        trajectories_draw( &gl, &mut trajectories, &tuning, &ships, &camera, [ w as f32, h as f32 ] );
       }
 
       if tuning_snapshot.layers.show_grid
       {
         grid.draw
         (
-          &gl, view_proj, camera.eye_get(), &tuning_snapshot, &focus_snapshot,
-          &boundary_buf[ .. boundary_count ], &glow
+          &gl, view_proj, camera.eye_get(), &tuning_snapshot, &ribbon.focus,
+          ribbon.boundary(), &ribbon.glow
         );
       }
 
@@ -694,6 +590,17 @@ fn app_run() -> Result< (), gl::WebglError >
   gl::exec_loop::run( update_and_draw );
 
   Ok( () )
+}
+
+/// A Render Layers row (or a solo gesture) hid the selected object's layer:
+/// drop the selection, so its unit card, ribbon and gizmo go with it instead
+/// of outliving the object on screen.
+fn selection_drop_if_hidden( ctx : &InteractionCtx, layers : &RenderLayers )
+{
+  if let Some( kind ) = ctx.selected_id.get().and_then( classify_pick ) && !kind_visible( kind, layers )
+  {
+    deselect( ctx );
+  }
 }
 
 /// Wires the M5 click-to-select handler and the M6 gizmo drag handler on the
