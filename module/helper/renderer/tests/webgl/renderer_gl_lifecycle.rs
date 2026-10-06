@@ -1,4 +1,5 @@
-//! `Renderer::gl_resources_free` and the buffers `Renderer::resize` replaces.
+//! `Renderer::gl_resources_free`, the buffers `Renderer::resize` replaces, and
+//! the skybox `Texture` the renderer keeps (`Renderer::skybox_set`).
 //!
 //! wasm32-only: every assertion asks a real `WebGl2RenderingContext` whether a
 //! GL object still exists, which a native `cargo nextest` run cannot answer —

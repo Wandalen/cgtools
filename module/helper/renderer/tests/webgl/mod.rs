@@ -88,7 +88,8 @@ mod texture_gl_lifecycle;
 // blocks under `src/webgl/**` until `rulebook.md § Test placement` was changed
 // to put every test in `tests/`. Each covers one type's teardown contract:
 // what a `Drop` or `gl_resources_free` must release, and what it must leave
-// alone. All are BUG-432..440 reproducers.
+// alone. Most are BUG-432..440 reproducers; `skeleton_gl_lifecycle` also holds
+// the BUG-533 clone reproducers, and `renderer_gl_lifecycle` the skybox tests.
 //
 // Both gates are load-bearing. `target_arch = "wasm32"` because every one of
 // these needs a live `WebGl2RenderingContext` to construct its subject at all.
@@ -101,11 +102,11 @@ mod texture_gl_lifecycle;
 #[ cfg( all( target_arch = "wasm32", feature = "test_internals" ) ) ]
 mod ibl_gl_lifecycle;
 
-/// `Renderer::gl_resources_free` and resize buffer replacement
+/// `Renderer::gl_resources_free`, resize buffer replacement and skybox ownership
 #[ cfg( all( target_arch = "wasm32", feature = "test_internals" ) ) ]
 mod renderer_gl_lifecycle;
 
-/// `TransformsData` / `DisplacementsData` texture teardown
+/// `TransformsData` / `DisplacementsData` texture teardown and clone safety
 #[ cfg( all( target_arch = "wasm32", feature = "test_internals" ) ) ]
 mod skeleton_gl_lifecycle;
 
