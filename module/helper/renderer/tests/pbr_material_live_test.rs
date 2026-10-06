@@ -182,6 +182,24 @@ mod tests
 
   /// A texture on a UV set `main.frag` doesn't declare ( above 4 ) falls back to UV set 0:
   /// `vUv_5` would fail the program's compile on every frame.
+  ///
+  /// ## Root Cause
+  /// `texture_define_push` wrote `#define v<Name>Uv vUv_<n>` for any UV set index, while
+  /// `main.frag` declares only `vUv_0` to `vUv_4`.
+  ///
+  /// ## Why Not Caught
+  /// No test put a texture above UV set 4, and `gltf-json` accepts any `texCoord`.
+  ///
+  /// ## Fix Applied
+  /// `texture_define_push` falls back to UV set 0, with a warning, above `UV_SET_COUNT - 1`.
+  ///
+  /// ## Prevention
+  /// Puts a clearcoat ( extension ) and a base color ( core ) texture on UV set 5 and checks
+  /// that no define names `vUv_5` and both map to `vUv_0`.
+  ///
+  /// ## Pitfall
+  /// An asset index that names a shader symbol must be bounded by what the shader declares.
+  // test_kind: bug_reproducer(BUG-534)
   #[ wasm_bindgen_test ]
   fn uv_set_beyond_the_shader_falls_back_to_set_zero()
   {

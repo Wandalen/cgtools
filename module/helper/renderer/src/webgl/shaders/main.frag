@@ -620,6 +620,12 @@ float alpha_weight( float a )
   // direction in which v decreases. Mirrored UVs are followed. The frame is orthonormal, so an
   // anisotropy direction keeps its angle where u and v have different texel density or are
   // sheared, which a frame built from the UV gradients does not.
+  // Fix(BUG-536): the bitangent used to be the gradient of v, which points down the image, so
+  // every normal map on a mesh without tangents had its green channel inverted, and the coat
+  // normal map and the anisotropy direction were mirrored the same way.
+  // Root cause: glTF's +Y is up the image, the direction in which v decreases, since the UV
+  // origin is the upper-left corner and images are uploaded unflipped.
+  // Pitfall: "v increases" is not "up" in glTF; check a frame against an upright image.
   mat3 getTBN( vec3 surf_normal, vec3 pos, vec2 uv )
   {
     vec3 dE1 = dFdx( pos );

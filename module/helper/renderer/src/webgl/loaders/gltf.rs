@@ -1096,8 +1096,13 @@ mod private
           m.vertex_define_add( name.clone(), value );
         }
 
-        // Attribute defines are needed in the fragment stage too: `main.frag` builds its tangent
-        // frame from `vTangent` only under `USE_TANGENTS`.
+        // Fix(BUG-535): attribute defines are needed in the fragment stage too: `main.frag` builds
+        // its tangent frame from `vTangent` only under `USE_TANGENTS`, so every asset that ships
+        // TANGENT data was shaded with the derivative frame instead of its authored tangents.
+        // Root cause: only `dummy_material.vertex_defines()` was copied. Master never copied the
+        // fragment defines, and this loop, once added on the branch, was lost in the merge 7a37bd43.
+        // Pitfall: the two stages compile from separate define sets, so a define recorded for both
+        // must be copied to both.
         for ( name, value ) in dummy_material.fragment_defines()
         {
           m.fragment_define_add( name.clone(), value );

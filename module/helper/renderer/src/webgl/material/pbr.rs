@@ -250,6 +250,13 @@ mod private
   /// where the UV set is bounded: one the shader doesn't declare would fail the program's compile,
   /// and a failed program isn't cached, so every frame would compile it again and draw nothing.
   /// It falls back to UV set 0 with a warning.
+  // Fix(BUG-534): a texture on UV set 5 or above became `#define v<Name>Uv vUv_5`, a varying
+  // `main.frag` doesn't declare, so the program failed to compile and every frame retried and drew
+  // nothing.
+  // Root cause: the UV set index went from the asset ( `texCoord` ) into the define unchecked;
+  // `gltf-json` doesn't bound it, and the extension textures are read from raw JSON.
+  // Pitfall: any asset index that names a shader symbol must be bounded by what the shader
+  // declares, here `UV_SET_COUNT`, kept in step with `main.vert` / `main.frag`.
   fn texture_define_push( defines : &mut String, name : &str, uv_name : &str, info : Option< &TextureInfo > )
   {
     let _ = writeln!( defines, "#define {name}" );

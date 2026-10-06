@@ -80,6 +80,24 @@ mod tests
 
   /// A TANGENT attribute turns on `USE_TANGENTS` in the fragment stage, where `main.frag` reads
   /// `vTangent`, and a primitive without one keeps the derivative frame.
+  ///
+  /// ## Root Cause
+  /// The loader records attribute defines on a scratch material for both stages but copied only
+  /// its vertex defines onto each primitive's material.
+  ///
+  /// ## Why Not Caught
+  /// No test loaded an asset with TANGENT data, and the derivative frame still shades plausibly.
+  ///
+  /// ## Fix Applied
+  /// The fragment defines are copied as well, and `main.vert` moves the tangent into world space.
+  ///
+  /// ## Prevention
+  /// Loads a two-primitive asset through `gltf::load` and checks that only the primitive with
+  /// TANGENT gets `USE_TANGENTS` in its fragment defines.
+  ///
+  /// ## Pitfall
+  /// The two stages compile from separate define sets; a define recorded for both must reach both.
+  // test_kind: bug_reproducer(BUG-535)
   #[ wasm_bindgen_test( async ) ]
   async fn tangent_attribute_reaches_the_fragment_defines()
   {

@@ -281,6 +281,8 @@ void main()
   #ifdef USE_TANGENTS
     // A tangent is a direction along the surface, so it takes the world matrix itself (a normal
     // takes its inverse transpose, normalMatrix): main.frag pairs it with the world-space vNormal.
+    // Fix(BUG-535): the object-space tangent passed through untransformed, which went unseen only
+    // while USE_TANGENTS never reached main.frag.
     vTangent.xyz = normalize( mat3( worldMatrix ) * vTangent.xyz );
   #endif
 

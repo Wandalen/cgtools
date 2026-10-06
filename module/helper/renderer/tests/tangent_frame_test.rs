@@ -140,6 +140,22 @@ void main()
   /// bitangent must point up the image ( +Y ), as glTF's tangent space does: a frame whose
   /// bitangent follows increasing v inverts every normal map's green channel and mirrors the
   /// anisotropy direction.
+  ///
+  /// ## Root Cause
+  /// `getTBN` returned the gradient of v as its bitangent, which points down the image.
+  ///
+  /// ## Why Not Caught
+  /// Nothing read the frame back, and an inverted green channel still looks like plausible relief.
+  ///
+  /// ## Fix Applied
+  /// The bitangent is oriented up the image, the direction in which v decreases.
+  ///
+  /// ## Prevention
+  /// Reads every column of the frame back from an upright quad with known UVs.
+  ///
+  /// ## Pitfall
+  /// "v increases" is not "up" in glTF.
+  // test_kind: bug_reproducer(BUG-536)
   #[ wasm_bindgen_test ]
   fn derivative_frame_bitangent_points_up_the_image()
   {
