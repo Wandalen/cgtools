@@ -31,9 +31,14 @@
 | skeleton_tests.rs | Tests skeleton stuff |
 | animation_graph_tests.rs | Tests animation graph stuff |
 | mirror_tests.rs | Tests animation mirroring stuff |
+| pbr_shading_readback_test.rs | Pixel readback of the real PBR program on a lit quad: clearcoat, anisotropy and normal-map shading properties (`test_internals`) |
+| tangent_frame_test.rs | Pixel readback of `main.frag`'s tangent-less `getTBN`: frame columns point along glTF's tangent space |
+| clearcoat_anisotropy_shader_tests.rs | Headless-browser shader-compilation tests for KHR_materials_clearcoat / KHR_materials_anisotropy, from the renderer's own source assembly (`test_internals`) |
 | pmrem_tests.rs | Structural browser tests of the PMREM IBL generator |
 | fbo_pass_cycle_test.rs | Live-context FBO pass-cycle tests for `ShadowMap`/`GBuffer` bind/render |
 | pbr_material_live_test.rs | Live-context tests for `PbrMaterial` defines/IBL-flag/emission/clone logic |
+| pbr_texture_units_test.rs | `PbrMaterial` texture-unit layout: disjoint units, fragment samplers within WebGL2's guaranteed 16 |
+| gltf_material_extensions_test.rs | Native parsing of `KHR_materials_clearcoat` / `KHR_materials_anisotropy` JSON: defaults, `texCoord`, coat normal `scale`, rotation |
 | tests.rs | Connects test modules into root |
 | shader_validation_tests.rs | Validates WGSL shader sources offline via naga |
 | legacy_glsl_shader_compile_test.rs | Compiles all 28 shipped legacy GLSL ES 3.00 `.vert`/`.frag` shaders through a real headless WebGL2 context |
@@ -48,5 +53,6 @@
 | gltf_attribute_descriptor_test.rs | Tests glTF vertex-attribute descriptor computation from accessor metadata |
 | webgl_frame_orchestration_test.rs | Tests legacy webgl path's drawbuffers attachment selection |
 | webgl_renderer_pass_cycle_test.rs | Live-context test: legacy `Renderer::render()` completes on an opaque PBR primitive and an empty scene |
+| gltf_tangent_defines_test.rs | Live `gltf::load` of a `data:` URI asset: a TANGENT attribute turns on `USE_TANGENTS` in the fragment stage; `load` rejects an unsupported `extensionsRequired` entry and accepts the supported ones |
 | gltf_extensions_required_test.rs | Tests glTF loader rejects assets requiring unsupported extensions |
 | unreal_bloom_tests.rs | Structural browser tests: `UnrealBloomPass` renders via the real `SwapFramebuffer`-bound pass cycle |

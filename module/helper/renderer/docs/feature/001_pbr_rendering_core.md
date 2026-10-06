@@ -62,7 +62,9 @@ HAL once one exists.
 | File | Relationship |
 |------|--------------|
 | `src/webgl/loaders/gltf.rs` | Content import onto the scene graph |
+| `src/webgl/loaders/gltf_extensions.rs` | Required-extension validation, reading the clearcoat / anisotropy extension JSON, and applying those layers to imported materials |
 | `src/webgl/material/pbr.rs` | Main shader pair and material upload |
+| `src/webgl/material/pbr/accessors.rs` | `PbrMaterial` property getters and setters |
 | `src/webgl/node.rs` | Scene-graph node and transform hierarchy |
 | `src/webgl/post_processing/` | Composable HDR post passes |
 | `src/webgl/renderer.rs` | Target allocation, pass sequence, resolve/composite |

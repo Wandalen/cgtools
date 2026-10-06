@@ -57,6 +57,7 @@ supports). Analytic lighting is bounded by fixed capacities: at most 8 point,
 | File | Relationship |
 |------|--------------|
 | `src/webgl/loaders/gltf.rs` | Maps imported glTF materials onto the baseline model |
+| `src/webgl/loaders/gltf_extensions.rs` | Applies the `KHR_materials_clearcoat` / `KHR_materials_anisotropy` layers on top of the baseline (`material_layer_extensions_apply`), and refuses assets that require an extension the loader doesn't implement |
 | `src/webgl/material/pbr.rs` | The main shader pair, its uniform surface, and the light-capacity constants |
 | `src/webgl/shaders/main.frag` | The BRDF implementation itself |
 
