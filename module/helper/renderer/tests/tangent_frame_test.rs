@@ -2,7 +2,8 @@
 //!
 //! The function is cut out of the shipped `main.frag` source and run on a full-screen quad whose
 //! world position is its clip position ( z = 0, normal +Z ) and whose UVs are an affine map of it,
-//! so every column of the frame has a known expected direction. glTF puts the UV origin at the
+//! so every column of the frame has a known expected direction. Drawn with its winding reversed,
+//! the same quad is a back face, whose frame `main()` builds around the flipped normal ( -Z ). glTF puts the UV origin at the
 //! image's upper-left corner and defines tangent space as +X right and +Y up the image, and the
 //! loader uploads images unflipped, so +Y is the direction in which v decreases.
 
@@ -19,12 +20,13 @@ mod tests
 
   const VERTEX_SHADER : &str = "#version 300 es
 uniform mat3 uvMap;
+uniform bool reversed;
 out vec3 vPos;
 out vec2 vUv;
 void main()
 {
   vec2 corners[ 6 ] = vec2[]( vec2( -1, -1 ), vec2( 1, -1 ), vec2( 1, 1 ), vec2( -1, -1 ), vec2( 1, 1 ), vec2( -1, 1 ) );
-  vec2 p = corners[ gl_VertexID ];
+  vec2 p = corners[ reversed ? 5 - gl_VertexID : gl_VertexID ];
   vPos = vec3( p, 0.0 );
   vUv = ( uvMap * vec3( p, 1.0 ) ).xy;
   gl_Position = vec4( p, 0.0, 1.0 );
@@ -33,6 +35,16 @@ void main()
 
   /// Tolerance for a decoded RGBA8 component ( one step is 2 / 255 ).
   const EPS : f32 = 0.02;
+
+  /// Which side of the quad faces the camera.
+  #[ derive( Clone, Copy ) ]
+  enum Face
+  {
+    /// Counter-clockwise winding: `gl_FrontFacing` is true and the normal is +Z.
+    Front,
+    /// Clockwise winding: `gl_FrontFacing` is false and the normal is -Z, as `main()` negates it.
+    Back,
+  }
 
   fn gl_init() -> GL
   {
@@ -67,9 +79,10 @@ void main()
     panic!( "getTBN has no closing brace" );
   }
 
-  /// Renders column `column` of `getTBN( +Z, pos, uv )` with `uv = uv_map * ( x, y, 1 )` and
-  /// returns it decoded from the center pixel. `uv_map` is column-major, as GLSL reads it.
-  fn frame_column( gl : &GL, uv_map : [ f32; 9 ], column : i32 ) -> [ f32; 3 ]
+  /// Renders column `column` of `getTBN( N, pos, uv )` on the front face ( N = +Z ) or the back
+  /// face ( N = -Z ) with `uv = uv_map * ( x, y, 1 )` and returns it decoded from the center pixel.
+  /// `uv_map` is column-major, as GLSL reads it.
+  fn frame_column_on( gl : &GL, face : Face, uv_map : [ f32; 9 ], column : i32 ) -> [ f32; 3 ]
   {
     let fs = format!
     (
@@ -78,11 +91,12 @@ precision highp float;
 in vec3 vPos;
 in vec2 vUv;
 uniform int column;
+uniform vec3 surfNormal;
 out vec4 color;
 {}
 void main()
 {{
-  mat3 tbn = getTBN( vec3( 0.0, 0.0, 1.0 ), vPos, vUv );
+  mat3 tbn = getTBN( surfNormal, vPos, vUv );
   color = vec4( tbn[ column ] * 0.5 + 0.5, 1.0 );
 }}
 ",
@@ -94,6 +108,9 @@ void main()
     gl.use_program( Some( &program ) );
     gl.uniform_matrix3fv_with_f32_array( gl.get_uniform_location( &program, "uvMap" ).as_ref(), false, &uv_map );
     gl.uniform1i( gl.get_uniform_location( &program, "column" ).as_ref(), column );
+    let ( reversed, normal_z ) = match face { Face::Front => ( 0, 1.0 ), Face::Back => ( 1, -1.0 ) };
+    gl.uniform1i( gl.get_uniform_location( &program, "reversed" ).as_ref(), reversed );
+    gl.uniform3f( gl.get_uniform_location( &program, "surfNormal" ).as_ref(), 0.0, 0.0, normal_z );
 
     let ( width, height ) = ( gl.drawing_buffer_width(), gl.drawing_buffer_height() );
     gl.bind_framebuffer( gl::FRAMEBUFFER, None );
@@ -105,6 +122,12 @@ void main()
     .expect( "read_pixels succeeds" );
     gl.delete_program( Some( &program ) );
     [ 0, 1, 2 ].map( | i | f32::from( pixel[ i ] ) / 255.0 * 2.0 - 1.0 )
+  }
+
+  /// `frame_column_on` for the front face.
+  fn frame_column( gl : &GL, uv_map : [ f32; 9 ], column : i32 ) -> [ f32; 3 ]
+  {
+    frame_column_on( gl, Face::Front, uv_map, column )
   }
 
   fn assert_near( actual : [ f32; 3 ], expected : [ f32; 3 ], what : &str )
@@ -126,6 +149,21 @@ void main()
     assert_near( frame_column( &gl, upright, 0 ), [ 1.0, 0.0, 0.0 ], "tangent" );
     assert_near( frame_column( &gl, upright, 1 ), [ 0.0, 1.0, 0.0 ], "bitangent" );
     assert_near( frame_column( &gl, upright, 2 ), [ 0.0, 0.0, 1.0 ], "normal" );
+  }
+
+  /// On a back face the whole frame must flip, not only the normal: glTF, master and the Khronos
+  /// sample renderer resolve a normal-map sample ( x, y, z ) there to -x·T - y·B - z·N, the
+  /// reversed front-face normal, as this crate's vertex-tangent branch does. A frame that keeps T
+  /// and B lights every normal map's relief from the wrong side on double-sided back faces.
+  #[ wasm_bindgen_test ]
+  fn derivative_frame_flips_whole_on_a_back_face()
+  {
+    let gl = gl_init();
+    let upright = [ 0.5, 0.0, 0.0, 0.0, -0.5, 0.0, 0.5, 0.5, 1.0 ];
+
+    assert_near( frame_column_on( &gl, Face::Back, upright, 0 ), [ -1.0, 0.0, 0.0 ], "tangent" );
+    assert_near( frame_column_on( &gl, Face::Back, upright, 1 ), [ 0.0, -1.0, 0.0 ], "bitangent" );
+    assert_near( frame_column_on( &gl, Face::Back, upright, 2 ), [ 0.0, 0.0, -1.0 ], "normal" );
   }
 
   /// Mirroring u ( u = ( 1 - x ) / 2 ) flips the tangent and leaves the bitangent up the image:

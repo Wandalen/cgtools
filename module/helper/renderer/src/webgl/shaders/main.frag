@@ -646,7 +646,14 @@ float alpha_weight( float a )
     T = normalize( T );
     vec3 B = cross( surf_normal, T );
     B *= dot( B, dPdv ) > 0.0 ? -1.0 : 1.0;
-    return mat3( T, B, surf_normal );
+    // On a back face the whole frame flips, as in the vertex-tangent branch of tangentFrame.
+    // surf_normal is already negated there, but T and B come out the same for N and -N ( the
+    // projection ignores N's sign and B is oriented by dPdv ), so they are negated here: a
+    // normal-map sample then resolves to the reversed front-face normal, as glTF and the Khronos
+    // sample renderer give, instead of keeping its x and y and lighting the relief from the
+    // wrong side.
+    float faceDirection = gl_FrontFacing ? 1.0 : -1.0;
+    return mat3( T * faceDirection, B * faceDirection, surf_normal );
   }
 #endif
 
@@ -854,9 +861,10 @@ void main()
   material.f0 = mix( material.f0, material.diffuseColor, material.metallness );
   material.diffuseColor *= 1.0 - material.metallness;
 
-  // faceDirection is applied to the geometric normal up front (before TBN / normal-map /
-  // clearcoat / anisotropy all consume it), so every one of those is consistently oriented
-  // on double-sided back faces.
+  // faceDirection is applied to the geometric normal up front, before the tangent frame,
+  // normal maps, clearcoat and anisotropy consume it. tangentFrame flips its tangent and
+  // bitangent on back faces as well ( both branches ), so a tangent-space sample resolves to the
+  // reversed front-face normal on double-sided back faces.
   float faceDirection = gl_FrontFacing ? 1.0 : -1.0;
   vec3 geometricNormal = normalize( vNormal ) * faceDirection;
 
