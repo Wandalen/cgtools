@@ -1,9 +1,13 @@
-//! Live `gltf::load` test: a primitive's TANGENT attribute must reach both shader stages.
+//! Live `gltf::load` tests on a small `data:` URI asset.
 //!
-//! The loader records vertex attributes as defines on a scratch material and copies them onto
-//! each primitive's material. `main.frag` builds its tangent frame from `vTangent` only under
-//! `USE_TANGENTS`, so a define copied to the vertex stage alone leaves every asset that ships
-//! tangents on the derivative frame instead of its authored tangents.
+//! - A primitive's TANGENT attribute must reach both shader stages. The loader records vertex
+//!   attributes as defines on a scratch material and copies them onto each primitive's material.
+//!   `main.frag` builds its tangent frame from `vTangent` only under `USE_TANGENTS`, so a define
+//!   copied to the vertex stage alone leaves every asset that ships tangents on the derivative
+//!   frame instead of its authored tangents.
+//! - `extensionsRequired` must be checked by `load` itself. `load` parses without `gltf`'s own
+//!   validation and relies on one `document_validate` call for every check, so a test of
+//!   `document_validate` alone wouldn't notice that call being removed or moved.
 
 #[ cfg( target_arch = "wasm32" ) ]
 #[ cfg( test ) ]
@@ -23,8 +27,9 @@ mod tests
   }
 
   /// A one-material glTF with two triangles as `data:` URIs: primitive 0 has POSITION, NORMAL
-  /// and TANGENT, primitive 1 only POSITION and NORMAL.
-  fn two_primitive_gltf_uri() -> String
+  /// and TANGENT, primitive 1 only POSITION and NORMAL. `required` names extensions listed in
+  /// both `extensionsUsed` and `extensionsRequired`; nothing in the asset uses them.
+  fn two_primitive_gltf_uri( required : &[ &str ] ) -> String
   {
     let positions = [ 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0_f32 ];
     let normals = [ 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0_f32 ];
@@ -33,11 +38,21 @@ mod tests
     let window = gl::web_sys::window().unwrap();
     let latin1 : String = bytes.iter().map( | &b | char::from( b ) ).collect();
     let buffer = window.btoa( &latin1 ).unwrap();
+    let extensions = if required.is_empty()
+    {
+      String::new()
+    }
+    else
+    {
+      let names = required.iter().map( | name | format!( "\"{name}\"" ) ).collect::< Vec< _ > >().join( ", " );
+      format!( r#""extensionsUsed" : [ {names} ], "extensionsRequired" : [ {names} ],"# )
+    };
 
     let json = format!
     (
       r#"{{
         "asset" : {{ "version" : "2.0" }},
+        {extensions}
         "buffers" : [ {{ "byteLength" : {len}, "uri" : "data:application/octet-stream;base64,{buffer}" }} ],
         "bufferViews" : [
           {{ "buffer" : 0, "byteOffset" : 0, "byteLength" : 36 }},
@@ -70,7 +85,7 @@ mod tests
   {
     let gl = gl_init();
     let document = gl::web_sys::window().unwrap().document().unwrap();
-    let gltf = gltf::load( &document, &two_primitive_gltf_uri(), &gl ).await.expect( "fixture loads" );
+    let gltf = gltf::load( &document, &two_primitive_gltf_uri( &[] ), &gl ).await.expect( "fixture loads" );
 
     let mesh = gltf.meshes[ 0 ].borrow();
     let fragment_defines = | i : usize | mesh.primitives[ i ].borrow().material.borrow().fragment_defines_str().to_owned();
@@ -79,5 +94,33 @@ mod tests
 
     assert!( with_tangents.contains( "#define USE_TANGENTS" ), "{with_tangents}" );
     assert!( !without_tangents.contains( "USE_TANGENTS" ), "{without_tangents}" );
+  }
+
+  /// An asset that requires an extension this loader doesn't support must fail to load, as glTF's
+  /// "Specifying Extensions" requires of a conformant client.
+  #[ wasm_bindgen_test( async ) ]
+  async fn load_rejects_an_unsupported_required_extension()
+  {
+    let gl = gl_init();
+    let document = gl::web_sys::window().unwrap().document().unwrap();
+    let uri = two_primitive_gltf_uri( &[ "KHR_draco_mesh_compression" ] );
+
+    let result = gltf::load( &document, &uri, &gl ).await;
+
+    assert!( result.is_err(), "an asset requiring KHR_draco_mesh_compression must not load" );
+  }
+
+  /// The required extensions this loader supports must still load through `load`, although
+  /// `gltf`'s own validation, which `load` skips, rejects them.
+  #[ wasm_bindgen_test( async ) ]
+  async fn load_accepts_the_supported_required_extensions()
+  {
+    let gl = gl_init();
+    let document = gl::web_sys::window().unwrap().document().unwrap();
+    let uri = two_primitive_gltf_uri( &[ "KHR_materials_clearcoat", "KHR_materials_anisotropy" ] );
+
+    let result = gltf::load( &document, &uri, &gl ).await;
+
+    assert!( result.is_ok(), "an asset requiring the clearcoat and anisotropy extensions must load" );
   }
 }
