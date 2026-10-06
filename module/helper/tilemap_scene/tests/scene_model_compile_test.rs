@@ -11,6 +11,7 @@
 use rustc_hash::FxHashMap as HashMap;
 
 mod common;
+use common::compile::{ at_time_compile, atlas_with_frames, grass_object, minimal_scene_3x3, minimal_spec, sprite_commands, try_compile };
 
 use tilemap_renderer::commands::RenderCommand;
 use tilemap_scene::
@@ -34,7 +35,6 @@ use tilemap_scene::
   EdgeInstance,
   EdgePosition,
   FreeInstance,
-  HexConfig,
   LayerBehaviour,
   MipmapMode,
   NeighborBitmaskSource,
@@ -42,10 +42,8 @@ use tilemap_scene::
   ObjectLayer,
   PathResolver,
   PhaseOffset,
-  PipelineLayer,
   Placement,
   Renderer,
-  RenderPipeline,
   RenderSpec,
   SamplerFilter,
   Scene,
@@ -56,10 +54,8 @@ use tilemap_scene::
   SpriteRef,
   SpriteSource,
   Tile,
-  TilingStrategy,
   Tint,
   TintRef,
-  TriBlendPattern,
   Validate,
   Variant,
   VariantSelection,
@@ -73,112 +69,6 @@ use tilemap_scene::
 extern crate alloc;
 use alloc::sync::Arc;
 use tilemap_renderer::assets::ImageSource;
-
-// ────────────────────────────────────────────────────────────────────────────
-// Fixture builders.
-// ────────────────────────────────────────────────────────────────────────────
-
-fn atlas_with_frames( columns : u32, pairs : &[ ( &str, ( u32, u32 ) ) ] ) -> AssetKind
-{
-  let mut frames = HashMap::default();
-  for ( name, pos ) in pairs
-  {
-    frames.insert( ( *name ).to_string(), *pos );
-  }
-  AssetKind::Atlas { tile_size : ( 72, 64 ), columns, origin : ( 0, 0 ), gap : ( 0, 0 ), frames, frame_rects : HashMap::default(), image_size : None }
-}
-
-fn grass_object() -> Object
-{
-  let mut anims = HashMap::default();
-  anims.insert
-  (
-    "default".into(),
-    vec!
-    [
-      ObjectLayer
-      {
-        id : Some( "base".into() ),
-        sprite_source : SpriteSource::Static( SpriteRef { asset : "terrain".into(), frame : "0".into() } ),
-        behaviour : LayerBehaviour::default(),
-        z_in_object : 0,
-        pipeline_layer : None,
-      },
-    ],
-  );
-  Object
-  {
-    id : "grass".into(),
-    anchor : Anchor::Hex,
-    global_layer : "terrain".into(),
-    priority : Some( 10 ),
-    sort_y_source : SortYSource::default(),
-    pivot : ( 0.5, 0.5 ),
-    default_state : "default".into(),
-    states : anims,
-  }
-}
-
-fn minimal_spec() -> RenderSpec
-{
-  RenderSpec
-  {
-    version : "0.2.0".into(),
-    assets : vec!
-    [
-      Asset
-      {
-        id : "terrain".into(),
-        path : "terrain.png".into(),
-        kind : AssetKind::Atlas
-        {
-          tile_size : ( 72, 64 ),
-          columns : 2,
-          origin : ( 0, 0 ),
-          gap : ( 0, 0 ),
-          frames : HashMap::default(),
-          frame_rects : HashMap::default(),
-          image_size : None,
-        },
-        filter : SamplerFilter::Linear,
-        mipmap : MipmapMode::Off,
-        wrap : WrapMode::Clamp,
-      },
-    ],
-    tints : Vec::new(),
-    animations : Vec::new(),
-    effects : Vec::new(),
-    objects : vec![ grass_object() ],
-    pipeline : RenderPipeline
-    {
-      hex : HexConfig
-      {
-        tiling : TilingStrategy::HexFlatTop,
-        grid_stride : ( 72, 64 ),
-      },
-      layers : vec!
-      [
-        PipelineLayer { id : "terrain".into(), sort : SortMode::None, tint_mask : None },
-      ],
-      global_tint : None,
-      viewport_size : None,
-      clear_color : None,
-    },
-  }
-}
-
-fn minimal_scene_3x3() -> SceneSnapshot
-{
-  let mut scene = SceneSnapshot::new( Bounds { min : ( 0, 0 ), max : ( 2, 2 ) } );
-  for r in 0..3
-  {
-    for q in 0..3
-    {
-      scene.tiles.push( Tile { pos : ( q, r ), objects : vec![ "grass".into() ] } );
-    }
-  }
-  scene
-}
 
 // ────────────────────────────────────────────────────────────────────────────
 // assets_compile tests.
@@ -387,28 +277,6 @@ fn compile( spec : &RenderSpec, snap : &SceneSnapshot, camera : &Camera ) -> Vec
   // entries directly. Flatten the batch stream back to the per-sprite shape
   // so those assertions keep working without touching every fixture.
   common::commands_to_sprites( raw )
-}
-
-/// Variant of `compile` that runs the scene at a non-zero clock — used
-/// by animation-frame and phase-offset tests that originally passed a
-/// `time_seconds` to `compile_frame`.
-fn at_time_compile( spec : &RenderSpec, snap : &SceneSnapshot, camera : &Camera, t : f32 ) -> Vec< RenderCommand >
-{
-  let mut renderer = Renderer::new( spec, &PathResolver ).expect( "renderer" );
-  let mut scene = Scene::from_snapshot( snap, Arc::new( spec.clone() ) ).expect( "scene" );
-  scene.tick( t );
-  let raw = renderer.render( &scene, camera ).expect( "render" );
-  common::commands_to_sprites( raw )
-}
-
-/// Try to render. Returns a `Result` so error-path tests can assert on
-/// the specific [`CompileError`] variant.
-fn try_compile( spec : &RenderSpec, snap : &SceneSnapshot, camera : &Camera ) -> Result< Vec< RenderCommand >, CompileError >
-{
-  let mut renderer = Renderer::new( spec, &PathResolver )?;
-  let scene = Scene::from_snapshot( snap, Arc::new( spec.clone() ) ).expect( "snap valid" );
-  let raw = renderer.render( &scene, camera )?;
-  Ok( common::commands_to_sprites( raw ) )
 }
 
 #[ test ]
@@ -1075,7 +943,7 @@ fn phase_offset_hashcoord_spreads_frames_across_tiles()
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Slice 3 — NeighborBitmask / NeighborCondition / VertexCorners.
+// Slice 3 — NeighborBitmask / NeighborCondition (VertexCorners: vertex_corners_compile_test.rs).
 // ────────────────────────────────────────────────────────────────────────────
 
 /// A minimal spec whose grass object is replaced by `wall_object` (an
@@ -1437,237 +1305,6 @@ fn neighbor_condition_priority_lower_blends_grass_over_sand()
   assert!( !sprite_ids.contains( &sand_edge_n ), "sand_edge_n should NOT emit — sand has lower priority" );
 }
 
-#[ test ]
-#[ expect( clippy::too_many_lines, reason = "linear fixture-build, compile, assert scenario; splitting would scatter the scenario steps across helpers" ) ]
-fn vertex_corners_three_way_blend()
-{
-  // Three tiles surrounding a vertex: grass at (0,0), sand at (1,-1), water at (0,-1).
-  // These three hexes share exactly one dual-mesh triangle (by construction).
-  let mut spec = minimal_spec();
-  spec.assets.push
-  (
-    Asset
-    {
-      id : "blends".into(),
-      path : "blends.png".into(),
-      kind : atlas_with_frames
-      (
-        8,
-        &[
-          ( "tri_gsw_0", ( 0, 0 ) ),
-          ( "tri_gsw_1", ( 1, 0 ) ),
-          ( "tri_gsw_2", ( 2, 0 ) ),
-        ],
-      ),
-      filter : SamplerFilter::default(),
-      mipmap : MipmapMode::default(),
-      wrap : WrapMode::default(),
-    }
-  );
-
-  // Terrains grass/sand/water.
-  for ( id, prio ) in [ ( "sand", 8 ), ( "water", 5 ) ]
-  {
-    spec.objects.push( Object
-    {
-      id : id.into(),
-      anchor : Anchor::Hex,
-      global_layer : "terrain".into(),
-      priority : Some( prio ),
-      sort_y_source : SortYSource::default(),
-      pivot : ( 0.5, 0.5 ),
-      default_state : "default".into(),
-      states :
-      {
-        let mut m = HashMap::default();
-        m.insert
-        (
-          "default".into(),
-          vec!
-          [
-            ObjectLayer
-            {
-              id : None,
-              sprite_source : SpriteSource::Static( SpriteRef { asset : "terrain".into(), frame : "0".into() } ),
-              behaviour : LayerBehaviour::default(),
-              z_in_object : 0,
-              pipeline_layer : None,
-            },
-          ],
-        );
-        m
-      },
-    });
-  }
-
-  // VertexCorners object — its own default animation has a single layer
-  // with a pattern that matches the gss/sand/water triple.
-  spec.objects.push( Object
-  {
-    id : "blend".into(),
-    anchor : Anchor::Hex,   // anchor type of the owning object doesn't matter for VertexCorners pass
-    global_layer : "terrain".into(),
-    priority : None,
-    sort_y_source : SortYSource::default(),
-    pivot : ( 0.5, 0.5 ),
-    default_state : "default".into(),
-    states :
-    {
-      let mut m = HashMap::default();
-      m.insert
-      (
-        "default".into(),
-        vec!
-        [
-          ObjectLayer
-          {
-            id : None,
-            sprite_source : SpriteSource::VertexCorners
-            {
-              patterns : vec!
-              [
-                TriBlendPattern
-                {
-                  corners : ( "grass".into(), "sand".into(), "water".into() ),
-                  sprite_pattern : "tri_gsw_{rot}".into(),
-                  priority : 10,
-                  animation : None,
-                },
-              ],
-              asset : "blends".into(),
-            },
-            behaviour : LayerBehaviour::default(),
-            z_in_object : 0,
-            pipeline_layer : None,
-          },
-        ],
-      );
-      m
-    },
-  });
-  // Instantiate the blend object once on any tile so the VertexCorners pass
-  // finds it during bucket emission. (Object presence is what matters, not
-  // the tile — vertex sprites are global per-bucket.)
-  let scene = SceneSnapshot
-  {
-    tiles : vec!
-    [
-      Tile { pos : ( 0,  0 ), objects : vec![ "grass".into(), "blend".into() ] },
-      Tile { pos : ( 1, -1 ), objects : vec![ "sand".into() ] },
-      Tile { pos : ( 0, -1 ), objects : vec![ "water".into() ] },
-    ],
-    ..minimal_scene_3x3()
-  };
-  let compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
-  let cmds = at_time_compile( &spec, &scene, &Camera::default(), 0.0 );
-
-  let sprite_ids : std::collections::HashSet< _ > = cmds.iter().filter_map( | c |
-    if let tilemap_renderer::commands::RenderCommand::Sprite( s ) = c { Some( s.sprite ) } else { None }
-  ).collect();
-
-  // The triangle surrounding the shared vertex should have produced a
-  // tri_gsw_<rot> sprite for some rotation in 0..3.
-  let any_rot_emitted = ( 0..3 ).any( | r |
-  {
-    let id = compiled.ids.sprite( "blends", &format!( "tri_gsw_{r}" ) );
-    id.is_some() && sprite_ids.contains( &id.unwrap() )
-  });
-  assert!( any_rot_emitted, "expected any rotation of tri_gsw to emit; sprite_ids = {sprite_ids:?}" );
-}
-
-#[ test ]
-fn vertex_corners_wildcard_edge_fade()
-{
-  // An isolated tile of grass — every dual triangle has 2 void corners.
-  // A wildcard pattern ("*", "*", "void") should cover each.
-  let mut spec = minimal_spec();
-  spec.assets.push
-  (
-    Asset
-    {
-      id : "fades".into(),
-      path : "fades.png".into(),
-      kind : atlas_with_frames
-      (
-        8,
-        &[
-          ( "edge_fade_0", ( 0, 0 ) ),
-          ( "edge_fade_1", ( 1, 0 ) ),
-          ( "edge_fade_2", ( 2, 0 ) ),
-        ],
-      ),
-      filter : SamplerFilter::default(),
-      mipmap : MipmapMode::default(),
-      wrap : WrapMode::default(),
-    }
-  );
-  spec.objects.push( Object
-  {
-    id : "fade".into(),
-    anchor : Anchor::Hex,
-    global_layer : "terrain".into(),
-    priority : None,
-    sort_y_source : SortYSource::default(),
-    pivot : ( 0.5, 0.5 ),
-    default_state : "default".into(),
-    states :
-    {
-      let mut m = HashMap::default();
-      m.insert
-      (
-        "default".into(),
-        vec!
-        [
-          ObjectLayer
-          {
-            id : None,
-            sprite_source : SpriteSource::VertexCorners
-            {
-              patterns : vec!
-              [
-                TriBlendPattern
-                {
-                  corners : ( "*".into(), "*".into(), "void".into() ),
-                  sprite_pattern : "edge_fade_{rot}".into(),
-                  priority : 0,
-                  animation : None,
-                },
-              ],
-              asset : "fades".into(),
-            },
-            behaviour : LayerBehaviour::default(),
-            z_in_object : 0,
-            pipeline_layer : None,
-          },
-        ],
-      );
-      m
-    },
-  });
-
-  let scene = SceneSnapshot
-  {
-    tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "grass".into(), "fade".into() ] } ],
-    ..minimal_scene_3x3()
-  };
-  let compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
-  let cmds = at_time_compile( &spec, &scene, &Camera::default(), 0.0 );
-
-  let emitted : std::collections::HashSet< _ > = cmds.iter().filter_map( | c |
-    if let tilemap_renderer::commands::RenderCommand::Sprite( s ) = c { Some( s.sprite ) } else { None }
-  ).collect();
-
-  // Six triangles around the isolated hex, all with 2 void corners → all
-  // should match the wildcard fade pattern. We just assert at least one
-  // edge_fade_* sprite emitted.
-  let any_fade = ( 0..3 ).any( | r |
-  {
-    let id = compiled.ids.sprite( "fades", &format!( "edge_fade_{r}" ) );
-    id.is_some() && emitted.contains( &id.unwrap() )
-  });
-  assert!( any_fade, "expected wildcard fade to match at least one triangle; emitted = {emitted:?}" );
-}
-
 // ────────────────────────────────────────────────────────────────────────────
 // Slice 4 — Edge / FreePos / Viewport anchors.
 // ────────────────────────────────────────────────────────────────────────────
@@ -1701,15 +1338,6 @@ fn static_object_with_anchor( id : &str, anchor : Anchor, sprite : SpriteRef ) -
     default_state : "default".into(),
     states : anims,
   }
-}
-
-fn sprite_commands( commands : &[ RenderCommand ] ) -> Vec< &tilemap_renderer::commands::Sprite >
-{
-  commands.iter().filter_map( | c | match c
-  {
-    RenderCommand::Sprite( s ) => Some( s ),
-    _ => None,
-  }).collect()
 }
 
 fn screen_space_commands( commands : &[ RenderCommand ] ) -> Vec< &tilemap_renderer::commands::Sprite >
@@ -2259,6 +1887,59 @@ fn global_tint_none_is_identity()
 }
 
 #[ test ]
+fn global_tint_unresolved_names_its_source()
+{
+  // `pipeline.global_tint` / `Scene::global_tint_set` are not checked against
+  // the declared tints before `render()`; the error must say where the id
+  // came from.
+  let mut spec = minimal_spec();
+  spec.pipeline.global_tint = Some( TintRef( "ghost".into() ) );
+  let scene = SceneSnapshot
+  {
+    tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "grass".into() ] } ],
+    ..minimal_scene_3x3()
+  };
+  let err = try_compile( &spec, &scene, &Camera::default() ).expect_err( "undeclared global tint must fail" );
+  assert!
+  (
+    matches!
+    (
+      &err,
+      CompileError::UnresolvedRef { kind : "tint", id, context }
+        if id == "ghost" && context == "scene.global_tint / pipeline.global_tint"
+    ),
+    "expected UnresolvedRef naming the global tint, got {err:?}",
+  );
+}
+
+#[ test ]
+fn global_tint_non_multiply_mode_is_rejected()
+{
+  // A global tint can only be folded in as a multiplier; a spec built without
+  // `load()` must not render an `Add` tint as a plain multiply.
+  let mut spec = minimal_spec();
+  spec.tints.push( Tint
+  {
+    id : "glow".into(),
+    color : "#ff0000".into(),
+    strength : 1.0,
+    mode : BlendMode::Add,
+  });
+  spec.pipeline.global_tint = Some( TintRef( "glow".into() ) );
+  let scene = SceneSnapshot
+  {
+    tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "grass".into() ] } ],
+    ..minimal_scene_3x3()
+  };
+  let err = try_compile( &spec, &scene, &Camera::default() ).expect_err( "Add global tint must be rejected" );
+  assert!
+  (
+    matches!( &err, CompileError::UnsupportedTintMode { tint, mode : BlendMode::Add } if tint == "glow" ),
+    "expected UnsupportedTintMode for 'glow', got {err:?}",
+  );
+}
+
+#[ test ]
 fn layer_behaviour_blend_reaches_sprite_command()
 {
   // Regression for commit 6119a0d1: every Sprite emit site in compile/frame.rs
@@ -2290,7 +1971,7 @@ fn layer_behaviour_blend_reaches_sprite_command()
 fn layer_behaviour_alpha_multiplies_into_sprite_tint()
 {
   // Regression for commit 28ced311: every Sprite emit site in compile/frame.rs
-  // must pipe `LayerBehaviour.alpha` through the `tinted()` helper that
+  // must pipe `LayerBehaviour.alpha` through `FrameTints::sprite_tint`, which
   // multiplies the alpha channel. Without global tint, alpha = 0.5 should
   // produce tint = [ 1, 1, 1, 0.5 ].
   let mut spec = minimal_spec();

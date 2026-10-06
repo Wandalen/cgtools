@@ -44,7 +44,7 @@ mod private
     ///
     /// # Panics
     ///
-    /// Panics if the image id counter overflows `u32::MAX`.
+    /// Panics if more than `u32::MAX` distinct image ids have been allocated.
     #[ inline ]
     pub fn image_alloc( &mut self, asset_id : &str ) -> ResourceId< asset::Image >
     {
@@ -62,7 +62,7 @@ mod private
     ///
     /// # Panics
     ///
-    /// Panics if the sprite id counter overflows `u32::MAX`.
+    /// Panics if more than `u32::MAX` distinct sprite ids have been allocated.
     #[ inline ]
     pub fn sprite_alloc
     (
