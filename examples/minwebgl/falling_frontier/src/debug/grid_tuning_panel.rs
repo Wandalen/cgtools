@@ -384,3 +384,22 @@ where F : Fn() + 'static
   copy_button.add_event_listener_with_callback( "click", closure.as_ref().unchecked_ref() ).unwrap();
   closure.forget();
 }
+
+#[ cfg( test ) ]
+mod tests
+{
+  use super::{ build_tuning_summary, layers_summary };
+  use crate::debug::{ GridTuning, RenderLayers };
+
+  /// The Copy Settings text ends with the Render Layers lines, so the layer
+  /// switches are copied with everything else.
+  #[ test ]
+  fn summary_ends_with_the_layer_lines()
+  {
+    let t = GridTuning { layers : RenderLayers { show_station : false, ..RenderLayers::default() }, ..GridTuning::default() };
+    let summary = build_tuning_summary( &t );
+    assert!( summary.ends_with( &layers_summary( &t.layers ) ), "{summary}" );
+    assert!( summary.lines().any( | line | line == "station: false" ), "{summary}" );
+    assert!( summary.lines().any( | line | line == "tactical grid: true" ), "{summary}" );
+  }
+}

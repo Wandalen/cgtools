@@ -386,6 +386,41 @@ mod tests
     }
   }
 
+  /// Each row, flipped on alone from all-off, turns on the field this table
+  /// (written independently of `SCENE_TOGGLES` / `OPTION_TOGGLES`) names for
+  /// its label and puts exactly one `true` line in the summary - so two rows
+  /// with swapped accessors, or a row wired to the wrong field, fail here.
+  #[ test ]
+  fn each_row_flips_the_field_its_label_names()
+  {
+    type FieldRead = fn( &RenderLayers ) -> bool;
+    let expected : [ ( &str, FieldRead ); 11 ] =
+    [
+      ( "Tactical Grid", | t | t.show_grid ),
+      ( "Background", | t | t.show_background ),
+      ( "Starfield", | t | t.show_starfield ),
+      ( "Asteroids", | t | t.show_asteroids ),
+      ( "Ships", | t | t.show_ships ),
+      ( "Station", | t | t.show_station ),
+      ( "View-Zone Ribbon", | t | t.show_view_ribbon ),
+      ( "Selection Gizmo", | t | t.show_gizmo ),
+      ( "Lighting", | t | t.lighting_enabled ),
+      ( "Shadows", | t | t.shadows_enabled ),
+      ( "CRT Scanlines", | t | t.show_scanlines ),
+    ];
+    assert_eq!( all_toggles().count(), expected.len() );
+    for ( label, field ) in expected
+    {
+      let row = all_toggles().find( | r | r.label == label ).unwrap_or_else( || panic!( "no row {label:?}" ) );
+      let mut t = all_off();
+      ( row.set )( &mut t, true );
+      assert!( field( &t ), "row {label:?} doesn't write its own field" );
+      let summary = layers_summary( &t );
+      let on : Vec< &str > = summary.lines().filter( | line | line.ends_with( ": true" ) ).collect();
+      assert_eq!( on, vec![ format!( "{}: true", label.to_lowercase() ).as_str() ], "{summary}" );
+    }
+  }
+
   #[ test ]
   fn summary_has_one_line_per_row()
   {

@@ -858,25 +858,44 @@ mod tests
   #[ test ]
   fn each_kind_follows_its_own_layer_switch()
   {
-    let all_hidden = RenderLayers { show_asteroids : false, show_ships : false, show_station : false, ..RenderLayers::default() };
-    for kind in [ PickedKind::Asteroid( 0 ), PickedKind::Ship( 0 ), PickedKind::Station ]
+    let kinds = [ PickedKind::Asteroid( 3 ), PickedKind::Ship( 3 ), PickedKind::Station ];
+    let all_hidden = RenderLayers { show_asteroids : false, show_ships : false, show_station : false, ..all_shown() };
+    for kind in kinds
     {
-      assert!( kind_visible( kind, &RenderLayers::default() ) );
+      assert!( kind_visible( kind, &all_shown() ) );
       assert!( !kind_visible( kind, &all_hidden ) );
     }
 
-    let ships_only = RenderLayers { show_asteroids : false, show_station : false, ..RenderLayers::default() };
-    assert!( !kind_visible( PickedKind::Asteroid( 3 ), &ships_only ) );
-    assert!( kind_visible( PickedKind::Ship( 3 ), &ships_only ) );
-    assert!( !kind_visible( PickedKind::Station, &ships_only ) );
+    // Exactly one group shown at a time: each kind must follow its own
+    // switch and no other, so swapping any two arms fails.
+    let only = | asteroids, ships, station | RenderLayers { show_asteroids : asteroids, show_ships : ships, show_station : station, ..all_shown() };
+    for ( index, layers ) in [ only( true, false, false ), only( false, true, false ), only( false, false, true ) ].iter().enumerate()
+    {
+      for ( kind_index, kind ) in kinds.iter().enumerate()
+      {
+        assert_eq!( kind_visible( *kind, layers ), kind_index == index, "{layers:?}" );
+      }
+    }
   }
 
+  /// The gizmo needs its own switch and the selected object's layer, for
+  /// every kind - and only that kind's layer.
   #[ test ]
   fn gizmo_needs_its_switch_and_a_visible_object()
   {
-    let kind = PickedKind::Ship( 0 );
-    assert!( gizmo_visible( kind, &RenderLayers::default() ) );
-    assert!( !gizmo_visible( kind, &RenderLayers { show_gizmo : false, ..RenderLayers::default() } ) );
-    assert!( !gizmo_visible( kind, &RenderLayers { show_ships : false, ..RenderLayers::default() } ) );
+    let cases =
+    [
+      ( PickedKind::Asteroid( 0 ), RenderLayers { show_asteroids : false, ..all_shown() } ),
+      ( PickedKind::Ship( 0 ), RenderLayers { show_ships : false, ..all_shown() } ),
+      ( PickedKind::Station, RenderLayers { show_station : false, ..all_shown() } ),
+    ];
+    for ( kind, own_layer_hidden ) in cases
+    {
+      assert!( gizmo_visible( kind, &all_shown() ) );
+      assert!( !gizmo_visible( kind, &RenderLayers { show_gizmo : false, ..all_shown() } ) );
+      assert!( !gizmo_visible( kind, &own_layer_hidden ) );
+    }
+    // Hiding another kind's layer leaves the gizmo alone.
+    assert!( gizmo_visible( PickedKind::Station, &RenderLayers { show_ships : false, show_asteroids : false, ..all_shown() } ) );
   }
 }
