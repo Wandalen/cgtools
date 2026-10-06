@@ -25,7 +25,8 @@ pub const MAX_ASTEROID_GLOW : usize = 16;
 #[ derive( Clone, Copy ) ]
 pub struct FocusState
 {
-  /// Whether a ship is currently selected (and so the ribbon should show).
+  /// Whether the ribbon shows: a visible ship is selected and the grid's
+  /// View-Zone Ribbon row is on (see `ribbon_ship` in `main.rs`).
   pub active : bool,
   /// World-space XZ position of the focus point.
   pub point : [ f32; 2 ],

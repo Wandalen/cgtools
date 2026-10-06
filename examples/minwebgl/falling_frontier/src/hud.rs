@@ -1,5 +1,5 @@
 //! Tactical HUD overlay - the "real" in-game UI, as opposed to `debug/`'s
-//! dev-only tuning panel. Ported from
+//! two dev-only panels (Grid Tuning and Render Layers). Ported from
 //! `examples/threejs/falling_frontier/index.html` + `src/style.css` +
 //! `src/interaction/uiControls.js` + `src/ui/unitPanel.js`.
 //!
@@ -26,12 +26,14 @@
 //! in the JS reference, just kept for visual completeness of the "status
 //! bar" this milestone asks for).
 //!
-//! Every scene-layer visibility switch (grid/trajectories/sensor
-//! rings/animate ships/scanlines/etc.) used to also have its own toggle
-//! button here, duplicating `debug::layers_panel`'s "Render Layers" dev
-//! panel. That duplication is gone now - this module only keeps the Play/
-//! Pause/Fast time controls and the Reset Camera button, which aren't
-//! visibility switches and have no equivalent in the dev panel.
+//! M8's toolbar also had toggle buttons for the grid, trajectories, sensor
+//! rings, scanlines and ship animation. None of them is here any more: the
+//! grid and scanline toggles moved to `debug::layers_panel`'s Render Layers
+//! panel; trajectories have no toggle while they're unfinished; sensor rings
+//! were cut from the port entirely; and Animate Ships Motion was dropped,
+//! since the Pause/Play/Fast buttons (and the P key) already control ship
+//! animation. This module keeps those time controls and the Reset Camera
+//! button, which aren't visibility switches.
 
 use minwebgl as gl;
 use std::{ cell::RefCell, rc::Rc };

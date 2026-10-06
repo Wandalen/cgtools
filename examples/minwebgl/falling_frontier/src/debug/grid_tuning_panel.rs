@@ -94,7 +94,8 @@ fn build_tuning_summary( t : &GridTuning ) -> String
   format!
   (
     "===== Grid tuning config =====\n\
-    (paste this whole block back to update GridTuning::default())\n\
+    (paste this block back into GridTuning::default();\n\
+    the layer lines at the end go into RenderLayers::default())\n\
     \n\
     line color: {}\n\
     line width (px): {:.2}\n\

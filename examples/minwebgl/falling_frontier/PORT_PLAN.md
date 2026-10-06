@@ -115,6 +115,10 @@ delete once no longer needed, not part of the deliverable.
   Pause/Play/Fast and Reset Camera, so M8's toolbar toggles, including
   Animate Ships Motion (and BUG-454's sync between it and Pause/Play/Fast),
   no longer exist.
+- **Grid Tuning panel lost its Playback block** (the heading plus the
+  Animate Ships, Show Trajectories and Show Sensor Rings checkboxes):
+  Pause/Play/Fast drive animation, trajectories have no toggle and sensor
+  rings are gone. Its Shadows checkbox moved to the Render Layers panel.
 - **Trajectories have no toggle anywhere** while they're unfinished;
   `RenderLayers::show_trajectories` stays `false`, and the frame loop builds
   the ribbons only the first time it is set.

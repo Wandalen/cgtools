@@ -393,9 +393,9 @@ fn app_run() -> Result< (), gl::WebglError >
   let canvas = gl::canvas::make()?;
   let gl = gl::context::from_canvas( &canvas )?;
   gl.enable( GL::DEPTH_TEST );
-  // Matches background.frag's own "deep" color - only ever visible as a
-  // one-frame flash before the background shader itself draws, since that
-  // shader fills every pixel every frame.
+  // Matches background.frag's own "deep" color. With the Background layer
+  // on, the skybox (`shaders/skybox.frag`) covers every pixel every frame,
+  // so this shows only where nothing else draws while Background is off.
   gl.clear_color( 0.08, 0.20, 0.30, 1.0 );
 
   let ( pixel_w, pixel_h ) = canvas_size( &canvas );
@@ -575,7 +575,8 @@ fn app_run() -> Result< (), gl::WebglError >
 
       // M6: the gizmo handle, drawn on top of everything at whatever is
       // currently selected (translate cross or rotate ring, per
-      // `ctx.gizmo_mode`).
+      // `ctx.gizmo_mode`), while `gizmo_visible` - the same condition the
+      // pick pass renders it under, so it can be grabbed exactly when seen.
       if let Some( kind ) = selected_kind && gizmo_visible( kind, &tuning_snapshot.layers )
       {
         let object_transform = selected_transform( kind, &asteroids, &ships, &station );
