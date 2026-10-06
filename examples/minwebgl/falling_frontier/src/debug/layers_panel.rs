@@ -183,7 +183,7 @@ fn sync_dom( document : &Document, t : &RenderLayers )
   // time either event handler below can fire, `main.rs` has already called
   // both setup functions, so the element exists.
   let overlay = document.get_element_by_id( "ff-scanlines" ).expect( "hud::setup_hud creates #ff-scanlines" );
-  overlay.set_class_name( if t.show_scanlines { "ff-scanlines visible" } else { "ff-scanlines" } );
+  overlay.set_class_name( crate::hud::scanlines_class( t.show_scanlines ) );
 }
 
 /// Left-click path: flip just `toggle`'s own field, then resync (for the

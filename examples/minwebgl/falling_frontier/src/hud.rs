@@ -97,6 +97,14 @@ const CSS : &str = r"
   .ff-scanlines.visible { display: block; }
 ";
 
+/// The CRT scanline overlay's class for `RenderLayers::show_scanlines` -
+/// the one place the switch maps onto `CSS`'s `.ff-scanlines.visible`,
+/// shared by `setup_hud`'s first paint and the Render Layers panel.
+pub fn scanlines_class( show_scanlines : bool ) -> &'static str
+{
+  if show_scanlines { "ff-scanlines visible" } else { "ff-scanlines" }
+}
+
 /// Info about whatever is currently selected - `main.rs` resolves this from
 /// `PickedKind` + `asteroids`/`ships`/`station` and passes it in; this
 /// module doesn't know about pick ids at all.
@@ -166,7 +174,7 @@ pub fn setup_hud( document : &Document, tuning : &Rc< RefCell< GridTuning > > )
 
   let scanlines : Element = document.create_element( "div" ).unwrap();
   scanlines.set_id( "ff-scanlines" );
-  scanlines.set_class_name( "ff-scanlines" );
+  scanlines.set_class_name( scanlines_class( t.layers.show_scanlines ) );
   document.body().unwrap().append_child( &scanlines ).unwrap();
 
   bind_time_controls( document, tuning );
@@ -306,7 +314,14 @@ pub fn refresh_unit_panel( document : &Document, info : Option< &UnitInfo > )
 #[ cfg( test ) ]
 mod tests
 {
-  use super::time_control_button_classes;
+  use super::{ scanlines_class, time_control_button_classes };
+
+  #[ test ]
+  fn scanlines_class_shows_the_overlay_only_when_switched_on()
+  {
+    assert_eq!( scanlines_class( true ), "ff-scanlines visible" );
+    assert_eq!( scanlines_class( false ), "ff-scanlines" );
+  }
 
   #[ test ]
   fn paused_highlights_only_pause_regardless_of_speed()
