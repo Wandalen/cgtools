@@ -1,7 +1,7 @@
 #version 300 es
 precision highp float;
 
-// Nebula sky-dome backdrop, standing in for `scene/world.js`'s flat
+// Nebula sky-dome backdrop, standing in for the three.js original's `scene/world.js` flat
 // `scene.background = new THREE.Color(COLORS.spaceBg)` - the reference game
 // screenshot the tactical UI is modeled on has soft drifting cloud blobs
 // over that same base blue, not a flat fill.

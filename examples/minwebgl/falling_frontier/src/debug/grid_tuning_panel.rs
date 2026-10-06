@@ -1,5 +1,5 @@
 //! Floating dev panel with live sliders for the tactical grid, ported from
-//! `examples/threejs/falling_frontier/src/debug/gridTuningPanel.js`. Built
+//! the three.js original's `src/debug/gridTuningPanel.js`. Built
 //! via raw DOM calls (web-sys) rather than a GUI crate — no egui/winit
 //! integration exists anywhere in this workspace (see the audit's Dev
 //! Tooling section), and a DOM panel matches how every other browser-facing

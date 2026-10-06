@@ -1,6 +1,6 @@
 //! Tactical HUD overlay - the "real" in-game UI, as opposed to `debug/`'s
 //! two dev-only panels (Grid Tuning and Render Layers). Ported from
-//! `examples/threejs/falling_frontier/index.html` + `src/style.css` +
+//! the three.js original's `index.html` + `src/style.css` +
 //! `src/interaction/uiControls.js` + `src/ui/unitPanel.js`.
 //!
 //! Built via raw DOM calls (web-sys), same as `debug/grid_tuning_panel.rs` -

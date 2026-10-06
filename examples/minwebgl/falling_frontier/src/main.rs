@@ -41,7 +41,7 @@ use background::Background;
 use grid::TacticalGrid;
 use frame::{ ships_advance, RibbonInputs, sun_light, shadow_pass, trajectories_draw, SHADOW_MAP_RESOLUTION };
 
-// Pick-id ranges handed out to each pickable group (see `picking.rs`) -
+// Pick-id ranges handed out to each pickable group (see the `gpu_picking` crate) -
 // asteroids first, then ships, then the station gets the one id left over.
 // `asteroids::ASTEROID_COUNT`/`ships::SHIP_COUNT` come from those modules'
 // own spec arrays, so these stay in sync automatically if a roster grows.
@@ -52,7 +52,7 @@ const STATION_ID : i32 = SHIP_ID_BASE + ships::SHIP_COUNT as i32;
 // it never collides with `classify_pick`'s ranges above.
 const GIZMO_ID : i32 = STATION_ID + 1;
 
-/// What a raw pick id (see `picking.rs`) refers to - the mapping only
+/// What a raw pick id (see the `gpu_picking` crate) refers to - the mapping only
 /// `main.rs` knows, since it's the one that handed out the id ranges above.
 #[ derive( Clone, Copy ) ]
 enum PickedKind

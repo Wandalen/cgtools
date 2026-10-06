@@ -19,7 +19,7 @@ pub const AMBIENT_GLOW : f32 = 1.0;
 
 /// One drawable piece: its own geometry (VAO), world transform, color and
 /// ambient factor. Ships/stations are composed from several of these, all
-/// sharing one `pick_id` (see `picking.rs`) so a click anywhere on a
+/// sharing one `pick_id` (see the `gpu_picking` crate) so a click anywhere on a
 /// multi-part ship selects the whole ship, not just the part under the
 /// cursor.
 pub struct HullPart

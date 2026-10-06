@@ -1,5 +1,5 @@
 //! Trajectory ribbons, ported from
-//! `examples/threejs/falling_frontier/src/world/trajectories.js`, using
+//! the three.js original's `src/world/trajectories.js`, using
 //! `line_tools::d3::Line` - the first user of `line_tools` in this crate
 //! (see `PORT_PLAN.md`'s M1 note: deliberately *not* used for the base
 //! grid, but exactly right for "a handful of rings/paths" like these).

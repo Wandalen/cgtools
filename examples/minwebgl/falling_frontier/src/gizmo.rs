@@ -8,12 +8,12 @@
 //! `TransformControls` draws a separate arrow per axis (X/Z) plus a plane
 //! handle, all individually pickable; this draws one handle per mode
 //! instead (translate is XZ-only in this scene anyway - see
-//! `examples/threejs/falling_frontier/src/interaction/transform.js`'s
+//! the three.js original's `src/interaction/transform.js`'s
 //! `MODE_CONSTRAINTS`, `showY: false` - so a single free-drag-in-plane
 //! handle covers the same freedom without per-axis hit-testing).
 //!
 //! The handle is picked through the same GPU id-buffer mechanism as scene
-//! objects (`picking.rs`) - `main.rs` reserves one more id (`GIZMO_ID`) and
+//! objects (`gpu_picking`) - `main.rs` reserves one more id (`GIZMO_ID`) and
 //! feeds `Gizmo::part`'s `HullPart` into the same id pass alongside
 //! asteroids/ships/station whenever something is selected.
 
@@ -97,7 +97,7 @@ impl Gizmo
 
   /// Builds the current handle as a `HullPart` at `object_transform` -
   /// shared between the visible draw (`Gizmo::draw`) and the id pass
-  /// (`picking.rs`'s `PickBuffer::render`, which only needs `.model`/
+  /// (`gpu_picking`'s `PickBuffer::render`, which only needs `.model`/
   /// `.pick_id`/`.vao`/`.index_count` from any `HullPart`).
   pub fn part( &self, mode : GizmoMode, object_transform : gl::F32x4x4, pick_id : i32 ) -> HullPart
   {

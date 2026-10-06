@@ -1,5 +1,5 @@
 //! Ship hulls, procedurally composited from box/cylinder/cone primitives -
-//! ported from `examples/threejs/falling_frontier/src/world/ships.js`
+//! ported from the three.js original's `src/world/ships.js`
 //! (mesh shapes) and `fleet.js` (roster + starting position/rotation/patrol
 //! path).
 
@@ -16,7 +16,7 @@ use primitive_generation::{ box_mesh, cylinder_mesh, spline };
 pub const SHIP_Y : f32 = 12.0;
 
 // COLORS.shipHull / shipDark / engineGlow from
-// examples/threejs/falling_frontier/src/config/colors.js.
+// the three.js original's `src/config/colors.js`.
 const SHIP_HULL : [ f32; 3 ] = [ 0.8, 0.8471, 0.8863 ];
 const SHIP_DARK : [ f32; 3 ] = [ 0.3373, 0.4392, 0.4902 ];
 const ENGINE_GLOW : [ f32; 3 ] = [ 0.0, 0.9412, 1.0 ];
@@ -122,7 +122,7 @@ pub struct Ships
 impl Ships
 {
   /// `id_base` is the first pick id this fleet may hand out - ship `i` (and
-  /// every `HullPart` making it up) gets `id_base + i` (see `picking.rs`);
+  /// every `HullPart` making it up) gets `id_base + i` (see the `gpu_picking` crate);
   /// the caller reserves `SHIP_COUNT` contiguous ids starting there.
   pub fn new( gl : &gl::GL, id_base : i32 ) -> Self
   {
