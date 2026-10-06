@@ -1,4 +1,5 @@
-//! `Renderer::gl_resources_free` and the buffers `Renderer::resize` replaces.
+//! `Renderer::gl_resources_free`, the buffers `Renderer::resize` replaces, and
+//! the skybox `Texture` the renderer keeps (`Renderer::skybox_set`).
 //!
 //! wasm32-only: every assertion asks a real `WebGl2RenderingContext` whether a
 //! GL object still exists, which a native `cargo nextest` run cannot answer —
@@ -13,7 +14,7 @@
 
 use minwebgl as gl;
 use gl::GL;
-use ::renderer::webgl::Renderer;
+use ::renderer::webgl::{ Camera, Renderer, Sampler, Scene, Texture };
 
 /// Unlike most `gl_init()` helpers in this crate, `Renderer::new` unconditionally builds
 /// its `FramebufferContext` with `RGBA16F`/`R16F` multisample color attachments regardless
@@ -145,4 +146,137 @@ fn renderer_resize_replaces_bloom_and_swap_buffer_cleanly_across_repeated_resize
   // The struct-level invariant the fix protects: at no point after `resize()` returns `Ok`
   // is either field ever `None` while `use_emission` is true, nor holding a stale handle --
   // each `resize()` call fully replaces both fields before returning.
+}
+
+/// A texture `gl.is_texture` recognises: WebGL only reports a texture name as a
+/// texture once it has been bound.
+fn bound_texture( gl : &GL ) -> gl::web_sys::WebGlTexture
+{
+  let texture = gl.create_texture().unwrap();
+  gl.bind_texture( gl::TEXTURE_2D, Some( &texture ) );
+  gl.bind_texture( gl::TEXTURE_2D, None );
+  texture
+}
+
+/// The renderer keeps the skybox `Texture` it is given: an owning skybox whose
+/// caller kept no clone (as `Texture::load_from_path`'s callers do) must stay
+/// alive while it is the skybox, survive `resize()`, and be deleted once
+/// clearing the skybox drops its last owner. Before, `skybox_set` stored only
+/// the raw handle, so the owning `Texture` deleted it as soon as the caller's
+/// copy dropped, and `resize()` deleted it a second time.
+#[ wasm_bindgen_test::wasm_bindgen_test ]
+fn renderer_keeps_owning_skybox_alive_across_resize()
+{
+  let gl = gl_init();
+  let mut renderer = Renderer::new( &gl, 64, 64, 4 )
+  .expect( "Renderer::new should succeed on a valid context" );
+  let source = bound_texture( &gl );
+
+  renderer.skybox_set( Some( Texture::owning( &gl, gl::TEXTURE_2D, source.clone(), Sampler::default() ) ) );
+  assert!( gl.is_texture( Some( &source ) ), "the renderer must keep an owning skybox alive" );
+
+  renderer.resize( &gl, 32, 32, 4 ).expect( "resize should succeed" );
+  assert!( gl.is_texture( Some( &source ) ), "resize() must not delete the skybox" );
+
+  renderer.skybox_set( None );
+  assert!( !gl.is_texture( Some( &source ) ), "clearing the skybox must release its last owner" );
+}
+
+/// A non-owning skybox view stays its creator's: neither `resize()` nor
+/// `gl_resources_free` may delete it.
+#[ wasm_bindgen_test::wasm_bindgen_test ]
+fn renderer_never_deletes_a_view_skybox()
+{
+  let gl = gl_init();
+  let mut renderer = Renderer::new( &gl, 64, 64, 4 )
+  .expect( "Renderer::new should succeed on a valid context" );
+  let source = bound_texture( &gl );
+
+  renderer.skybox_set( Some( Texture::former().source( source.clone() ).form() ) );
+  renderer.resize( &gl, 32, 32, 4 ).expect( "resize should succeed" );
+  assert!( gl.is_texture( Some( &source ) ), "resize() must not delete a view skybox" );
+
+  renderer.gl_resources_free( &gl );
+  assert!( gl.is_texture( Some( &source ) ), "gl_resources_free must not delete a view skybox" );
+}
+
+/// A camera looking down -Z, for the skybox pass's inverse matrices.
+fn camera_make() -> Camera
+{
+  Camera::new
+  (
+    gl::F32x3::from_array( [ 0.0, 0.0, 3.0 ] ),
+    gl::F32x3::from_array( [ 0.0, 1.0, 0.0 ] ),
+    gl::F32x3::from_array( [ 0.0, 0.0, 0.0 ] ),
+    1.0,
+    70.0_f32.to_radians(),
+    0.1,
+    1000.0,
+  ).expect( "valid camera parameters" )
+}
+
+/// A complete 1x1 RGBA8 texture filled with `rgba` (no mipmaps, so LINEAR min filter).
+fn solid_texture( gl : &GL, rgba : [ u8; 4 ] ) -> gl::web_sys::WebGlTexture
+{
+  let texture = gl.create_texture().unwrap();
+  gl.bind_texture( gl::TEXTURE_2D, Some( &texture ) );
+  gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array
+  (
+    gl::TEXTURE_2D, 0, gl::RGBA as i32, 1, 1, 0, gl::RGBA, gl::UNSIGNED_BYTE, Some( &rgba )
+  ).unwrap();
+  gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32 );
+  gl.bind_texture( gl::TEXTURE_2D, None );
+  texture
+}
+
+/// Renders an empty scene with `skybox` and reads the centre texel of the
+/// resolved main color target.
+fn background_after_render( gl : &GL, skybox : Option< Texture > ) -> [ f32; 4 ]
+{
+  let mut renderer = Renderer::new( gl, 64, 64, 4 )
+  .expect( "Renderer::new should succeed on a valid context" );
+  renderer.clear_color_set( gl::F32x3::from_array( [ 0.25, 0.5, 0.75 ] ) );
+  renderer.skybox_set( skybox );
+  renderer.render( gl, &mut Scene::new(), &camera_make() ).expect( "render should succeed" );
+
+  let main = renderer.main_texture().expect( "the renderer has a main texture" );
+  let framebuffer = gl.create_framebuffer().unwrap();
+  gl.bind_framebuffer( gl::FRAMEBUFFER, Some( &framebuffer ) );
+  gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, Some( &main ), 0 );
+  let pixel = gl::web_sys::js_sys::Float32Array::new_with_length( 4 );
+  gl.read_pixels_with_opt_array_buffer_view( 32, 32, 1, 1, gl::RGBA, gl::FLOAT, Some( &pixel ) ).unwrap();
+  gl.bind_framebuffer( gl::FRAMEBUFFER, None );
+  gl.delete_framebuffer( Some( &framebuffer ) );
+  renderer.gl_resources_free( gl );
+
+  let mut texel = [ 0.0; 4 ];
+  pixel.copy_to( &mut texel );
+  texel
+}
+
+/// Whether two read-back texels match; every value here is exact in `RGBA16F`,
+/// the tolerance only keeps the comparison off raw float equality.
+fn texel_eq( a : [ f32; 4 ], b : [ f32; 4 ] ) -> bool
+{
+  a.iter().zip( b ).all( | ( x, y ) | ( x - y ).abs() < 1e-3 )
+}
+
+/// A skybox `Texture` with no `source` must draw no skybox: the background
+/// keeps the clear colour at alpha 0, exactly as with no skybox at all. Before,
+/// the pass ran with no texture bound and wrote black at alpha 1. A skybox
+/// with a real texture still covers the background, so the probe can tell the
+/// two apart.
+#[ wasm_bindgen_test::wasm_bindgen_test ]
+fn renderer_skips_a_sourceless_skybox()
+{
+  let gl = gl_init();
+  let cleared = background_after_render( &gl, None );
+  assert!( texel_eq( cleared, [ 0.25, 0.5, 0.75, 0.0 ] ), "an empty scene keeps the clear colour at alpha 0, got {cleared:?}" );
+
+  let sourceless = background_after_render( &gl, Some( Texture::new() ) );
+  assert!( texel_eq( sourceless, cleared ), "a skybox without a source must not be drawn, got {sourceless:?}" );
+
+  let red = solid_texture( &gl, [ 255, 0, 0, 255 ] );
+  let drawn = background_after_render( &gl, Some( Texture::former().source( red ).form() ) );
+  assert!( texel_eq( drawn, [ 1.0, 0.0, 0.0, 1.0 ] ), "a skybox with a source covers the background, got {drawn:?}" );
 }

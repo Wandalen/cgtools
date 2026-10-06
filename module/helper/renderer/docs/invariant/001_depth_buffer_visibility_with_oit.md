@@ -27,7 +27,7 @@ bucketing, or traversal-order discipline is required for correctness.
   HDR color target.
 - **Transparent path**: materials with a blending alpha mode render into two
   dedicated targets — a weighted color *accumulation* buffer and a
-  *revealage* buffer (`src/webgl/renderer.rs`: the
+  *revealage* buffer (`src/webgl/renderer/framebuffer_context.rs`: the
   `multisample_transparent_accumulate_renderbuffer` /
   `multisample_transparent_revealage_renderbuffer` pair and their resolved
   texture counterparts, attached as extra color attachments of the main
@@ -62,7 +62,7 @@ bucketing, or traversal-order discipline is required for correctness.
 
 | File | Relationship |
 |------|--------------|
-| `src/webgl/renderer.rs` | Depth-tested opaque target; accumulate/revealage transparent targets; `resolve` composite |
+| `src/webgl/renderer/framebuffer_context.rs` | Depth-tested opaque target; accumulate/revealage transparent targets; `resolve` composite |
 | `src/webgl/shaders/` | Shader side of the opaque and transparent passes |
 
 ### Tests

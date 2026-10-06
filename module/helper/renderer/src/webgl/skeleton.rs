@@ -132,6 +132,10 @@ mod private
   }
 
   /// Skin joints transforms related data
+  ///
+  /// Owns `global_texture`/`inverse_texture` once `upload()` has created them — see
+  /// the `Drop` impl. `gl` is populated lazily by `upload()` (the constructor has no
+  /// `GL` handle available), so `Drop` is a no-op until the first `upload()` call.
   #[ derive( Debug ) ]
   pub struct TransformsData
   {
@@ -146,9 +150,6 @@ mod private
     inverse_texture : Option< WebGlTexture >,
     /// Define if need update [`Self::inverse_texture`]
     need_update_inverse : bool,
-    /// Defines if [`TransformsData`] is recently cloned,
-    /// but not all fields have been cloned too
-    need_clone_inner : bool,
     /// GL context `global_texture`/`inverse_texture` were allocated from -- retained so
     /// `impl Drop` can free them. `None` until the first `upload()` call actually allocates
     /// a texture ( `new()` receives no `gl` parameter, so it can't be populated any earlier ).
@@ -184,7 +185,6 @@ mod private
         global_texture : None,
         inverse_texture : None,
         need_update_inverse : true,
-        need_clone_inner : false,
         gl : None,
       }
     }
@@ -198,18 +198,6 @@ mod private
     )
     {
       self.gl = Some( gl.clone() );
-
-      if self.need_clone_inner
-      {
-        self.need_clone_inner =
-        gl.create_texture()
-        .map( | g | { self.global_texture = Some( g ); } )
-        .is_none()
-        ||
-        gl.create_texture()
-        .map( | i | { self.inverse_texture = Some( i ); } )
-        .is_none();
-      }
 
       let global_matrices = self.joints.iter()
       .map
@@ -272,7 +260,7 @@ mod private
   /// what decides whether `Drop` frees the two textures at all ) and needs the
   /// joint data left empty, since nothing about the joints affects teardown.
   /// A constructor taking exactly those three things is a far smaller seam than
-  /// making all seven fields reachable so a test can write a struct literal.
+  /// making all six fields reachable so a test can write a struct literal.
   #[ cfg( feature = "test_internals" ) ]
   impl TransformsData
   {
@@ -294,14 +282,31 @@ mod private
         global_texture,
         inverse_texture,
         need_update_inverse : false,
-        need_clone_inner : false,
         gl : Some( gl.clone() ),
       }
     }
+
+    /// The two texture handles this value deletes on drop (once `gl` is set).
+    #[ doc( hidden ) ]
+    #[ must_use ]
+    pub fn textures_for_test( &self ) -> ( Option< WebGlTexture >, Option< WebGlTexture > )
+    {
+      ( self.global_texture.clone(), self.inverse_texture.clone() )
+    }
   }
 
+  // Fix(BUG-533): dropping a clone of an uploaded `TransformsData` before the clone's own first
+  // `upload()` deleted the ORIGINAL's `global_texture`/`inverse_texture`, which the original was
+  // still sampling.
+  // Root cause: `Clone` copied the texture handles together with `gl`, so the clone's `Drop`
+  // ( BUG-437 ) deleted textures it shared with the original.
+  // Pitfall: `Clone` must never copy a GPU handle that `Drop` deletes; reset it and let the
+  // clone allocate its own.
   impl Clone for TransformsData
   {
+    /// The clone starts with no GPU textures and no `gl`, like a fresh value: its first
+    /// `upload()` allocates its own (`need_update_inverse` is set), and its `Drop` can
+    /// never reach the original's textures.
     fn clone( &self ) -> Self
     {
       Self
@@ -310,11 +315,10 @@ mod private
         .map( | n | n.borrow().tree_clone() )
         .collect::< Vec< _ > >(),
         inverse_bind_matrices : self.inverse_bind_matrices.clone(),
-        global_texture : self.global_texture.clone(),
-        inverse_texture : self.inverse_texture.clone(),
+        global_texture : None,
+        inverse_texture : None,
         need_update_inverse : true,
-        need_clone_inner : true,
-        gl : self.gl.clone(),
+        gl : None,
       }
     }
   }
@@ -325,15 +329,8 @@ mod private
   // leaked both GPU textures every time.
   // Root cause: the struct had no `impl Drop` and no manual `gl_resources_free`-style method;
   // nothing in the type ever called `gl.delete_texture` on either field.
-  // Pitfall: `Clone` copies `global_texture`/`inverse_texture` by handle ( the same underlying
-  // GPU texture, not a deep copy ), relying on `need_clone_inner = true` to force `upload()`
-  // to allocate the clone its *own* fresh textures before ever binding/uploading through them
-  // ( see the `if self.need_clone_inner { .. }` block in `upload()`, which always runs before
-  // any GL call that would actually use the field ). Freeing unconditionally in `Drop` is safe
-  // only because of that ordering guarantee -- if a future edit ever read `global_texture`/
-  // `inverse_texture` for a GL call *before* the `need_clone_inner` reallocation in `upload()`,
-  // dropping the original ahead of the clone's first `upload()` would leave the clone pointing
-  // at an already-deleted texture.
+  // Pitfall: freeing unconditionally in `Drop` is safe only because `Clone` resets both
+  // handles to `None` ( BUG-533 ) instead of copying them, so no two values share a texture.
   impl Drop for TransformsData
   {
     fn drop( &mut self )
@@ -347,6 +344,9 @@ mod private
   }
 
   /// Skin morph targets related data
+  ///
+  /// Owns `displacements_texture` once `upload()` has created it — see the `Drop`
+  /// impl and `TransformsData`'s docs for the same `gl`-lazily-populated pattern.
   #[ derive( Debug ) ]
   pub struct DisplacementsData
   {
@@ -374,9 +374,6 @@ mod private
     vertices_count : usize,
     /// Define if need update [`Self::displacements_texture`]
     need_update_displacement : bool,
-    /// Defines if [`DisplacementsData`] is recently cloned,
-    /// but not all fields have been cloned too
-    need_clone_inner : bool,
     /// GL context `displacements_texture` was allocated from -- retained so `impl Drop` can
     /// free it. `None` until the first `upload()` call actually allocates a texture ( `new()`
     /// receives no `gl` parameter, so it can't be populated any earlier ).
@@ -410,7 +407,6 @@ mod private
         disp_offsets : I32x3::splat( -1 ),
         vertices_count : 0,
         need_update_displacement : false,
-        need_clone_inner : false,
         gl : None,
       }
     }
@@ -503,14 +499,6 @@ mod private
     )
     {
       self.gl = Some( gl.clone() );
-
-      if self.need_clone_inner
-      {
-        self.need_clone_inner =
-        gl.create_texture()
-        .map( | d | { self.displacements_texture = Some( d ); } )
-        .is_none();
-      }
 
       if self.need_update_displacement && !self.displacements_update( gl )
       {
@@ -739,10 +727,25 @@ mod private
       data.gl = Some( gl.clone() );
       data
     }
+
+    /// The texture handle this value deletes on drop (once `gl` is set).
+    #[ doc( hidden ) ]
+    #[ must_use ]
+    pub fn texture_for_test( &self ) -> Option< WebGlTexture >
+    {
+      self.displacements_texture.clone()
+    }
   }
 
+  // Fix(BUG-533): same defect as `TransformsData`'s `Clone` above -- a clone dropped before its
+  // first `upload()` deleted the original's `displacements_texture`.
+  // Root cause: `Clone` copied the texture handle together with `gl`, arming the clone's `Drop`.
+  // Pitfall: see `TransformsData`'s `Clone` -- never copy a handle that `Drop` deletes.
   impl Clone for DisplacementsData
   {
+    /// The clone starts with no GPU texture and no `gl`, like a fresh value: its first
+    /// `upload()` allocates its own (`need_update_displacement` is set), and its `Drop`
+    /// can never reach the original's texture.
     fn clone( &self ) -> Self
     {
       Self
@@ -750,7 +753,7 @@ mod private
         positions_displacements : self.positions_displacements.clone(),
         normals_displacements : self.normals_displacements.clone(),
         tangents_displacements : self.tangents_displacements.clone(),
-        displacements_texture : self.displacements_texture.clone(),
+        displacements_texture : None,
         disp_texture_size : self.disp_texture_size,
         morph_weights : Rc::new( RefCell::new( self.morph_weights.borrow().clone() ) ),
         default_weights : self.default_weights.clone(),
@@ -758,8 +761,7 @@ mod private
         disp_offsets : self.disp_offsets,
         vertices_count : self.vertices_count,
         need_update_displacement : true,
-        need_clone_inner : true,
-        gl : self.gl.clone(),
+        gl : None,
       }
     }
   }
@@ -770,13 +772,8 @@ mod private
   // leaked the GPU texture every time.
   // Root cause: the struct had no `impl Drop` and no manual `gl_resources_free`-style method;
   // nothing in the type ever called `gl.delete_texture` on the field.
-  // Pitfall: `Clone` copies `displacements_texture` by handle ( the same underlying GPU
-  // texture, not a deep copy ), relying on `need_clone_inner = true` to force `upload()` to
-  // allocate the clone its *own* fresh texture before ever binding/uploading through it ( see
-  // the `if self.need_clone_inner { .. }` block in `upload()`, which always runs before
-  // `displacements_update()` would otherwise reuse an existing `Some` handle ). Freeing
-  // unconditionally in `Drop` is safe only because of that ordering guarantee -- see the
-  // identical caveat on `TransformsData`'s `impl Drop` above.
+  // Pitfall: as for `TransformsData`'s `Drop` above, freeing unconditionally is safe only
+  // because `Clone` resets `displacements_texture` to `None` ( BUG-533 ) instead of sharing it.
   impl Drop for DisplacementsData
   {
     fn drop( &mut self )

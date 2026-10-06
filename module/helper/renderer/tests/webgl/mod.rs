@@ -27,6 +27,9 @@ mod camera;
 /// PBR material tests
 mod pbr_material;
 
+/// `Texture` builder and `Default` target / ownership defaults
+mod texture;
+
 /// Shadow-baking Light tests
 mod shadow;
 
@@ -66,11 +69,27 @@ mod pass;
 /// IBL loader texture-parameter / mip-range wiring tests
 mod ibl;
 
+// Live-context lifecycle suites for `Geometry` and `Texture`: wasm32-only, since
+// they need a `WebGl2RenderingContext`, but every handle they check is public, so
+// unlike the suites below they don't need `test_internals`. The exception is the
+// `load_from_path` group in `texture_gl_lifecycle`, gated on its own: it waits on
+// the image handler through `Texture::load_from_path_for_test`.
+/// `Geometry` VAO teardown; shared attribute / index buffers survive; a cloned
+/// `Primitive` shares its geometry.
+#[ cfg( target_arch = "wasm32" ) ]
+mod geometry_gl_lifecycle;
+
+/// `Texture` owning-vs-view teardown and `load_from_path`'s pending upload
+/// (the latter with `test_internals`).
+#[ cfg( target_arch = "wasm32" ) ]
+mod texture_gl_lifecycle;
+
 // The GL-resource-lifecycle suites below were inline `#[cfg(test)] mod tests`
 // blocks under `src/webgl/**` until `rulebook.md § Test placement` was changed
 // to put every test in `tests/`. Each covers one type's teardown contract:
 // what a `Drop` or `gl_resources_free` must release, and what it must leave
-// alone. All are BUG-432..440 reproducers.
+// alone. Most are BUG-432..440 reproducers; `skeleton_gl_lifecycle` also holds
+// the BUG-533 clone reproducers, and `renderer_gl_lifecycle` the skybox tests.
 //
 // Both gates are load-bearing. `target_arch = "wasm32"` because every one of
 // these needs a live `WebGl2RenderingContext` to construct its subject at all.
@@ -83,11 +102,11 @@ mod ibl;
 #[ cfg( all( target_arch = "wasm32", feature = "test_internals" ) ) ]
 mod ibl_gl_lifecycle;
 
-/// `Renderer::gl_resources_free` and resize buffer replacement
+/// `Renderer::gl_resources_free`, resize buffer replacement and skybox ownership
 #[ cfg( all( target_arch = "wasm32", feature = "test_internals" ) ) ]
 mod renderer_gl_lifecycle;
 
-/// `TransformsData` / `DisplacementsData` texture teardown
+/// `TransformsData` / `DisplacementsData` texture teardown and clone safety
 #[ cfg( all( target_arch = "wasm32", feature = "test_internals" ) ) ]
 mod skeleton_gl_lifecycle;
 
