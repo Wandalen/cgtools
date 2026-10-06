@@ -143,7 +143,7 @@ game use-case demands one.
 1. ~~**`TintBehaviour::Flat` for `VertexCorners`.**~~ *Shipped.* `TintBehaviour::Flat`
    is implemented for **all** layer types via the shared `FrameTints::sprite_tint` helper
    (instance, edge, viewport, free, and `VertexCorners` passes), not only
-   `compile_vertex_pass` — the flat tint multiplies the global tint so per-player
+   `vertex_pass_compile` — the flat tint multiplies the global tint so per-player
    region overlays can be coloured independently. `TintBehaviour::Masked` is
    explicitly rejected — at load with `ValidationError::UnsupportedBehaviour`,
    and at compile with `CompileError::UnsupportedBehaviour` as a backstop.
