@@ -18,7 +18,7 @@ uniform vec3 u_light_dir;
 uniform vec3 u_light_color;
 uniform float u_light_intensity;
 uniform mat4 u_light_view_proj;
-uniform sampler2D u_shadow_map;
+uniform highp sampler2D u_shadow_map;
 uniform float u_shadows_enabled;
 uniform float u_lighting_enabled;
 
