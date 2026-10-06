@@ -19,7 +19,7 @@ Controls:
 - G - switch the gizmo to translate mode (requires a selection)
 - R - switch the gizmo to rotate mode (requires a selection)
 - Escape - deselect; during a gizmo drag, cancel the drag instead
-- HUD Pause / Play / Fast buttons - control simulation speed
+- HUD Pause / Play / Fast buttons - control simulation speed; P pauses or resumes
 - HUD "Reset Camera" button - restores the initial camera framing
 - Render Layers panel (bottom left) - click a row to switch it. Scene layers (grid, background,
   starfield, asteroids, ships, station): right click a row to show only that layer, Shift + right
@@ -27,5 +27,6 @@ Controls:
   ribbon, selection gizmo, lighting, shadows, CRT scanlines) are left alone by those gestures; the
   ribbon row is greyed out while the grid is off, and shadows while lighting is off
 - Dev tuning panel (bottom right) - exposes every tactical-grid shader parameter live
+- Click either dev panel's title to collapse or expand it
 
 **[How to run](../../how_to_run.md)**

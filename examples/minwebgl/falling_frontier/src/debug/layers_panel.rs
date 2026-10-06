@@ -49,7 +49,7 @@ use gl::web_sys::
   Document, Element, MouseEvent, PointerEvent,
 };
 
-use super::{ grid_tuning::GridTuning, input_by_id, render_layers::RenderLayers };
+use super::{ grid_tuning::GridTuning, input_by_id, panel_shell_html, render_layers::RenderLayers, PanelSide };
 
 const SOLO_HINT : &str = "Right click: show only this scene layer&#10;Shift+Right click: hide it, show the other scene layers";
 
@@ -235,8 +235,9 @@ fn bind_solo( document : &Document, tuning : &Rc< RefCell< GridTuning > >, toggl
 }
 
 /// Builds and appends the Render Layers panel, wiring every row to `tuning`.
-/// Positioned bottom-left, deliberately clear of the HUD's own top-bar
-/// layout and `grid_tuning_panel`'s bottom-right panel.
+/// Bottom-left, opposite `grid_tuning_panel`'s bottom-right panel; see
+/// `panel_shell_html` for what the shared layout does and doesn't
+/// guarantee.
 pub fn setup_layers_panel( document : &Document, tuning : &Rc< RefCell< GridTuning > > )
 {
   let t = tuning.borrow().layers;
@@ -253,20 +254,16 @@ pub fn setup_layers_panel( document : &Document, tuning : &Rc< RefCell< GridTuni
   let scene_heading = group_heading( "Scene layers" );
   let option_heading = group_heading( "Overlays &amp; lighting" );
 
-  let panel_html = format!
+  let body_html = format!
   (
     r#"<style>#layers-panel label:has(input:disabled) {{ opacity:0.4; cursor:default; }}</style>
-    <div id="layers-panel" style="position:fixed;bottom:12px;left:12px;z-index:30;width:190px;max-height:85vh;overflow-y:auto;
-        background:rgba(8,17,26,0.9);border:1px solid #164e63;border-radius:8px;padding:10px;
-        font-family:monospace;font-size:11px;color:#e0f2fe">
-      <div style="font-weight:bold;text-transform:uppercase;border-bottom:1px solid #164e63;padding-bottom:4px;margin-bottom:4px">Render Layers (dev)</div>
       <div style="color:#38708a;font-size:9px;line-height:1.4;margin-bottom:8px">Right click a scene layer: solo it<br>Shift+Right click: hide it, show the rest</div>
       {scene_heading}
       {scene_rows}
       {option_heading}
-      {option_rows}
-    </div>"#
+      {option_rows}"#
   );
+  let panel_html = panel_shell_html( "layers-panel", PanelSide::Left, 190, "Render Layers (dev)", &body_html );
 
   let panel : Element = document.create_element( "div" ).unwrap();
   panel.set_inner_html( &panel_html );

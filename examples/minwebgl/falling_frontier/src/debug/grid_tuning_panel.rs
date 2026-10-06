@@ -17,7 +17,7 @@ use gl::web_sys::
 };
 
 use super::grid_tuning::{ GridTuning, FADE_CURVES };
-use super::{ input_by_id, layers_panel::layers_summary };
+use super::{ input_by_id, layers_panel::layers_summary, panel_shell_html, PanelSide };
 
 fn slider_row_html( id : &str, label : &str, min : f32, max : f32, step : f32, value : f32, decimals : usize ) -> String
 {
@@ -316,15 +316,7 @@ where F : Fn() + 'static
     light_size = slider_row_html( "grid-light-size", "Size (softness)", 0.0, 2.0, 0.05, t.light_size, 2 ),
   );
 
-  let panel_html = format!
-  (
-    r#"<div style="position:fixed;bottom:12px;right:12px;z-index:30;width:220px;max-height:85vh;overflow-y:auto;
-        background:rgba(8,17,26,0.9);border:1px solid #164e63;border-radius:8px;padding:10px;
-        font-family:monospace;font-size:11px;color:#e0f2fe">
-      <div style="font-weight:bold;text-transform:uppercase;border-bottom:1px solid #164e63;padding-bottom:4px;margin-bottom:8px">Grid Tuning (dev)</div>
-      {body_html}
-    </div>"#
-  );
+  let panel_html = panel_shell_html( "grid-tuning-panel", PanelSide::Right, 220, "Grid Tuning (dev)", &body_html );
 
   let panel : Element = document.create_element( "div" ).unwrap();
   panel.set_inner_html( &panel_html );

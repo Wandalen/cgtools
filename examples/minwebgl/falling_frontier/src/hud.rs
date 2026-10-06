@@ -38,7 +38,7 @@ use std::{ cell::RefCell, rc::Rc };
 use gl::web_sys::
 {
   wasm_bindgen::{ prelude::Closure, JsCast },
-  Document, Element, HtmlButtonElement,
+  Document, Element, HtmlButtonElement, KeyboardEvent,
 };
 
 use crate::debug::GridTuning;
@@ -178,6 +178,7 @@ pub fn setup_hud( document : &Document, tuning : &Rc< RefCell< GridTuning > > )
   document.body().unwrap().append_child( &scanlines ).unwrap();
 
   bind_time_controls( document, tuning );
+  bind_pause_key( document, tuning );
 }
 
 /// Pause/Play/Fast - ported from `bindAnimateToggleAndTimeControls` in
@@ -208,6 +209,44 @@ fn time_control_button_classes( animate_ships : bool, speed_multiplier : f32 ) -
   {
     ( "", "active", "" )
   }
+}
+
+/// The id of the time-control button that should read as `active` for this
+/// playback state - the same three-way split as
+/// `time_control_button_classes`.
+fn time_control_active_id( animate_ships : bool, speed_multiplier : f32 ) -> &'static str
+{
+  match time_control_button_classes( animate_ships, speed_multiplier )
+  {
+    ( "active", _, _ ) => "ff-btn-pause",
+    ( _, "active", _ ) => "ff-btn-play",
+    _ => "ff-btn-fast",
+  }
+}
+
+/// P pauses, or resumes at the speed that was running - the keyboard
+/// counterpart of the Pause/Play/Fast buttons, so ship animation can be
+/// stopped even when a dev panel covers the top bar. Ignored with a
+/// modifier held (Ctrl+P prints) and on key repeat.
+fn bind_pause_key( document : &Document, tuning : &Rc< RefCell< GridTuning > > )
+{
+  let tuning = tuning.clone();
+  let document = document.clone();
+  let closure = Closure::< dyn FnMut( _ ) >::new
+  (
+    move | e : KeyboardEvent |
+    {
+      if e.key() != "p" && e.key() != "P" { return; }
+      if e.repeat() || e.ctrl_key() || e.meta_key() || e.alt_key() { return; }
+      let mut t = tuning.borrow_mut();
+      t.animate_ships = !t.animate_ships;
+      let active_id = time_control_active_id( t.animate_ships, t.speed_multiplier );
+      drop( t );
+      set_time_control_active( &document, active_id );
+    }
+  );
+  gl::web_sys::window().unwrap().add_event_listener_with_callback( "keydown", closure.as_ref().unchecked_ref() ).unwrap();
+  closure.forget();
 }
 
 fn set_time_control_active( document : &Document, active_id : &str )
@@ -314,7 +353,15 @@ pub fn refresh_unit_panel( document : &Document, info : Option< &UnitInfo > )
 #[ cfg( test ) ]
 mod tests
 {
-  use super::{ scanlines_class, time_control_button_classes };
+  use super::{ scanlines_class, time_control_active_id, time_control_button_classes };
+
+  #[ test ]
+  fn active_id_matches_the_highlighted_button()
+  {
+    assert_eq!( time_control_active_id( false, 2.5 ), "ff-btn-pause" );
+    assert_eq!( time_control_active_id( true, 1.0 ), "ff-btn-play" );
+    assert_eq!( time_control_active_id( true, 2.5 ), "ff-btn-fast" );
+  }
 
   #[ test ]
   fn scanlines_class_shows_the_overlay_only_when_switched_on()
