@@ -23,9 +23,9 @@ Controls:
 - HUD "Reset Camera" button - restores the initial camera framing
 - Render Layers panel (bottom left) - click a row to switch it. Scene layers (grid, background,
   starfield, asteroids, ships, station): right click a row to show only that layer, Shift + right
-  click to hide it and show the other scene layers. Overlays and lighting (view-zone ribbon,
-  selection gizmo, lighting, shadows, CRT scanlines) are left alone by those gestures; the ribbon
-  row is greyed out while the grid is off, and shadows while lighting is off
+  click to hide it and show the other scene layers (mouse only). Overlays and lighting (view-zone
+  ribbon, selection gizmo, lighting, shadows, CRT scanlines) are left alone by those gestures; the
+  ribbon row is greyed out while the grid is off, and shadows while lighting is off
 - Dev tuning panel (bottom right) - exposes every tactical-grid shader parameter live
 
 **[How to run](../../how_to_run.md)**

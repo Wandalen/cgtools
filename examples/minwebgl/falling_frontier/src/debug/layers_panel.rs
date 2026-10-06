@@ -24,13 +24,17 @@
 //! from `trajectories.rs`, not just hidden.
 //!
 //! Left click flips just the clicked row, same as any checkbox. Right click
-//! on a scene row (`contextmenu`, default browser menu suppressed) is an
-//! unconditional "solo" gesture: that layer turns on and every other scene
+//! on a scene row is an unconditional "solo" gesture: that layer turns on and every other scene
 //! layer turns off, no matter what was on beforehand. Shift+right click is
 //! the inverse "isolate out" gesture: that layer turns off and every other
 //! scene layer turns on. Both are one-shot with no memory of prior state to
 //! toggle back to (`scene_solo`); re-solo a different row, or plain-click
-//! things back individually, to undo. Both paths go through `sync_dom` so
+//! things back individually, to undo. The gestures are read on
+//! `pointerdown` (right button), not `contextmenu`: Firefox shows its own
+//! menu without dispatching `contextmenu` while Shift is held, so a
+//! `contextmenu` listener could never see Shift+right click there. The
+//! `contextmenu` listener only suppresses the browser menu where it can.
+//! They need a mouse: touch input has no right button or Shift key. Both paths go through `sync_dom` so
 //! the checkboxes (and the scanlines overlay, which lives in `hud`'s DOM,
 //! not this panel's) always reflect whatever `tuning` ends up holding.
 //!
@@ -42,7 +46,7 @@ use std::{ cell::RefCell, rc::Rc };
 use gl::web_sys::
 {
   wasm_bindgen::{ prelude::Closure, JsCast },
-  Document, Element, MouseEvent,
+  Document, Element, MouseEvent, PointerEvent,
 };
 
 use super::{ grid_tuning::GridTuning, input_by_id, render_layers::RenderLayers };
@@ -205,23 +209,29 @@ fn bind_toggle( document : &Document, tuning : &Rc< RefCell< GridTuning > >, tog
   closure.forget();
 }
 
-/// Right-click "solo" path on scene row `toggle` (see `scene_solo`).
+/// Right-click "solo" path on scene row `toggle` (see `scene_solo`), read
+/// on `pointerdown` so Shift is seen in every browser (see the module doc).
 fn bind_solo( document : &Document, tuning : &Rc< RefCell< GridTuning > >, toggle : &'static LayerToggle )
 {
   let row = document.get_element_by_id( &format!( "{}-row", toggle.id ) ).unwrap();
-  let tuning = tuning.clone();
-  let document = document.clone();
-  let closure = Closure::< dyn FnMut( _ ) >::new
-  (
-    move | e : MouseEvent |
-    {
-      e.prevent_default();
-      scene_solo( &mut tuning.borrow_mut().layers, toggle, e.shift_key() );
-      sync_dom( &document, &tuning.borrow().layers );
-    }
-  );
-  row.add_event_listener_with_callback( "contextmenu", closure.as_ref().unchecked_ref() ).unwrap();
-  closure.forget();
+  {
+    let tuning = tuning.clone();
+    let document = document.clone();
+    let closure = Closure::< dyn FnMut( _ ) >::new
+    (
+      move | e : PointerEvent |
+      {
+        if e.button() != 2 { return; }
+        scene_solo( &mut tuning.borrow_mut().layers, toggle, e.shift_key() );
+        sync_dom( &document, &tuning.borrow().layers );
+      }
+    );
+    row.add_event_listener_with_callback( "pointerdown", closure.as_ref().unchecked_ref() ).unwrap();
+    closure.forget();
+  }
+  let suppress_menu = Closure::< dyn FnMut( _ ) >::new( | e : MouseEvent | e.prevent_default() );
+  row.add_event_listener_with_callback( "contextmenu", suppress_menu.as_ref().unchecked_ref() ).unwrap();
+  suppress_menu.forget();
 }
 
 /// Builds and appends the Render Layers panel, wiring every row to `tuning`.
