@@ -161,7 +161,7 @@ impl HullProgram
     gl::uniform::upload( gl, u.light_intensity.clone(), &light_intensity ).unwrap();
     gl::uniform::upload( gl, u.light_size.clone(), &light_size ).unwrap();
     gl::uniform::matrix_upload( gl, u.light_view_proj.clone(), light_view_proj.to_array().as_slice(), true ).unwrap();
-    gl::uniform::upload( gl, u.shadows_enabled.clone(), &if layers.shadows_enabled { 1.0f32 } else { 0.0f32 } ).unwrap();
+    gl::uniform::upload( gl, u.shadows_enabled.clone(), &if layers.shadows_drawn() { 1.0f32 } else { 0.0f32 } ).unwrap();
     gl::uniform::upload( gl, u.lighting_enabled.clone(), &if layers.lighting_enabled { 1.0f32 } else { 0.0f32 } ).unwrap();
 
     gl.active_texture( GL::TEXTURE0 );

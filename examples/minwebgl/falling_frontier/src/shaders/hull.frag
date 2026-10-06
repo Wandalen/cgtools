@@ -90,13 +90,14 @@ void main()
   // would just dilute the shading effect this rewrite is for.
   float self_lit = step( 0.999, u_ambient );
 
-  // Render-layer isolation: with lighting switched off, every non-glow part
-  // reads as plain flat `u_color` (no normal/shadow/specular work at all) -
+  // Plain flat `u_color`, with no normal/shadow/specular work at all, for
+  // fully self-lit parts (the lit path below would end as exactly `u_color`
+  // for them anyway) and for every part while lighting is switched off -
   // a deliberately separate uniform from `u_shadows_enabled`, which only
-  // gates the shadow *sample* within the normal lit path below and would
+  // decides whether the lit path below samples the shadow map and would
   // still leave directional shading (and the resulting dark unlit faces) in
   // place on its own.
-  if ( u_lighting_enabled < 0.5 && self_lit < 0.5 )
+  if ( u_lighting_enabled < 0.5 || self_lit > 0.5 )
   {
     frag_color = vec4( u_color, 1.0 );
     return;
@@ -107,7 +108,8 @@ void main()
 
   vec3 light_dir = normalize( u_light_dir );
   float n_dot_l = max( dot( normal, light_dir ), 0.0 );
-  float shadow = mix( 1.0, shadow_factor( v_world_pos ), u_shadows_enabled );
+  // Shadows off: the nine shadow-map taps aren't taken at all.
+  float shadow = u_shadows_enabled > 0.5 ? shadow_factor( v_world_pos ) : 1.0;
   float lit = n_dot_l * shadow;
 
   vec3 view_dir = normalize( u_camera_position - v_world_pos );
@@ -121,8 +123,8 @@ void main()
   vec3 diffuse_color = u_color * u_light_color * u_light_intensity;
   vec3 base = mix( ambient_color, diffuse_color, lit ) * floor_and_diffuse;
 
-  vec3 color = mix( base, u_color, self_lit );
-  color += u_light_color * u_light_intensity * spec * SPECULAR_STRENGTH * ( 1.0 - self_lit );
+  // Self-lit parts returned early above, so everything here is shaded.
+  vec3 color = base + u_light_color * u_light_intensity * spec * SPECULAR_STRENGTH;
 
   frag_color = vec4( color, 1.0 );
 }

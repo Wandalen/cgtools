@@ -12,8 +12,9 @@
 ///
 /// `lighting_enabled` is deliberately separate from `shadows_enabled`: the
 /// former drops `hull.frag` to a flat unlit `u_color` (see hull.frag's
-/// `u_lighting_enabled` branch), the latter only gates the shadow-map
-/// sample within the normal lit path. `show_asteroids`/`show_ships`/
+/// `u_lighting_enabled` branch), the latter decides whether the frame
+/// renders the shadow-caster pass and whether the lit path samples the
+/// shadow map. Shadows only exist under lighting - see `shadows_drawn`. `show_asteroids`/`show_ships`/
 /// `show_station` also gate that object's contribution to the shadow-caster
 /// pass and the pick pass, not just its own visible draw - a hidden object
 /// shouldn't still cast a shadow or take a click.
@@ -46,6 +47,17 @@ pub struct RenderLayers
   pub show_trajectories : bool,
 }
 
+impl RenderLayers
+{
+  /// Whether the frame draws shadows: the Shadows switch is on and so is
+  /// Lighting, without which no fragment reads the shadow map - so the
+  /// caster pass is skipped too, rather than rendered for nothing.
+  pub fn shadows_drawn( &self ) -> bool
+  {
+    self.lighting_enabled && self.shadows_enabled
+  }
+}
+
 impl Default for RenderLayers
 {
   fn default() -> Self
@@ -65,5 +77,20 @@ impl Default for RenderLayers
       show_scanlines : false,
       show_trajectories : false,
     }
+  }
+}
+
+#[ cfg( test ) ]
+mod tests
+{
+  use super::RenderLayers;
+
+  #[ test ]
+  fn shadows_need_both_switches()
+  {
+    let on = RenderLayers { lighting_enabled : true, shadows_enabled : true, ..RenderLayers::default() };
+    assert!( on.shadows_drawn() );
+    assert!( !RenderLayers { shadows_enabled : false, ..on }.shadows_drawn() );
+    assert!( !RenderLayers { lighting_enabled : false, ..on }.shadows_drawn() );
   }
 }

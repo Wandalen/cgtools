@@ -612,7 +612,7 @@ fn app_run() -> Result< (), gl::WebglError >
       let mut light = Light::new( shadow_scene_center + light_dir * SHADOW_LIGHT_DISTANCE, -light_dir, shadow_projection, tuning_snapshot.light_size );
       let light_view_proj = light.view_projection();
 
-      if tuning_snapshot.layers.shadows_enabled
+      if tuning_snapshot.layers.shadows_drawn()
       {
         shadow_map.bind();
         shadow_map.clear();
@@ -725,9 +725,11 @@ fn setup_selection_and_gizmo( ctx : &Rc< InteractionCtx > )
         let pos = pointer_client_pos( &e );
         down_pos.set( Some( pos ) );
 
-        // A gizmo handle only exists while something's selected - nothing
-        // to grab otherwise, so skip the speculative pick entirely.
-        let Some( kind ) = ctx.selected_id.get().and_then( classify_pick ) else { return };
+        // A gizmo handle only exists while something's selected and the
+        // handle is shown - nothing to grab otherwise, so skip the
+        // speculative pick (an id pass plus a synchronous pixel read).
+        let layers = ctx.tuning.borrow().layers;
+        let Some( kind ) = ctx.selected_id.get().and_then( classify_pick ).filter( | kind | gizmo_visible( *kind, &layers ) ) else { return };
         if pick_at_client( &ctx, pos.0, pos.1 ) != Some( GIZMO_ID ) { return; }
 
         let Some( hit ) = ray_ground_hit( ctx.latest_view_proj.get(), &ctx.canvas, pos.0, pos.1 ) else { return };
