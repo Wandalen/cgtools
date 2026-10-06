@@ -17,6 +17,9 @@ uniform vec3 u_camera_position;
 uniform vec3 u_light_dir;
 uniform vec3 u_light_color;
 uniform float u_light_intensity;
+// Shadow softness: scales the PCF tap spacing, so 0 is a hard single-texel
+// edge and larger values blur the penumbra over more shadow-map texels.
+uniform float u_light_size;
 uniform mat4 u_light_view_proj;
 uniform highp sampler2D u_shadow_map;
 uniform float u_shadows_enabled;
@@ -62,7 +65,7 @@ float shadow_factor( vec3 world_pos )
     return 1.0;
   }
 
-  vec2 texel = 1.0 / vec2( textureSize( u_shadow_map, 0 ) );
+  vec2 texel = u_light_size / vec2( textureSize( u_shadow_map, 0 ) );
 
   float lit = 0.0;
   for ( int x = -1; x <= 1; x++ )

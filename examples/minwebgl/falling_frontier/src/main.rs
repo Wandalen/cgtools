@@ -816,7 +816,7 @@ fn app_run() -> Result< (), gl::WebglError >
 
       hull_program.begin_frame
       (
-        &gl, view_proj, camera.eye_get(), light_dir, tuning_snapshot.light_color, tuning_snapshot.light_intensity,
+        &gl, view_proj, camera.eye_get(), light_dir, tuning_snapshot.light_color, tuning_snapshot.light_intensity, tuning_snapshot.light_size,
         light_view_proj, shadow_map.depth_buffer(), tuning_snapshot.layers.shadows_enabled, tuning_snapshot.layers.lighting_enabled,
       );
       if tuning_snapshot.layers.show_asteroids

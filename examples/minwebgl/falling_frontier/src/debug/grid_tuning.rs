@@ -80,11 +80,11 @@ pub struct GridTuning
   pub light_elevation : f32,
   pub light_color : [ f32; 3 ],
   pub light_intensity : f32,
-  // `Light::size()` ("controls shadow softness" per its own doc comment,
-  // `module/helper/renderer/src/webgl/shadow.rs:342`) - was a hardcoded
-  // `1.0` literal at the `Light::new` call site in `main.rs` until this
-  // field exposed it. Range mirrors this same renderer's own spot-light
-  // precedent (`shadow.rs:454`: `light_size` computed in `0.01..=1.7`).
+  // Shadow softness: `hull.frag`'s `u_light_size`, which scales the 3x3 PCF
+  // tap spacing in shadow-map texels (0 = hard edge, 1 = the original
+  // one-texel spacing). Also passed to `Light::new`, whose own `size()` only
+  // the renderer's `ShadowBaker` reads - this example doesn't use it, so the
+  // uniform is what makes the slider visible.
   pub light_size : f32,
 
   /// Which scene layers the frame loop draws - the Render Layers panel's

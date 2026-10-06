@@ -94,6 +94,7 @@ struct HullUniforms
   light_dir : Option< gl::WebGlUniformLocation >,
   light_color : Option< gl::WebGlUniformLocation >,
   light_intensity : Option< gl::WebGlUniformLocation >,
+  light_size : Option< gl::WebGlUniformLocation >,
   light_view_proj : Option< gl::WebGlUniformLocation >,
   shadow_map : Option< gl::WebGlUniformLocation >,
   shadows_enabled : Option< gl::WebGlUniformLocation >,
@@ -126,6 +127,7 @@ impl HullProgram
       light_dir : gl.get_uniform_location( &program, "u_light_dir" ),
       light_color : gl.get_uniform_location( &program, "u_light_color" ),
       light_intensity : gl.get_uniform_location( &program, "u_light_intensity" ),
+      light_size : gl.get_uniform_location( &program, "u_light_size" ),
       light_view_proj : gl.get_uniform_location( &program, "u_light_view_proj" ),
       shadow_map : gl.get_uniform_location( &program, "u_shadow_map" ),
       shadows_enabled : gl.get_uniform_location( &program, "u_shadows_enabled" ),
@@ -144,7 +146,7 @@ impl HullProgram
   pub fn begin_frame
   (
     &self, gl : &GL, view_proj : gl::F32x4x4, camera_position : gl::F32x3,
-    light_dir : gl::F32x3, light_color : [ f32; 3 ], light_intensity : f32,
+    light_dir : gl::F32x3, light_color : [ f32; 3 ], light_intensity : f32, light_size : f32,
     light_view_proj : gl::F32x4x4, shadow_map : Option< &gl::web_sys::WebGlTexture >, shadows_enabled : bool,
     lighting_enabled : bool,
   )
@@ -156,6 +158,7 @@ impl HullProgram
     gl::uniform::upload( gl, u.light_dir.clone(), light_dir.to_array().as_slice() ).unwrap();
     gl::uniform::upload( gl, u.light_color.clone(), light_color.as_slice() ).unwrap();
     gl::uniform::upload( gl, u.light_intensity.clone(), &light_intensity ).unwrap();
+    gl::uniform::upload( gl, u.light_size.clone(), &light_size ).unwrap();
     gl::uniform::matrix_upload( gl, u.light_view_proj.clone(), light_view_proj.to_array().as_slice(), true ).unwrap();
     gl::uniform::upload( gl, u.shadows_enabled.clone(), &if shadows_enabled { 1.0f32 } else { 0.0f32 } ).unwrap();
     gl::uniform::upload( gl, u.lighting_enabled.clone(), &if lighting_enabled { 1.0f32 } else { 0.0f32 } ).unwrap();
