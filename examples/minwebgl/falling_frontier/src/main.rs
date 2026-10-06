@@ -621,7 +621,7 @@ fn app_run() -> Result< (), gl::WebglError >
   let grid = TacticalGrid::new( &gl );
   let hull_program = HullProgram::new( &gl );
   let starfield = Starfield::new( &gl );
-  let background = Background::new( &gl );
+  let background = Background::new( &gl )?;
   let shadow_map = ShadowMap::new( &gl, SHADOW_MAP_RESOLUTION )?;
   gl.viewport( 0, 0, pixel_w as i32, pixel_h as i32 );
 

@@ -50,21 +50,59 @@ fn cube_face_view_proj() -> [ gl::F32x4x4; 6 ]
 /// exactly the direction each face's view-projection was built to cover, so
 /// sampling the result later with that same direction reproduces the formula
 /// faithfully.
-fn bake_cubemap( gl : &GL ) -> gl::web_sys::WebGlTexture
+///
+/// Leaves the GL state as it found it: the viewport is restored, and the
+/// one-shot program, VAO and framebuffer are deleted whether or not every
+/// face rendered.
+///
+/// # Errors
+///
+/// A shader that fails to compile or link, a GL object that can't be
+/// created, or a face attachment that leaves the framebuffer incomplete.
+fn bake_cubemap( gl : &GL ) -> Result< gl::web_sys::WebGlTexture, gl::WebglError >
+{
+  let program = bake_program_create( gl )?;
+  let texture = bake_texture_create( gl )?;
+  let viewport = viewport_get( gl );
+
+  // No attributes, same reasoning as `Background`'s own runtime vao below.
+  let vao = gl::vao::create( gl );
+  let framebuffer = gl.create_framebuffer();
+  let rendered = match ( vao.as_ref(), framebuffer.as_ref() )
+  {
+    ( Ok( vao ), Some( framebuffer ) ) => bake_faces_render( gl, &program, vao, framebuffer, &texture ),
+    ( Err( _ ), _ ) => Err( gl::WebglError::Other( "failed to create the cube map bake VAO" ) ),
+    ( _, None ) => Err( gl::WebglError::Other( "failed to create the cube map bake framebuffer" ) ),
+  };
+
+  gl.viewport( viewport[ 0 ], viewport[ 1 ], viewport[ 2 ], viewport[ 3 ] );
+  bake_teardown( gl, &program, vao.as_ref().ok(), framebuffer.as_ref() );
+
+  match rendered
+  {
+    Ok( () ) => Ok( texture ),
+    Err( e ) =>
+    {
+      gl.delete_texture( Some( &texture ) );
+      Err( e )
+    }
+  }
+}
+
+/// Compiles `background.frag`'s nebula formula with the attributeless
+/// full-screen `background.vert`.
+fn bake_program_create( gl : &GL ) -> Result< gl::WebGlProgram, gl::WebglError >
 {
   let vertex_shader = include_str!( "shaders/background.vert" );
   let fragment_shader = include_str!( "shaders/background.frag" );
-  let program = gl::ProgramFromSources::new( vertex_shader, fragment_shader )
-  .compile_and_link( gl )
-  .unwrap();
+  Ok( gl::ProgramFromSources::new( vertex_shader, fragment_shader ).compile_and_link( gl )? )
+}
 
-  let inv_view_proj_loc = gl.get_uniform_location( &program, "u_inv_view_proj" );
-  let camera_position_loc = gl.get_uniform_location( &program, "u_camera_position" );
-
-  // No attributes, same reasoning as `Background`'s own runtime vao below.
-  let vao = gl::vao::create( gl ).unwrap();
-
-  let texture = gl.create_texture().unwrap();
+/// An empty `BAKE_RESOLUTION` RGBA8 cube map, linearly filtered and clamped,
+/// left bound to `TEXTURE_CUBE_MAP`.
+fn bake_texture_create( gl : &GL ) -> Result< gl::web_sys::WebGlTexture, gl::WebglError >
+{
+  let texture = gl.create_texture().ok_or( gl::WebglError::Other( "failed to create the cube map texture" ) )?;
   gl.bind_texture( GL::TEXTURE_CUBE_MAP, Some( &texture ) );
   for i in 0 .. 6
   {
@@ -72,55 +110,93 @@ fn bake_cubemap( gl : &GL ) -> gl::web_sys::WebGlTexture
     (
       GL::TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL::RGBA as i32,
       BAKE_RESOLUTION, BAKE_RESOLUTION, 0, GL::RGBA, GL::UNSIGNED_BYTE, None,
-    ).unwrap();
+    )
+    .map_err( | _ | gl::WebglError::Other( "failed to allocate a cube map face" ) )?;
   }
-  gl.tex_parameteri( GL::TEXTURE_CUBE_MAP, GL::TEXTURE_MIN_FILTER, GL::LINEAR as i32 );
-  gl.tex_parameteri( GL::TEXTURE_CUBE_MAP, GL::TEXTURE_MAG_FILTER, GL::LINEAR as i32 );
-  gl.tex_parameteri( GL::TEXTURE_CUBE_MAP, GL::TEXTURE_WRAP_S, GL::CLAMP_TO_EDGE as i32 );
-  gl.tex_parameteri( GL::TEXTURE_CUBE_MAP, GL::TEXTURE_WRAP_T, GL::CLAMP_TO_EDGE as i32 );
-  gl.tex_parameteri( GL::TEXTURE_CUBE_MAP, GL::TEXTURE_WRAP_R, GL::CLAMP_TO_EDGE as i32 );
+  gl::texture::cube::filter_linear( gl );
+  gl::texture::cube::wrap_clamp( gl );
+  Ok( texture )
+}
 
-  let framebuffer = gl.create_framebuffer();
-  gl.bind_framebuffer( GL::FRAMEBUFFER, framebuffer.as_ref() );
+/// The current viewport as `[ x, y, width, height ]`.
+fn viewport_get( gl : &GL ) -> [ i32; 4 ]
+{
+  let mut viewport = [ 0; 4 ];
+  let value = gl.get_parameter( GL::VIEWPORT ).ok()
+  .and_then( | v | v.dyn_into::< gl::web_sys::js_sys::Int32Array >().ok() );
+  if let Some( value ) = value
+  {
+    value.copy_to( &mut viewport );
+  }
+  viewport
+}
+
+/// Draws the nebula into each face of `texture` through `framebuffer`,
+/// checking the framebuffer is complete before each draw.
+fn bake_faces_render
+(
+  gl : &GL,
+  program : &gl::WebGlProgram,
+  vao : &gl::WebGlVertexArrayObject,
+  framebuffer : &gl::web_sys::WebGlFramebuffer,
+  texture : &gl::web_sys::WebGlTexture,
+) -> Result< (), gl::WebglError >
+{
+  let inv_view_proj_loc = gl.get_uniform_location( program, "u_inv_view_proj" );
+  let camera_position_loc = gl.get_uniform_location( program, "u_camera_position" );
+
+  gl.bind_framebuffer( GL::FRAMEBUFFER, Some( framebuffer ) );
   gl.viewport( 0, 0, BAKE_RESOLUTION, BAKE_RESOLUTION );
-  gl.use_program( Some( &program ) );
-  gl.bind_vertex_array( Some( &vao ) );
-  gl::uniform::upload( gl, camera_position_loc, gl::F32x3::ZERO.to_array().as_slice() ).unwrap();
+  gl.use_program( Some( program ) );
+  gl.bind_vertex_array( Some( vao ) );
+  gl::uniform::upload( gl, camera_position_loc, gl::F32x3::ZERO.to_array().as_slice() )?;
 
   for ( i, view_proj ) in cube_face_view_proj().iter().enumerate()
   {
-    // The bake camera's perspective/look-at is never degenerate, so this
-    // inverse always exists.
-    let inv_view_proj = view_proj.inverse().unwrap();
-    gl::uniform::matrix_upload( gl, inv_view_proj_loc.clone(), inv_view_proj.to_array().as_slice(), true ).unwrap();
+    let inv_view_proj = view_proj.inverse()
+    .ok_or( gl::WebglError::Other( "a cube face view-projection is not invertible" ) )?;
+    gl::uniform::matrix_upload( gl, inv_view_proj_loc.clone(), inv_view_proj.to_array().as_slice(), true )?;
     gl.framebuffer_texture_2d
     (
       GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0,
-      GL::TEXTURE_CUBE_MAP_POSITIVE_X + i as u32, Some( &texture ), 0,
+      GL::TEXTURE_CUBE_MAP_POSITIVE_X + i as u32, Some( texture ), 0,
     );
+    if gl.check_framebuffer_status( GL::FRAMEBUFFER ) != GL::FRAMEBUFFER_COMPLETE
+    {
+      return Err( gl::WebglError::Other( "the cube map bake framebuffer is incomplete" ) );
+    }
     gl.draw_arrays( GL::TRIANGLES, 0, 3 );
   }
+  Ok( () )
+}
 
-  // Everything but the texture is one-shot: nothing draws through the bake
-  // program, its VAO or its framebuffer again. Unbind first so the deletes
-  // take effect now instead of waiting for the objects to stop being current.
+/// Unbinds and deletes everything the bake created except the texture:
+/// nothing draws through the bake program, its VAO or its framebuffer
+/// again. Unbinding first makes the deletes take effect now instead of
+/// waiting for the objects to stop being current.
+fn bake_teardown
+(
+  gl : &GL,
+  program : &gl::WebGlProgram,
+  vao : Option< &gl::WebGlVertexArrayObject >,
+  framebuffer : Option< &gl::web_sys::WebGlFramebuffer >,
+)
+{
   gl.bind_framebuffer( GL::FRAMEBUFFER, None );
   gl.bind_vertex_array( None );
   gl.use_program( None );
-  gl.delete_framebuffer( framebuffer.as_ref() );
-  gl.delete_vertex_array( Some( &vao ) );
+  gl.delete_framebuffer( framebuffer );
+  gl.delete_vertex_array( vao );
   // `compile_and_link` leaves its two shader objects attached to the program;
   // deleting the program alone would leave them allocated.
-  if let Some( shaders ) = gl.get_attached_shaders( &program )
+  if let Some( shaders ) = gl.get_attached_shaders( program )
   {
     for shader in shaders.iter().filter_map( | s | s.dyn_into::< gl::web_sys::WebGlShader >().ok() )
     {
       gl.delete_shader( Some( &shader ) );
     }
   }
-  gl.delete_program( Some( &program ) );
-
-  texture
+  gl.delete_program( Some( program ) );
 }
 
 struct SkyboxUniforms
@@ -140,19 +216,23 @@ pub struct Background
 
 impl Background
 {
-  pub fn new( gl : &GL ) -> Self
+  /// Bakes the nebula cube map and builds the program that samples it.
+  ///
+  /// # Errors
+  ///
+  /// Whatever `bake_cubemap` reports, or a skybox program that fails to
+  /// compile or link.
+  pub fn new( gl : &GL ) -> Result< Self, gl::WebglError >
   {
-    let cubemap = bake_cubemap( gl );
+    let cubemap = bake_cubemap( gl )?;
 
     // No attributes - `background.vert` draws its triangle purely off
     // `gl_VertexID`, but WebGL2 still requires *a* VAO bound to draw at all.
-    let vao = gl::vao::create( gl ).unwrap();
+    let vao = gl::vao::create( gl )?;
 
     let vertex_shader = include_str!( "shaders/background.vert" );
     let fragment_shader = include_str!( "shaders/skybox.frag" );
-    let program = gl::ProgramFromSources::new( vertex_shader, fragment_shader )
-    .compile_and_link( gl )
-    .unwrap();
+    let program = gl::ProgramFromSources::new( vertex_shader, fragment_shader ).compile_and_link( gl )?;
 
     let uniforms = SkyboxUniforms
     {
@@ -161,7 +241,7 @@ impl Background
       skybox : gl.get_uniform_location( &program, "u_skybox" ),
     };
 
-    Self { vao, program, uniforms, cubemap }
+    Ok( Self { vao, program, uniforms, cubemap } )
   }
 
   pub fn draw( &self, gl : &GL, view_proj : gl::F32x4x4, camera_position : gl::F32x3 )
