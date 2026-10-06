@@ -124,10 +124,14 @@ fn unit_info_for( kind : PickedKind, ships : &Ships, station : &Station ) -> hud
   }
 }
 
-/// Whether `kind`'s Render Layers switch is on. A hidden layer counts as
-/// absent everywhere it matters - the visible draw, the shadow pass and the
-/// pick pass - so an invisible object can neither be clicked nor cover a
-/// visible one behind it.
+/// Whether `kind`'s Render Layers switch is on - the only place an object
+/// kind is mapped to its switch. Everything that decides whether an object
+/// is present goes through it: the visible draw, the shadow pass and the
+/// pick pass (via `visible_groups`), the gizmo (`gizmo_visible`), the
+/// view-zone ribbon (`ribbon_ship`), and the frame loop's check that drops
+/// a selection whose layer was hidden. So a hidden object can't be clicked,
+/// cast a shadow, cover a visible one, notch the ribbon or keep its
+/// selection, unit card and ribbon.
 fn kind_visible( kind : PickedKind, t : &RenderLayers ) -> bool
 {
   match kind
@@ -138,14 +142,36 @@ fn kind_visible( kind : PickedKind, t : &RenderLayers ) -> bool
   }
 }
 
-/// Every hull part whose Render Layers switch is on - the one list both the
-/// shadow pass and the pick pass walk, so neither can drift from the other.
-fn visible_parts< 'a >( t : &RenderLayers, asteroids : &'a Asteroids, ships : &'a Ships, station : &'a Station ) -> impl Iterator< Item = &'a HullPart >
+/// The parts of every object group whose layer is visible, in pick-id order
+/// (asteroids, ships, station). Generic over the part type so the filtering
+/// can be tested without a GL context; `visible_parts` is the GL-side use.
+fn visible_groups< 'a, T >( t : &RenderLayers, asteroids : &'a [ T ], ships : &'a [ T ], station : &'a [ T ] ) -> impl Iterator< Item = &'a T >
 {
-  let asteroid_parts : &[ _ ] = if t.show_asteroids { asteroids.parts() } else { &[] };
-  let ship_parts : &[ _ ] = if t.show_ships { ships.parts() } else { &[] };
-  let station_parts : &[ _ ] = if t.show_station { station.parts() } else { &[] };
-  asteroid_parts.iter().chain( ship_parts ).chain( station_parts )
+  // Visibility is per kind, so any index stands for the whole group.
+  [ ( PickedKind::Asteroid( 0 ), asteroids ), ( PickedKind::Ship( 0 ), ships ), ( PickedKind::Station, station ) ]
+  .into_iter()
+  .filter( move | ( kind, _ ) | kind_visible( *kind, t ) )
+  .flat_map( | ( _, parts ) | parts.iter() )
+}
+
+/// Every hull part whose Render Layers switch is on - the one list the
+/// visible draw, the shadow pass and the pick pass all walk, so none of them
+/// can drift from the others.
+fn visible_parts< 'a >( t : &'a RenderLayers, asteroids : &'a Asteroids, ships : &'a Ships, station : &'a Station ) -> impl Iterator< Item = &'a HullPart >
+{
+  visible_groups( t, asteroids.parts(), ships.parts(), station.parts() )
+}
+
+/// The ship whose view-zone ribbon the grid draws, if any: a selected ship
+/// (the only kind with a view radius) whose own layer is visible, with the
+/// grid and its ribbon row on.
+fn ribbon_ship( selected : Option< PickedKind >, t : &RenderLayers ) -> Option< usize >
+{
+  match selected
+  {
+    Some( kind @ PickedKind::Ship( i ) ) if t.show_grid && t.show_view_ribbon && kind_visible( kind, t ) => Some( i ),
+    _ => None,
+  }
 }
 
 /// Whether the gizmo handle exists for a selected `kind`: its own switch is
@@ -445,12 +471,7 @@ fn app_run() -> Result< (), gl::WebglError >
     setup_grid_tuning_panel
     (
       &document, &tuning,
-      move ||
-      {
-        ctx.selected_id.set( None );
-        refresh_selection_status( &ctx.document, &selection_status_text( None ) );
-        refresh_unit_panel( &ctx.document, None );
-      }
+      move || deselect( &ctx )
     );
   }
 
@@ -515,6 +536,13 @@ fn app_run() -> Result< (), gl::WebglError >
       ctx.latest_view_proj.set( view_proj );
 
       let tuning_snapshot = *tuning.borrow();
+      // A Render Layers row (or a solo gesture) hid the selected object's
+      // layer: drop the selection, so its unit card, ribbon and gizmo go
+      // with it instead of outliving the object on screen.
+      if let Some( kind ) = ctx.selected_id.get().and_then( classify_pick ) && !kind_visible( kind, &tuning_snapshot.layers )
+      {
+        deselect( &ctx );
+      }
       let selected = ctx.selected_id.get();
       let selected_kind = selected.and_then( classify_pick );
 
@@ -547,17 +575,17 @@ fn app_run() -> Result< (), gl::WebglError >
       // when it defines a `viewRadius` (only ships do in `fleet.js`; the
       // station and asteroids have none, so selecting them highlights the
       // object but leaves the ribbon off).
-      let focus_snapshot = match selected_kind
+      let focus_snapshot = match ribbon_ship( selected_kind, &tuning_snapshot.layers )
       {
-        Some( PickedKind::Ship( i ) ) if tuning_snapshot.layers.show_view_ribbon =>
-          FocusState { active : true, point : ships.position( i ) },
-        _ => FocusState::default(),
+        Some( i ) => FocusState { active : true, point : ships.position( i ) },
+        None => FocusState::default(),
       };
 
       let mut boundary_buf = [ [ 0.0f32; 2 ]; MAX_BOUNDARY_PTS ];
       let mut boundary_count = 0;
       let mut glow : Vec< ( [ f32; 2 ], f32 ) > = Vec::new();
-      if focus_snapshot.active
+      // Hidden asteroids neither notch the ribbon nor glow on the grid.
+      if focus_snapshot.active && tuning_snapshot.layers.show_asteroids
       {
         let blockers = asteroids.blockers();
         boundary_count = build_boundary_polyline
@@ -608,17 +636,9 @@ fn app_run() -> Result< (), gl::WebglError >
         &gl, view_proj, camera.eye_get(), light_dir, tuning_snapshot.light_color, tuning_snapshot.light_intensity, tuning_snapshot.light_size,
         light_view_proj, shadow_map.depth_buffer(), &tuning_snapshot.layers,
       );
-      if tuning_snapshot.layers.show_asteroids
+      for part in visible_parts( &tuning_snapshot.layers, &asteroids, &ships, &station )
       {
-        for part in asteroids.parts() { hull_program.draw_part( &gl, part, Some( part.pick_id ) == selected ); }
-      }
-      if tuning_snapshot.layers.show_ships
-      {
-        for part in ships.parts() { hull_program.draw_part( &gl, part, Some( part.pick_id ) == selected ); }
-      }
-      if tuning_snapshot.layers.show_station
-      {
-        for part in station.parts() { hull_program.draw_part( &gl, part, Some( part.pick_id ) == selected ); }
+        hull_program.draw_part( &gl, part, Some( part.pick_id ) == selected );
       }
 
       if tuning_snapshot.layers.show_starfield
@@ -834,12 +854,7 @@ fn setup_selection_and_gizmo( ctx : &Rc< InteractionCtx > )
         {
           "g" | "G" => ctx.gizmo_mode.set( GizmoMode::Translate ),
           "r" | "R" => ctx.gizmo_mode.set( GizmoMode::Rotate ),
-          "Escape" =>
-          {
-            ctx.selected_id.set( None );
-            refresh_selection_status( &ctx.document, &selection_status_text( None ) );
-            refresh_unit_panel( &ctx.document, None );
-          }
+          "Escape" => deselect( &ctx ),
           _ => {}
         }
       }
@@ -847,6 +862,20 @@ fn setup_selection_and_gizmo( ctx : &Rc< InteractionCtx > )
     window.add_event_listener_with_callback( "keydown", closure.as_ref().unchecked_ref() ).unwrap();
     closure.forget();
   }
+}
+
+/// Clears the selection and the HUD that shows it: the status line and the
+/// unit card. Also ends a gizmo drag on the deselected object, where it
+/// leaves the object (and gives camera orbit rotation back).
+fn deselect( ctx : &InteractionCtx )
+{
+  if ctx.drag_state.take().is_some()
+  {
+    ctx.camera_controls.borrow_mut().rotation.enabled = true;
+  }
+  ctx.selected_id.set( None );
+  refresh_selection_status( &ctx.document, &selection_status_text( None ) );
+  refresh_unit_panel( &ctx.document, None );
 }
 
 /// Ends `drag` without applying it: the object goes back to its grab-time
@@ -871,7 +900,51 @@ fn main()
 #[ cfg( test ) ]
 mod tests
 {
-  use super::{ gizmo_visible, kind_visible, PickedKind, RenderLayers };
+  use super::{ gizmo_visible, kind_visible, ribbon_ship, visible_groups, PickedKind, RenderLayers };
+
+  /// Every object layer and the gizmo shown explicitly, so a changed default
+  /// can't make a test pass or fail for the wrong reason.
+  fn all_shown() -> RenderLayers
+  {
+    RenderLayers
+    {
+      show_grid : true,
+      show_view_ribbon : true,
+      show_asteroids : true,
+      show_ships : true,
+      show_station : true,
+      show_gizmo : true,
+      ..RenderLayers::default()
+    }
+  }
+
+  /// The pick, shadow and visible passes walk exactly the groups whose layer
+  /// is on, in pick-id order.
+  #[ test ]
+  fn visible_groups_keeps_only_shown_groups_in_order()
+  {
+    let ( asteroids, ships, station ) = ( [ 1, 2 ], [ 3 ], [ 4 ] );
+    let walk = | t : &RenderLayers | visible_groups( t, &asteroids, &ships, &station ).copied().collect::< Vec< i32 > >();
+    assert_eq!( walk( &all_shown() ), vec![ 1, 2, 3, 4 ] );
+    assert_eq!( walk( &RenderLayers { show_asteroids : false, ..all_shown() } ), vec![ 3, 4 ] );
+    assert_eq!( walk( &RenderLayers { show_ships : false, ..all_shown() } ), vec![ 1, 2, 4 ] );
+    assert_eq!( walk( &RenderLayers { show_station : false, ..all_shown() } ), vec![ 1, 2, 3 ] );
+  }
+
+  /// Only a selected, visible ship drives the ribbon, and only while the
+  /// grid and its ribbon row are on.
+  #[ test ]
+  fn ribbon_follows_a_visible_selected_ship_only()
+  {
+    let ship = Some( PickedKind::Ship( 2 ) );
+    assert_eq!( ribbon_ship( ship, &all_shown() ), Some( 2 ) );
+    assert_eq!( ribbon_ship( ship, &RenderLayers { show_ships : false, ..all_shown() } ), None );
+    assert_eq!( ribbon_ship( ship, &RenderLayers { show_view_ribbon : false, ..all_shown() } ), None );
+    assert_eq!( ribbon_ship( ship, &RenderLayers { show_grid : false, ..all_shown() } ), None );
+    assert_eq!( ribbon_ship( Some( PickedKind::Station ), &all_shown() ), None );
+    assert_eq!( ribbon_ship( Some( PickedKind::Asteroid( 0 ) ), &all_shown() ), None );
+    assert_eq!( ribbon_ship( None, &all_shown() ), None );
+  }
 
   #[ test ]
   fn each_kind_follows_its_own_layer_switch()
