@@ -3,8 +3,9 @@
 //! These compile the real `main.vert` / `main.frag` sources, assembled by the same
 //! `material::shader_sources` `renderer.rs` compiles from ( reachable under `test_internals` ),
 //! in a headless WebGL2 context, for every `#define` combination the new extension code
-//! introduces. Each texture samples its own UV set, so every `v<Name>Uv` macro resolves to a
-//! distinct varying. They do not verify pixel-level correctness
+//! introduces. In the cases with up to five textures each texture samples its own UV set, so
+//! every `v<Name>Uv` macro resolves to a distinct varying; `main.frag` declares five UV sets, so
+//! the twelve-texture case shares them out. They do not verify pixel-level correctness
 //! (that still relies on visual inspection of the `gltf_viewer` example, matching
 //! `pmrem_tests.rs`'s philosophy) — they catch GLSL syntax/type errors that only surface at
 //! runtime shader-compile time.
@@ -142,9 +143,9 @@ mod tests
     assert_compiles( &gl, &material, true, "clearcoat + anisotropy + specular + occlusion + IBL" );
   }
 
-  /// Every one of the twelve material textures, each on a UV set of its own, with both layers on
-  /// and IBL: the largest program the material can produce, 15 fragment samplers, must compile
-  /// and link within WebGL2's guaranteed 16.
+  /// Every one of the twelve material textures, spread over the five UV sets `main.frag` declares
+  /// ( `vUv_0` to `vUv_4` ), with both layers on and IBL: the largest program the material can
+  /// produce, 15 fragment samplers, must compile and link within WebGL2's guaranteed 16.
   #[ wasm_bindgen_test( async ) ]
   async fn every_texture_with_both_layers_and_ibl_compiles()
   {
