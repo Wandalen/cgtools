@@ -22,7 +22,7 @@ display. No earlier pass may clamp, saturate, or gamma-encode.
 
 ### Enforcement Mechanism
 
-- **Float targets by construction**: `src/webgl/renderer.rs` allocates the
+- **Float targets by construction**: `src/webgl/renderer/framebuffer_context.rs` allocates the
   main color, emission, and transparent accumulation attachments as
   `RGBA16F` — HDR is the storage format, not an option flag.
 - **Fixed conversion position**: display conversion exists only as the
@@ -65,7 +65,7 @@ display. No earlier pass may clamp, saturate, or gamma-encode.
 |------|--------------|
 | `src/webgl/post_processing/to_srgb.rs` | Final sRGB encoding pass |
 | `src/webgl/post_processing/tonemapping.rs` | HDR→display compression passes (incl. ACES) |
-| `src/webgl/renderer.rs` | `RGBA16F` allocation of the main, emission, and transparent targets |
+| `src/webgl/renderer/framebuffer_context.rs` | `RGBA16F` allocation of the main, emission, and transparent targets |
 
 ### Tests
 

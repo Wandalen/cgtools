@@ -20,7 +20,7 @@ animation tracks (`src/webgl/{node,scene,mesh}.rs`, animation under
 baseline (`../invariant/002`), shaded by the main shader pair in
 `src/webgl/material/pbr.rs`.
 
-**Frame shape.** All targets are allocated by `src/webgl/renderer.rs` as
+**Frame shape.** All targets are allocated by `src/webgl/renderer/framebuffer_context.rs` as
 multisampled `RGBA16F` attachments (`../invariant/003`):
 
 1. **Opaque pass** — depth-tested draw of opaque meshes into the main color
@@ -66,7 +66,8 @@ HAL once one exists.
 | `src/webgl/material/pbr.rs` | Main shader pair and material upload |
 | `src/webgl/node.rs` | Scene-graph node and transform hierarchy |
 | `src/webgl/post_processing/` | Composable HDR post passes |
-| `src/webgl/renderer.rs` | Target allocation, pass sequence, resolve/composite |
+| `src/webgl/renderer.rs` | Pass sequence, composite |
+| `src/webgl/renderer/framebuffer_context.rs` | Target allocation, multisample resolve |
 
 ### Tests
 
