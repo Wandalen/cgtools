@@ -254,6 +254,13 @@ game use-case demands one.
     channel (now via `FrameTints::sprite_tint` in `compile/tint.rs`). Also fixed: `LayerBehaviour::default()` now
     returns `alpha: 1.0` (was `0.0` via `f32::default()`, inconsistent with the
     serde default).
+14. **`PipelineLayer.tint_mask`.** Declared and reference-checked at load
+    (`validate.rs`, `pipeline_tint_checks`), but no compile pass reads it: a
+    bucket's `tint_mask` changes nothing on screen. Stage 4 of the tint
+    composition order in `docs/algorithm/002` is therefore not applied yet.
+    Implementing it means folding the bucket's tint into `FrameTints::sprite_tint`
+    per bucket, between the layer tint and the global tint (all four channels
+    multiply, so the order only matters once a non-`Multiply` mode exists).
 
 ## Deferred from Step 4 — `Renderer` follow-ups
 

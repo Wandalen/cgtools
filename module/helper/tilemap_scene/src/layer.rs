@@ -54,7 +54,8 @@ mod private
     /// Static alpha multiplier `0.0..=1.0`. SPEC §6.5.
     #[ serde( default = "default_alpha" ) ]
     pub alpha : f32,
-    /// Shader effects applied after sampling / tinting. SPEC §6.3.
+    /// Shader effects applied after sampling / tinting. SPEC §6.3. Checked
+    /// at load but not applied by compilation yet (`roadmap.md`, polish item 2).
     #[ serde( default ) ]
     pub effects : Vec< EffectRef >,
     /// Parallax factor — Viewport anchor only. `0.0` = pinned to screen,
