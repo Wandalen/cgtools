@@ -517,6 +517,10 @@ struct DragState
   grab_offset : [ f32; 2 ],
   /// Rotate only: `object.rotation_y - angle_to_cursor` at grab time.
   rotation_offset : f32,
+  /// The object's XZ position and Y rotation at grab time, which Escape
+  /// restores when it cancels the drag.
+  start_position : [ f32; 2 ],
+  start_rotation : f32,
 }
 
 /// Everything a click, a gizmo drag, or a render frame needs to pick/select/
@@ -931,12 +935,16 @@ fn setup_selection_and_gizmo( ctx : &Rc< InteractionCtx > )
             kind, mode : GizmoMode::Translate,
             grab_offset : [ position[ 0 ] - hit[ 0 ], position[ 1 ] - hit[ 1 ] ],
             rotation_offset : 0.0,
+            start_position : position,
+            start_rotation : rotation_y,
           },
           GizmoMode::Rotate => DragState
           {
             kind, mode : GizmoMode::Rotate,
             grab_offset : [ 0.0, 0.0 ],
             rotation_offset : rotation_y - ( hit[ 0 ] - position[ 0 ] ).atan2( hit[ 1 ] - position[ 1 ] ),
+            start_position : position,
+            start_rotation : rotation_y,
           },
         };
         ctx.drag_state.set( Some( drag ) );
@@ -1015,10 +1023,27 @@ fn setup_selection_and_gizmo( ctx : &Rc< InteractionCtx > )
 
   {
     let ctx = ctx.clone();
+    let down_pos = down_pos.clone();
     let closure = Closure::< dyn FnMut( _ ) >::new
     (
       move | e : gl::web_sys::KeyboardEvent |
       {
+        // During a gizmo drag the keys act on the drag, not the selection:
+        // Escape cancels it, putting the object back where it was grabbed,
+        // and G/R wait for the drag to end, since the drag keeps the mode it
+        // was grabbed in. Deselecting or switching the drawn handle mid-drag
+        // would leave the selection and the drag disagreeing.
+        if let Some( drag ) = ctx.drag_state.get()
+        {
+          if e.key() == "Escape"
+          {
+            drag_cancel( &ctx, drag );
+            // The press that started the drag must not become a click on
+            // release: over the handle it would select the gizmo's own id.
+            down_pos.set( None );
+          }
+          return;
+        }
         if ctx.selected_id.get().is_none() { return; }
         match e.key().as_str()
         {
@@ -1037,6 +1062,20 @@ fn setup_selection_and_gizmo( ctx : &Rc< InteractionCtx > )
     window.add_event_listener_with_callback( "keydown", closure.as_ref().unchecked_ref() ).unwrap();
     closure.forget();
   }
+}
+
+/// Ends `drag` without applying it: the object goes back to its grab-time
+/// position and rotation, and camera orbit rotation (switched off for the
+/// drag) comes back on.
+fn drag_cancel( ctx : &InteractionCtx, drag : DragState )
+{
+  ctx.drag_state.set( None );
+  ctx.camera_controls.borrow_mut().rotation.enabled = true;
+  let mut asteroids = ctx.asteroids.borrow_mut();
+  let mut ships = ctx.ships.borrow_mut();
+  let mut station = ctx.station.borrow_mut();
+  drag_selected( drag.kind, drag.start_position, &mut asteroids, &mut ships, &mut station );
+  rotate_selected( drag.kind, drag.start_rotation, &mut asteroids, &mut ships, &mut station );
 }
 
 fn main()

@@ -18,7 +18,7 @@ Controls:
 - Click a ship / asteroid / the station - select it (a drag past ~6px counts as a camera drag, not a click)
 - G - switch the gizmo to translate mode (requires a selection)
 - R - switch the gizmo to rotate mode (requires a selection)
-- Escape - deselect
+- Escape - deselect; during a gizmo drag, cancel the drag instead
 - HUD Pause / Play / Fast buttons - control simulation speed
 - HUD "Reset Camera" button - restores the initial camera framing
 - Render Layers panel (bottom left) - click a row to show or hide that layer (grid, view-zone
