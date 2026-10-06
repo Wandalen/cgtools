@@ -444,16 +444,22 @@ async fn premultiplied_encoded_image_skips_colour_conversion()
   let transform = Transform { scale : [ config.width as f32, config.height as f32 ], ..Transform::default() };
   let mut backend = WebGlBackend::new( config, gl.clone() ).unwrap();
   backend.assets_load( &assets ).unwrap();
+
+  // The sprite is skipped until the decode lands, so the clear reads back until
+  // then. 0.5 · 255 is a rounding tie an implementation may store as 127 or
+  // 128, so the sentinel is the clear as read back, in the same task as
+  // `assets_load`, before the decode can land. Its alpha is the clear's too, so
+  // the loop also ends on the drawn pixel, whose alpha is 191.
+  let clear = [ RenderCommand::Clear( Clear { color : BACKGROUND } ) ];
+  backend.submit( &clear ).unwrap();
+  let mut background = [ 0_u8; 4 ];
+  gl.read_pixels_with_opt_u8_array( 0, 0, 1, 1, gl::RGBA, gl::UNSIGNED_BYTE, Some( &mut background ) ).unwrap();
+
   let commands =
   [
-    RenderCommand::Clear( Clear { color : BACKGROUND } ),
+    clear[ 0 ],
     RenderCommand::Sprite( Sprite { transform, sprite : ResourceId::new( 0 ), tint : WHITE, blend : BlendMode::Normal, clip : None } ),
   ];
-
-  // The sprite is skipped until the decode lands, so the clear reads back until then.
-  let background = [ 127; 4 ];
-  // The clear's alpha reads back 127 too, so the loop also ends on the drawn
-  // pixel, whose alpha is 191.
   let mut pixel = background;
   for _ in 0..200
   {

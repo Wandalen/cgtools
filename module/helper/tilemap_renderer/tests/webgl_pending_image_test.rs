@@ -22,10 +22,13 @@ use wasm_bindgen_test::wasm_bindgen_test;
 
 wasm_bindgen_test::wasm_bindgen_test_configure!( run_in_browser );
 
-/// Opaque mid grey every case clears to; a skipped draw reads it back.
+/// Opaque mid grey every case clears to; a skipped draw leaves it in place.
+///
+/// 0.5 · 255 = 127.5 is a rounding tie, and the float-to-normalized conversion
+/// WebGL2 inherits from OpenGL ES 3.0 lets an implementation store either
+/// neighbour, so the cases compare against the clear as read back
+/// ( [`clear_pixel`] ) rather than against a fixed 127 or 128.
 const BACKGROUND : [ f32; 4 ] = [ 0.5, 0.5, 0.5, 1.0 ];
-/// [`BACKGROUND`] as read back.
-const BACKGROUND_PIXEL : [ u8; 4 ] = [ 127, 127, 127, 255 ];
 
 /// Same live-context helper as `webgl_context_loss_test.rs::gl_init`.
 fn gl_init() -> gl::GL
@@ -93,25 +96,40 @@ fn encoded_image_assets() -> Assets
   }
 }
 
+/// The RGBA bytes of pixel `( 0, 0 )`.
+fn pixel_read( gl : &gl::GL ) -> [ u8; 4 ]
+{
+  let mut pixel = [ 0_u8; 4 ];
+  gl.read_pixels_with_opt_u8_array( 0, 0, 1, 1, gl::RGBA, gl::UNSIGNED_BYTE, Some( &mut pixel ) ).unwrap();
+  pixel
+}
+
+/// Clears to [`BACKGROUND`] alone and returns pixel `( 0, 0 )`: the bytes this
+/// implementation stores for the clear, which a skipped draw leaves in place.
+fn clear_pixel( backend : &mut WebGlBackend, gl : &gl::GL ) -> [ u8; 4 ]
+{
+  backend.submit( &[ RenderCommand::Clear( Clear { color : BACKGROUND } ) ] ).unwrap();
+  pixel_read( gl )
+}
+
 /// Loads [`encoded_image_assets`], then in the same task clears to
 /// [`BACKGROUND`], submits the commands `draw` builds and returns pixel
-/// `( 0, 0 )`. `draw` receives the transform that stretches the unit quad over
-/// the whole viewport.
-fn pixel_before_decode( draw : impl FnOnce( Transform ) -> Vec< RenderCommand > ) -> [ u8; 4 ]
+/// `( 0, 0 )` together with the clear alone as read back. `draw` receives the
+/// transform that stretches the unit quad over the whole viewport.
+fn pixel_before_decode( draw : impl FnOnce( Transform ) -> Vec< RenderCommand > ) -> ( [ u8; 4 ], [ u8; 4 ] )
 {
   let gl = gl_init();
   let config = RenderConfig::default();
   let full_view = Transform { scale : [ config.width as f32, config.height as f32 ], ..Transform::default() };
   let mut backend = WebGlBackend::new( config, gl.clone() ).unwrap();
   backend.assets_load( &encoded_image_assets() ).unwrap();
+  let background = clear_pixel( &mut backend, &gl );
 
   let mut commands = vec![ RenderCommand::Clear( Clear { color : BACKGROUND } ) ];
   commands.extend( draw( full_view ) );
   backend.submit( &commands ).unwrap();
 
-  let mut pixel = [ 0_u8; 4 ];
-  gl.read_pixels_with_opt_u8_array( 0, 0, 1, 1, gl::RGBA, gl::UNSIGNED_BYTE, Some( &mut pixel ) ).unwrap();
-  pixel
+  ( pixel_read( &gl ), background )
 }
 
 /// A textured mesh whose image is still decoding is skipped, like a sprite on
@@ -119,7 +137,7 @@ fn pixel_before_decode( draw : impl FnOnce( Transform ) -> Vec< RenderCommand > 
 #[ wasm_bindgen_test ]
 fn textured_mesh_waits_for_its_image()
 {
-  let pixel = pixel_before_decode( | transform | vec!
+  let ( pixel, background ) = pixel_before_decode( | transform | vec!
   [
     RenderCommand::Mesh( Mesh
     {
@@ -133,7 +151,7 @@ fn textured_mesh_waits_for_its_image()
     })
   ]);
 
-  assert_eq!( pixel, BACKGROUND_PIXEL, "a pending image must not draw as black" );
+  assert_eq!( pixel, background, "a pending image must not draw as black" );
 }
 
 /// The mesh batch path skips a pending texture the same way.
@@ -151,7 +169,7 @@ fn textured_mesh_batch_waits_for_its_image()
     blend : BlendMode::Normal,
     clip : None,
   };
-  let pixel = pixel_before_decode( | transform | vec!
+  let ( pixel, background ) = pixel_before_decode( | transform | vec!
   [
     RenderCommand::CreateMeshBatch( CreateMeshBatch { batch, params } ),
     RenderCommand::BindBatch( BindBatch { batch } ),
@@ -160,7 +178,7 @@ fn textured_mesh_batch_waits_for_its_image()
     RenderCommand::DrawBatch( DrawBatch { batch } ),
   ]);
 
-  assert_eq!( pixel, BACKGROUND_PIXEL, "a pending image must not draw as black" );
+  assert_eq!( pixel, background, "a pending image must not draw as black" );
 }
 
 /// Resolves after `ms` milliseconds, giving the browser a task to run the
@@ -184,6 +202,8 @@ async fn textured_mesh_draws_once_its_image_decodes()
   let transform = Transform { scale : [ config.width as f32, config.height as f32 ], ..Transform::default() };
   let mut backend = WebGlBackend::new( config, gl.clone() ).unwrap();
   backend.assets_load( &encoded_image_assets() ).unwrap();
+  // Read in the same task as `assets_load`, before the decode can land.
+  let background = clear_pixel( &mut backend, &gl );
   let commands =
   [
     RenderCommand::Clear( Clear { color : BACKGROUND } ),
@@ -199,13 +219,13 @@ async fn textured_mesh_draws_once_its_image_decodes()
     }),
   ];
 
-  let mut pixel = [ 0_u8; 4 ];
+  let mut pixel = background;
   for _ in 0..200
   {
     sleep( 10 ).await;
     backend.submit( &commands ).unwrap();
-    gl.read_pixels_with_opt_u8_array( 0, 0, 1, 1, gl::RGBA, gl::UNSIGNED_BYTE, Some( &mut pixel ) ).unwrap();
-    if pixel != BACKGROUND_PIXEL { break; }
+    pixel = pixel_read( &gl );
+    if pixel != background { break; }
   }
 
   assert_eq!( pixel, [ 255; 4 ], "the decoded image must draw" );
