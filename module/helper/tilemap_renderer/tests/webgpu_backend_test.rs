@@ -32,6 +32,7 @@ fn declared_capabilities_matches_honest_subset()
   assert!( !capabilities.blend_modes );
   assert!( capabilities.supported_blend_modes.is_empty() );
   assert!( !capabilities.text_on_path );
+  assert!( !capabilities.premultiplied_images );
 }
 
 /// Builds a minimal `Sprite` command at `position`, otherwise default.

@@ -895,6 +895,7 @@ fn asset_sampler_defaults_on_parse()
   assert!( matches!( a.filter, SamplerFilter::Linear ) );
   assert!( matches!( a.mipmap, MipmapMode::Off ) );
   assert!( matches!( a.wrap, WrapMode::Clamp ) );
+  assert!( !a.premultiplied, "an asset that omits premultiplied is straight alpha" );
 }
 
 #[ test ]

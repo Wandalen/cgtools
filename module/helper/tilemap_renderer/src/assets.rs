@@ -198,6 +198,16 @@ mod private
     /// `TEXTURE_WRAP_S`/`TEXTURE_WRAP_T`; SVG backends currently ignore it and
     /// always behave as `Clamp` (see `adapters/svg.rs` comment in `images_load`).
     pub wrap : WrapMode,
+    /// Whether the image's pixels are premultiplied-alpha. Only the WebGL2
+    /// adapter honours it ( `Capabilities::premultiplied_images` ): it composites
+    /// the image with the premultiplied "over" blend (source colour factor `ONE`
+    /// instead of `SRC_ALPHA`) and keeps the tinted output premultiplied. The
+    /// other adapters ignore the flag, each in its own way: SVG embeds the pixels
+    /// as a straight-alpha PNG, so semi-transparent texels draw darker; the
+    /// terminal adapter never samples image pixels, so the flag has nothing to
+    /// change; WebGPU and native have no blending yet and write texels unblended
+    /// (see the readme capability table). Defaults to `false`.
+    pub premultiplied : bool,
   }
 
   /// A rectangular region within a loaded image (sprite sheet support).

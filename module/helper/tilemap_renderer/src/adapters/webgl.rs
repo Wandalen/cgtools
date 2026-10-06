@@ -8,9 +8,10 @@ mod private
 {
   use std::rc::Rc;
   use core::cell::{ Cell, RefCell };
-  use web_sys::HtmlImageElement;
   use wasm_bindgen::prelude::*;
   use minwebgl as gl;
+  use super::webgl_renderers::{ SpriteRenderer, MeshRenderer };
+  use super::webgl_textures::{ bitmap_texture_upload, image_upload_from_path };
   use super::webgl_helpers::
   {
     ArrayBuffer,
@@ -34,208 +35,7 @@ mod private
   use crate::assets::Assets;
   use crate::backend::{ RenderError, Backend, Output, Capabilities };
   use crate::commands::{ Clear, Mesh, Sprite, CreateSpriteBatch, CreateMeshBatch, BindBatch, AddSpriteInstance, AddMeshInstance, SetSpriteInstance, SetMeshInstance, RemoveInstance, SetSpriteBatchParams, SetMeshBatchParams, DrawBatch, DeleteBatch, RenderCommand };
-  use crate::types::{ FillRef, RenderConfig, ResourceId, Batch, MipmapMode, BlendMode, asset, SamplerFilter, WrapMode };
-
-  // ============================================================================
-  // Sprite renderer
-  // ============================================================================
-
-  /// Handles single sprite draws and sprite batch instancing.
-  /// Quad is generated in vertex shader from `gl_VertexID` (triangle strip, 4 vertices).
-  struct SpriteRenderer
-  {
-    program : gl::Program,
-    batch_program : gl::Program,
-  }
-
-  impl SpriteRenderer
-  {
-    fn new( gl : &gl::GL ) -> Result< Self, gl::WebglError >
-    {
-      let program = gl::Program::new
-      (
-        gl.clone(),
-        include_str!( "shaders/sprite.vert" ),
-        include_str!( "shaders/sprite.frag" ),
-      )?;
-      let batch_program = gl::Program::new
-      (
-        gl.clone(),
-        include_str!( "shaders/sprite_batch.vert" ),
-        include_str!( "shaders/sprite_batch.frag" ),
-      )?;
-      Ok( Self { program, batch_program } )
-    }
-
-    /// Draw a single sprite as a textured quad (triangle strip, 4 vertices from `gl_VertexID`).
-    ///
-    /// `region` is the sprite rect in pixels and `tex_size` is the sheet's dimensions — same
-    /// convention as `sprite_batch.vert`, so both shaders normalize UV the same way.
-    #[ allow( clippy::too_many_arguments, reason = "each parameter is a distinct WebGL uniform upload target; grouping into a struct would add indirection without reducing call-site complexity for this single-call-site private method" ) ]
-    fn draw( &self, gl : &gl::GL, transform : &[ f32; 9 ], region : &[ f32; 4 ], tex_size : [ f32; 2 ], tint : &[ f32; 4 ], viewport : [ f32; 2 ], depth : f32, max_depth : f32 )
-    {
-      // Unbind any VAO to prevent stale attribute state from interfering
-      gl.bind_vertex_array( None );
-      self.program.activate();
-      self.program.uniform_matrix_upload( "u_transform", transform.as_slice(), true );
-      self.program.uniform_upload( "u_region", region );
-      self.program.uniform_upload( "u_tex_size", &tex_size );
-      self.program.uniform_upload( "u_tint", tint );
-      self.program.uniform_upload( "u_viewport", &viewport );
-      self.program.uniform_upload( "u_depth", &depth );
-      self.program.uniform_upload( "u_max_depth", &max_depth );
-      gl.draw_arrays( gl::TRIANGLE_STRIP, 0, 4 );
-    }
-
-    /// Draw an instanced sprite batch.
-    fn batch_draw( &self, gl : &gl::GL, batch : &GpuBatch, resources : &GpuResources, viewport : [ f32; 2 ], max_depth : f32 )
-    {
-      let GpuBatch::Sprite { instances, vao, params, .. } = batch else { return; };
-      if instances.is_empty() { return; }
-
-      let Some( gpu_tex ) = resources.texture( params.sheet ) else { return; };
-      let tw = gpu_tex.width.get();
-      let th = gpu_tex.height.get();
-      if tw == 0 || th == 0 { return; }
-
-      gl.active_texture( gl::TEXTURE0 );
-      gl.bind_texture( gl::TEXTURE_2D, Some( &gpu_tex.texture ) );
-
-      self.batch_program.activate();
-      self.batch_program.uniform_upload( "u_viewport", &viewport );
-      self.batch_program.uniform_upload( "u_tex_size", &[ tw as f32, th as f32 ] );
-      let parent_mat = params.transform.to_mat3();
-      self.batch_program.uniform_matrix_upload( "u_parent", &parent_mat, true );
-      self.batch_program.uniform_upload( "u_parent_depth", &params.transform.depth );
-      self.batch_program.uniform_upload( "u_max_depth", &max_depth );
-
-      gl.bind_vertex_array( Some( vao ) );
-      gl.draw_arrays_instanced( gl::TRIANGLE_STRIP, 0, 4, instances.len() as i32 );
-      // Unbind the batch VAO so subsequent GL state setup (e.g. a later
-      // vertex_attrib_pointer call during batch construction) cannot
-      // accidentally mutate this batch's attribute layout. The single-draw
-      // path (`SpriteRenderer::draw`) likewise unbinds on exit, so both
-      // sprite draw paths leave VAO 0 bound.
-      gl.bind_vertex_array( None );
-    }
-  }
-
-  // ============================================================================
-  // Mesh renderer
-  // ============================================================================
-
-  /// Handles single mesh draws and mesh batch instancing.
-  struct MeshRenderer
-  {
-    program : gl::Program,
-    batch_program : gl::Program,
-  }
-
-  impl MeshRenderer
-  {
-    fn new( gl : &gl::GL ) -> Result< Self, gl::WebglError >
-    {
-      let program = gl::Program::new
-      (
-        gl.clone(),
-        include_str!( "shaders/mesh.vert" ),
-        include_str!( "shaders/mesh.frag" ),
-      )?;
-      let batch_program = gl::Program::new
-      (
-        gl.clone(),
-        include_str!( "shaders/mesh_batch.vert" ),
-        include_str!( "shaders/mesh_batch.frag" ),
-      )?;
-      Ok( Self { program, batch_program } )
-    }
-
-    /// Draw a single mesh.
-    #[ allow( clippy::too_many_arguments, reason = "each parameter is a distinct WebGL uniform upload target or draw-call input; grouping into a struct would add indirection without reducing call-site complexity for this single-call-site private method" ) ]
-    fn draw
-    (
-      &self,
-      gl : &gl::GL,
-      geom : &GpuGeometry,
-      transform : &[ f32; 9 ],
-      color : &[ f32; 4 ],
-      topology : u32,
-      viewport : [ f32; 2 ],
-      use_texture : bool,
-      depth : f32,
-      max_depth : f32,
-    )
-    {
-      self.program.activate();
-      self.program.uniform_matrix_upload( "u_transform", transform.as_slice(), true );
-      self.program.uniform_upload( "u_color", color );
-      self.program.uniform_upload( "u_viewport", &viewport );
-      self.program.uniform_upload( "u_use_texture", &i32::from( use_texture ) );
-      self.program.uniform_upload( "u_depth", &depth );
-      self.program.uniform_upload( "u_max_depth", &max_depth );
-
-      gl.bind_vertex_array( Some( &geom.vao ) );
-
-      if let Some( ( count, gl_type ) ) = geom.index_count
-      {
-        gl.draw_elements_with_i32( topology, count as i32, gl_type, 0 );
-      }
-      else
-      {
-        gl.draw_arrays( topology, 0, geom.vertex_count as i32 );
-      }
-      // Unbind the geometry VAO so a subsequent `vertex_attrib_pointer` call
-      // (e.g. during `mesh_batch_vao_setup` for another batch) cannot silently
-      // mutate this geometry's attribute layout.
-      gl.bind_vertex_array( None );
-    }
-
-    /// Draw an instanced mesh batch. VAO is already configured via `mesh_batch_vao_setup`.
-    fn batch_draw( &self, gl : &gl::GL, batch : &GpuBatch, resources : &GpuResources, viewport : [ f32; 2 ], max_depth : f32 )
-    {
-      let GpuBatch::Mesh { instances, vao, params, .. } = batch else { return };
-      if instances.is_empty() { return; }
-
-      let Some( geom ) = resources.geometry( params.geometry ) else { return };
-      let color = match params.fill { FillRef::Solid( c ) => c, _ => [ 1.0, 1.0, 1.0, 1.0 ] };
-      let topology = topology_to_gl( &params.topology );
-
-      let mut use_texture = false;
-      if let Some( tex_id ) = params.texture
-        && let Some( gpu_tex ) = resources.texture( tex_id )
-      {
-        gl.active_texture( gl::TEXTURE0 );
-        gl.bind_texture( gl::TEXTURE_2D, Some( &gpu_tex.texture ) );
-        use_texture = true;
-      }
-
-      self.batch_program.activate();
-      self.batch_program.uniform_upload( "u_viewport", &viewport );
-      self.batch_program.uniform_upload( "u_color", &color );
-      self.batch_program.uniform_upload( "u_use_texture", &i32::from( use_texture ) );
-      let parent_mat = params.transform.to_mat3();
-      self.batch_program.uniform_matrix_upload( "u_parent", &parent_mat, true );
-      self.batch_program.uniform_upload( "u_parent_depth", &params.transform.depth );
-      self.batch_program.uniform_upload( "u_max_depth", &max_depth );
-
-      gl.bind_vertex_array( Some( vao ) );
-
-      if let Some( ( count, gl_type ) ) = geom.index_count
-      {
-        gl.draw_elements_instanced_with_i32( topology, count as i32, gl_type, 0, instances.len() as i32 );
-      }
-      else
-      {
-        gl.draw_arrays_instanced( topology, 0, geom.vertex_count as i32, instances.len() as i32 );
-      }
-      // Unbind the batch VAO so subsequent GL state setup (e.g. a later
-      // vertex_attrib_pointer call during batch construction) cannot
-      // accidentally mutate this batch's attribute layout. The single-draw
-      // path (`MeshRenderer::draw`) likewise unbinds on exit, so both mesh
-      // draw paths leave VAO 0 bound.
-      gl.bind_vertex_array( None );
-    }
-  }
+  use crate::types::{ FillRef, RenderConfig, ResourceId, Batch, MipmapMode, BlendMode, asset };
 
   // ============================================================================
   // Backend struct
@@ -289,26 +89,8 @@ mod private
     /// Returns error if shader compilation fails.
     pub fn new( config : RenderConfig, gl : gl::GL ) -> Result< Self, RenderError >
     {
-      let map_err = | e : gl::WebglError | RenderError::BackendError( format!( "{e:?}" ) );
-
-      let sprite = SpriteRenderer::new( &gl ).map_err( map_err )?;
-      let mesh = MeshRenderer::new( &gl ).map_err( map_err )?;
-
-      // Initial GL state
-      gl.viewport( 0, 0, config.width as i32, config.height as i32 );
-      gl.enable( gl::BLEND );
-      // Use separate factors for the alpha channel so the framebuffer alpha follows
-      // the Porter-Duff "over" rule: a = src_a + dst_a * (1 - src_a). Using the same
-      // SRC_ALPHA factor on alpha would yield src_a^2 + dst_a*(1-src_a), corrupting
-      // alpha when the canvas is composited against a transparent page or read via
-      // readPixels.
-      gl.blend_func_separate( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA, gl::ONE, gl::ONE_MINUS_SRC_ALPHA );
-
-      // LEQUAL (not LESS) so equal-depth draws fall back to submission order rather
-      // than rejecting the second one — keeps the default (all depth = 0) case
-      // rendering identically to the pre-depth implementation.
-      gl.enable( gl::DEPTH_TEST );
-      gl.depth_func( gl::LEQUAL );
+      let ( sprite, mesh ) = Self::renderers_new( &gl )?;
+      Self::gl_state_init( &gl, &config );
 
       // Query the actual hardware limit; fall back to the WebGL2 guaranteed minimum.
       // get_parameter returns a JsValue; as_f64() is the idiomatic way to extract it.
@@ -334,6 +116,38 @@ mod private
         recording_batch : None,
         context_lost,
       })
+    }
+
+    /// Compiles the sprite and mesh shader programs.
+    fn renderers_new( gl : &gl::GL ) -> Result< ( SpriteRenderer, MeshRenderer ), RenderError >
+    {
+      let map_err = | e : gl::WebglError | RenderError::BackendError( format!( "{e:?}" ) );
+      Ok( ( SpriteRenderer::new( gl ).map_err( map_err )?, MeshRenderer::new( gl ).map_err( map_err )? ) )
+    }
+
+    /// Sets the GL state every draw relies on but none re-applies: viewport,
+    /// blending and depth testing. Run by `new` and again by `assets_load` after
+    /// a context restore, which resets all of it to the defaults.
+    fn gl_state_init( gl : &gl::GL, config : &RenderConfig )
+    {
+      gl.viewport( 0, 0, config.width as i32, config.height as i32 );
+      gl.enable( gl::BLEND );
+      // Use separate factors for the alpha channel so the framebuffer alpha follows
+      // the Porter-Duff "over" rule: a = src_a + dst_a * (1 - src_a). Using the same
+      // SRC_ALPHA factor on alpha would yield src_a^2 + dst_a*(1-src_a), corrupting
+      // alpha when the canvas is composited against a transparent page or read via
+      // readPixels.
+      //
+      // This is just the initial state; `blend_apply` reprograms the blend func
+      // per draw from each sprite/mesh's `BlendMode` and its texture's
+      // premultiplied flag (see `blend_apply`).
+      gl.blend_func_separate( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA, gl::ONE, gl::ONE_MINUS_SRC_ALPHA );
+
+      // LEQUAL (not LESS) so equal-depth draws fall back to submission order rather
+      // than rejecting the second one — keeps the default (all depth = 0) case
+      // rendering identically to the pre-depth implementation.
+      gl.enable( gl::DEPTH_TEST );
+      gl.depth_func( gl::LEQUAL );
     }
 
     /// Registers persistent `webglcontextlost` / `webglcontextrestored` listeners on the
@@ -431,17 +245,27 @@ mod private
 
       let mat = m.transform.to_mat3();
       let color = match m.fill { FillRef::Solid( c ) => c, _ => [ 1.0, 1.0, 1.0, 1.0 ] };
-      blend_apply( &self.gl, &m.blend );
+      // Untextured meshes are straight-alpha; a textured mesh inherits its
+      // texture's premultiplied flag.
+      let premultiplied = res.mesh_premultiplied( m.texture );
+      blend_apply( &self.gl, &m.blend, premultiplied );
 
       let mut use_texture = false;
       if let Some( tex_id ) = m.texture && let Some( gpu_tex ) = res.texture( tex_id )
       {
+        // Fix(BUG-537): skipped like `cmd_sprite` skips a pending sheet: the
+        // image's async decode hasn't landed ( or failed ), and a texture with
+        // no level-0 image samples as opaque black.
+        // Root cause: `Path` / `Encoded` images are registered 0×0 until
+        // `on_load` uploads them, and only the sprite paths checked the size.
+        // Pitfall: every draw path that binds an image texture has to check it.
+        if gpu_tex.width.get() == 0 || gpu_tex.height.get() == 0 { return Ok( () ); }
         self.gl.active_texture( gl::TEXTURE0 );
         self.gl.bind_texture( gl::TEXTURE_2D, Some( &gpu_tex.texture ) );
         use_texture = true;
       }
 
-      self.mesh.draw( &self.gl, geom, &mat, &color, topology_to_gl( &m.topology ), viewport, use_texture, m.transform.depth, self.config.max_depth );
+      self.mesh.draw( &self.gl, geom, &mat, &color, topology_to_gl( &m.topology ), viewport, use_texture, premultiplied, m.transform.depth, self.config.max_depth );
       Ok( () )
     }
 
@@ -469,8 +293,8 @@ mod private
       let tex_size = [ tw as f32, th as f32 ];
 
       let mat = s.transform.to_mat3();
-      blend_apply( &self.gl, &s.blend );
-      self.sprite.draw( &self.gl, &mat, &gpu_sprite.region, tex_size, &s.tint, viewport, s.transform.depth, self.config.max_depth );
+      blend_apply( &self.gl, &s.blend, gpu_tex.premultiplied );
+      self.sprite.draw( &self.gl, &mat, &gpu_sprite.region, tex_size, &s.tint, gpu_tex.premultiplied, viewport, s.transform.depth, self.config.max_depth );
       Ok( () )
     }
 
@@ -810,15 +634,26 @@ mod private
         );
         return Ok( () );
       };
-      blend_apply( &self.gl, match gpu_batch
+      // Both batch kinds inherit the premultiplied flag of their bound texture,
+      // matching the single-command paths (`cmd_sprite` / `cmd_mesh`). A mesh
+      // batch may carry a premultiplied texture (`MeshBatchParams::texture`), so
+      // hardcoding straight-alpha here would double-scale its edges by alpha. An
+      // untextured mesh batch resolves to `false` (no texture) — straight-alpha.
+      // Resolved once here and passed to both `blend_apply` and `batch_draw`'s
+      // `u_premultiplied` upload: the `ONE` source factor is only right while the
+      // shader keeps its output premultiplied, so the two must never disagree.
+      let ( blend, premultiplied ) = match gpu_batch
       {
-        GpuBatch::Sprite { params, .. } => &params.blend,
-        GpuBatch::Mesh { params, .. } => &params.blend,
-      });
+        GpuBatch::Sprite { params, .. } =>
+          ( &params.blend, res.texture( params.sheet ).is_some_and( | t | t.premultiplied ) ),
+        GpuBatch::Mesh { params, .. } =>
+          ( &params.blend, res.mesh_premultiplied( params.texture ) ),
+      };
+      blend_apply( &self.gl, blend, premultiplied );
       match gpu_batch
       {
-        GpuBatch::Sprite { .. } => self.sprite.batch_draw( &self.gl, gpu_batch, &res, viewport, self.config.max_depth ),
-        GpuBatch::Mesh { .. } => self.mesh.batch_draw( &self.gl, gpu_batch, &res, viewport, self.config.max_depth ),
+        GpuBatch::Sprite { .. } => self.sprite.batch_draw( &self.gl, gpu_batch, &res, premultiplied, viewport, self.config.max_depth ),
+        GpuBatch::Mesh { .. } => self.mesh.batch_draw( &self.gl, gpu_batch, &res, premultiplied, viewport, self.config.max_depth ),
       }
       Ok( () )
     }
@@ -874,7 +709,7 @@ mod private
             // (guarded by prefix) once the browser has decoded it — unlike a
             // real path, nothing else keeps the URL alive.
             let generation = self.resources.borrow().generation;
-            let tex = image_upload_from_path( gl, &url, img.id, &self.resources, img.filter, img.mipmap, img.wrap, generation );
+            let tex = image_upload_from_path( gl, &url, img, &self.resources, generation );
             gl.bind_texture( gl::TEXTURE_2D, Some( &tex ) );
             ( tex, 0, 0 )
           }
@@ -887,7 +722,7 @@ mod private
             // texture is guaranteed to be complete (esp. for mipmap modes, which leave
             // the texture incomplete until generate_mipmap runs).
             let generation = self.resources.borrow().generation;
-            let tex = image_upload_from_path( gl, path, img.id, &self.resources, img.filter, img.mipmap, img.wrap, generation );
+            let tex = image_upload_from_path( gl, path, img, &self.resources, generation );
             gl.bind_texture( gl::TEXTURE_2D, Some( &tex ) );
             ( tex, 0, 0 )
           }
@@ -915,6 +750,7 @@ mod private
           filter : img.filter,
           mipmap : img.mipmap,
           wrap : img.wrap,
+          premultiplied : img.premultiplied,
         });
       }
 
@@ -1143,6 +979,8 @@ mod private
         blend_modes : false,
         supported_blend_modes : &[ BlendMode::Normal, BlendMode::Add, BlendMode::Multiply, BlendMode::Screen ],
         text_on_path : false,
+        // `blend_apply` and `shaders/tint.glsl` honour `ImageAsset::premultiplied`.
+        premultiplied_images : true,
         max_texture_size,
       }
     }
@@ -1180,6 +1018,27 @@ mod private
   {
     fn assets_load( &mut self, assets : &Assets ) -> Result< (), RenderError >
     {
+      // Fix(BUG-538): after a loss, the GPU state this backend built in `new`
+      // is gone too: a restored context has none of the objects created before
+      // the loss and starts from default GL state. Rebuild the shader programs
+      // and re-apply that state before re-uploading, or every draw would use a
+      // program from the lost context with blending and depth testing off.
+      // While the context is still lost nothing can be uploaded, so report that
+      // instead of clearing `context_lost` over an empty context.
+      // Root cause: only `new` built the programs and GL state, and BUG-441's
+      // fix re-uploaded the assets alone before clearing the flag.
+      // Pitfall: a restored context keeps nothing from before the loss, not
+      // even programs or enabled capabilities.
+      if self.context_lost.get()
+      {
+        if self.gl.is_context_lost()
+        {
+          return Err( RenderError::ContextLost );
+        }
+        ( self.sprite, self.mesh ) = Self::renderers_new( &self.gl )?;
+        Self::gl_state_init( &self.gl, &self.config );
+      }
+
       // Reset all GPU state: textures, sprites, geometries, and batches.
       // GpuBatch::drop calls delete_vertex_array; ArrayBuffer::drop calls delete_buffer.
       // Safe to call multiple times (e.g. level transitions).
@@ -1359,235 +1218,13 @@ mod private
       }
     }
   }
-
-  /// Uploads CPU-resident bitmap bytes as a new texture. Gray8 and
-  /// GrayAlpha8 are expanded to RGBA8 on the CPU before upload because:
-  ///
-  ///   1. WebGL1's LUMINANCE / LUMINANCE_ALPHA replicated the stored
-  ///      channels across RGB on sample. On WebGL2 they are legacy
-  ///      unsized formats backed by R8 / RG8 and sample as
-  ///      (L, 0, 0, 1) / (L, 0, 0, A) — grayscale images render red.
-  ///
-  ///   2. The obvious native GL ES 3.0 fix — R8 / RG8 + TEXTURE_SWIZZLE_*
-  ///      — is explicitly *removed* from WebGL2 (spec §6.19):
-  ///      TEXTURE_SWIZZLE_R/G/B/A are not valid `texParameteri` names
-  ///      and produce INVALID_ENUM.
-  ///
-  /// CPU expansion costs 4× memory for Gray8 / 2× for GrayAlpha8 at
-  /// upload time, which is acceptable for the grayscale images typical
-  /// in tilemap content (masks, icons, height fields) and is portable
-  /// across WebGL2 implementations without special GL state.
-  fn bitmap_texture_upload
-  (
-    gl : &gl::GL,
-    bytes : &[ u8 ],
-    width : u32,
-    height : u32,
-    format : crate::assets::PixelFormat,
-    id : ResourceId< asset::Image >,
-  ) -> Result< web_sys::WebGlTexture, RenderError >
-  {
-    let tex = gl.create_texture()
-    .ok_or_else( || RenderError::BackendError( "failed to create texture".into() ) )?;
-
-    gl.bind_texture( gl::TEXTURE_2D, Some( &tex ) );
-
-    let ( gl_fmt, unpack_alignment, bytes_owned ) : ( u32, i32, Option< Vec< u8 > > ) = match format
-    {
-      crate::assets::PixelFormat::Rgba8 => ( gl::RGBA, 4, None ),
-      // RGB rows are 3*width bytes — may not be 4-aligned, so relax the
-      // UNPACK stride to match. Restored below.
-      crate::assets::PixelFormat::Rgb8  => ( gl::RGB, 1, None ),
-      crate::assets::PixelFormat::Gray8 =>
-      {
-        let mut rgba = Vec::with_capacity( bytes.len() * 4 );
-        for &l in bytes
-        {
-          rgba.extend_from_slice( &[ l, l, l, 0xFF ] );
-        }
-        ( gl::RGBA, 4, Some( rgba ) )
-      }
-      crate::assets::PixelFormat::GrayAlpha8 =>
-      {
-        let mut rgba = Vec::with_capacity( bytes.len() * 2 );
-        for pair in bytes.chunks_exact( 2 )
-        {
-          let ( l, a ) = ( pair[ 0 ], pair[ 1 ] );
-          rgba.extend_from_slice( &[ l, l, l, a ] );
-        }
-        ( gl::RGBA, 4, Some( rgba ) )
-      }
-    };
-
-    // Relax UNPACK_ALIGNMENT only when the per-row byte count may not be
-    // a multiple of 4 (RGB8 at odd widths). Default 4 is correct for
-    // RGBA8 and for the CPU-expanded grayscale paths above.
-    if unpack_alignment != 4 { gl.pixel_storei( gl::UNPACK_ALIGNMENT, unpack_alignment ); }
-
-    // Fix(BUG-210): `image_upload_from_path` below uploads through
-    // `minwebgl::texture::d2::upload`, which sets `UNPACK_FLIP_Y_WEBGL=1` --
-    // an invariant `sprite.vert`/`sprite_batch.vert` rely on directly
-    // ( "uploaded with UNPACK_FLIP_Y_WEBGL=1 so uv.y=1 samples image row 0" ).
-    // This sync Bitmap path left the flag at its GL default of 0, so a
-    // Bitmap-sourced image rendered upside-down through sprite commands --
-    // documented but never fixed in this crate's own readme.md ( "WebGL
-    // texture upload Y-flip asymmetry" ). Root cause: the two upload paths
-    // set unrelated GL state for the same shader-side convention.
-    gl.pixel_storei( gl::UNPACK_FLIP_Y_WEBGL, 1 );
-
-    let upload_bytes : &[ u8 ] = bytes_owned.as_deref().unwrap_or( bytes );
-
-    gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array
-    (
-      gl::TEXTURE_2D, 0, gl_fmt as i32,
-      width as i32, height as i32, 0,
-      gl_fmt, gl::UNSIGNED_BYTE, Some( upload_bytes ),
-    )
-    .map_err( | e | RenderError::BackendError
-    (
-      format!( "tex_image_2d failed for image {id:?}: {e:?}" )
-    ))?;
-
-    // Restore defaults so later uploads aren't surprised by residual state.
-    if unpack_alignment != 4 { gl.pixel_storei( gl::UNPACK_ALIGNMENT, 4 ); }
-    gl.pixel_storei( gl::UNPACK_FLIP_Y_WEBGL, 0 );
-
-    Ok( tex )
-  }
-
-  /// Like `gl::texture::d2::image_upload_from_path`, but updates
-  /// `GpuTexture.width` / `height` cells once the image loads.
-  #[ allow( clippy::too_many_arguments, reason = "each parameter is a distinct texture-loading input (source, id, resource table, and independent sampler settings); grouping into a struct would add indirection for this single-call-site private helper" ) ]
-  fn image_upload_from_path
-  (
-    gl : &gl::GL,
-    src : &str,
-    id : ResourceId< asset::Image >,
-    resources : &Rc< RefCell< GpuResources > >,
-    filter : SamplerFilter,
-    mipmap : MipmapMode,
-    wrap : WrapMode,
-    generation : u32,
-  ) -> web_sys::WebGlTexture
-  {
-    let document = web_sys::window().expect( "no window" ).document().expect( "no document" );
-
-    let texture = gl.create_texture().expect( "failed to create texture" );
-
-    let img : HtmlImageElement = document.create_element( "img" )
-      .expect( "can't create img" )
-      .dyn_into()
-      .expect( "not an HtmlImageElement" );
-    img.style().set_property( "display", "none" ).expect( "can't hide img" );
-
-    // The browser fires `load` XOR `error` exactly once for a given `set_src`
-    // call — there is no retry path here — so FnOnce handlers are the right
-    // shape. `Closure::once_into_js` takes ownership of the Rust closure,
-    // returns a JsValue that we hand to the img element, and arranges for the
-    // captured state (notably the `Rc<RefCell<GpuResources>>` clone in
-    // `on_load`) to be freed after the single invocation, or via finalizer if
-    // the event never fires and the JS function is GC'd. This is what lets a
-    // `WebGlBackend` drop actually release its GPU resources.
-    let src_for_load = src.to_owned();
-    let on_load = Closure::once_into_js(
-    {
-      let gl = gl.clone();
-      let img = img.clone();
-      let texture = texture.clone();
-      let resources = Rc::clone( resources );
-      move ||
-      {
-        // `revoke_object_url` is only meaningful for `blob:` URLs created by
-        // `minwebgl::blob_create` (`ImageSource::Encoded`); a real
-        // `ImageSource::Path` string passed through this same shared closure
-        // must never be revoked. Done unconditionally, before the staleness
-        // check below: the browser has already decoded the image into `img`
-        // by the time `load` fires, so the URL is safe to release regardless
-        // of whether this generation is still current — deferring it behind
-        // the early return would leak the URL whenever `assets_load` reruns
-        // before an `Encoded` image finishes loading.
-        if src_for_load.starts_with( "blob:" )
-        {
-          web_sys::Url::revoke_object_url( &src_for_load ).unwrap();
-        }
-
-        // Bail out if `assets_load` ran again before the image finished loading —
-        // this closure belongs to a previous cycle and must not touch the fresh
-        // texture that now occupies this id.
-        if resources.borrow().generation != generation
-        {
-          img.remove();
-          return;
-        }
-
-        gl::texture::d2::upload( &gl, Some( &texture ), &img );
-
-        // Bind and apply all sampler state now that level 0 is populated. Binding
-        // explicitly because upload() may leave a different texture bound, and
-        // tex_parameteri / generate_mipmap act on whatever is bound to TEXTURE_2D.
-        // Applying filter here (not only at texture creation) ensures the correct
-        // mag/min filters are installed on the texture object regardless of any
-        // intervening bind changes — belt-and-suspenders for the async path.
-        gl.bind_texture( gl::TEXTURE_2D, Some( &texture ) );
-        texture_filter_apply( &gl, &filter, &mipmap );
-        texture_wrap_apply( &gl, wrap );
-        if !matches!( mipmap, MipmapMode::Off )
-        {
-          gl.generate_mipmap( gl::TEXTURE_2D );
-        }
-
-        if let Some( gpu_tex ) = resources.borrow().texture( id )
-        {
-          gpu_tex.width.set( img.natural_width() );
-          gpu_tex.height.set( img.natural_height() );
-        }
-
-        img.remove();
-      }
-    });
-
-    let src_for_err = src.to_owned();
-    let on_error = Closure::once_into_js(
-    {
-      let img = img.clone();
-      move ||
-      {
-        web_sys::console::error_1
-        (
-          &format!( "tilemap_renderer: failed to load image from path {src_for_err:?}" ).into()
-        );
-        // Remove the element so the other (never-fired) handler becomes unreachable
-        // and can be GC'd, rather than sitting on a detached img for the lifetime
-        // of the document.
-        img.remove();
-
-        // See the matching guard in `on_load` above — only revoke URLs this
-        // function itself created via a Blob.
-        if src_for_err.starts_with( "blob:" )
-        {
-          web_sys::Url::revoke_object_url( &src_for_err ).unwrap();
-        }
-      }
-    });
-
-    img.set_onload( Some( on_load.unchecked_ref() ) );
-    img.set_onerror( Some( on_error.unchecked_ref() ) );
-    img.set_src( src );
-    // `on_load` / `on_error` are `JsValue`s produced by `Closure::once_into_js`.
-    // The img element now holds JS-side references to both functions via its
-    // `onload` / `onerror` properties, so dropping the local JsValue bindings
-    // here does not free the functions. When either event fires, its Rust
-    // closure is dropped (releasing its captures, including the cloned Rc for
-    // `on_load`); the other handler — plus the img itself — becomes GC-eligible
-    // once the fired handler calls `img.remove()` above.
-
-    texture
-  }
 }
 
 mod_interface::mod_interface!
 {
   layer webgl_helpers;
+  layer webgl_renderers;
+  layer webgl_textures;
 
   own use WebGlBackend;
 }

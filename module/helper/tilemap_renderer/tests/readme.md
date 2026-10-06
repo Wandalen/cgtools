@@ -13,6 +13,7 @@ and what the expected outcome is.
 tests/
   helpers/
     mod.rs              — shared fixtures (empty_assets, …)
+    webgl.rs            — live WebGL2 context fixtures for the browser suites (gl_init, sleep, pixel_read, f32_bytes; wasm32 + adapter-webgl)
   manual/
     readme.md            — scripted browsee browser pixel-verification procedure (adapter-webgpu, adapter-webgl)
   assets_test.rs        — Assets validation domain
@@ -25,6 +26,8 @@ tests/
   webgpu_backend_test.rs — WebGpuBackend compile-and-construct-level contract (feature adapter-webgpu, wasm32)
   webgl_backend_test.rs — WebGlBackend::declared_capabilities pure-function contract (feature adapter-webgl)
   webgl_context_loss_test.rs — WebGlBackend context_lost lifecycle against a live context (feature adapter-webgl + test_internals, wasm32)
+  webgl_premultiplied_test.rs — WebGlBackend premultiplied-alpha compositing, pixel read-back against a live context (feature adapter-webgl, wasm32)
+  webgl_pending_image_test.rs — WebGlBackend draws on an image still decoding, pixel read-back against a live context (feature adapter-webgl, wasm32)
   command_consistency_test.rs — cross-backend capabilities-vs-submit() consistency (none/svg/native)
   types_test.rs         — Transform, ResourceId, RenderConfig
 ```
@@ -43,7 +46,9 @@ tests/
 | `native_backend_test.rs` | NativeBackend adapter | Real `gpu_hal` device construct/load/submit/output, exact pixel readback, resize |
 | `webgpu_backend_test.rs` | WebGpuBackend adapter | `declared_capabilities` honest subset, `sprite_draw_params` anti-hardcoding, `command_classify` family rejection (wasm32 only) |
 | `webgl_backend_test.rs` | WebGlBackend adapter | `declared_capabilities` honest-subset pin and `max_texture_size` anti-hardcoding pin — no live `WebGl2RenderingContext` |
-| `webgl_context_loss_test.rs` | WebGlBackend context-loss lifecycle (relocated from inline when `rulebook.md § Test placement` moved every test to `tests/`) | A simulated `webglcontextlost` blocks `submit`/`output`, and `assets_load` — not the restored-event listener — is what clears the flag again; reaches the private flag through `test_internals`' `context_lost_for_test`/`context_lost_set_for_test` |
+| `webgl_context_loss_test.rs` | WebGlBackend context-loss lifecycle (relocated from inline when `rulebook.md § Test placement` moved every test to `tests/`) | A simulated `webglcontextlost` blocks `submit`/`output`, and `assets_load` — not the restored-event listener — is what clears the flag again; a real loss and restore through `WEBGL_lose_context` makes `assets_load` report `ContextLost` while the context is gone and leaves the backend drawing after it returns; reaches the private flag through `test_internals`' `context_lost_for_test`/`context_lost_set_for_test` |
+| `webgl_premultiplied_test.rs` | WebGlBackend premultiplied-alpha compositing | A premultiplied texel and its straight-alpha twin read back the same pixel over a half-transparent grey, where no colour or alpha term of a correct blend saturates except `Add`'s colour, through every draw path — sprite ( `Normal`, `Add`, the `Overlay` fallback, tint alpha 0.5 ), textured mesh, sprite batch, mesh batch — an untextured mesh stays straight-alpha, and a premultiplied sprite under `Multiply` / `Screen` composites the reference formula, where its straight twin only approximates it; pins `blend_apply`'s `ONE` source factor, `mesh_premultiplied` and the shaders' `u_premultiplied` tint handling |
+| `webgl_pending_image_test.rs` | WebGlBackend draws on an image still decoding | A textured mesh or mesh batch whose `ImageSource::Encoded` image hasn't decoded yet is skipped, like a sprite, instead of sampling the empty texture as opaque black; the same mesh draws once the decode lands |
 | `command_consistency_test.rs` | Cross-backend command/capabilities consistency | `none`/`svg`/`native` each accept a `Sprite` (all declare `sprites: true`); `none`/`native` each reject or gracefully skip a `paths`-family command they declare `false` (never panic) |
 
 ## Adding new tests

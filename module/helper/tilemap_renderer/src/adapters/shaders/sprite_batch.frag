@@ -6,9 +6,11 @@ in vec4 v_tint;
 
 uniform sampler2D u_texture;
 
+#include "tint.glsl"
+
 out vec4 frag_color;
 
 void main()
 {
-  frag_color = texture( u_texture, v_uv ) * v_tint;
+  frag_color = tinted( texture( u_texture, v_uv ), v_tint );
 }
