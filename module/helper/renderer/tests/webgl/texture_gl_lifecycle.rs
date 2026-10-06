@@ -64,78 +64,122 @@ fn view_texture_drop_leaves_source_alive()
   assert!( gl.is_texture( Some( &source ) ), "a view must not delete a texture it does not own" );
 }
 
-/// A 1x1 opaque red PNG.
-const RED_PIXEL_PNG : &str = concat!
-(
-  "data:image/png;base64,",
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==",
-);
-
-/// Resolves after `ms` milliseconds, long enough for a data-URI image to load.
-async fn sleep_ms( ms : i32 )
+/// `Texture::load_from_path`'s pending image handler. Gated on `test_internals`:
+/// each test waits for the handler through `load_from_path_for_test`'s state
+/// instead of a fixed delay, which a slow load could outlast and which can't
+/// tell "the handler skipped the upload" from "the handler hasn't run yet".
+#[ cfg( feature = "test_internals" ) ]
+mod load_from_path
 {
-  let promise = gl::web_sys::js_sys::Promise::new( &mut | resolve, _ |
-  {
-    gl::web_sys::window().unwrap()
-    .set_timeout_with_callback_and_timeout_and_arguments_0( &resolve, ms )
-    .unwrap();
-  });
-  wasm_bindgen_futures::JsFuture::from( promise ).await.unwrap();
-}
+  use super::*;
+  use std::{ cell::Cell, rc::Rc };
+  use ::renderer::webgl::ImageLoad;
 
-/// A 1x1 texture filled with `rgba`.
-fn solid_texture( gl : &GL, rgba : [ u8; 4 ] ) -> gl::web_sys::WebGlTexture
-{
-  let texture = gl.create_texture().unwrap();
-  gl.bind_texture( gl::TEXTURE_2D, Some( &texture ) );
-  gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array
+  /// A 1x1 opaque red PNG.
+  const RED_PIXEL_PNG : &str = concat!
   (
-    gl::TEXTURE_2D, 0, gl::RGBA as i32, 1, 1, 0, gl::RGBA, gl::UNSIGNED_BYTE, Some( &rgba )
-  ).unwrap();
-  texture
-}
+    "data:image/png;base64,",
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==",
+  );
 
-/// The 1x1 texel of `texture`, read back through a framebuffer.
-fn texel( gl : &GL, texture : &gl::web_sys::WebGlTexture ) -> [ u8; 4 ]
-{
-  let framebuffer = gl.create_framebuffer().unwrap();
-  gl.bind_framebuffer( gl::FRAMEBUFFER, Some( &framebuffer ) );
-  gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, Some( texture ), 0 );
-  let mut pixel = [ 0_u8; 4 ];
-  gl.read_pixels_with_opt_u8_array( 0, 0, 1, 1, gl::RGBA, gl::UNSIGNED_BYTE, Some( &mut pixel ) ).unwrap();
-  gl.bind_framebuffer( gl::FRAMEBUFFER, None );
-  gl.delete_framebuffer( Some( &framebuffer ) );
-  pixel
-}
+  /// A data URI the browser can't decode as an image, so the image fires `error`.
+  const BROKEN_PNG : &str = "data:image/png;base64,AAAA";
 
-/// `load_from_path` uploads its image when it arrives: the texel is the image's.
-#[ wasm_bindgen_test::wasm_bindgen_test ]
-async fn load_from_path_uploads_into_its_own_texture()
-{
-  let gl = gl_init();
-  let texture = Texture::load_from_path( &gl, RED_PIXEL_PNG, false );
-  assert!( texture.is_owning(), "load_from_path creates its texture for this Texture alone" );
-  sleep_ms( 200 ).await;
-  let source = texture.source.clone().unwrap();
-  assert_eq!( texel( &gl, &source ), [ 255, 0, 0, 255 ] );
-}
+  /// Resolves after `ms` milliseconds.
+  async fn sleep_ms( ms : i32 )
+  {
+    let promise = gl::web_sys::js_sys::Promise::new( &mut | resolve, _ |
+    {
+      gl::web_sys::window().unwrap()
+      .set_timeout_with_callback_and_timeout_and_arguments_0( &resolve, ms )
+      .unwrap();
+    });
+    wasm_bindgen_futures::JsFuture::from( promise ).await.unwrap();
+  }
 
-/// A `load_from_path` texture dropped before its image arrives must not upload
-/// anywhere. Its GPU texture is gone by then, so binding it fails with
-/// `INVALID_OPERATION` and leaves the previous binding in place: an upload
-/// that still ran would write the image into whatever texture is bound.
-#[ wasm_bindgen_test::wasm_bindgen_test ]
-async fn load_from_path_dropped_before_load_writes_nowhere()
-{
-  let gl = gl_init();
-  let texture = Texture::load_from_path( &gl, RED_PIXEL_PNG, false );
-  drop( texture );
+  /// Waits until the image handler has run and returns what it did; panics if
+  /// it hasn't run within 5 s, so a load that never settles fails loudly.
+  async fn settled( state : &Rc< Cell< ImageLoad > > ) -> ImageLoad
+  {
+    for _ in 0..500
+    {
+      if state.get() != ImageLoad::Pending
+      {
+        return state.get();
+      }
+      sleep_ms( 10 ).await;
+    }
+    panic!( "the load_from_path image handler did not run within 5 s" );
+  }
 
-  let bystander = solid_texture( &gl, [ 0, 0, 255, 255 ] );
-  gl.bind_texture( gl::TEXTURE_2D, Some( &bystander ) );
-  while gl.get_error() != gl::NO_ERROR {}
+  /// A 1x1 texture filled with `rgba`.
+  fn solid_texture( gl : &GL, rgba : [ u8; 4 ] ) -> gl::web_sys::WebGlTexture
+  {
+    let texture = gl.create_texture().unwrap();
+    gl.bind_texture( gl::TEXTURE_2D, Some( &texture ) );
+    gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array
+    (
+      gl::TEXTURE_2D, 0, gl::RGBA as i32, 1, 1, 0, gl::RGBA, gl::UNSIGNED_BYTE, Some( &rgba )
+    ).unwrap();
+    texture
+  }
 
-  sleep_ms( 200 ).await;
-  assert_eq!( gl.get_error(), gl::NO_ERROR, "the pending load must not touch the deleted texture" );
-  assert_eq!( texel( &gl, &bystander ), [ 0, 0, 255, 255 ], "the image must not land in the bound texture" );
+  /// The 1x1 texel of `texture`, read back through a framebuffer.
+  fn texel( gl : &GL, texture : &gl::web_sys::WebGlTexture ) -> [ u8; 4 ]
+  {
+    let framebuffer = gl.create_framebuffer().unwrap();
+    gl.bind_framebuffer( gl::FRAMEBUFFER, Some( &framebuffer ) );
+    gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, Some( texture ), 0 );
+    let mut pixel = [ 0_u8; 4 ];
+    gl.read_pixels_with_opt_u8_array( 0, 0, 1, 1, gl::RGBA, gl::UNSIGNED_BYTE, Some( &mut pixel ) ).unwrap();
+    gl.bind_framebuffer( gl::FRAMEBUFFER, None );
+    gl.delete_framebuffer( Some( &framebuffer ) );
+    pixel
+  }
+
+  /// `load_from_path` uploads its image when it arrives: the texel is the image's.
+  #[ wasm_bindgen_test::wasm_bindgen_test ]
+  async fn load_from_path_uploads_into_its_own_texture()
+  {
+    let gl = gl_init();
+    let ( texture, state ) = Texture::load_from_path_for_test( &gl, RED_PIXEL_PNG, false );
+    assert!( texture.is_owning(), "load_from_path creates its texture for this Texture alone" );
+    assert_eq!( settled( &state ).await, ImageLoad::Uploaded );
+    let source = texture.source.clone().unwrap();
+    assert_eq!( texel( &gl, &source ), [ 255, 0, 0, 255 ] );
+  }
+
+  /// A `load_from_path` texture dropped before its image arrives must not upload
+  /// anywhere. Its GPU texture is gone by then, so binding it fails with
+  /// `INVALID_OPERATION` and leaves the previous binding in place: an upload
+  /// that still ran would write the image into whatever texture is bound.
+  #[ wasm_bindgen_test::wasm_bindgen_test ]
+  async fn load_from_path_dropped_before_load_writes_nowhere()
+  {
+    let gl = gl_init();
+    let ( texture, state ) = Texture::load_from_path_for_test( &gl, RED_PIXEL_PNG, false );
+    drop( texture );
+
+    let bystander = solid_texture( &gl, [ 0, 0, 255, 255 ] );
+    gl.bind_texture( gl::TEXTURE_2D, Some( &bystander ) );
+    while gl.get_error() != gl::NO_ERROR {}
+
+    assert_eq!( settled( &state ).await, ImageLoad::Skipped, "the handler must run and skip the upload" );
+    assert_eq!( gl.get_error(), gl::NO_ERROR, "the pending load must not touch the deleted texture" );
+    assert_eq!( texel( &gl, &bystander ), [ 0, 0, 255, 255 ], "the image must not land in the bound texture" );
+  }
+
+  /// An image that fails to load settles the handler through `onerror`: the
+  /// texture stays owning and empty, and no GL call is made for it.
+  #[ wasm_bindgen_test::wasm_bindgen_test ]
+  async fn load_from_path_reports_a_failed_load()
+  {
+    let gl = gl_init();
+    let ( texture, state ) = Texture::load_from_path_for_test( &gl, BROKEN_PNG, false );
+    while gl.get_error() != gl::NO_ERROR {}
+
+    assert_eq!( settled( &state ).await, ImageLoad::Failed, "a broken image must reach the error handler" );
+    assert!( texture.is_owning() );
+    assert_eq!( gl.get_error(), gl::NO_ERROR, "a failed load must not issue GL calls" );
+  }
 }

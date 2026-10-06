@@ -71,13 +71,16 @@ mod ibl;
 
 // Live-context lifecycle suites for `Geometry` and `Texture`: wasm32-only, since
 // they need a `WebGl2RenderingContext`, but every handle they check is public, so
-// unlike the suites below they don't need `test_internals`.
+// unlike the suites below they don't need `test_internals`. The exception is the
+// `load_from_path` group in `texture_gl_lifecycle`, gated on its own: it waits on
+// the image handler through `Texture::load_from_path_for_test`.
 /// `Geometry` VAO teardown; shared attribute / index buffers survive; a cloned
 /// `Primitive` shares its geometry.
 #[ cfg( target_arch = "wasm32" ) ]
 mod geometry_gl_lifecycle;
 
-/// `Texture` owning-vs-view teardown and `load_from_path`'s pending upload.
+/// `Texture` owning-vs-view teardown and `load_from_path`'s pending upload
+/// (the latter with `test_internals`).
 #[ cfg( target_arch = "wasm32" ) ]
 mod texture_gl_lifecycle;
 

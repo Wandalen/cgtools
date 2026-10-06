@@ -2,7 +2,7 @@ mod private
 {
   use mingl::Former;
   use minwebgl::{ self as gl, JsCast };
-  use std::rc::Rc;
+  use std::{ cell::Cell, rc::Rc };
   use web_sys::wasm_bindgen::prelude::Closure;
   use crate::webgl::{ Sampler, MinFilterMode, MagFilterMode, WrappingMode };
 
@@ -58,6 +58,25 @@ mod private
     {
       self.gl.delete_texture( Some( &self.texture ) );
     }
+  }
+
+  /// What the image handler of one [`Texture::load_from_path`] call has done so far.
+  ///
+  /// Only observable through `Texture::load_from_path_for_test` (feature
+  /// `test_internals`), so a test can wait for the handler instead of a fixed delay.
+  #[ non_exhaustive ]
+  #[ derive( Clone, Copy, Debug, PartialEq, Eq ) ]
+  pub enum ImageLoad
+  {
+    /// Neither `load` nor `error` has fired yet.
+    Pending,
+    /// The image arrived and was uploaded into the texture.
+    Uploaded,
+    /// The image arrived after every clone of the texture had been dropped, so
+    /// nothing was uploaded.
+    Skipped,
+    /// The image failed to load; the texture has no image data.
+    Failed,
   }
 
   impl Texture
@@ -119,6 +138,18 @@ mod private
     #[ must_use ]
     pub fn load_from_path( gl : &gl::WebGl2RenderingContext, image_path : &str, flip : bool ) -> Self
     {
+      Self::load_from_path_tracked( gl, image_path, flip ).0
+    }
+
+    /// [`Texture::load_from_path`], also returning what its image handler has done so far.
+    fn load_from_path_tracked
+    (
+      gl : &gl::WebGl2RenderingContext,
+      image_path : &str,
+      flip : bool,
+    ) -> ( Self, Rc< Cell< ImageLoad > > )
+    {
+      let state = Rc::new( Cell::new( ImageLoad::Pending ) );
       let source = gl.create_texture().expect( "Failed to create a texture" );
 
       let sampler = Sampler::former()
@@ -154,6 +185,7 @@ mod private
           let gl = gl.clone();
           let img = img.clone();
           let image_path = image_path.to_owned();
+          let state = state.clone();
           move | event : web_sys::Event |
           {
             img.set_onload( None );
@@ -161,10 +193,16 @@ mod private
             if event.type_() == "error"
             {
               gl::browser::error!( "Failed to load texture image '{image_path}'" );
+              state.set( ImageLoad::Failed );
               return;
             }
             // Every clone dropped: the texture is deleted, so there is nothing to upload into.
-            let Some( owner ) = owner.upgrade() else { return };
+            let Some( owner ) = owner.upgrade()
+            else
+            {
+              state.set( ImageLoad::Skipped );
+              return;
+            };
             if flip
             {
               gl::texture::d2::upload( &gl, Some( &owner.texture ), &img );
@@ -174,6 +212,7 @@ mod private
               gl::texture::d2::upload_no_flip( &gl, Some( &owner.texture ), &img );
             }
             gl::texture::d2::filter_linear( &gl );
+            state.set( ImageLoad::Uploaded );
           }
         }
       );
@@ -181,7 +220,7 @@ mod private
       img.set_onerror( Some( settle.unchecked_ref() ) );
       img.set_src( image_path );
 
-      texture
+      ( texture, state )
     }
 
     /// This function binds the texture to the given WebGL context and then uploads the sampler
@@ -196,6 +235,32 @@ mod private
     pub fn bind( &self, gl : &gl::WebGl2RenderingContext )
     {
       gl.bind_texture( self.target, self.source.as_ref() );
+    }
+  }
+
+  /// The load signal of `Texture::load_from_path` -- reachable from `tests/` under
+  /// `test_internals`. Its handler runs whenever the browser delivers the image, so
+  /// a test waits on this state rather than on a fixed delay that a slow load can
+  /// outlast.
+  #[ cfg( feature = "test_internals" ) ]
+  impl Texture
+  {
+    /// [`Texture::load_from_path`], plus the state its image handler sets once it
+    /// has run (see [`ImageLoad`]).
+    ///
+    /// # Panics
+    ///
+    /// Same as [`Texture::load_from_path`].
+    #[ doc( hidden ) ]
+    #[ must_use ]
+    pub fn load_from_path_for_test
+    (
+      gl : &gl::WebGl2RenderingContext,
+      image_path : &str,
+      flip : bool,
+    ) -> ( Self, Rc< Cell< ImageLoad > > )
+    {
+      Self::load_from_path_tracked( gl, image_path, flip )
     }
   }
 
@@ -223,4 +288,7 @@ crate::mod_interface!
     Texture,
     TextureOwner
   };
+
+  #[ cfg( feature = "test_internals" ) ]
+  orphan use ImageLoad;
 }
