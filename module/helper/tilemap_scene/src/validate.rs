@@ -378,10 +378,10 @@ mod private
   }
 
   /// Runs every per-layer SPEC §16 rule against one `ObjectLayer` —
-  /// `pipeline_layer` override resolution, `VertexCorners.corner_source`
-  /// resolution, the `orient_to_grid` single-self-id rule, asset / animation / tint / effect reference resolution,
-  /// `connects_with` validity, and composite-nesting legality — pushing
-  /// violations into `errors`.
+  /// `pipeline_layer` override resolution, the `VertexCorners` rules
+  /// ([`vertex_corners_checks`]), asset / animation / tint / effect reference
+  /// resolution, `connects_with` validity, and composite-nesting legality —
+  /// pushing violations into `errors`.
   fn layer_checks
   (
     object_id : &str,
@@ -402,42 +402,7 @@ mod private
       });
     }
 
-    // `tile_corner_id` matches `corner_source` to an object's `global_layer`,
-    // so a value naming no object's `global_layer` can only ever fall back to
-    // `VOID_ID` for every corner (silent, geometrically wrong output).
-    if let SpriteSource::VertexCorners { corner_source : Some( cs ), .. } = &layer.sprite_source
-      && !ids.global_layer.contains( cs.as_str() )
-    {
-      errors.push( ValidationError::UnresolvedRef
-      {
-        kind : "corner_source layer",
-        id : cs.clone(),
-        context : format!( "object {object_id:?} state {state_name:?} VertexCorners corner_source" ),
-      });
-    }
-
-    // Orient mode counts corners against the layer's first solid id only, so
-    // a second solid id's edge and corner tiles would pick parity frames.
-    if let SpriteSource::VertexCorners { patterns, orient_to_grid : true, .. } = &layer.sprite_source
-    {
-      let mut solid : Vec< &str > = Vec::new();
-      for id in patterns.iter().filter_map( TriBlendPattern::self_id )
-      {
-        if !solid.contains( &id )
-        {
-          solid.push( id );
-        }
-      }
-      if solid.len() > 1
-      {
-        errors.push( ValidationError::ConflictingOrientSelfIds
-        {
-          object : object_id.to_owned(),
-          state : state_name.to_owned(),
-          ids : solid.into_iter().map( str::to_owned ).collect(),
-        });
-      }
-    }
+    vertex_corners_checks( object_id, state_name, layer, ids, errors );
 
     asset_refs_visit( &layer.sprite_source, &mut | asset, where_ |
     {
@@ -497,6 +462,62 @@ mod private
     }
 
     layer_tint_check( object_id, state_name, layer, ids, errors );
+  }
+
+  /// The `VertexCorners` part of [`layer_checks`]: `corner_source`
+  /// resolution and the `orient_to_grid` single-self-id rule. A layer with
+  /// any other sprite source passes untouched.
+  fn vertex_corners_checks
+  (
+    object_id : &str,
+    state_name : &str,
+    layer : &ObjectLayer,
+    ids : &SpecIds< '_ >,
+    errors : &mut Vec< ValidationError >,
+  )
+  {
+    let SpriteSource::VertexCorners { patterns, corner_source, orient_to_grid, .. } = &layer.sprite_source
+    else
+    {
+      return;
+    };
+
+    // `tile_corner_id` matches `corner_source` to an object's `global_layer`,
+    // so a value naming no object's `global_layer` can only ever fall back to
+    // `VOID_ID` for every corner (silent, geometrically wrong output).
+    if let Some( cs ) = corner_source
+      && !ids.global_layer.contains( cs.as_str() )
+    {
+      errors.push( ValidationError::UnresolvedRef
+      {
+        kind : "corner_source layer",
+        id : cs.clone(),
+        context : format!( "object {object_id:?} state {state_name:?} VertexCorners corner_source" ),
+      });
+    }
+
+    // Orient mode counts corners against the layer's first solid id only, so
+    // a second solid id's edge and corner tiles would pick parity frames.
+    if *orient_to_grid
+    {
+      let mut solid : Vec< &str > = Vec::new();
+      for id in patterns.iter().filter_map( TriBlendPattern::self_id )
+      {
+        if !solid.contains( &id )
+        {
+          solid.push( id );
+        }
+      }
+      if solid.len() > 1
+      {
+        errors.push( ValidationError::ConflictingOrientSelfIds
+        {
+          object : object_id.to_owned(),
+          state : state_name.to_owned(),
+          ids : solid.into_iter().map( str::to_owned ).collect(),
+        });
+      }
+    }
   }
 
   /// The `LayerBehaviour.tint` half of [`layer_checks`] — split out purely
