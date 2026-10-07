@@ -103,7 +103,8 @@ delete once no longer needed, not part of the deliverable.
   are gone. M7's entry below still describes them as delivered.
 - **Visibility switches moved out of the HUD** into a new Render Layers dev
   panel (`src/debug/layers_panel.rs`, bottom left): one row per scene draw
-  pass (grid, background, starfield, asteroids, ships, station), plus
+  pass (grid, background, starfield, asteroids, ships, station,
+  trajectories), plus
   overlay and lighting rows (view-zone ribbon, selection gizmo, lighting,
   shadows, CRT scanlines). A click toggles a row; on a scene row, right
   click shows only that layer and Shift + right click hides it and shows
@@ -117,11 +118,12 @@ delete once no longer needed, not part of the deliverable.
   no longer exist.
 - **Grid Tuning panel lost its Playback block** (the heading plus the
   Animate Ships, Show Trajectories and Show Sensor Rings checkboxes):
-  Pause/Play/Fast drive animation, trajectories have no toggle and sensor
-  rings are gone. Its Shadows checkbox moved to the Render Layers panel.
-- **Trajectories have no toggle anywhere** while they're unfinished;
-  `RenderLayers::show_trajectories` stays `false`, and the frame loop builds
-  the ribbons only the first time it is set.
+  Pause/Play/Fast drive animation, trajectories moved to the Render Layers
+  panel and sensor rings are gone. Its Shadows checkbox moved to the
+  Render Layers panel too.
+- **Trajectories are a Render Layers row**, off at start as in the three.js
+  original; the frame loop builds the ribbons only the first time the row
+  is on, and a failed build turns the row back off.
 - **Nebula backdrop baked into a cube map**: `background.rs`'s
   `bake_cubemap` evaluates `shaders/background.frag`'s fbm once per face
   into a 512x512 cube map at startup, and `shaders/skybox.frag` samples it

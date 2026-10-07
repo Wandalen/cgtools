@@ -4,24 +4,24 @@
 //! the HUD carries no visibility toggles of its own.
 //!
 //! The rows come in two groups. **Scene layers** (`SCENE_TOGGLES`: grid,
-//! background, starfield, asteroids, ships, station) are each a draw pass of
-//! their own, so any combination of them can be shown alone (e.g. "only the
-//! grid") or hidden alone (e.g. "everything but asteroids"). **Overlays and
-//! lighting** (`OPTION_TOGGLES`: view-zone ribbon, selection gizmo,
-//! lighting, shadows, CRT scanlines) change how the scene layers look rather
-//! than drawing a layer by themselves - the ribbon is part of the grid pass,
+//! background, starfield, asteroids, ships, station, trajectories) are each
+//! a draw pass of their own, so any combination of them can be shown alone
+//! (e.g. "only the grid") or hidden alone (e.g. "everything but asteroids").
+//! **Overlays and lighting** (`OPTION_TOGGLES`: view-zone ribbon, selection
+//! gizmo, lighting, shadows, CRT scanlines) change how the scene layers look
+//! rather than drawing a layer by themselves - the ribbon is part of the grid pass,
 //! the gizmo follows the selection, lighting and shadows shade the hulls -
 //! so they are left alone by the solo gestures. A row that only means
 //! something under another one is greyed out while that one is off:
 //! View-Zone Ribbon under Tactical Grid, Shadows under Lighting.
 //!
-//! Trajectories and ship animation have no rows here. Ship animation is
-//! driven by the HUD's Pause/Play/Fast buttons (`GridTuning::animate_ships`
-//! and `speed_multiplier`). Trajectories are still unfinished, so
-//! `RenderLayers::show_trajectories` stays off by default with no toggle
-//! anywhere yet; the frame loop builds the ribbons the first time it is
-//! set. Sensor rings were cut further still: the feature itself is gone
-//! from `trajectories.rs`, not just hidden.
+//! Trajectories start off, as in the three.js original; the frame loop
+//! builds their ribbons the first time the row is on, and a failed build
+//! turns the row back off (`layers_panel_sync`). Ship animation has no row
+//! here: it is driven by the HUD's Pause/Play/Fast buttons
+//! (`GridTuning::animate_ships` and `speed_multiplier`). Sensor rings were
+//! cut entirely: the feature itself is gone from `trajectories.rs`, not
+//! just hidden.
 //!
 //! Left click flips just the clicked row, same as any checkbox. Right click
 //! on a scene row is an unconditional "solo" gesture: that layer turns on and every other scene
@@ -124,6 +124,7 @@ const SCENE_TOGGLES : &[ LayerToggle ] =
   layer_toggle!( "layers-show-asteroids", "Asteroids", show_asteroids, scene ),
   layer_toggle!( "layers-show-ships", "Ships", show_ships, scene ),
   layer_toggle!( "layers-show-station", "Station", show_station, scene ),
+  layer_toggle!( "layers-show-trajectories", "Trajectories", show_trajectories, scene ),
 ];
 
 /// Rows that change how the scene layers look; the solo gestures leave them
@@ -184,6 +185,15 @@ fn sync_dom( document : &Document, t : &RenderLayers )
   // both setup functions, so the element exists.
   let overlay = document.get_element_by_id( "ff-scanlines" ).expect( "hud::setup_hud creates #ff-scanlines" );
   overlay.set_class_name( crate::hud::scanlines_class( t.show_scanlines ) );
+}
+
+/// Brings the panel back in line with `t` after the frame loop itself
+/// changed a switch rather than a row - a failed trajectory build turning
+/// `show_trajectories` back off would otherwise leave its row checked.
+pub fn layers_panel_sync( t : &RenderLayers )
+{
+  let document = gl::web_sys::window().unwrap().document().unwrap();
+  sync_dom( &document, t );
 }
 
 /// Left-click path: flip just `toggle`'s own field, then resync (for the
@@ -307,8 +317,8 @@ mod tests
   }
 
   /// Each row reads back what it writes and writes a field no other row
-  /// writes; with eleven rows over the twelve fields, only
-  /// `show_trajectories` (which has no row) is left unwritten.
+  /// writes; with twelve rows over the twelve fields, every field has its
+  /// row.
   #[ test ]
   fn every_row_owns_a_distinct_field()
   {
@@ -320,10 +330,9 @@ mod tests
       assert!( ( toggle.get )( &t ), "row {:?} doesn't read back what it wrote", toggle.label );
       assert_ne!( t, all_off(), "row {:?} writes nothing", toggle.label );
       assert!( !written.contains( &t ), "row {:?} writes a field another row already writes", toggle.label );
-      assert!( !t.show_trajectories, "row {:?} writes show_trajectories", toggle.label );
       written.push( t );
     }
-    assert_eq!( written.len(), 11 );
+    assert_eq!( written.len(), 12 );
   }
 
   /// Right click on a scene row: only that scene layer stays on, and the
@@ -394,7 +403,7 @@ mod tests
   fn each_row_flips_the_field_its_label_names()
   {
     type FieldRead = fn( &RenderLayers ) -> bool;
-    let expected : [ ( &str, FieldRead ); 11 ] =
+    let expected : [ ( &str, FieldRead ); 12 ] =
     [
       ( "Tactical Grid", | t | t.show_grid ),
       ( "Background", | t | t.show_background ),
@@ -402,6 +411,7 @@ mod tests
       ( "Asteroids", | t | t.show_asteroids ),
       ( "Ships", | t | t.show_ships ),
       ( "Station", | t | t.show_station ),
+      ( "Trajectories", | t | t.show_trajectories ),
       ( "View-Zone Ribbon", | t | t.show_view_ribbon ),
       ( "Selection Gizmo", | t | t.show_gizmo ),
       ( "Lighting", | t | t.lighting_enabled ),

@@ -13,7 +13,7 @@ use crate::
 {
   asteroids::Asteroids,
   boundary::{ build_boundary_polyline, MAX_BOUNDARY_PTS },
-  debug::GridTuning,
+  debug::{ GridTuning, layers_panel_sync },
   grid::{ FocusState, MAX_ASTEROID_GLOW },
   hull::HullPart,
   ribbon_ship,
@@ -144,8 +144,8 @@ pub fn shadow_pass< 'a >( gl : &GL, shadow_map : &ShadowMap, light_view_proj : g
 }
 
 /// Draws the trajectory ribbons, building them into `slot` the first time
-/// they are shown. A failed build switches the layer back off, so it isn't
-/// retried (and warned about) every frame.
+/// they are shown. A failed build switches the layer and its Render Layers
+/// row back off, so it isn't retried (and warned about) every frame.
 pub fn trajectories_draw
 (
   gl : &GL,
@@ -164,7 +164,9 @@ pub fn trajectories_draw
       Err( e ) =>
       {
         web_sys::console::warn_1( &format!( "Falling Frontier: trajectory ribbons unavailable: {e}" ).into() );
-        tuning.borrow_mut().layers.show_trajectories = false;
+        let mut tuning = tuning.borrow_mut();
+        tuning.layers.show_trajectories = false;
+        layers_panel_sync( &tuning.layers );
       }
     }
   }

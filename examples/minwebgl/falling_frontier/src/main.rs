@@ -484,8 +484,8 @@ fn app_run() -> Result< (), gl::WebglError >
   {
     let canvas = canvas.clone();
     let ctx = ctx.clone();
-    // Built on first use rather than at startup: nothing in the UI turns
-    // trajectories on yet, so a session that never shows them never builds
+    // Built on first use rather than at startup: the Trajectories row starts
+    // off, so a session that never shows them never builds
     // one ribbon mesh per ship.
     let mut trajectories : Option< Trajectories > = None;
     move | t : f64 |

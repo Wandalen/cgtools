@@ -1,10 +1,10 @@
 //! Render-layer switches - which parts of the scene the frame loop draws.
-//! Every field but `show_trajectories` is a row of the Render Layers dev
-//! panel (`layers_panel`); held as `GridTuning::layers`, so the panel, the
-//! frame loop and the pick pass all read the one shared tuning state.
+//! Every field is a row of the Render Layers dev panel (`layers_panel`);
+//! held as `GridTuning::layers`, so the panel, the frame loop and the pick
+//! pass all read the one shared tuning state.
 
 /// The scene layers (grid, background, starfield, asteroids, ships,
-/// station) are one switch per draw pass in `main.rs`'s frame closure, so
+/// station, trajectories) are one switch per draw pass in `main.rs`'s frame closure, so
 /// any combination of them can be shown alone or hidden alone (e.g. "only
 /// the grid", "everything but asteroids"). The other switches change how
 /// those passes look rather than drawing anything by themselves - see
@@ -42,8 +42,8 @@ pub struct RenderLayers
   /// needing its own separate on/off surface.
   pub show_scanlines : bool,
   /// Trajectory ribbons. Defaults to `false`, as the three.js original also
-  /// hid its trajectory group by default, and has no panel row: the
-  /// feature is still unfinished.
+  /// hid its trajectory group by default; the frame loop builds them the
+  /// first time this is on.
   pub show_trajectories : bool,
 }
 

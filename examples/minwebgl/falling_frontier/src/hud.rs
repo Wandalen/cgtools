@@ -28,9 +28,9 @@
 //!
 //! M8's toolbar also had toggle buttons for the grid, trajectories, sensor
 //! rings, scanlines and ship animation. None of them is here any more: the
-//! grid and scanline toggles moved to `debug::layers_panel`'s Render Layers
-//! panel; trajectories have no toggle while they're unfinished; sensor rings
-//! were cut from the port entirely; and Animate Ships Motion was dropped,
+//! grid, trajectory and scanline toggles moved to `debug::layers_panel`'s
+//! Render Layers panel; sensor rings were cut from the port entirely; and
+//! Animate Ships Motion was dropped,
 //! since the Pause/Play/Fast buttons (and the P key) already control ship
 //! animation. This module keeps those time controls and the Reset Camera
 //! button, which aren't visibility switches.
