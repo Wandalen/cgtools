@@ -98,6 +98,11 @@ impl RibbonInputs
     inputs
   }
 
+  /// The view-zone ribbon's outline on the ground plane, as XZ points of the
+  /// closed polyline `build_boundary_polyline` traces around the focus,
+  /// pulled in where asteroids block the view radius. Empty while the ribbon
+  /// is off or asteroids are hidden; `Grid::draw` uploads it as
+  /// `u_boundary_pts`.
   pub fn boundary( &self ) -> &[ [ f32; 2 ] ]
   {
     &self.boundary_buf[ .. self.boundary_count ]
