@@ -31,6 +31,9 @@ features = [
   'DomRect',
 ]
 
+[dev-dependencies]
+wasm-bindgen-test = { workspace = true }
+
 [package.metadata.action]
 tags = ["runtime:browser", "api:webgl"]
 

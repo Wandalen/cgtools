@@ -130,6 +130,11 @@ delete once no longer needed, not part of the deliverable.
   every frame. The bake runs with time fixed at 0, so the clouds no longer
   drift. The face order and orientation are pinned by a unit test in
   `background.rs`.
+- **Browser tests for the layer filtering**: `src/live_gl_tests.rs`
+  (wasm32 only, `wasm-pack test --headless --chrome`) builds the real
+  asteroids, ships and station on a live context and checks that
+  `visible_parts` returns exactly the shown groups and that
+  `pick_at_client` can't pick an asteroid once its layer is hidden.
 
 **If picking this back up**: there's no "next task" - re-read the gap audit
 (`research/falling_frontier_cgtools_audit.md`) against what actually landed

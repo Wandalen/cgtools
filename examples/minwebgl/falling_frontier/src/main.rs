@@ -900,3 +900,8 @@ mod tests
     assert!( gizmo_visible( PickedKind::Station, &RenderLayers { show_ships : false, show_asteroids : false, ..all_shown() } ) );
   }
 }
+
+// Live-GL-context tests of `visible_parts` and `pick_at_client`, so
+// wasm32-only - see `live_gl_tests.rs`.
+#[ cfg( all( test, target_arch = "wasm32" ) ) ]
+mod live_gl_tests;
