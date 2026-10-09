@@ -28,13 +28,27 @@ pub struct RenderLayers
   /// which `grid.frag` computes in the same branch. Part of the grid pass,
   /// so it has no effect while `show_grid` is off.
   pub show_view_ribbon : bool,
+  /// The nebula skybox pass (`background.rs`); while off, the clear colour
+  /// shows wherever nothing else draws.
   pub show_background : bool,
+  /// The starfield point pass (`starfield.rs`).
   pub show_starfield : bool,
+  /// The asteroid group: its visible draw, shadow casting and picking, plus
+  /// the ribbon's asteroid notches and glow (see `RibbonInputs::new`).
   pub show_asteroids : bool,
+  /// The ship group: its visible draw, shadow casting and picking, plus the
+  /// view-zone ribbon, which only a visible selected ship drives.
   pub show_ships : bool,
+  /// The station: its visible draw, shadow casting and picking.
   pub show_station : bool,
+  /// The selection gizmo handle, drawn and picked only while the selected
+  /// object's own layer is visible too (`gizmo_visible`).
   pub show_gizmo : bool,
+  /// Off drops `hull.frag` to flat unlit `u_color`, which also turns shadows
+  /// off (see `shadows_drawn`).
   pub lighting_enabled : bool,
+  /// The shadow-caster pass and the lit path's shadow-map lookups; no effect
+  /// while `lighting_enabled` is off.
   pub shadows_enabled : bool,
   /// CRT scanline overlay - pure DOM/CSS effect (see `hud.rs`'s `ff-scanlines`
   /// element), not a WebGL draw call, but tracked here anyway so it lives in

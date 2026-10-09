@@ -62,9 +62,15 @@ pub fn ships_advance( ships : &mut Ships, tuning : &GridTuning, selected : Optio
 /// that glow inside the zone.
 pub struct RibbonInputs
 {
+  /// Where the ribbon is centred: the `ribbon_ship`'s position, or inactive
+  /// when no ship drives the ribbon this frame.
   pub focus : FocusState,
   boundary_buf : [ [ f32; 2 ]; MAX_BOUNDARY_PTS ],
   boundary_count : usize,
+  /// The asteroids that glow on the grid, as XZ position and block radius:
+  /// those within the view radius of an active focus, capped at
+  /// `MAX_ASTEROID_GLOW`. Empty while the focus is inactive or asteroids are
+  /// hidden.
   pub glow : Vec< ( [ f32; 2 ], f32 ) >,
 }
 
