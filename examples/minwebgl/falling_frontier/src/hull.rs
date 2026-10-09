@@ -9,6 +9,8 @@
 use minwebgl as gl;
 use gl::GL;
 
+use crate::debug::RenderLayers;
+
 /// A normally-lit part (asteroid rock, ship/station hull plating).
 pub const AMBIENT_LIT : f32 = 0.35;
 /// A fully self-lit part (engine glow, beacon light) - stands in for
@@ -17,7 +19,7 @@ pub const AMBIENT_GLOW : f32 = 1.0;
 
 /// One drawable piece: its own geometry (VAO), world transform, color and
 /// ambient factor. Ships/stations are composed from several of these, all
-/// sharing one `pick_id` (see `picking.rs`) so a click anywhere on a
+/// sharing one `pick_id` (see the `gpu_picking` crate) so a click anywhere on a
 /// multi-part ship selects the whole ship, not just the part under the
 /// cursor.
 pub struct HullPart
@@ -94,9 +96,11 @@ struct HullUniforms
   light_dir : Option< gl::WebGlUniformLocation >,
   light_color : Option< gl::WebGlUniformLocation >,
   light_intensity : Option< gl::WebGlUniformLocation >,
+  light_size : Option< gl::WebGlUniformLocation >,
   light_view_proj : Option< gl::WebGlUniformLocation >,
   shadow_map : Option< gl::WebGlUniformLocation >,
   shadows_enabled : Option< gl::WebGlUniformLocation >,
+  lighting_enabled : Option< gl::WebGlUniformLocation >,
 }
 
 pub struct HullProgram
@@ -125,9 +129,11 @@ impl HullProgram
       light_dir : gl.get_uniform_location( &program, "u_light_dir" ),
       light_color : gl.get_uniform_location( &program, "u_light_color" ),
       light_intensity : gl.get_uniform_location( &program, "u_light_intensity" ),
+      light_size : gl.get_uniform_location( &program, "u_light_size" ),
       light_view_proj : gl.get_uniform_location( &program, "u_light_view_proj" ),
       shadow_map : gl.get_uniform_location( &program, "u_shadow_map" ),
       shadows_enabled : gl.get_uniform_location( &program, "u_shadows_enabled" ),
+      lighting_enabled : gl.get_uniform_location( &program, "u_lighting_enabled" ),
     };
 
     Self { program, uniforms }
@@ -142,8 +148,8 @@ impl HullProgram
   pub fn begin_frame
   (
     &self, gl : &GL, view_proj : gl::F32x4x4, camera_position : gl::F32x3,
-    light_dir : gl::F32x3, light_color : [ f32; 3 ], light_intensity : f32,
-    light_view_proj : gl::F32x4x4, shadow_map : Option< &gl::web_sys::WebGlTexture >, shadows_enabled : bool,
+    light_dir : gl::F32x3, light_color : [ f32; 3 ], light_intensity : f32, light_size : f32,
+    light_view_proj : gl::F32x4x4, shadow_map : Option< &gl::web_sys::WebGlTexture >, layers : &RenderLayers,
   )
   {
     gl.use_program( Some( &self.program ) );
@@ -153,8 +159,10 @@ impl HullProgram
     gl::uniform::upload( gl, u.light_dir.clone(), light_dir.to_array().as_slice() ).unwrap();
     gl::uniform::upload( gl, u.light_color.clone(), light_color.as_slice() ).unwrap();
     gl::uniform::upload( gl, u.light_intensity.clone(), &light_intensity ).unwrap();
+    gl::uniform::upload( gl, u.light_size.clone(), &light_size ).unwrap();
     gl::uniform::matrix_upload( gl, u.light_view_proj.clone(), light_view_proj.to_array().as_slice(), true ).unwrap();
-    gl::uniform::upload( gl, u.shadows_enabled.clone(), &if shadows_enabled { 1.0f32 } else { 0.0f32 } ).unwrap();
+    gl::uniform::upload( gl, u.shadows_enabled.clone(), &if layers.shadows_drawn() { 1.0f32 } else { 0.0f32 } ).unwrap();
+    gl::uniform::upload( gl, u.lighting_enabled.clone(), &if layers.lighting_enabled { 1.0f32 } else { 0.0f32 } ).unwrap();
 
     gl.active_texture( GL::TEXTURE0 );
     gl.bind_texture( GL::TEXTURE_2D, shadow_map );

@@ -4,7 +4,8 @@
 //! blocking asteroids as a faceted boundary polyline. Object picking uses
 //! an off-screen id buffer (`gpu_picking`), selected units get a
 //! movable/rotatable transform gizmo, fleets move along Catmull-Rom
-//! trajectories, and a HUD surfaces unit info and view-layer toggles. See
+//! patrol paths, a HUD surfaces unit info and playback controls, and a
+//! Render Layers dev panel shows or hides each scene layer. See
 //! `PORT_PLAN.md` in this crate for the milestone history and porting notes.
 
 mod debug;
@@ -18,16 +19,17 @@ mod ships;
 mod station;
 mod starfield;
 mod background;
+mod grid;
+mod frame;
 
 use minwebgl as gl;
 use gl::GL;
 use renderer::webgl::Camera;
-use renderer::webgl::shadow::{ ShadowMap, Light };
+use renderer::webgl::shadow::ShadowMap;
 use std::{ cell::{ Cell, RefCell }, rc::Rc };
-use debug::{ GridTuning, setup_grid_tuning_panel, refresh_selection_status };
+use debug::{ GridTuning, RenderLayers, setup_grid_tuning_panel, setup_layers_panel, refresh_selection_status };
 use hud::{ setup_hud, refresh_unit_panel, bind_reset_camera };
-use boundary::{ build_boundary_polyline, MAX_BOUNDARY_PTS };
-use hull::HullProgram;
+use hull::{ HullPart, HullProgram };
 use gpu_picking::{ IdProgram, PickBuffer };
 use gizmo::{ Gizmo, GizmoMode };
 use asteroids::Asteroids;
@@ -36,24 +38,10 @@ use station::Station;
 use trajectories::Trajectories;
 use starfield::Starfield;
 use background::Background;
+use grid::TacticalGrid;
+use frame::{ ships_advance, RibbonInputs, sun_light, shadow_pass, trajectories_draw, SHADOW_MAP_RESOLUTION };
 
-// Matches tacticalGrid.js's PLANE_SIZE - structural, not exposed in the
-// tuning panel.
-const PLANE_SIZE : f32 = 3000.0;
-
-// Must match the fixed-size uniform arrays declared in grid.frag
-// (`u_asteroid_pos[16]`/`u_asteroid_radius[16]`).
-const MAX_ASTEROID_GLOW : usize = 16;
-
-// Shadow map sizing - deliberately covers just the ships/station/asteroid
-// cluster (see asteroids.rs's ASTEROID_SPECS, all within roughly ±175 on
-// X/Z), not the whole PLANE_SIZE grid, so the ortho frustum stays tight
-// enough for reasonable shadow resolution at SHADOW_MAP_RESOLUTION.
-const SHADOW_MAP_RESOLUTION : u32 = 1024;
-const SHADOW_HALF_EXTENT : f32 = 260.0;
-const SHADOW_LIGHT_DISTANCE : f32 = 400.0;
-
-// Pick-id ranges handed out to each pickable group (see `picking.rs`) -
+// Pick-id ranges handed out to each pickable group (see the `gpu_picking` crate) -
 // asteroids first, then ships, then the station gets the one id left over.
 // `asteroids::ASTEROID_COUNT`/`ships::SHIP_COUNT` come from those modules'
 // own spec arrays, so these stay in sync automatically if a roster grows.
@@ -64,7 +52,7 @@ const STATION_ID : i32 = SHIP_ID_BASE + ships::SHIP_COUNT as i32;
 // it never collides with `classify_pick`'s ranges above.
 const GIZMO_ID : i32 = STATION_ID + 1;
 
-/// What a raw pick id (see `picking.rs`) refers to - the mapping only
+/// What a raw pick id (see the `gpu_picking` crate) refers to - the mapping only
 /// `main.rs` knows, since it's the one that handed out the id ranges above.
 #[ derive( Clone, Copy ) ]
 enum PickedKind
@@ -129,6 +117,65 @@ fn unit_info_for( kind : PickedKind, ships : &Ships, station : &Station ) -> hud
   }
 }
 
+/// Whether `kind`'s Render Layers switch is on - the only place an object
+/// kind is mapped to its switch. Everything that decides whether an object
+/// is present goes through it: the visible draw, the shadow pass and the
+/// pick pass (via `visible_groups`), the gizmo (`gizmo_visible`), the
+/// view-zone ribbon (`ribbon_ship`), and the frame loop's check that drops
+/// a selection whose layer was hidden. So a hidden object can't be clicked,
+/// cast a shadow, cover a visible one, notch the ribbon or keep its
+/// selection, unit card and ribbon.
+fn kind_visible( kind : PickedKind, t : &RenderLayers ) -> bool
+{
+  match kind
+  {
+    PickedKind::Asteroid( _ ) => t.show_asteroids,
+    PickedKind::Ship( _ ) => t.show_ships,
+    PickedKind::Station => t.show_station,
+  }
+}
+
+/// The parts of every object group whose layer is visible, in pick-id order
+/// (asteroids, ships, station). Generic over the part type so the filtering
+/// can be tested without a GL context; `visible_parts` is the GL-side use.
+fn visible_groups< 'a, T >( t : &RenderLayers, asteroids : &'a [ T ], ships : &'a [ T ], station : &'a [ T ] ) -> impl Iterator< Item = &'a T >
+{
+  // Visibility is per kind, so any index stands for the whole group.
+  [ ( PickedKind::Asteroid( 0 ), asteroids ), ( PickedKind::Ship( 0 ), ships ), ( PickedKind::Station, station ) ]
+  .into_iter()
+  .filter( move | ( kind, _ ) | kind_visible( *kind, t ) )
+  .flat_map( | ( _, parts ) | parts.iter() )
+}
+
+/// Every hull part whose Render Layers switch is on - the one list the
+/// visible draw, the shadow pass and the pick pass all walk, so none of them
+/// can drift from the others.
+fn visible_parts< 'a >( t : &'a RenderLayers, asteroids : &'a Asteroids, ships : &'a Ships, station : &'a Station ) -> impl Iterator< Item = &'a HullPart >
+{
+  visible_groups( t, asteroids.parts(), ships.parts(), station.parts() )
+}
+
+/// The ship whose view-zone ribbon the grid draws, if any: a selected ship
+/// (the only kind with a view radius) whose own layer is visible, with the
+/// grid and its ribbon row on.
+fn ribbon_ship( selected : Option< PickedKind >, t : &RenderLayers ) -> Option< usize >
+{
+  match selected
+  {
+    Some( kind @ PickedKind::Ship( i ) ) if t.show_grid && t.show_view_ribbon && kind_visible( kind, t ) => Some( i ),
+    _ => None,
+  }
+}
+
+/// Whether the gizmo handle exists for a selected `kind`: its own switch is
+/// on and the object it's attached to is visible. The frame loop draws the
+/// handle and the pick pass renders it under this one condition, so a
+/// handle is grabbable exactly when it can be seen.
+fn gizmo_visible( kind : PickedKind, t : &RenderLayers ) -> bool
+{
+  t.show_gizmo && kind_visible( kind, t )
+}
+
 /// The selected object's current world transform - what the M6 gizmo draws
 /// its handle at.
 fn selected_transform( kind : PickedKind, asteroids : &Asteroids, ships : &Ships, station : &Station ) -> gl::F32x4x4
@@ -173,39 +220,6 @@ fn rotate_selected( kind : PickedKind, rotation_y : f32, asteroids : &mut Astero
     PickedKind::Ship( i ) => ships.rotate_to( i, rotation_y ),
     PickedKind::Station => station.rotate_to( rotation_y ),
   }
-}
-
-/// The grid's view-zone ribbon, derived fresh every frame from whatever is
-/// currently selected — ported from `main.js`'s `animate()`, which points
-/// the ribbon at `gizmo.object` whenever it defines a `viewRadius` (only
-/// ships do in `fleet.js`) and leaves it off otherwise. `active` mirrors the
-/// JS shader's `uFocusActive`.
-#[ derive( Clone, Copy ) ]
-pub struct FocusState
-{
-  /// Whether a ship is currently selected (and so the ribbon should show).
-  pub active : bool,
-  /// World-space XZ position of the focus point.
-  pub point : [ f32; 2 ],
-}
-
-impl Default for FocusState
-{
-  fn default() -> Self
-  {
-    Self { active : false, point : [ 0.0, 0.0 ] }
-  }
-}
-
-/// Converts the dev panel's azimuth/elevation (degrees) into a normalized
-/// world-space direction pointing *toward* the light - the convention
-/// `hull.frag`'s `n_dot_l = dot(normal, light_dir)` and `ShadowMap`'s light
-/// placement (see `app_run`) both expect.
-fn light_direction( azimuth_deg : f32, elevation_deg : f32 ) -> gl::F32x3
-{
-  let az = azimuth_deg.to_radians();
-  let el = elevation_deg.to_radians();
-  gl::F32x3::new( el.cos() * az.cos(), el.sin(), el.cos() * az.sin() )
 }
 
 fn canvas_size( canvas : &gl::web_sys::HtmlCanvasElement ) -> ( u32, u32 )
@@ -284,193 +298,6 @@ fn ray_ground_hit( view_proj : gl::F32x4x4, canvas : &gl::web_sys::HtmlCanvasEle
   Some( [ hit.x(), hit.z() ] )
 }
 
-struct GridUniforms
-{
-  view_proj : Option< gl::WebGlUniformLocation >,
-  camera_position : Option< gl::WebGlUniformLocation >,
-  line_color : Option< gl::WebGlUniformLocation >,
-  dim_alpha : Option< gl::WebGlUniformLocation >,
-  cell_size : Option< gl::WebGlUniformLocation >,
-  line_width_px : Option< gl::WebGlUniformLocation >,
-  camera_fade_start : Option< gl::WebGlUniformLocation >,
-  camera_fade_end : Option< gl::WebGlUniformLocation >,
-  camera_fade_mode : Option< gl::WebGlUniformLocation >,
-  camera_fade_gamma : Option< gl::WebGlUniformLocation >,
-
-  ring_color_core : Option< gl::WebGlUniformLocation >,
-  ring_color_edge : Option< gl::WebGlUniformLocation >,
-  bright_alpha : Option< gl::WebGlUniformLocation >,
-  focus_point : Option< gl::WebGlUniformLocation >,
-  focus_active : Option< gl::WebGlUniformLocation >,
-  view_radius : Option< gl::WebGlUniformLocation >,
-  ribbon_width_outer : Option< gl::WebGlUniformLocation >,
-  ribbon_width_inner : Option< gl::WebGlUniformLocation >,
-  ribbon_gap : Option< gl::WebGlUniformLocation >,
-  ribbon_opacity : Option< gl::WebGlUniformLocation >,
-  inside_fade_width : Option< gl::WebGlUniformLocation >,
-  inside_fade_mode : Option< gl::WebGlUniformLocation >,
-  inside_fade_gamma : Option< gl::WebGlUniformLocation >,
-  boundary_pts : Option< gl::WebGlUniformLocation >,
-  boundary_count : Option< gl::WebGlUniformLocation >,
-  asteroid_pos : Option< gl::WebGlUniformLocation >,
-  asteroid_radius : Option< gl::WebGlUniformLocation >,
-  asteroid_count : Option< gl::WebGlUniformLocation >,
-  asteroid_glow_alpha : Option< gl::WebGlUniformLocation >,
-  asteroid_glow_width : Option< gl::WebGlUniformLocation >,
-  asteroid_glow_mode : Option< gl::WebGlUniformLocation >,
-  asteroid_glow_gamma : Option< gl::WebGlUniformLocation >,
-}
-
-struct TacticalGrid
-{
-  vao : gl::WebGlVertexArrayObject,
-  vertex_count : i32,
-  program : gl::WebGlProgram,
-  uniforms : GridUniforms,
-}
-
-impl TacticalGrid
-{
-  fn new( gl : &GL ) -> Self
-  {
-    let half = PLANE_SIZE * 0.5;
-    let positions : [ [ f32; 3 ]; 6 ] =
-    [
-      [ -half, 0.0, -half ], [  half, 0.0, -half ], [  half, 0.0,  half ],
-      [ -half, 0.0, -half ], [  half, 0.0,  half ], [ -half, 0.0,  half ],
-    ];
-
-    let vao = gl::vao::create( gl ).unwrap();
-    gl.bind_vertex_array( Some( &vao ) );
-
-    let position_buffer = gl::buffer::create( gl ).unwrap();
-    gl::buffer::upload( gl, &position_buffer, positions.as_slice(), GL::STATIC_DRAW );
-    gl::BufferDescriptor::new::< [ f32; 3 ] >()
-    .stride( 0 )
-    .offset( 0 )
-    .attribute_pointer( gl, 0, &position_buffer )
-    .unwrap();
-
-    let vertex_shader = include_str!( "shaders/grid.vert" );
-    let fragment_shader = include_str!( "shaders/grid.frag" );
-    let program = gl::ProgramFromSources::new( vertex_shader, fragment_shader )
-    .compile_and_link( gl )
-    .unwrap();
-
-    let uniforms = GridUniforms
-    {
-      view_proj : gl.get_uniform_location( &program, "u_view_proj" ),
-      camera_position : gl.get_uniform_location( &program, "u_camera_position" ),
-      line_color : gl.get_uniform_location( &program, "u_line_color" ),
-      dim_alpha : gl.get_uniform_location( &program, "u_dim_alpha" ),
-      cell_size : gl.get_uniform_location( &program, "u_cell_size" ),
-      line_width_px : gl.get_uniform_location( &program, "u_line_width_px" ),
-      camera_fade_start : gl.get_uniform_location( &program, "u_camera_fade_start" ),
-      camera_fade_end : gl.get_uniform_location( &program, "u_camera_fade_end" ),
-      camera_fade_mode : gl.get_uniform_location( &program, "u_camera_fade_mode" ),
-      camera_fade_gamma : gl.get_uniform_location( &program, "u_camera_fade_gamma" ),
-
-      ring_color_core : gl.get_uniform_location( &program, "u_ring_color_core" ),
-      ring_color_edge : gl.get_uniform_location( &program, "u_ring_color_edge" ),
-      bright_alpha : gl.get_uniform_location( &program, "u_bright_alpha" ),
-      focus_point : gl.get_uniform_location( &program, "u_focus_point" ),
-      focus_active : gl.get_uniform_location( &program, "u_focus_active" ),
-      view_radius : gl.get_uniform_location( &program, "u_view_radius" ),
-      ribbon_width_outer : gl.get_uniform_location( &program, "u_ribbon_width_outer" ),
-      ribbon_width_inner : gl.get_uniform_location( &program, "u_ribbon_width_inner" ),
-      ribbon_gap : gl.get_uniform_location( &program, "u_ribbon_gap" ),
-      ribbon_opacity : gl.get_uniform_location( &program, "u_ribbon_opacity" ),
-      inside_fade_width : gl.get_uniform_location( &program, "u_inside_fade_width" ),
-      inside_fade_mode : gl.get_uniform_location( &program, "u_inside_fade_mode" ),
-      inside_fade_gamma : gl.get_uniform_location( &program, "u_inside_fade_gamma" ),
-      boundary_pts : gl.get_uniform_location( &program, "u_boundary_pts" ),
-      boundary_count : gl.get_uniform_location( &program, "u_boundary_count" ),
-      asteroid_pos : gl.get_uniform_location( &program, "u_asteroid_pos" ),
-      asteroid_radius : gl.get_uniform_location( &program, "u_asteroid_radius" ),
-      asteroid_count : gl.get_uniform_location( &program, "u_asteroid_count" ),
-      asteroid_glow_alpha : gl.get_uniform_location( &program, "u_asteroid_glow_alpha" ),
-      asteroid_glow_width : gl.get_uniform_location( &program, "u_asteroid_glow_width" ),
-      asteroid_glow_mode : gl.get_uniform_location( &program, "u_asteroid_glow_mode" ),
-      asteroid_glow_gamma : gl.get_uniform_location( &program, "u_asteroid_glow_gamma" ),
-    };
-
-    Self { vao, vertex_count : positions.len() as i32, program, uniforms }
-  }
-
-  #[ allow( clippy::too_many_arguments, reason = "mirrors the JS shader's own uniform surface — splitting it up would just move the same argument count into a struct with no real grouping" ) ]
-  fn draw
-  (
-    &self,
-    gl : &GL,
-    view_proj : gl::F32x4x4,
-    camera_position : gl::F32x3,
-    tuning : &GridTuning,
-    focus : &FocusState,
-    boundary_pts : &[ [ f32; 2 ] ],
-    glow : &[ ( [ f32; 2 ], f32 ) ],
-  )
-  {
-    gl.use_program( Some( &self.program ) );
-    let u = &self.uniforms;
-    gl::uniform::matrix_upload( gl, u.view_proj.clone(), view_proj.to_array().as_slice(), true ).unwrap();
-    gl::uniform::upload( gl, u.camera_position.clone(), camera_position.to_array().as_slice() ).unwrap();
-    gl::uniform::upload( gl, u.line_color.clone(), tuning.line_color.as_slice() ).unwrap();
-    gl::uniform::upload( gl, u.dim_alpha.clone(), &tuning.dim_alpha ).unwrap();
-    gl::uniform::upload( gl, u.cell_size.clone(), &tuning.cell_size ).unwrap();
-    gl::uniform::upload( gl, u.line_width_px.clone(), &tuning.line_width_px ).unwrap();
-    gl::uniform::upload( gl, u.camera_fade_start.clone(), &tuning.camera_fade_start ).unwrap();
-    gl::uniform::upload( gl, u.camera_fade_end.clone(), &tuning.camera_fade_end ).unwrap();
-    gl::uniform::upload( gl, u.camera_fade_mode.clone(), &tuning.camera_fade_mode ).unwrap();
-    gl::uniform::upload( gl, u.camera_fade_gamma.clone(), &tuning.camera_fade_gamma ).unwrap();
-
-    gl::uniform::upload( gl, u.ring_color_core.clone(), tuning.ribbon_color_core.as_slice() ).unwrap();
-    gl::uniform::upload( gl, u.ring_color_edge.clone(), tuning.ribbon_color_edge.as_slice() ).unwrap();
-    gl::uniform::upload( gl, u.bright_alpha.clone(), &tuning.bright_alpha ).unwrap();
-    gl::uniform::upload( gl, u.focus_point.clone(), focus.point.as_slice() ).unwrap();
-    gl::uniform::upload( gl, u.focus_active.clone(), &if focus.active { 1.0f32 } else { 0.0f32 } ).unwrap();
-    gl::uniform::upload( gl, u.view_radius.clone(), &tuning.view_radius ).unwrap();
-    gl::uniform::upload( gl, u.ribbon_width_outer.clone(), &tuning.ribbon_width_outer ).unwrap();
-    gl::uniform::upload( gl, u.ribbon_width_inner.clone(), &tuning.ribbon_width_inner ).unwrap();
-    gl::uniform::upload( gl, u.ribbon_gap.clone(), &tuning.ribbon_gap ).unwrap();
-    gl::uniform::upload( gl, u.ribbon_opacity.clone(), &tuning.ribbon_opacity ).unwrap();
-    gl::uniform::upload( gl, u.inside_fade_width.clone(), &tuning.inside_fade_width ).unwrap();
-    gl::uniform::upload( gl, u.inside_fade_mode.clone(), &tuning.inside_fade_mode ).unwrap();
-    gl::uniform::upload( gl, u.inside_fade_gamma.clone(), &tuning.inside_fade_gamma ).unwrap();
-    gl::uniform::upload( gl, u.boundary_count.clone(), &( boundary_pts.len() as i32 ) ).unwrap();
-    if !boundary_pts.is_empty()
-    {
-      gl::uniform::upload( gl, u.boundary_pts.clone(), boundary_pts ).unwrap();
-    }
-
-    let asteroid_positions : Vec< [ f32; 2 ] > = glow.iter().map( | ( p, _ ) | *p ).collect();
-    // Wrapped as [f32;1] rather than passed as a bare &[f32] - the latter
-    // dispatches to the "single vecN uniform, length must be 1..=4" upload
-    // path (see minwebgl's uniform::float32 impls), not the "array of N
-    // scalar uniform elements" path an arbitrary-length float[] array needs.
-    let asteroid_radii : Vec< [ f32; 1 ] > = glow.iter().map( | ( _, r ) | [ *r ] ).collect();
-    gl::uniform::upload( gl, u.asteroid_count.clone(), &( glow.len() as i32 ) ).unwrap();
-    if !glow.is_empty()
-    {
-      gl::uniform::upload( gl, u.asteroid_pos.clone(), asteroid_positions.as_slice() ).unwrap();
-      gl::uniform::upload( gl, u.asteroid_radius.clone(), asteroid_radii.as_slice() ).unwrap();
-    }
-    gl::uniform::upload( gl, u.asteroid_glow_alpha.clone(), &tuning.asteroid_glow_alpha ).unwrap();
-    gl::uniform::upload( gl, u.asteroid_glow_width.clone(), &tuning.asteroid_glow_width ).unwrap();
-    gl::uniform::upload( gl, u.asteroid_glow_mode.clone(), &tuning.asteroid_glow_mode ).unwrap();
-    gl::uniform::upload( gl, u.asteroid_glow_gamma.clone(), &tuning.asteroid_glow_gamma ).unwrap();
-
-    gl.enable( GL::BLEND );
-    gl.blend_func( GL::SRC_ALPHA, GL::ONE_MINUS_SRC_ALPHA );
-    gl.depth_mask( false );
-
-    gl.bind_vertex_array( Some( &self.vao ) );
-    gl.draw_arrays( GL::TRIANGLES, 0, self.vertex_count );
-
-    gl.depth_mask( true );
-    gl.disable( GL::BLEND );
-  }
-}
-
 /// A gizmo handle grabbed at `kind`'s current position/rotation - captured
 /// at grab time so a translate/rotate drag can preserve the exact point/
 /// angle grabbed instead of snapping the object to the cursor.
@@ -483,6 +310,10 @@ struct DragState
   grab_offset : [ f32; 2 ],
   /// Rotate only: `object.rotation_y - angle_to_cursor` at grab time.
   rotation_offset : f32,
+  /// The object's XZ position and Y rotation at grab time, which Escape
+  /// restores when it cancels the drag.
+  start_position : [ f32; 2 ],
+  start_rotation : f32,
 }
 
 /// Everything a click, a gizmo drag, or a render frame needs to pick/select/
@@ -515,25 +346,31 @@ struct InteractionCtx
   asteroids : RefCell< Asteroids >,
   ships : RefCell< Ships >,
   station : RefCell< Station >,
+  /// Read by the pick pass so it skips whatever the Render Layers panel hides.
+  tuning : Rc< RefCell< GridTuning > >,
 }
 
 /// Re-renders the id pass (including the gizmo handle, if something's
 /// selected) and reads back the pick id at `client_x`/`client_y` - shared by
 /// the pointerdown gizmo-grab check and the pointerup click-to-select path,
 /// since both need the exact same render+read+viewport-restore sequence.
+/// Only what the frame loop actually draws goes into the id pass: layers
+/// hidden in the Render Layers panel, and a gizmo handle that isn't shown,
+/// are left out.
 fn pick_at_client( ctx : &InteractionCtx, client_x : f64, client_y : f64 ) -> Option< i32 >
 {
   let asteroids = ctx.asteroids.borrow();
   let ships = ctx.ships.borrow();
   let station = ctx.station.borrow();
+  let t = ctx.tuning.borrow().layers;
 
-  let gizmo_part = ctx.selected_id.get().and_then( classify_pick ).map( | kind |
+  let gizmo_part = ctx.selected_id.get().and_then( classify_pick ).filter( | kind | gizmo_visible( *kind, &t ) ).map( | kind |
   {
     let transform = selected_transform( kind, &asteroids, &ships, &station );
     ctx.gizmo.part( ctx.gizmo_mode.get(), transform, GIZMO_ID )
   } );
 
-  let parts = asteroids.parts().iter().chain( ships.parts() ).chain( station.parts() );
+  let parts = visible_parts( &t, &asteroids, &ships, &station );
   ctx.pick_buffer.borrow().render( &ctx.gl, &ctx.id_program, ctx.latest_view_proj.get(), parts, gizmo_part.as_ref() );
 
   let ( px, py ) = canvas_pixel_from_client( &ctx.canvas, client_x, client_y );
@@ -556,9 +393,9 @@ fn app_run() -> Result< (), gl::WebglError >
   let canvas = gl::canvas::make()?;
   let gl = gl::context::from_canvas( &canvas )?;
   gl.enable( GL::DEPTH_TEST );
-  // Matches background.frag's own "deep" color - only ever visible as a
-  // one-frame flash before the background shader itself draws, since that
-  // shader fills every pixel every frame.
+  // Matches background.frag's own "deep" color. With the Background layer
+  // on, the skybox (`shaders/skybox.frag`) covers every pixel every frame,
+  // so this shows only where nothing else draws while Background is off.
   gl.clear_color( 0.08, 0.20, 0.30, 1.0 );
 
   let ( pixel_w, pixel_h ) = canvas_size( &canvas );
@@ -581,7 +418,7 @@ fn app_run() -> Result< (), gl::WebglError >
   let grid = TacticalGrid::new( &gl );
   let hull_program = HullProgram::new( &gl );
   let starfield = Starfield::new( &gl );
-  let background = Background::new( &gl );
+  let background = Background::new( &gl )?;
   let shadow_map = ShadowMap::new( &gl, SHADOW_MAP_RESOLUTION )?;
   gl.viewport( 0, 0, pixel_w as i32, pixel_h as i32 );
 
@@ -608,26 +445,19 @@ fn app_run() -> Result< (), gl::WebglError >
     asteroids : RefCell::new( Asteroids::new( &gl, ASTEROID_ID_BASE ) ),
     ships : RefCell::new( Ships::new( &gl, SHIP_ID_BASE ) ),
     station : RefCell::new( Station::new( &gl, STATION_ID ) ),
+    tuning : tuning.clone(),
   } );
-
-  let trajectories = Trajectories::new
-  (
-    &gl, &ctx.ships.borrow(), camera.projection_matrix_get(), [ pixel_w as f32, pixel_h as f32 ]
-  )?;
 
   {
     let ctx = ctx.clone();
     setup_grid_tuning_panel
     (
       &document, &tuning,
-      move ||
-      {
-        ctx.selected_id.set( None );
-        refresh_selection_status( &ctx.document, &selection_status_text( None ) );
-        refresh_unit_panel( &ctx.document, None );
-      }
+      move || deselect( &ctx )
     );
   }
+
+  setup_layers_panel( &document, &tuning );
 
   setup_hud( &document, &tuning );
   {
@@ -654,7 +484,10 @@ fn app_run() -> Result< (), gl::WebglError >
   {
     let canvas = canvas.clone();
     let ctx = ctx.clone();
-    let mut trajectories = trajectories;
+    // Built on first use rather than at startup: the Trajectories row starts
+    // off, so a session that never shows them never builds
+    // one ribbon mesh per ship.
+    let mut trajectories : Option< Trajectories > = None;
     move | t : f64 |
     {
       let delta_time = if prev_time == 0.0 { 0.0 } else { ( t - prev_time ) / 1000.0 };
@@ -684,79 +517,28 @@ fn app_run() -> Result< (), gl::WebglError >
       let view_proj = camera.projection_matrix_get() * camera.view_matrix_get();
       ctx.latest_view_proj.set( view_proj );
 
-      background.draw( &gl, view_proj, camera.eye_get(), ( t / 1000.0 ) as f32 );
-
       let tuning_snapshot = *tuning.borrow();
+      selection_drop_if_hidden( &ctx, &tuning_snapshot.layers );
       let selected = ctx.selected_id.get();
       let selected_kind = selected.and_then( classify_pick );
 
-      // M7: advance every ship along its patrol path, except whichever one
-      // is currently selected - matches `main.js`'s `updateFleetMotion`
-      // skipping `excludeMesh` (the gizmo-attached ship) so a drag isn't
-      // fought by the path animation.
-      if tuning_snapshot.animate_ships
+      if tuning_snapshot.layers.show_background
       {
-        let mut ships = ctx.ships.borrow_mut();
-        for i in 0 .. ships::SHIP_COUNT
-        {
-          if Some( SHIP_ID_BASE + i as i32 ) == selected { continue; }
-          let speed = ships.speed( i ) * tuning_snapshot.speed_multiplier;
-          ships.advance( i, speed );
-        }
+        background.draw( &gl, view_proj, camera.eye_get() );
       }
+
+      ships_advance( &mut ctx.ships.borrow_mut(), &tuning_snapshot, selected );
 
       let asteroids = ctx.asteroids.borrow();
       let ships = ctx.ships.borrow();
       let station = ctx.station.borrow();
 
-      // Only a selected ship drives the ribbon - matches `main.js`'s
-      // `animate()`, which points the grid's focus at `gizmo.object` only
-      // when it defines a `viewRadius` (only ships do in `fleet.js`; the
-      // station and asteroids have none, so selecting them highlights the
-      // object but leaves the ribbon off).
-      let focus_snapshot = match selected_kind
-      {
-        Some( PickedKind::Ship( i ) ) => FocusState { active : true, point : ships.position( i ) },
-        _ => FocusState::default(),
-      };
+      let ribbon = RibbonInputs::new( selected_kind, &tuning_snapshot, &asteroids, &ships );
 
-      let mut boundary_buf = [ [ 0.0f32; 2 ]; MAX_BOUNDARY_PTS ];
-      let mut boundary_count = 0;
-      let mut glow : Vec< ( [ f32; 2 ], f32 ) > = Vec::new();
-      if focus_snapshot.active
+      let ( light_dir, light_view_proj ) = sun_light( &tuning_snapshot );
+      if tuning_snapshot.layers.shadows_drawn()
       {
-        let blockers = asteroids.blockers();
-        boundary_count = build_boundary_polyline
-        (
-          focus_snapshot.point[ 0 ], focus_snapshot.point[ 1 ],
-          tuning_snapshot.view_radius, &blockers, &mut boundary_buf
-        );
-        glow = asteroids.glow_candidates( focus_snapshot.point, tuning_snapshot.view_radius );
-        glow.truncate( MAX_ASTEROID_GLOW );
-      }
-
-      // Directional light + shadow map for the hull material - the ortho
-      // frustum is centered on the ship/station/asteroid cluster (not the
-      // whole grid) and placed SHADOW_LIGHT_DISTANCE back along the light
-      // direction, matching the `-light_dir` "camera looks back down at the
-      // scene" convention `Light::view_projection` expects.
-      let light_dir = light_direction( tuning_snapshot.light_azimuth, tuning_snapshot.light_elevation );
-      let shadow_scene_center = gl::F32x3::new( 0.0, 12.0, 0.0 );
-      let shadow_projection = gl::math::mat3x3h::orthographic_rh_gl
-      (
-        -SHADOW_HALF_EXTENT, SHADOW_HALF_EXTENT, -SHADOW_HALF_EXTENT, SHADOW_HALF_EXTENT,
-        1.0, SHADOW_LIGHT_DISTANCE + SHADOW_HALF_EXTENT,
-      );
-      let mut light = Light::new( shadow_scene_center + light_dir * SHADOW_LIGHT_DISTANCE, -light_dir, shadow_projection, tuning_snapshot.light_size );
-      let light_view_proj = light.view_projection();
-
-      shadow_map.bind();
-      shadow_map.clear();
-      for part in asteroids.parts().iter().chain( ships.parts() ).chain( station.parts() )
-      {
-        shadow_map.mvp_upload( light_view_proj * part.model );
-        gl.bind_vertex_array( Some( &part.vao ) );
-        gl.draw_elements_with_i32( GL::TRIANGLES, part.index_count, GL::UNSIGNED_INT, 0 );
+        shadow_pass( &gl, &shadow_map, light_view_proj, visible_parts( &tuning_snapshot.layers, &asteroids, &ships, &station ) );
       }
       gl.bind_framebuffer( GL::FRAMEBUFFER, None );
       gl.viewport( 0, 0, w as i32, h as i32 );
@@ -764,37 +546,38 @@ fn app_run() -> Result< (), gl::WebglError >
 
       hull_program.begin_frame
       (
-        &gl, view_proj, camera.eye_get(), light_dir, tuning_snapshot.light_color, tuning_snapshot.light_intensity,
-        light_view_proj, shadow_map.depth_buffer(), tuning_snapshot.shadows_enabled,
+        &gl, view_proj, camera.eye_get(), light_dir, tuning_snapshot.light_color, tuning_snapshot.light_intensity, tuning_snapshot.light_size,
+        light_view_proj, shadow_map.depth_buffer(), &tuning_snapshot.layers,
       );
-      for part in asteroids.parts() { hull_program.draw_part( &gl, part, Some( part.pick_id ) == selected ); }
-      for part in ships.parts() { hull_program.draw_part( &gl, part, Some( part.pick_id ) == selected ); }
-      for part in station.parts() { hull_program.draw_part( &gl, part, Some( part.pick_id ) == selected ); }
-
-      starfield.draw( &gl, view_proj );
-
-      if tuning_snapshot.show_trajectories || tuning_snapshot.show_sensor_rings
+      for part in visible_parts( &tuning_snapshot.layers, &asteroids, &ships, &station )
       {
-        trajectories.draw
-        (
-          &gl, camera.view_matrix_get(), camera.projection_matrix_get(), [ w as f32, h as f32 ],
-          tuning_snapshot.show_trajectories, tuning_snapshot.show_sensor_rings
-        );
+        hull_program.draw_part( &gl, part, Some( part.pick_id ) == selected );
       }
 
-      if tuning_snapshot.show_grid
+      if tuning_snapshot.layers.show_starfield
+      {
+        starfield.draw( &gl, view_proj );
+      }
+
+      if tuning_snapshot.layers.show_trajectories
+      {
+        trajectories_draw( &gl, &mut trajectories, &tuning, &ships, &camera, [ w as f32, h as f32 ] );
+      }
+
+      if tuning_snapshot.layers.show_grid
       {
         grid.draw
         (
-          &gl, view_proj, camera.eye_get(), &tuning_snapshot, &focus_snapshot,
-          &boundary_buf[ .. boundary_count ], &glow
+          &gl, view_proj, camera.eye_get(), &tuning_snapshot, &ribbon.focus,
+          ribbon.boundary(), &ribbon.glow
         );
       }
 
       // M6: the gizmo handle, drawn on top of everything at whatever is
       // currently selected (translate cross or rotate ring, per
-      // `ctx.gizmo_mode`).
-      if let Some( kind ) = selected_kind
+      // `ctx.gizmo_mode`), while `gizmo_visible` - the same condition the
+      // pick pass renders it under, so it can be grabbed exactly when seen.
+      if let Some( kind ) = selected_kind && gizmo_visible( kind, &tuning_snapshot.layers )
       {
         let object_transform = selected_transform( kind, &asteroids, &ships, &station );
         let gizmo_part = ctx.gizmo.part( ctx.gizmo_mode.get(), object_transform, GIZMO_ID );
@@ -808,6 +591,17 @@ fn app_run() -> Result< (), gl::WebglError >
   gl::exec_loop::run( update_and_draw );
 
   Ok( () )
+}
+
+/// A Render Layers row (or a solo gesture) hid the selected object's layer:
+/// drop the selection, so its unit card, ribbon and gizmo go with it instead
+/// of outliving the object on screen.
+fn selection_drop_if_hidden( ctx : &InteractionCtx, layers : &RenderLayers )
+{
+  if let Some( kind ) = ctx.selected_id.get().and_then( classify_pick ) && !kind_visible( kind, layers )
+  {
+    deselect( ctx );
+  }
 }
 
 /// Wires the M5 click-to-select handler and the M6 gizmo drag handler on the
@@ -839,9 +633,11 @@ fn setup_selection_and_gizmo( ctx : &Rc< InteractionCtx > )
         let pos = pointer_client_pos( &e );
         down_pos.set( Some( pos ) );
 
-        // A gizmo handle only exists while something's selected - nothing
-        // to grab otherwise, so skip the speculative pick entirely.
-        let Some( kind ) = ctx.selected_id.get().and_then( classify_pick ) else { return };
+        // A gizmo handle only exists while something's selected and the
+        // handle is shown - nothing to grab otherwise, so skip the
+        // speculative pick (an id pass plus a synchronous pixel read).
+        let layers = ctx.tuning.borrow().layers;
+        let Some( kind ) = ctx.selected_id.get().and_then( classify_pick ).filter( | kind | gizmo_visible( *kind, &layers ) ) else { return };
         if pick_at_client( &ctx, pos.0, pos.1 ) != Some( GIZMO_ID ) { return; }
 
         let Some( hit ) = ray_ground_hit( ctx.latest_view_proj.get(), &ctx.canvas, pos.0, pos.1 ) else { return };
@@ -854,12 +650,16 @@ fn setup_selection_and_gizmo( ctx : &Rc< InteractionCtx > )
             kind, mode : GizmoMode::Translate,
             grab_offset : [ position[ 0 ] - hit[ 0 ], position[ 1 ] - hit[ 1 ] ],
             rotation_offset : 0.0,
+            start_position : position,
+            start_rotation : rotation_y,
           },
           GizmoMode::Rotate => DragState
           {
             kind, mode : GizmoMode::Rotate,
             grab_offset : [ 0.0, 0.0 ],
             rotation_offset : rotation_y - ( hit[ 0 ] - position[ 0 ] ).atan2( hit[ 1 ] - position[ 1 ] ),
+            start_position : position,
+            start_rotation : rotation_y,
           },
         };
         ctx.drag_state.set( Some( drag ) );
@@ -938,21 +738,33 @@ fn setup_selection_and_gizmo( ctx : &Rc< InteractionCtx > )
 
   {
     let ctx = ctx.clone();
+    let down_pos = down_pos.clone();
     let closure = Closure::< dyn FnMut( _ ) >::new
     (
       move | e : gl::web_sys::KeyboardEvent |
       {
+        // During a gizmo drag the keys act on the drag, not the selection:
+        // Escape cancels it, putting the object back where it was grabbed,
+        // and G/R wait for the drag to end, since the drag keeps the mode it
+        // was grabbed in. Deselecting or switching the drawn handle mid-drag
+        // would leave the selection and the drag disagreeing.
+        if let Some( drag ) = ctx.drag_state.get()
+        {
+          if e.key() == "Escape"
+          {
+            drag_cancel( &ctx, drag );
+            // The press that started the drag must not become a click on
+            // release: over the handle it would select the gizmo's own id.
+            down_pos.set( None );
+          }
+          return;
+        }
         if ctx.selected_id.get().is_none() { return; }
         match e.key().as_str()
         {
           "g" | "G" => ctx.gizmo_mode.set( GizmoMode::Translate ),
           "r" | "R" => ctx.gizmo_mode.set( GizmoMode::Rotate ),
-          "Escape" =>
-          {
-            ctx.selected_id.set( None );
-            refresh_selection_status( &ctx.document, &selection_status_text( None ) );
-            refresh_unit_panel( &ctx.document, None );
-          }
+          "Escape" => deselect( &ctx ),
           _ => {}
         }
       }
@@ -962,7 +774,134 @@ fn setup_selection_and_gizmo( ctx : &Rc< InteractionCtx > )
   }
 }
 
+/// Clears the selection and the HUD that shows it: the status line and the
+/// unit card. Also ends a gizmo drag on the deselected object, where it
+/// leaves the object (and gives camera orbit rotation back).
+fn deselect( ctx : &InteractionCtx )
+{
+  if ctx.drag_state.take().is_some()
+  {
+    ctx.camera_controls.borrow_mut().rotation.enabled = true;
+  }
+  ctx.selected_id.set( None );
+  refresh_selection_status( &ctx.document, &selection_status_text( None ) );
+  refresh_unit_panel( &ctx.document, None );
+}
+
+/// Ends `drag` without applying it: the object goes back to its grab-time
+/// position and rotation, and camera orbit rotation (switched off for the
+/// drag) comes back on.
+fn drag_cancel( ctx : &InteractionCtx, drag : DragState )
+{
+  ctx.drag_state.set( None );
+  ctx.camera_controls.borrow_mut().rotation.enabled = true;
+  let mut asteroids = ctx.asteroids.borrow_mut();
+  let mut ships = ctx.ships.borrow_mut();
+  let mut station = ctx.station.borrow_mut();
+  drag_selected( drag.kind, drag.start_position, &mut asteroids, &mut ships, &mut station );
+  rotate_selected( drag.kind, drag.start_rotation, &mut asteroids, &mut ships, &mut station );
+}
+
 fn main()
 {
   app_run().unwrap();
 }
+
+#[ cfg( test ) ]
+mod tests
+{
+  use super::{ gizmo_visible, kind_visible, ribbon_ship, visible_groups, PickedKind, RenderLayers };
+
+  /// Every object layer and the gizmo shown explicitly, so a changed default
+  /// can't make a test pass or fail for the wrong reason.
+  fn all_shown() -> RenderLayers
+  {
+    RenderLayers
+    {
+      show_grid : true,
+      show_view_ribbon : true,
+      show_asteroids : true,
+      show_ships : true,
+      show_station : true,
+      show_gizmo : true,
+      ..RenderLayers::default()
+    }
+  }
+
+  /// The pick, shadow and visible passes walk exactly the groups whose layer
+  /// is on, in pick-id order.
+  #[ test ]
+  fn visible_groups_keeps_only_shown_groups_in_order()
+  {
+    let ( asteroids, ships, station ) = ( [ 1, 2 ], [ 3 ], [ 4 ] );
+    let walk = | t : &RenderLayers | visible_groups( t, &asteroids, &ships, &station ).copied().collect::< Vec< i32 > >();
+    assert_eq!( walk( &all_shown() ), vec![ 1, 2, 3, 4 ] );
+    assert_eq!( walk( &RenderLayers { show_asteroids : false, ..all_shown() } ), vec![ 3, 4 ] );
+    assert_eq!( walk( &RenderLayers { show_ships : false, ..all_shown() } ), vec![ 1, 2, 4 ] );
+    assert_eq!( walk( &RenderLayers { show_station : false, ..all_shown() } ), vec![ 1, 2, 3 ] );
+  }
+
+  /// Only a selected, visible ship drives the ribbon, and only while the
+  /// grid and its ribbon row are on.
+  #[ test ]
+  fn ribbon_follows_a_visible_selected_ship_only()
+  {
+    let ship = Some( PickedKind::Ship( 2 ) );
+    assert_eq!( ribbon_ship( ship, &all_shown() ), Some( 2 ) );
+    assert_eq!( ribbon_ship( ship, &RenderLayers { show_ships : false, ..all_shown() } ), None );
+    assert_eq!( ribbon_ship( ship, &RenderLayers { show_view_ribbon : false, ..all_shown() } ), None );
+    assert_eq!( ribbon_ship( ship, &RenderLayers { show_grid : false, ..all_shown() } ), None );
+    assert_eq!( ribbon_ship( Some( PickedKind::Station ), &all_shown() ), None );
+    assert_eq!( ribbon_ship( Some( PickedKind::Asteroid( 0 ) ), &all_shown() ), None );
+    assert_eq!( ribbon_ship( None, &all_shown() ), None );
+  }
+
+  #[ test ]
+  fn each_kind_follows_its_own_layer_switch()
+  {
+    let kinds = [ PickedKind::Asteroid( 3 ), PickedKind::Ship( 3 ), PickedKind::Station ];
+    let all_hidden = RenderLayers { show_asteroids : false, show_ships : false, show_station : false, ..all_shown() };
+    for kind in kinds
+    {
+      assert!( kind_visible( kind, &all_shown() ) );
+      assert!( !kind_visible( kind, &all_hidden ) );
+    }
+
+    // Exactly one group shown at a time: each kind must follow its own
+    // switch and no other, so swapping any two arms fails.
+    let only = | asteroids, ships, station | RenderLayers { show_asteroids : asteroids, show_ships : ships, show_station : station, ..all_shown() };
+    for ( index, layers ) in [ only( true, false, false ), only( false, true, false ), only( false, false, true ) ].iter().enumerate()
+    {
+      for ( kind_index, kind ) in kinds.iter().enumerate()
+      {
+        assert_eq!( kind_visible( *kind, layers ), kind_index == index, "{layers:?}" );
+      }
+    }
+  }
+
+  /// The gizmo needs its own switch and the selected object's layer, for
+  /// every kind - and only that kind's layer.
+  #[ test ]
+  fn gizmo_needs_its_switch_and_a_visible_object()
+  {
+    let cases =
+    [
+      ( PickedKind::Asteroid( 0 ), RenderLayers { show_asteroids : false, ..all_shown() } ),
+      ( PickedKind::Ship( 0 ), RenderLayers { show_ships : false, ..all_shown() } ),
+      ( PickedKind::Station, RenderLayers { show_station : false, ..all_shown() } ),
+    ];
+    for ( kind, own_layer_hidden ) in cases
+    {
+      assert!( gizmo_visible( kind, &all_shown() ) );
+      assert!( !gizmo_visible( kind, &RenderLayers { show_gizmo : false, ..all_shown() } ) );
+      assert!( !gizmo_visible( kind, &own_layer_hidden ) );
+    }
+    // Hiding another kind's layer leaves the gizmo alone.
+    assert!( gizmo_visible( PickedKind::Station, &RenderLayers { show_ships : false, show_asteroids : false, ..all_shown() } ) );
+  }
+}
+
+// Live-GL-context tests of `visible_parts` and `pick_at_client`, so
+// wasm32-only - see `live_gl_tests.rs`.
+#[ cfg( all( test, target_arch = "wasm32" ) ) ]
+mod live_gl_tests;

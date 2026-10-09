@@ -5,10 +5,11 @@
 A tactical space-scene demo: a fleet of selectable ships and a station orbit an asteroid field,
 tracked by a shader-driven tactical grid whose selection-driven view-zone ribbon wraps around
 blocking asteroids as a faceted boundary polyline. Selecting a unit shows its info in a HUD
-card and a movable/rotatable transform gizmo (translate XZ / rotate Y); fleets move along
-Catmull-Rom trajectories with live path and sensor-ring overlays. Object picking uses an
-off-screen ID buffer (`gpu_picking`) rather than CPU-side raycasting. A dev tuning panel
-exposes every tactical-grid shader parameter live.
+card and a movable/rotatable transform gizmo (translate XZ / rotate Y); fleets follow
+Catmull-Rom patrol paths. Object picking uses an off-screen ID buffer (`gpu_picking`) rather
+than CPU-side raycasting. A dev tuning panel exposes every tactical-grid shader parameter live;
+the nebula backdrop is baked once into a cube map at startup and sampled every frame rather
+than re-evaluated per pixel.
 
 Controls:
 - Left-click drag - orbit camera
@@ -17,10 +18,16 @@ Controls:
 - Click a ship / asteroid / the station - select it (a drag past ~6px counts as a camera drag, not a click)
 - G - switch the gizmo to translate mode (requires a selection)
 - R - switch the gizmo to rotate mode (requires a selection)
-- Escape - deselect
-- HUD toggle buttons (Tactical Grid / Vector Trajectories / Sensor Ranges & Rings / CRT Scanlines / Animate Ships Motion) - toggle each overlay independently
-- HUD Pause / Play / Fast buttons - control simulation speed
-- HUD "Reset Camera View" button - restores the initial camera framing
-- Dev tuning panel - exposes every tactical-grid shader parameter live
+- Escape - deselect; during a gizmo drag, cancel the drag instead
+- HUD Pause / Play / Fast buttons - control simulation speed; P pauses or resumes
+- HUD "Reset Camera" button - restores the initial camera framing
+- Render Layers panel (bottom left) - click a row to switch it. Scene layers (grid, background,
+  starfield, asteroids, ships, station, trajectories - the last off at start): right click a row
+  to show only that layer, Shift + right click to hide it and show the other scene layers (mouse
+  only). Overlays and lighting (view-zone
+  ribbon, selection gizmo, lighting, shadows, CRT scanlines) are left alone by those gestures; the
+  ribbon row is greyed out while the grid is off, and shadows while lighting is off
+- Dev tuning panel (bottom right) - exposes every tactical-grid shader parameter live
+- Click either dev panel's title to collapse or expand it
 
 **[How to run](../../how_to_run.md)**

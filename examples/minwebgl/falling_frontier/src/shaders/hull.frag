@@ -17,9 +17,13 @@ uniform vec3 u_camera_position;
 uniform vec3 u_light_dir;
 uniform vec3 u_light_color;
 uniform float u_light_intensity;
+// Shadow softness: scales the PCF tap spacing, so 0 is a hard single-texel
+// edge and larger values blur the penumbra over more shadow-map texels.
+uniform float u_light_size;
 uniform mat4 u_light_view_proj;
-uniform sampler2D u_shadow_map;
+uniform highp sampler2D u_shadow_map;
 uniform float u_shadows_enabled;
+uniform float u_lighting_enabled;
 
 out vec4 frag_color;
 
@@ -61,7 +65,7 @@ float shadow_factor( vec3 world_pos )
     return 1.0;
   }
 
-  vec2 texel = 1.0 / vec2( textureSize( u_shadow_map, 0 ) );
+  vec2 texel = u_light_size / vec2( textureSize( u_shadow_map, 0 ) );
 
   float lit = 0.0;
   for ( int x = -1; x <= 1; x++ )
@@ -77,12 +81,35 @@ float shadow_factor( vec3 world_pos )
 
 void main()
 {
+  // Fully self-lit parts (u_ambient == 1.0: engine glow, beacon) fall
+  // straight through to plain u_color regardless of any lighting term, same
+  // invariant the original flat-ambient formula relied on - `self_lit` is a
+  // hard step rather than a continuous blend since AMBIENT_LIT/AMBIENT_GLOW
+  // (see hull.rs) are the only two values ever passed in, and blending
+  // partway between the lit result and `u_color` for the *normal* 0.35 case
+  // would just dilute the shading effect this rewrite is for.
+  float self_lit = step( 0.999, u_ambient );
+
+  // Plain flat `u_color`, with no normal/shadow/specular work at all, for
+  // fully self-lit parts (the lit path below would end as exactly `u_color`
+  // for them anyway) and for every part while lighting is switched off -
+  // a deliberately separate uniform from `u_shadows_enabled`, which only
+  // decides whether the lit path below samples the shadow map and would
+  // still leave directional shading (and the resulting dark unlit faces) in
+  // place on its own.
+  if ( u_lighting_enabled < 0.5 || self_lit > 0.5 )
+  {
+    frag_color = vec4( u_color, 1.0 );
+    return;
+  }
+
   vec3 normal = normalize( cross( dFdx( v_world_pos ), dFdy( v_world_pos ) ) );
   if ( !gl_FrontFacing ) normal = -normal;
 
   vec3 light_dir = normalize( u_light_dir );
   float n_dot_l = max( dot( normal, light_dir ), 0.0 );
-  float shadow = mix( 1.0, shadow_factor( v_world_pos ), u_shadows_enabled );
+  // Shadows off: the nine shadow-map taps aren't taken at all.
+  float shadow = u_shadows_enabled > 0.5 ? shadow_factor( v_world_pos ) : 1.0;
   float lit = n_dot_l * shadow;
 
   vec3 view_dir = normalize( u_camera_position - v_world_pos );
@@ -96,16 +123,8 @@ void main()
   vec3 diffuse_color = u_color * u_light_color * u_light_intensity;
   vec3 base = mix( ambient_color, diffuse_color, lit ) * floor_and_diffuse;
 
-  // Fully self-lit parts (u_ambient == 1.0: engine glow, beacon) fall
-  // straight through to plain u_color regardless of `base` above, same
-  // invariant the original flat-ambient formula relied on - `self_lit` is a
-  // hard step rather than a continuous blend since AMBIENT_LIT/AMBIENT_GLOW
-  // (see hull.rs) are the only two values ever passed in, and blending
-  // partway between `base` and `u_color` for the *normal* 0.35 case would
-  // just dilute the shading effect this rewrite is for.
-  float self_lit = step( 0.999, u_ambient );
-  vec3 color = mix( base, u_color, self_lit );
-  color += u_light_color * u_light_intensity * spec * SPECULAR_STRENGTH * ( 1.0 - self_lit );
+  // Self-lit parts returned early above, so everything here is shaded.
+  vec3 color = base + u_light_color * u_light_intensity * spec * SPECULAR_STRENGTH;
 
   frag_color = vec4( color, 1.0 );
 }

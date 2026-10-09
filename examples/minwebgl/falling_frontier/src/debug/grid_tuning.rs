@@ -1,7 +1,11 @@
-//! Live-tunable state for the tactical grid shader, ported from
-//! `examples/threejs/falling_frontier/src/debug/gridTuning.js`. Scoped to
-//! only the uniforms `TacticalGrid` (M1) actually wires — extend this
-//! struct (not a second one) when M3 adds the ribbon/glow uniforms.
+//! Live-tunable state shared by the dev panels, the HUD and the frame loop.
+//! Started as the tactical grid shader's uniforms, ported from the three.js
+//! original's grid tuning object, and has since grown the view-zone ribbon
+//! and asteroid glow (M3), fleet playback (M7/M8) and the directional light.
+//! The render-layer switches live in their own `RenderLayers`, held here as
+//! `layers`, so one `Rc< RefCell< GridTuning > >` still carries everything.
+
+use super::render_layers::RenderLayers;
 
 /// Fade curve shapes shared by the camera-distance fade (and, later, the
 /// inside/ribbon fade). Value is what the shader's `u_camera_fade_mode`
@@ -14,6 +18,8 @@ pub const FADE_CURVES : [ ( f32, &str ); 4 ] =
   ( 3.0, "Exponential^2" ),
 ];
 
+/// Every live-tunable value the demo has; see the module doc for what each
+/// group is and `RenderLayers` for the visibility switches.
 #[ derive( Clone, Copy ) ]
 pub struct GridTuning
 {
@@ -51,23 +57,15 @@ pub struct GridTuning
   // per-ship value to look up.
   pub view_radius : f32,
 
-  // M7: fleet motion + trajectory/sensor-ring visibility. `animate_ships`
-  // defaults to `false`, matching the JS reference's own
-  // `playbackState.isAnimating: false` ("off by default while the static
-  // layout is being blocked out with the transform gizmo" - see
-  // examples/threejs/falling_frontier/src/state.js). `show_trajectories`/
-  // `show_sensor_rings` default to `false` too, matching `main.js`'s
-  // `groups.trajectory.visible = false; groups.sensorRing.visible = false;`.
+  // M7: fleet motion. `animate_ships` defaults to `false`, matching the
+  // three.js original, which also started with ship animation off while the
+  // static layout was being blocked out with the transform gizmo.
   pub animate_ships : bool,
-  pub show_trajectories : bool,
-  pub show_sensor_rings : bool,
 
-  // M8: HUD toolbar state. `show_grid` defaults to `true` (JS's own
-  // `toggle-grid` button starts `active`/`[ON]`); `speed_multiplier` scales
-  // `animate_ships`'s per-frame progress step - the HUD's Play/Fast buttons
-  // set it to `1.0`/`2.5` (matching `playbackState.shipSpeedMultiplier` in
-  // the JS reference), Pause leaves it alone and just clears `animate_ships`.
-  pub show_grid : bool,
+  // M8: `speed_multiplier` scales `animate_ships`'s per-frame progress step
+  // - the HUD's Play/Fast buttons set it to `1.0`/`2.5` (matching
+  // `playbackState.shipSpeedMultiplier` in the JS reference), Pause leaves
+  // it alone and just clears `animate_ships`.
   pub speed_multiplier : f32,
 
   // Directional light + shadow-map controls for `hull.rs`'s material
@@ -82,13 +80,16 @@ pub struct GridTuning
   pub light_elevation : f32,
   pub light_color : [ f32; 3 ],
   pub light_intensity : f32,
-  // `Light::size()` ("controls shadow softness" per its own doc comment,
-  // `module/helper/renderer/src/webgl/shadow.rs:342`) - was a hardcoded
-  // `1.0` literal at the `Light::new` call site in `main.rs` until this
-  // field exposed it. Range mirrors this same renderer's own spot-light
-  // precedent (`shadow.rs:454`: `light_size` computed in `0.01..=1.7`).
+  // Shadow softness: `hull.frag`'s `u_light_size`, which scales the 3x3 PCF
+  // tap spacing in shadow-map texels (0 = hard edge, 1 = the original
+  // one-texel spacing). Also passed to `Light::new`, whose own `size()` only
+  // the renderer's `ShadowBaker` reads - this example doesn't use it, so the
+  // uniform is what makes the slider visible.
   pub light_size : f32,
-  pub shadows_enabled : bool,
+
+  /// Which scene layers the frame loop draws - the Render Layers panel's
+  /// switches.
+  pub layers : RenderLayers,
 }
 
 impl Default for GridTuning
@@ -124,10 +125,6 @@ impl Default for GridTuning
       view_radius : 160.0,
 
       animate_ships : false,
-      show_trajectories : false,
-      show_sensor_rings : false,
-
-      show_grid : true,
       speed_multiplier : 1.0,
 
       light_azimuth : 276.0,
@@ -135,7 +132,8 @@ impl Default for GridTuning
       light_color : [ 1.0, 0.933, 0.867 ], // 0xffeedd, matches world.js's own sunLight color
       light_intensity : 1.85,
       light_size : 1.0,
-      shadows_enabled : true,
+
+      layers : RenderLayers::default(),
     }
   }
 }

@@ -1,8 +1,8 @@
 #version 300 es
 precision highp float;
 
-// Tactical grid — ported from examples/threejs/falling_frontier's
-// tacticalGrid.js fragment shader. M1 slice: fwidth-based analytic-AA grid
+// Tactical grid — ported from the three.js original's
+// `tacticalGrid.js` fragment shader. M1 slice: fwidth-based analytic-AA grid
 // lines + camera-distance fade. M3 slice (this version): the view-zone
 // ribbon (a closed boundary polyline built on the CPU each frame — see
 // `boundary.rs` — wrapped tight around any blocking asteroid), the
