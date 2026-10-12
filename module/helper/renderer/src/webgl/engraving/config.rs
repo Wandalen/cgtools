@@ -34,6 +34,11 @@ mod private
   impl EngravingConfig
   {
     /// Parses an `engraving_config.json` document from its raw text.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`EngravingConfigError`] if `json` doesn't parse into this shape, or if a
+    /// node fails its validation (`EngravingNodeConfig::validate`).
     pub fn from_json( json : &str ) -> Result< Self, EngravingConfigError >
     {
       let config : Self = serde_json::from_str( json ).map_err( | e | EngravingConfigError( e.to_string() ) )?;
@@ -47,6 +52,7 @@ mod private
     }
 
     /// Returns the config entry for `node_name`, if one is present.
+    #[ must_use ]
     pub fn node( &self, node_name : &str ) -> Option< &EngravingNodeConfig >
     {
       self.nodes.iter().find( | n | &*n.node_name == node_name )
@@ -159,6 +165,7 @@ mod private
   impl TextAlign
   {
     /// The `CanvasRenderingContext2d::set_text_align` value for this alignment.
+    #[ must_use ]
     pub fn css( self ) -> &'static str
     {
       match self
@@ -206,6 +213,7 @@ mod private
   {
     /// Resolves the effective [`SizingMode`] — see [`EngravingNodeConfig::resolved_sizing_mode`],
     /// which this mirrors.
+    #[ must_use ]
     pub fn resolved_sizing_mode( &self ) -> SizingMode
     {
       if let Some( mode ) = self.sizing_mode
@@ -226,6 +234,7 @@ mod private
   impl EngravingNodeConfig
   {
     /// Returns the offscreen canvas / texture size `( width, height )` implied by `texture_height` and `aspect_ratio`.
+    #[ must_use ]
     pub fn texture_size( &self ) -> ( u32, u32 )
     {
       let width = ( self.texture_height as f32 * self.aspect_ratio ).round().max( 1.0 ) as u32;
@@ -236,6 +245,7 @@ mod private
     /// `HYBRID` when both `strip_height_mm` and `default_font_size_mm` are present, otherwise
     /// `RELATIVE` — so a config with no physical fields at all falls back to the original
     /// auto-fit behavior without any explicit opt-in.
+    #[ must_use ]
     pub fn resolved_sizing_mode( &self ) -> SizingMode
     {
       self.text_layout().resolved_sizing_mode()
@@ -243,6 +253,7 @@ mod private
 
     /// Extracts the subset of this config that's safe to change after
     /// [`crate::webgl::engraving::EngravingSession::build`] — see [`EngravingTextLayout`].
+    #[ must_use ]
     pub fn text_layout( &self ) -> EngravingTextLayout
     {
       EngravingTextLayout
@@ -280,7 +291,7 @@ mod private
       {
         return Err( EngravingConfigError( format!( "node '{}': allowedFonts must not be empty", self.node_name ) ) );
       }
-      if !self.allowed_fonts.iter().any( | f | &**f == &*self.default_font )
+      if !self.allowed_fonts.iter().any( | f | **f == *self.default_font )
       {
         return Err( EngravingConfigError( format!( "node '{}': defaultFont '{}' is not listed in allowedFonts", self.node_name, self.default_font ) ) );
       }

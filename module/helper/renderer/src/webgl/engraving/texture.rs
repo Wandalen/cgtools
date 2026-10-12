@@ -60,6 +60,11 @@ mod private
     /// `width`/`height` should come from [`crate::webgl::engraving::EngravingNodeConfig::texture_size`]
     /// and must match every bitmap chain later passed to [`Self::update`] — the whole point of
     /// this type is that this allocation happens exactly once.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`gl::WebglError::FailedToAllocateResource`] if the texture or the storage of one
+    /// of its mip levels can't be allocated.
     pub fn new( gl : &GL, width : u32, height : u32, uv_position : u32 ) -> Result< Self, gl::WebglError >
     {
       let source = gl.create_texture().ok_or( gl::WebglError::FailedToAllocateResource( "engraving texture" ) )?;
@@ -111,6 +116,11 @@ mod private
     /// `bitmaps` must have exactly [`Self::level_count`] entries, ordered the same way
     /// [`crate::webgl::engraving::EngravingCanvasManager::render_text_mip_chain`] returns them
     /// (index `0` is the full `width` x `height` level).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`gl::WebglError::Other`] if `bitmaps` doesn't have exactly one bitmap per mip
+    /// level, if a bitmap's size differs from its level's, or if a `texSubImage2D` upload fails.
     pub fn update( &self, gl : &GL, bitmaps : &[ EngravingBitmap ] ) -> Result< (), gl::WebglError >
     {
       if bitmaps.len() as u32 != self.levels
@@ -150,18 +160,22 @@ mod private
     }
 
     /// Width in pixels of mip level 0 of the GPU allocation.
+    #[ must_use ]
     pub fn width( &self ) -> u32 { self.width }
 
     /// Height in pixels of mip level 0 of the GPU allocation.
+    #[ must_use ]
     pub fn height( &self ) -> u32 { self.height }
 
     /// Number of mip levels [`Self::update`] expects a bitmap for, from level 0 (`width` x
     /// `height`) down to the final `1` x `1` level.
+    #[ must_use ]
     pub fn level_count( &self ) -> u32 { self.levels }
 
     /// Returns a [`TextureInfo`] handle to this texture, suitable for
     /// `PbrMaterial::engraving_texture_set`. Cloning is cheap (the underlying `Texture` is
     /// `Rc`-shared), and further [`Self::update`] calls remain visible through every clone.
+    #[ must_use ]
     pub fn texture_info( &self ) -> TextureInfo
     {
       self.info.clone()

@@ -106,6 +106,11 @@ mod private
     /// `width`/`height` normally come from [`crate::webgl::engraving::EngravingNodeConfig::texture_size`],
     /// so the rasterized bitmap matches the GPU texture's dimensions exactly and no scaling is
     /// needed on upload.
+    ///
+    /// # Errors
+    ///
+    /// [`EngravingCanvasError::NoDom`] outside a browser tab (no `window` / `document`), or
+    /// [`EngravingCanvasError::CanvasSetup`] if the canvas or its 2D context can't be created.
     pub fn new( width : u32, height : u32 ) -> Result< Self, EngravingCanvasError >
     {
       let window = web_sys::window().ok_or( EngravingCanvasError::NoDom )?;
@@ -131,12 +136,15 @@ mod private
 
     /// The underlying (detached, never appended to the DOM) canvas element, exposed for
     /// debugging/preview purposes (e.g. temporarily appending it to inspect the rasterized text).
+    #[ must_use ]
     pub fn canvas( &self ) -> &web_sys::HtmlCanvasElement { &self.canvas }
 
     /// Width in pixels of the offscreen canvas.
+    #[ must_use ]
     pub fn width( &self ) -> u32 { self.width }
 
     /// Height in pixels of the offscreen canvas.
+    #[ must_use ]
     pub fn height( &self ) -> u32 { self.height }
 
     /// Waits for `family` to be ready for use, downloading it first if necessary.
@@ -176,6 +184,15 @@ mod private
     /// relying on `generateMipmap`.
     ///
     /// Returns levels ready for [`crate::webgl::engraving::EngravingTexture::update`].
+    ///
+    /// # Errors
+    ///
+    /// - [`EngravingCanvasError::TooManyCharacters`] if `text` is longer than the layout's
+    ///   `max_characters`;
+    /// - [`EngravingCanvasError::FontLoad`] if `font_family` doesn't load;
+    /// - [`EngravingCanvasError::TextOverflow`] if the text doesn't fit the full-size level under
+    ///   a `PHYSICAL` / `HYBRID` layout (see `resolve_font_size`);
+    /// - [`EngravingCanvasError::Draw`] if a canvas call throws.
     pub async fn render_text_mip_chain
     (
       &mut self,
@@ -240,7 +257,7 @@ mod private
 
       // Fully opaque black background.
       self.ctx.set_fill_style_str( "#000000" );
-      self.ctx.fill_rect( 0.0, 0.0, width as f64, height as f64 );
+      self.ctx.fill_rect( 0.0, 0.0, f64::from( width ), f64::from( height ) );
 
       if text.is_empty()
       {
@@ -251,7 +268,7 @@ mod private
       let max_text_width = ( width as f32 - 2.0 * pad_px ).max( 1.0 );
       let max_text_height = ( height as f32 - 2.0 * pad_px ).max( 1.0 );
 
-      let font_size = self.resolve_font_size( text, font_family, layout, height as f32, max_text_width, max_text_height, is_base_level )?;
+      let font_size = self.resolve_font_size( text, font_family, layout, height as f32, ( max_text_width, max_text_height ), is_base_level )?;
 
       self.ctx.set_fill_style_str( "#FFFFFF" );
       self.ctx.set_font( &format!( "{font_size}px \"{font_family}\"" ) );
@@ -261,11 +278,11 @@ mod private
 
       let x = match align
       {
-        TextAlign::Left => pad_px as f64,
-        TextAlign::Center => width as f64 * 0.5,
-        TextAlign::Right => ( width as f32 - pad_px ) as f64,
+        TextAlign::Left => f64::from( pad_px ),
+        TextAlign::Center => f64::from( width ) * 0.5,
+        TextAlign::Right => f64::from( width as f32 - pad_px ),
       };
-      self.ctx.fill_text( text, x, height as f64 * 0.5 )?;
+      self.ctx.fill_text( text, x, f64::from( height ) * 0.5 )?;
 
       self.read_back( width, height )
     }
@@ -281,8 +298,10 @@ mod private
     ///   config-load time, and [`crate::webgl::engraving::EngravingSession::text_layout_mut`]
     ///   allows mutating a node's layout afterwards, e.g. from a live GUI; if either field is
     ///   missing here, this falls back to the same auto-fit as `RELATIVE` rather than
-    ///   panicking). `PHYSICAL` rejects overflow of `max_width` outright; `HYBRID` shrinks
-    ///   proportionally down to `minFontSizeMm` (unboundedly if unset) before rejecting.
+    ///   panicking). `PHYSICAL` rejects overflow of `max_size`'s width outright; `HYBRID`
+    ///   shrinks proportionally down to `minFontSizeMm` (unboundedly if unset) before rejecting.
+    ///
+    /// `max_size` is the text box, `( width, height )` in canvas pixels inside the padding.
     ///
     /// `is_base_level` gates whether that rejection is actually fatal: it only is for the
     /// full-resolution mip level. A mip chain's lower levels exist purely to anti-alias the
@@ -299,12 +318,12 @@ mod private
       font_family : &str,
       layout : &EngravingTextLayout,
       canvas_height : f32,
-      max_width : f32,
-      max_height : f32,
+      max_size : ( f32, f32 ),
       is_base_level : bool,
     )
     -> Result< f32, EngravingCanvasError >
     {
+      let ( max_width, max_height ) = max_size;
       match layout.resolved_sizing_mode()
       {
         SizingMode::Relative =>
@@ -342,7 +361,7 @@ mod private
           let shrunk_px = target_px * ( max_width / target_w );
           let floor_px = if is_base_level
           {
-            layout.min_font_size_mm.map( | min_mm | canvas_height * ( min_mm / strip_height_mm ) ).unwrap_or( 1.0 )
+            layout.min_font_size_mm.map_or( 1.0, | min_mm | canvas_height * ( min_mm / strip_height_mm ) )
           }
           else
           {
