@@ -4,7 +4,7 @@ name: ci
 # readme.md's Testing section) on every push to master and every PR into it —
 # native suite (nextest + doctests + clippy), a wasm32 compile check across every
 # browser-kind example, and the real wasm_bindgen_test suites (browser-driven,
-# via the Firefox + geckodriver preinstalled on this runner image). Calls
+# in the headless Chrome + chromedriver preinstalled on this runner image). Calls
 # verb/test directly rather than re-deriving its steps here, so "CI is green"
 # and "verb/test passes locally" can never silently drift apart.
 #
@@ -77,11 +77,20 @@ jobs:
         with:
           tool: wasm-bindgen@${{ steps.wasm_bindgen.outputs.version }}
 
-      # The runner picks the browser from GECKODRIVER / CHROMEDRIVER (see
-      # .cargo/config.toml). The image ships geckodriver under
-      # $GECKOWEBDRIVER, which the runner doesn't read.
-      - name: Point the wasm test runner at geckodriver
-        run: echo "GECKODRIVER=$( command -v geckodriver || echo "$GECKOWEBDRIVER/geckodriver" )" >> "$GITHUB_ENV"
+      # The browser suites need WebGL2, and minwebgpu's WebGPU. On this GPU-less
+      # runner headless Firefox gets no WebGL2 context at all; headless Chrome
+      # does, through its SwiftShader software renderer, and can reach WebGPU
+      # through lavapipe's Vulkan. The runner picks the browser from
+      # CHROMEDRIVER (see .cargo/config.toml) and reads capabilities from a
+      # webdriver.json in its cwd, the workspace root. That file replaces the
+      # runner's own capabilities, so it repeats --headless. It is written
+      # here rather than committed, so local runs keep the driver defaults.
+      - name: Point the wasm test runner at headless Chrome
+        run: |
+          echo "CHROMEDRIVER=$CHROMEWEBDRIVER/chromedriver" >> "$GITHUB_ENV"
+          cat > webdriver.json <<'JSON'
+          { "goog:chromeOptions" : { "args" : [ "--headless=new", "--no-sandbox", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--enable-unsafe-webgpu", "--enable-features=Vulkan" ] } }
+          JSON
 
       - name: Install dvc
         run: pipx install dvc
