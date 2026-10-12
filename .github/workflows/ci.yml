@@ -61,6 +61,28 @@ jobs:
       - name: Install rust-src
         run: rustup component add rust-src
 
+      # verb/test's last stage runs the wasm_bindgen_test suites through
+      # script/wasm_test_runner.sh, which execs wasm-bindgen-test-runner. The
+      # runner's version must equal the wasm-bindgen crate's, and Cargo.lock
+      # is not committed, so the version comes from the lockfile generated
+      # here, which verb/test then builds against.
+      - name: Resolve the wasm-bindgen version
+        id: wasm_bindgen
+        run: |
+          cargo generate-lockfile
+          echo "version=$( cargo pkgid wasm-bindgen | sed 's/.*@//' )" >> "$GITHUB_OUTPUT"
+
+      - name: Install wasm-bindgen-test-runner
+        uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen@${{ steps.wasm_bindgen.outputs.version }}
+
+      # The runner picks the browser from GECKODRIVER / CHROMEDRIVER (see
+      # .cargo/config.toml). The image ships geckodriver under
+      # $GECKOWEBDRIVER, which the runner doesn't read.
+      - name: Point the wasm test runner at geckodriver
+        run: echo "GECKODRIVER=$( command -v geckodriver || echo "$GECKOWEBDRIVER/geckodriver" )" >> "$GITHUB_ENV"
+
       - name: Install dvc
         run: pipx install dvc
 
