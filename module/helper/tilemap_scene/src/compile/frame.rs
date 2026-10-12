@@ -349,7 +349,7 @@ mod private
       pipeline_layers.iter().map( | _ | Vec::new() ).collect();
 
     // No VertexCorners layers anywhere → skip the (allocating) enumeration.
-    if bucket_layers.iter().all( | v | v.is_empty() )
+    if bucket_layers.iter().all( Vec::is_empty )
     {
       return Ok( out );
     }
@@ -1123,6 +1123,37 @@ mod private
 
   impl VertexResolveCache
   {
+    /// Stores `fresh`, a structural resolve made at `revision` with the `skip` mask.
+    ///
+    /// A `restart_on_spawn` pulse (see `project_vertex_sprite`) anchors to when its
+    /// bucket's CONTENT last changed — not to every re-resolve. The resolve reruns on
+    /// any hex-cell change, including ones that don't touch this bucket at all (a
+    /// capture elsewhere re-resolves every layer), which must NOT restart an unrelated
+    /// layer's pulse. So each bucket's prior anchor is carried forward while its
+    /// resolved tiles are unchanged; only genuinely new/changed content keeps the fresh
+    /// anchor the resolve gave it.
+    fn store( &mut self, mut fresh : Vec< Vec< ResolvedVertexSprite > >, revision : u64, skip : u64 )
+    {
+      if self.valid
+      {
+        for ( fb, ob ) in fresh.iter_mut().zip( self.buckets.iter() )
+        {
+          if same_vertex_content( fb, ob )
+          {
+            for ( fs, os ) in fb.iter_mut().zip( ob.iter() )
+            {
+              fs.pulse_anchor = os.pulse_anchor;
+            }
+          }
+        }
+      }
+      self.buckets = fresh;
+      self.revision = revision;
+      self.skip = skip;
+      self.valid = true;
+      self.resolves += 1;
+    }
+
     /// A fresh, empty cache that misses on its first use.
     #[ must_use ]
     pub fn new() -> Self
@@ -1382,51 +1413,20 @@ mod private
     // reusing the cached result while the scene's hex cells are unchanged. On a
     // miss (or with no cache) it is recomputed; either way the cheap per-frame
     // projection happens below, per bucket.
-    let resolved : &[ Vec< ResolvedVertexSprite > ];
     let local_resolved;
-    match vcache
+    let resolved : &[ Vec< ResolvedVertexSprite > ] = if let Some( cache ) = vcache
     {
-      Some( cache ) =>
+      if vertex_miss
       {
-        if vertex_miss
-        {
-          let mut fresh = resolve_vertex_pass_all( &synthetic_tiles, &ctx, skip )?;
-          // A `restart_on_spawn` pulse (see `project_vertex_sprite`) anchors to when
-          // its bucket's CONTENT last changed — not to every re-resolve. The resolve
-          // reruns on any hex-cell change, including ones that don't touch this
-          // bucket at all (a capture elsewhere re-resolves every layer), which must
-          // NOT restart an unrelated layer's pulse. So carry each bucket's prior
-          // anchor forward while its resolved tiles are unchanged; only genuinely
-          // new/changed content takes the fresh `ctx.time_seconds` anchor set above.
-          if cache.valid
-          {
-            for ( i, fb ) in fresh.iter_mut().enumerate()
-            {
-              let Some( ob ) = cache.buckets.get( i ) else { continue };
-              if same_vertex_content( fb, ob )
-              {
-                for ( fs, os ) in fb.iter_mut().zip( ob.iter() )
-                {
-                  fs.pulse_anchor = os.pulse_anchor;
-                }
-              }
-            }
-          }
-          cache.buckets = fresh;
-          cache.revision = revision;
-          cache.skip = skip;
-          cache.valid = true;
-          cache.resolves += 1;
-        }
-        resolved = &cache.buckets;
+        cache.store( resolve_vertex_pass_all( &synthetic_tiles, &ctx, skip )?, revision, skip );
       }
-      None =>
-      {
-        local_resolved = resolve_vertex_pass_all( &synthetic_tiles, &ctx, skip )?;
-        resolved = &local_resolved;
-      }
+      &cache.buckets
     }
-
+    else
+    {
+      local_resolved = resolve_vertex_pass_all( &synthetic_tiles, &ctx, skip )?;
+      &local_resolved
+    };
     let mut buckets = Vec::with_capacity( bucket_count );
 
     for ( bucket_idx, bucket ) in spec.pipeline.layers.iter().enumerate()
