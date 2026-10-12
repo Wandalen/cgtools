@@ -243,7 +243,7 @@ mod private
 
       // Fully opaque black background.
       self.ctx.set_fill_style_str( "#000000" );
-      self.ctx.fill_rect( 0.0, 0.0, width as f64, height as f64 );
+      self.ctx.fill_rect( 0.0, 0.0, f64::from( width ), f64::from( height ) );
 
       if text.is_empty()
       {
@@ -264,11 +264,11 @@ mod private
 
       let x = match align
       {
-        TextAlign::Left => pad_px as f64,
-        TextAlign::Center => width as f64 * 0.5,
-        TextAlign::Right => ( width as f32 - pad_px ) as f64,
+        TextAlign::Left => f64::from( pad_px ),
+        TextAlign::Center => f64::from( width ) * 0.5,
+        TextAlign::Right => f64::from( width as f32 - pad_px ),
       };
-      self.ctx.fill_text( text, x, height as f64 * 0.5 )?;
+      self.ctx.fill_text( text, x, f64::from( height ) * 0.5 )?;
 
       self.read_back( width, height )
     }
@@ -345,7 +345,7 @@ mod private
           let shrunk_px = target_px * ( max_width / target_w );
           let floor_px = if is_base_level
           {
-            layout.min_font_size_mm.map( | min_mm | canvas_height * ( min_mm / strip_height_mm ) ).unwrap_or( 1.0 )
+            layout.min_font_size_mm.map_or( 1.0, | min_mm | canvas_height * ( min_mm / strip_height_mm ) )
           }
           else
           {

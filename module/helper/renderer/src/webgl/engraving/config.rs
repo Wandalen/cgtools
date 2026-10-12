@@ -286,7 +286,7 @@ mod private
       {
         return Err( EngravingConfigError( format!( "node '{}': allowedFonts must not be empty", self.node_name ) ) );
       }
-      if !self.allowed_fonts.iter().any( | f | &**f == &*self.default_font )
+      if !self.allowed_fonts.iter().any( | f | **f == *self.default_font )
       {
         return Err( EngravingConfigError( format!( "node '{}': defaultFont '{}' is not listed in allowedFonts", self.node_name, self.default_font ) ) );
       }
