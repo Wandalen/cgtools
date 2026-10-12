@@ -152,7 +152,7 @@ mod tests
   fn texture_unit_table_pairs_each_sampler_with_its_own_texture()
   {
     let gl_context = gl_init();
-    let setters : [ ( &str, TextureSet ); 12 ] =
+    let setters : [ ( &str, TextureSet ); 13 ] =
     [
       ( "metallicRoughnessTexture", PbrMaterial::metallic_roughness_texture_set ),
       ( "baseColorTexture", PbrMaterial::base_color_texture_set ),
@@ -166,6 +166,7 @@ mod tests
       ( "clearcoatRoughnessTexture", PbrMaterial::clearcoat_roughness_texture_set ),
       ( "clearcoatNormalTexture", PbrMaterial::clearcoat_normal_texture_set ),
       ( "anisotropyTexture", PbrMaterial::anisotropy_texture_set ),
+      ( "engravingTexture", PbrMaterial::engraving_texture_set ),
     ];
 
     for ( sampler, set ) in setters
