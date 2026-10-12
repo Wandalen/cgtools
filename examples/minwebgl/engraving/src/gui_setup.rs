@@ -1,12 +1,10 @@
-#![ allow( clippy::needless_pass_by_value ) ]
-#![ allow( clippy::field_reassign_with_default ) ]
 
 use std::{ cell::RefCell, rc::Rc };
 
 use minwebgl as gl;
 use gl::GL;
 use gl::wasm_bindgen::prelude::*;
-use renderer::webgl::{ Material, engraving::{ EngravingSession, SizingMode, TextAlign }, material::PbrMaterial };
+use renderer::webgl::{ Material, engraving::{ EngravingSession, EngravingTextLayout, SizingMode, TextAlign }, material::PbrMaterial };
 use serde::{ Deserialize, Serialize };
 
 use crate::lil_gui::{ add_dropdown, add_folder, add_slider, add_text, new_gui, on_change, on_change_str, on_finish_change, show };
@@ -129,57 +127,122 @@ fn spawn_set_text( gl : GL, session : Rc< RefCell< EngravingSession > >, node_na
   );
 }
 
+/// What a control needs to re-render the engraving after changing its input: the context, the
+/// session and node to render into, and the shared text/font [`EngravingState`].
+#[ derive( Clone ) ]
+struct Rerender
+{
+  gl : GL,
+  session : Rc< RefCell< EngravingSession > >,
+  node_name : String,
+  state : Rc< RefCell< EngravingState > >,
+}
+
+impl Rerender
+{
+  /// Re-renders the current text and font through [`spawn_set_text`].
+  fn spawn( &self )
+  {
+    spawn_set_text( self.gl.clone(), self.session.clone(), self.node_name.clone(), self.state.clone() );
+  }
+
+  /// Applies `set` to the node's text layout, then re-renders, so a sizing change takes effect
+  /// without retyping.
+  fn layout_set< V >( &self, set : fn( &mut EngravingTextLayout, V ), value : V )
+  {
+    if let Some( layout ) = self.session.borrow_mut().text_layout_mut( &self.node_name )
+    {
+      set( layout, value );
+    }
+    self.spawn();
+  }
+}
+
+/// A slider on `field` of `object` that writes its value into the node's text layout with `set`
+/// and re-renders.
+fn layout_slider( folder : &JsValue, object : &JsValue, field : &str, ( min, max, step ) : ( f64, f64, f64 ), rerender : &Rerender, set : fn( &mut EngravingTextLayout, f32 ) )
+{
+  let prop = add_slider( folder, object, field, min, max, step );
+  let rerender = rerender.clone();
+  let callback = Closure::new( move | value : f32 | rerender.layout_set( set, value ) );
+  on_change( &prop, &callback );
+  callback.forget();
+}
+
+/// A dropdown on `field` of `object` offering `options` that writes the chosen one into the
+/// node's text layout with `set` and re-renders.
+fn layout_dropdown( folder : &JsValue, object : &JsValue, field : &str, options : &[ &str ], rerender : &Rerender, set : fn( &mut EngravingTextLayout, &str ) )
+{
+  let options = serde_wasm_bindgen::to_value( options ).unwrap();
+  let prop = add_dropdown( folder, object, field, &options );
+  let rerender = rerender.clone();
+  let callback = Closure::new( move | value : String | rerender.layout_set( set, &value ) );
+  on_change_str( &prop, &callback );
+  callback.forget();
+}
+
+/// A slider on `field` of `object` that writes its value into the engraved `PbrMaterial` with
+/// `set`. No re-render: these are plain uniforms, uploaded on the next frame.
+fn material_slider( folder : &JsValue, object : &JsValue, field : &str, ( min, max, step ) : ( f64, f64, f64 ), material : &Rc< RefCell< Box< dyn Material > > >, set : fn( &mut PbrMaterial, f32 ) )
+{
+  let prop = add_slider( folder, object, field, min, max, step );
+  let material = material.clone();
+  let callback = Closure::new( move | value : f32 |
+  {
+    let mut mat = material.borrow_mut();
+    if let Some( pbr ) = mat.as_any_mut().downcast_mut::< PbrMaterial >()
+    {
+      set( pbr, value );
+    }
+    mat.needs_update_set( true );
+  } );
+  on_change( &prop, &callback );
+  callback.forget();
+}
+
+/// The panel's starting values: the material's relief knobs and the node's text layout, with
+/// the sizing fields a layout may leave unset shown at their usual defaults.
+fn settings_initial( default_font : &str, session : &RefCell< EngravingSession >, node_name : &str, material : &RefCell< Box< dyn Material > > ) -> Settings
+{
+  let material = material.borrow();
+  let pbr = material.as_any().downcast_ref::< PbrMaterial >().expect( "engraved node's material is a PbrMaterial" );
+  let session = session.borrow();
+  let layout = session.text_layout( node_name ).expect( "session was built from a config containing this node" );
+  Settings
+  {
+    text : String::new(),
+    font : default_font.to_owned(),
+    strength : pbr.engraving_strength,
+    roughness : pbr.engraving_roughness,
+    darkening : pbr.engraving_darkening,
+    sizing_mode : sizing_mode_to_str( layout.resolved_sizing_mode() ).to_string(),
+    strip_height_mm : layout.strip_height_mm.unwrap_or( 2.0 ),
+    default_font_size_mm : layout.default_font_size_mm.unwrap_or( 1.2 ),
+    min_font_size_mm : layout.min_font_size_mm.unwrap_or( 0.5 ),
+    font_size_ratio : layout.font_size_ratio.unwrap_or( 0.6 ),
+    align : align_to_str( layout.align ).to_string(),
+  }
+}
+
 /// Wires up a lil-gui panel controlling the engraved text, its font (from the node's
-/// `allowedFonts` whitelist) and the bevel/roughness/darkening knobs on `material`'s
-/// `USE_ENGRAVING` shader path.
+/// `allowedFonts` whitelist), the bevel/roughness/darkening knobs on `material`'s
+/// `USE_ENGRAVING` shader path, and the node's text-sizing layout.
 pub fn setup
 (
-  gl : GL,
-  node_name : String,
-  default_font : String,
-  allowed_fonts : Vec< Box< str > >,
-  session : Rc< RefCell< EngravingSession > >,
-  material : Rc< RefCell< Box< dyn Material > > >,
+  gl : &GL,
+  node_name : &str,
+  default_font : &str,
+  allowed_fonts : &[ Box< str > ],
+  session : &Rc< RefCell< EngravingSession > >,
+  material : &Rc< RefCell< Box< dyn Material > > >,
 )
 {
-  let ( strength, roughness, darkening ) =
-  {
-    let mat = material.borrow();
-    let pbr = mat.as_any().downcast_ref::< PbrMaterial >().expect( "engraved node's material is a PbrMaterial" );
-    ( pbr.engraving_strength, pbr.engraving_roughness, pbr.engraving_darkening )
-  };
-
-  let ( sizing_mode, strip_height_mm, default_font_size_mm, min_font_size_mm, font_size_ratio, align ) =
-  {
-    let session_ref = session.borrow();
-    let layout = session_ref.text_layout( &node_name ).expect( "session was built from a config containing this node" );
-    (
-      sizing_mode_to_str( layout.resolved_sizing_mode() ).to_string(),
-      layout.strip_height_mm.unwrap_or( 2.0 ),
-      layout.default_font_size_mm.unwrap_or( 1.2 ),
-      layout.min_font_size_mm.unwrap_or( 0.5 ),
-      layout.font_size_ratio.unwrap_or( 0.6 ),
-      align_to_str( layout.align ).to_string(),
-    )
-  };
-
-  let mut settings = Settings::default();
-  settings.text = String::new();
-  settings.font.clone_from( &default_font );
-  settings.strength = strength;
-  settings.roughness = roughness;
-  settings.darkening = darkening;
-  settings.sizing_mode = sizing_mode;
-  settings.strip_height_mm = strip_height_mm;
-  settings.default_font_size_mm = default_font_size_mm;
-  settings.min_font_size_mm = min_font_size_mm;
-  settings.font_size_ratio = font_size_ratio;
-  settings.align = align;
-
+  let settings = settings_initial( default_font, session, node_name, material );
   let object = serde_wasm_bindgen::to_value( &settings ).unwrap();
   let gui = new_gui();
 
-  let state = Rc::new( RefCell::new( EngravingState { text : settings.text, font : default_font, in_flight : false, dirty : false } ) );
+  let state = Rc::new( RefCell::new( EngravingState { text : settings.text, font : default_font.to_owned(), in_flight : false, dirty : false } ) );
+  let rerender = Rerender { gl : gl.clone(), session : session.clone(), node_name : node_name.to_owned(), state };
 
   let text_folder = add_folder( &gui, "Text" );
 
@@ -189,14 +252,11 @@ pub fn setup
   let callback = Closure::new
   (
     {
-      let gl = gl.clone();
-      let session = session.clone();
-      let node_name = node_name.clone();
-      let state = state.clone();
+      let rerender = rerender.clone();
       move | value : JsValue |
       {
-        state.borrow_mut().text = value.as_string().unwrap_or_default();
-        spawn_set_text( gl.clone(), session.clone(), node_name.clone(), state.clone() );
+        rerender.state.borrow_mut().text = value.as_string().unwrap_or_default();
+        rerender.spawn();
       }
     }
   );
@@ -208,14 +268,11 @@ pub fn setup
   let callback = Closure::new
   (
     {
-      let gl = gl.clone();
-      let session = session.clone();
-      let node_name = node_name.clone();
-      let state = state.clone();
+      let rerender = rerender.clone();
       move | value : String |
       {
-        state.borrow_mut().font = value;
-        spawn_set_text( gl.clone(), session.clone(), node_name.clone(), state.clone() );
+        rerender.state.borrow_mut().font = value;
+        rerender.spawn();
       }
     }
   );
@@ -223,219 +280,28 @@ pub fn setup
   callback.forget();
 
   let relief_folder = add_folder( &gui, "Relief" );
-
-  let prop = add_slider( &relief_folder, &object, "strength", 0.0, 3.0, 0.05 );
-  let callback = Closure::new
-  (
-    {
-      let material = material.clone();
-      move | value : f32 |
-      {
-        let mut mat = material.borrow_mut();
-        if let Some( pbr ) = mat.as_any_mut().downcast_mut::< PbrMaterial >()
-        {
-          pbr.engraving_strength = value;
-        }
-        mat.needs_update_set( true );
-      }
-    }
-  );
-  on_change( &prop, &callback );
-  callback.forget();
-
+  material_slider( &relief_folder, &object, "strength", ( 0.0, 3.0, 0.05 ), material, | pbr, v | pbr.engraving_strength = v );
   // Drives both the base material's roughness (`roughness_factor`, the whole model) and the
   // groove-only `engraving_roughness` together, so the carved text doesn't visibly mismatch the
   // rest of the surface when this is tweaked away from the model's original roughness.
-  let prop = add_slider( &relief_folder, &object, "roughness", 0.0, 1.0, 0.01 );
-  let callback = Closure::new
-  (
-    {
-      let material = material.clone();
-      move | value : f32 |
-      {
-        let mut mat = material.borrow_mut();
-        if let Some( pbr ) = mat.as_any_mut().downcast_mut::< PbrMaterial >()
-        {
-          pbr.engraving_roughness = value;
-          pbr.roughness_factor = value;
-        }
-        mat.needs_update_set( true );
-      }
-    }
-  );
-  on_change( &prop, &callback );
-  callback.forget();
-
-  let prop = add_slider( &relief_folder, &object, "darkening", 0.0, 1.0, 0.01 );
-  let callback = Closure::new
-  (
-    {
-      let material = material.clone();
-      move | value : f32 |
-      {
-        let mut mat = material.borrow_mut();
-        if let Some( pbr ) = mat.as_any_mut().downcast_mut::< PbrMaterial >()
-        {
-          pbr.engraving_darkening = value;
-        }
-        mat.needs_update_set( true );
-      }
-    }
-  );
-  on_change( &prop, &callback );
-  callback.forget();
+  material_slider( &relief_folder, &object, "roughness", ( 0.0, 1.0, 0.01 ), material, | pbr, v |
+  {
+    pbr.engraving_roughness = v;
+    pbr.roughness_factor = v;
+  } );
+  material_slider( &relief_folder, &object, "darkening", ( 0.0, 1.0, 0.01 ), material, | pbr, v | pbr.engraving_darkening = v );
 
   // Live controls for `EngravingNodeConfig`'s text-sizing knobs (`SizingMode` and its
   // parameters), mutated via `EngravingSession::text_layout_mut` and re-rendered by re-running
   // whatever text is currently in `state` through the same `spawn_set_text` path the Text panel
   // uses — sizing takes effect immediately without retyping.
   let sizing_folder = add_folder( &gui, "Text Sizing" );
-
-  let sizing_mode_options = serde_wasm_bindgen::to_value( &[ "RELATIVE", "HYBRID", "PHYSICAL" ] ).unwrap();
-  let prop = add_dropdown( &sizing_folder, &object, "sizingMode", &sizing_mode_options );
-  let callback = Closure::new
-  (
-    {
-      let gl = gl.clone();
-      let session = session.clone();
-      let node_name = node_name.clone();
-      let state = state.clone();
-      move | value : String |
-      {
-        {
-          let mut session_mut = session.borrow_mut();
-          if let Some( cfg ) = session_mut.text_layout_mut( &node_name )
-          {
-            cfg.sizing_mode = Some( sizing_mode_from_str( &value ) );
-          }
-        }
-        spawn_set_text( gl.clone(), session.clone(), node_name.clone(), state.clone() );
-      }
-    }
-  );
-  on_change_str( &prop, &callback );
-  callback.forget();
-
-  let prop = add_slider( &sizing_folder, &object, "stripHeightMm", 0.1, 5.0, 0.05 );
-  let callback = Closure::new
-  (
-    {
-      let gl = gl.clone();
-      let session = session.clone();
-      let node_name = node_name.clone();
-      let state = state.clone();
-      move | value : f32 |
-      {
-        {
-          let mut session_mut = session.borrow_mut();
-          if let Some( cfg ) = session_mut.text_layout_mut( &node_name )
-          {
-            cfg.strip_height_mm = Some( value );
-          }
-        }
-        spawn_set_text( gl.clone(), session.clone(), node_name.clone(), state.clone() );
-      }
-    }
-  );
-  on_change( &prop, &callback );
-  callback.forget();
-
-  let prop = add_slider( &sizing_folder, &object, "defaultFontSizeMm", 0.05, 5.0, 0.05 );
-  let callback = Closure::new
-  (
-    {
-      let gl = gl.clone();
-      let session = session.clone();
-      let node_name = node_name.clone();
-      let state = state.clone();
-      move | value : f32 |
-      {
-        {
-          let mut session_mut = session.borrow_mut();
-          if let Some( cfg ) = session_mut.text_layout_mut( &node_name )
-          {
-            cfg.default_font_size_mm = Some( value );
-          }
-        }
-        spawn_set_text( gl.clone(), session.clone(), node_name.clone(), state.clone() );
-      }
-    }
-  );
-  on_change( &prop, &callback );
-  callback.forget();
-
-  let prop = add_slider( &sizing_folder, &object, "minFontSizeMm", 0.05, 5.0, 0.05 );
-  let callback = Closure::new
-  (
-    {
-      let gl = gl.clone();
-      let session = session.clone();
-      let node_name = node_name.clone();
-      let state = state.clone();
-      move | value : f32 |
-      {
-        {
-          let mut session_mut = session.borrow_mut();
-          if let Some( cfg ) = session_mut.text_layout_mut( &node_name )
-          {
-            cfg.min_font_size_mm = Some( value );
-          }
-        }
-        spawn_set_text( gl.clone(), session.clone(), node_name.clone(), state.clone() );
-      }
-    }
-  );
-  on_change( &prop, &callback );
-  callback.forget();
-
-  let prop = add_slider( &sizing_folder, &object, "fontSizeRatio", 0.05, 1.0, 0.01 );
-  let callback = Closure::new
-  (
-    {
-      let gl = gl.clone();
-      let session = session.clone();
-      let node_name = node_name.clone();
-      let state = state.clone();
-      move | value : f32 |
-      {
-        {
-          let mut session_mut = session.borrow_mut();
-          if let Some( cfg ) = session_mut.text_layout_mut( &node_name )
-          {
-            cfg.font_size_ratio = Some( value );
-          }
-        }
-        spawn_set_text( gl.clone(), session.clone(), node_name.clone(), state.clone() );
-      }
-    }
-  );
-  on_change( &prop, &callback );
-  callback.forget();
-
-  let align_options = serde_wasm_bindgen::to_value( &[ "left", "center", "right" ] ).unwrap();
-  let prop = add_dropdown( &sizing_folder, &object, "align", &align_options );
-  let callback = Closure::new
-  (
-    {
-      let gl = gl.clone();
-      let session = session.clone();
-      let node_name = node_name.clone();
-      let state = state.clone();
-      move | value : String |
-      {
-        {
-          let mut session_mut = session.borrow_mut();
-          if let Some( cfg ) = session_mut.text_layout_mut( &node_name )
-          {
-            cfg.align = align_from_str( &value );
-          }
-        }
-        spawn_set_text( gl.clone(), session.clone(), node_name.clone(), state.clone() );
-      }
-    }
-  );
-  on_change_str( &prop, &callback );
-  callback.forget();
+  layout_dropdown( &sizing_folder, &object, "sizingMode", &[ "RELATIVE", "HYBRID", "PHYSICAL" ], &rerender, | layout, v | layout.sizing_mode = Some( sizing_mode_from_str( v ) ) );
+  layout_slider( &sizing_folder, &object, "stripHeightMm", ( 0.1, 5.0, 0.05 ), &rerender, | layout, v | layout.strip_height_mm = Some( v ) );
+  layout_slider( &sizing_folder, &object, "defaultFontSizeMm", ( 0.05, 5.0, 0.05 ), &rerender, | layout, v | layout.default_font_size_mm = Some( v ) );
+  layout_slider( &sizing_folder, &object, "minFontSizeMm", ( 0.05, 5.0, 0.05 ), &rerender, | layout, v | layout.min_font_size_mm = Some( v ) );
+  layout_slider( &sizing_folder, &object, "fontSizeRatio", ( 0.05, 1.0, 0.01 ), &rerender, | layout, v | layout.font_size_ratio = Some( v ) );
+  layout_dropdown( &sizing_folder, &object, "align", &[ "left", "center", "right" ], &rerender, | layout, v | layout.align = align_from_str( v ) );
 
   std::mem::forget( object );
 
