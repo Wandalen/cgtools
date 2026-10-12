@@ -17,6 +17,8 @@ mod tests
   use gl::GL;
   use renderer::webgl::{ material::PbrMaterial, Material, Texture, TextureInfo };
 
+  wasm_bindgen_test::wasm_bindgen_test_configure!( run_in_browser );
+
   async fn init_gl() -> GL
   {
     gl::browser::setup( Default::default() );
