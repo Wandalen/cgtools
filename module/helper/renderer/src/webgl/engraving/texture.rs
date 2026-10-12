@@ -60,6 +60,11 @@ mod private
     /// `width`/`height` should come from [`crate::webgl::engraving::EngravingNodeConfig::texture_size`]
     /// and must match every bitmap chain later passed to [`Self::update`] — the whole point of
     /// this type is that this allocation happens exactly once.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`gl::WebglError::FailedToAllocateResource`] if the texture or the storage of one
+    /// of its mip levels can't be allocated.
     pub fn new( gl : &GL, width : u32, height : u32, uv_position : u32 ) -> Result< Self, gl::WebglError >
     {
       let source = gl.create_texture().ok_or( gl::WebglError::FailedToAllocateResource( "engraving texture" ) )?;
@@ -111,6 +116,11 @@ mod private
     /// `bitmaps` must have exactly [`Self::level_count`] entries, ordered the same way
     /// [`crate::webgl::engraving::EngravingCanvasManager::render_text_mip_chain`] returns them
     /// (index `0` is the full `width` x `height` level).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`gl::WebglError::Other`] if `bitmaps` doesn't have exactly one bitmap per mip
+    /// level, if a bitmap's size differs from its level's, or if a `texSubImage2D` upload fails.
     pub fn update( &self, gl : &GL, bitmaps : &[ EngravingBitmap ] ) -> Result< (), gl::WebglError >
     {
       if bitmaps.len() as u32 != self.levels

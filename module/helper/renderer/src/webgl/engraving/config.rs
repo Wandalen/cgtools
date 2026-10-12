@@ -34,6 +34,11 @@ mod private
   impl EngravingConfig
   {
     /// Parses an `engraving_config.json` document from its raw text.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`EngravingConfigError`] if `json` doesn't parse into this shape, or if a
+    /// node fails its validation (`EngravingNodeConfig::validate`).
     pub fn from_json( json : &str ) -> Result< Self, EngravingConfigError >
     {
       let config : Self = serde_json::from_str( json ).map_err( | e | EngravingConfigError( e.to_string() ) )?;

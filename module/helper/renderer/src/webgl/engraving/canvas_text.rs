@@ -106,6 +106,11 @@ mod private
     /// `width`/`height` normally come from [`crate::webgl::engraving::EngravingNodeConfig::texture_size`],
     /// so the rasterized bitmap matches the GPU texture's dimensions exactly and no scaling is
     /// needed on upload.
+    ///
+    /// # Errors
+    ///
+    /// [`EngravingCanvasError::NoDom`] outside a browser tab (no `window` / `document`), or
+    /// [`EngravingCanvasError::CanvasSetup`] if the canvas or its 2D context can't be created.
     pub fn new( width : u32, height : u32 ) -> Result< Self, EngravingCanvasError >
     {
       let window = web_sys::window().ok_or( EngravingCanvasError::NoDom )?;
@@ -179,6 +184,15 @@ mod private
     /// relying on `generateMipmap`.
     ///
     /// Returns levels ready for [`crate::webgl::engraving::EngravingTexture::update`].
+    ///
+    /// # Errors
+    ///
+    /// - [`EngravingCanvasError::TooManyCharacters`] if `text` is longer than the layout's
+    ///   `max_characters`;
+    /// - [`EngravingCanvasError::FontLoad`] if `font_family` doesn't load;
+    /// - [`EngravingCanvasError::TextOverflow`] if the text doesn't fit the full-size level under
+    ///   a `PHYSICAL` / `HYBRID` layout (see `resolve_font_size`);
+    /// - [`EngravingCanvasError::Draw`] if a canvas call throws.
     pub async fn render_text_mip_chain
     (
       &mut self,
