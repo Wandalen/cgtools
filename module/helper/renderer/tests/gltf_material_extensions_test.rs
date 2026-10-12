@@ -7,7 +7,7 @@
 //! the rotation, which no other test would notice going wrong.
 
 #![ cfg( feature = "test_internals" ) ]
-#![ expect( clippy::float_cmp, reason = "parsed factors pass through unchanged from the JSON literals; exact comparison is the point" ) ]
+#![ allow( clippy::float_cmp, reason = "parsed factors pass through unchanged from the JSON literals; exact comparison is the point" ) ]
 
 use gltf::json::Value;
 use renderer::webgl::loaders::gltf_extensions::internal::
