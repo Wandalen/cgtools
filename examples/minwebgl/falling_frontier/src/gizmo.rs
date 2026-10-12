@@ -27,7 +27,7 @@ pub const TRANSLATE_COLOR : [ f32; 3 ] = [ 1.0, 0.85, 0.1 ];
 pub const ROTATE_COLOR : [ f32; 3 ] = [ 1.0, 0.25, 0.85 ];
 const HANDLE_ALPHA : f32 = 0.85;
 
-#[ derive( Clone, Copy, PartialEq, Eq ) ]
+#[ derive( Clone, Copy, Debug, PartialEq, Eq ) ]
 pub enum GizmoMode
 {
   Translate,

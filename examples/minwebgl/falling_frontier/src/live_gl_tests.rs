@@ -1,7 +1,9 @@
-//! Live-GL-context tests for the layer filtering that the pure tests in
-//! `main.rs` can't reach: `visible_parts` and `pick_at_client` take real
-//! `Asteroids` / `Ships` / `Station`, whose constructors upload meshes, so
-//! these run in a browser (wasm32 only, like `gpu_picking`'s
+//! Live-GL-context tests for what the pure tests in `main.rs` can't reach,
+//! because it takes real `Asteroids` / `Ships` / `Station`, whose
+//! constructors upload meshes: the layer filtering of `visible_parts` and
+//! `pick_at_client`, and the gizmo drag and selection handlers
+//! (`gizmo_grab`, `gizmo_drag_move`, `key_press`, `selection_drop_if_hidden`).
+//! They run in a browser (wasm32 only, like `gpu_picking`'s
 //! `live_gl_tests`). Run with `wasm-pack test --headless --chrome`.
 
 use crate::*;
@@ -38,6 +40,51 @@ fn all_shown() -> RenderLayers
 fn pick_ids< 'a >( parts : impl Iterator< Item = &'a HullPart > ) -> Vec< i32 >
 {
   parts.map( | part | part.pick_id ).collect()
+}
+
+/// An `InteractionCtx` on a fresh canvas whose camera looks straight at
+/// asteroid 0's centre from close by, so the canvas centre lands on the rock
+/// whatever its random jitter. Every layer is shown and nothing is selected.
+fn ctx_facing_asteroid_0() -> InteractionCtx
+{
+  let ( canvas, gl ) = canvas_and_gl();
+  // Asteroid positions are fixed, so a throwaway belt gives the one the
+  // context builds.
+  let center4 = Asteroids::new( &gl, ASTEROID_ID_BASE ).object_transform( 0 ) * gl::math::F32x4::new( 0.0, 0.0, 0.0, 1.0 );
+  let center = gl::F32x3::new( center4.x(), center4.y(), center4.z() );
+  let eye = center + gl::F32x3::new( 0.0, 30.0, 30.0 );
+  let camera = Camera::new( eye, gl::F32x3::new( 0.0, 1.0, 0.0 ), center, 1.0, 55.0f32.to_radians(), 0.1, 2000.0 ).unwrap();
+
+  let tuning = Rc::new( RefCell::new( GridTuning::default() ) );
+  tuning.borrow_mut().layers = all_shown();
+  InteractionCtx::new( &gl, &canvas, &camera, tuning )
+}
+
+/// The canvas centre, in client coordinates.
+fn canvas_center( ctx : &InteractionCtx ) -> ( f64, f64 )
+{
+  let rect = ctx.canvas.get_bounding_client_rect();
+  ( rect.left() + rect.width() / 2.0, rect.top() + rect.height() / 2.0 )
+}
+
+/// A client point on the gizmo handle, found with the real pick pass: the
+/// first pixel right of the canvas centre that picks `GIZMO_ID`. The
+/// translate cross covers the centre itself; the rotate ring is hollow, so
+/// it is found further out.
+fn gizmo_handle_point( ctx : &InteractionCtx ) -> ( f64, f64 )
+{
+  let ( x, y ) = canvas_center( ctx );
+  ( 0 .. CANVAS_SIZE / 2 ).step_by( 2 ).map( | dx | ( x + f64::from( dx ), y ) )
+  .find( | &( x, y ) | pick_at_client( ctx, x, y ) == Some( GIZMO_ID ) )
+  .expect( "the gizmo handle must be on screen, right of the selected asteroid's centre" )
+}
+
+/// Asteroid 0's XZ position and Y rotation, as bits, so "put back" means
+/// exactly the grab-time values.
+fn asteroid_0_pose( ctx : &InteractionCtx ) -> ( [ u32; 2 ], u32 )
+{
+  let asteroids = ctx.asteroids.borrow();
+  ( asteroids.position( 0 ).map( f32::to_bits ), asteroids.rotation_y( 0 ).to_bits() )
 }
 
 /// `visible_parts` hands each group's `parts()` to the slot of its own kind:
@@ -85,47 +132,82 @@ fn visible_parts_returns_exactly_the_shown_groups()
 #[ wasm_bindgen_test ]
 fn pick_at_client_skips_a_hidden_layer()
 {
-  let ( canvas, gl ) = canvas_and_gl();
-  let asteroids = Asteroids::new( &gl, ASTEROID_ID_BASE );
-
-  // Look straight at asteroid 0's centre from close by, so the canvas
-  // centre lands on the rock whatever its random jitter.
-  let center4 = asteroids.object_transform( 0 ) * gl::math::F32x4::new( 0.0, 0.0, 0.0, 1.0 );
-  let center = gl::F32x3::new( center4.x(), center4.y(), center4.z() );
-  let eye = center + gl::F32x3::new( 0.0, 30.0, 30.0 );
-  let camera = Camera::new( eye, gl::F32x3::new( 0.0, 1.0, 0.0 ), center, 1.0, 55.0f32.to_radians(), 0.1, 2000.0 ).unwrap();
-
-  let tuning = Rc::new( RefCell::new( GridTuning::default() ) );
-  tuning.borrow_mut().layers = all_shown();
-  let ctx = InteractionCtx
-  {
-    gl : gl.clone(),
-    canvas : canvas.clone(),
-    document : gl::web_sys::window().unwrap().document().unwrap(),
-    id_program : IdProgram::new( &gl ),
-    pick_buffer : RefCell::new( PickBuffer::new( &gl, CANVAS_SIZE as i32, CANVAS_SIZE as i32 ) ),
-    gizmo : Gizmo::new( &gl ),
-    latest_view_proj : Cell::new( camera.projection_matrix_get() * camera.view_matrix_get() ),
-    selected_id : Cell::new( None ),
-    gizmo_mode : Cell::new( GizmoMode::Translate ),
-    drag_state : Cell::new( None ),
-    camera_controls : camera.controls_get(),
-    asteroids : RefCell::new( asteroids ),
-    ships : RefCell::new( Ships::new( &gl, SHIP_ID_BASE ) ),
-    station : RefCell::new( Station::new( &gl, STATION_ID ) ),
-    tuning : tuning.clone(),
-  };
-
-  let rect = canvas.get_bounding_client_rect();
-  let ( x, y ) = ( rect.left() + rect.width() / 2.0, rect.top() + rect.height() / 2.0 );
+  let ctx = ctx_facing_asteroid_0();
+  let ( x, y ) = canvas_center( &ctx );
 
   assert_eq!( pick_at_client( &ctx, x, y ), Some( ASTEROID_ID_BASE ), "the click must hit asteroid 0 while Asteroids is shown" );
 
-  tuning.borrow_mut().layers.show_asteroids = false;
+  ctx.tuning.borrow_mut().layers.show_asteroids = false;
   let picked = pick_at_client( &ctx, x, y );
   assert!
   (
     !matches!( picked.and_then( classify_pick ), Some( PickedKind::Asteroid( _ ) ) ),
     "a hidden asteroid must not be picked, got {picked:?}",
   );
+}
+
+/// Escape mid-drag puts the dragged object back exactly where it was grabbed
+/// and ends the drag, in both gizmo modes: the handle is grabbed through the
+/// real pick pass, the cursor moves (which must move or turn the asteroid,
+/// or the restore proves nothing), G / R are ignored while dragging, and
+/// Escape restores the pose, gives camera orbit rotation back, forgets the
+/// press so its release isn't a click, and keeps the selection.
+#[ wasm_bindgen_test ]
+fn escape_mid_drag_puts_the_object_back()
+{
+  for mode in [ GizmoMode::Translate, GizmoMode::Rotate ]
+  {
+    let ctx = ctx_facing_asteroid_0();
+    ctx.selected_id.set( Some( ASTEROID_ID_BASE ) );
+    ctx.gizmo_mode.set( mode );
+    let grab_pose = asteroid_0_pose( &ctx );
+
+    let ( x, y ) = gizmo_handle_point( &ctx );
+    let press = Cell::new( Some( ( x, y ) ) );
+    gizmo_grab( &ctx, x, y );
+    assert!( ctx.drag_state.get().is_some(), "{mode:?}: a press on the handle starts a drag" );
+    assert!( !ctx.camera_controls.borrow().rotation.enabled, "{mode:?}: the drag owns the pointer, not the camera" );
+
+    gizmo_drag_move( &ctx, x + 40.0, y + 30.0 );
+    assert_ne!( asteroid_0_pose( &ctx ), grab_pose, "{mode:?}: the drag moved the asteroid" );
+
+    let other = match mode { GizmoMode::Translate => "r", GizmoMode::Rotate => "g" };
+    key_press( &ctx, other, &press );
+    assert_eq!( ctx.gizmo_mode.get(), mode, "{mode:?}: G / R wait for the drag to end" );
+
+    key_press( &ctx, "Escape", &press );
+    assert_eq!( asteroid_0_pose( &ctx ), grab_pose, "{mode:?}: Escape restores the grab-time pose" );
+    assert!( ctx.drag_state.get().is_none(), "{mode:?}: Escape ends the drag" );
+    assert!( ctx.camera_controls.borrow().rotation.enabled, "{mode:?}: camera orbit rotation is back" );
+    assert_eq!( press.get(), None, "{mode:?}: the press must not become a click on release" );
+    assert_eq!( ctx.selected_id.get(), Some( ASTEROID_ID_BASE ), "{mode:?}: Escape mid-drag keeps the selection" );
+  }
+}
+
+/// Hiding the selected object's layer drops the selection, and with it a
+/// drag on that object; hiding another layer leaves both alone. Without a
+/// drag, Escape deselects.
+#[ wasm_bindgen_test ]
+fn hiding_the_selected_layer_drops_the_selection()
+{
+  let ctx = ctx_facing_asteroid_0();
+  ctx.selected_id.set( Some( ASTEROID_ID_BASE ) );
+  let ( x, y ) = gizmo_handle_point( &ctx );
+  gizmo_grab( &ctx, x, y );
+  assert!( ctx.drag_state.get().is_some(), "a press on the handle starts a drag" );
+
+  let ships_hidden = RenderLayers { show_ships : false, ..all_shown() };
+  selection_drop_if_hidden( &ctx, &ships_hidden );
+  assert_eq!( ctx.selected_id.get(), Some( ASTEROID_ID_BASE ), "hiding ships leaves an asteroid selected" );
+  assert!( ctx.drag_state.get().is_some(), "and its drag going" );
+
+  let asteroids_hidden = RenderLayers { show_asteroids : false, ..all_shown() };
+  selection_drop_if_hidden( &ctx, &asteroids_hidden );
+  assert_eq!( ctx.selected_id.get(), None, "hiding asteroids drops the asteroid's selection" );
+  assert!( ctx.drag_state.get().is_none(), "and ends its drag" );
+  assert!( ctx.camera_controls.borrow().rotation.enabled, "giving camera orbit rotation back" );
+
+  ctx.selected_id.set( Some( ASTEROID_ID_BASE ) );
+  key_press( &ctx, "Escape", &Cell::new( None ) );
+  assert_eq!( ctx.selected_id.get(), None, "Escape without a drag deselects" );
 }
