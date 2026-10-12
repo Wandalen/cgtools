@@ -131,12 +131,15 @@ mod private
 
     /// The underlying (detached, never appended to the DOM) canvas element, exposed for
     /// debugging/preview purposes (e.g. temporarily appending it to inspect the rasterized text).
+    #[ must_use ]
     pub fn canvas( &self ) -> &web_sys::HtmlCanvasElement { &self.canvas }
 
     /// Width in pixels of the offscreen canvas.
+    #[ must_use ]
     pub fn width( &self ) -> u32 { self.width }
 
     /// Height in pixels of the offscreen canvas.
+    #[ must_use ]
     pub fn height( &self ) -> u32 { self.height }
 
     /// Waits for `family` to be ready for use, downloading it first if necessary.

@@ -150,18 +150,22 @@ mod private
     }
 
     /// Width in pixels of mip level 0 of the GPU allocation.
+    #[ must_use ]
     pub fn width( &self ) -> u32 { self.width }
 
     /// Height in pixels of mip level 0 of the GPU allocation.
+    #[ must_use ]
     pub fn height( &self ) -> u32 { self.height }
 
     /// Number of mip levels [`Self::update`] expects a bitmap for, from level 0 (`width` x
     /// `height`) down to the final `1` x `1` level.
+    #[ must_use ]
     pub fn level_count( &self ) -> u32 { self.levels }
 
     /// Returns a [`TextureInfo`] handle to this texture, suitable for
     /// `PbrMaterial::engraving_texture_set`. Cloning is cheap (the underlying `Texture` is
     /// `Rc`-shared), and further [`Self::update`] calls remain visible through every clone.
+    #[ must_use ]
     pub fn texture_info( &self ) -> TextureInfo
     {
       self.info.clone()

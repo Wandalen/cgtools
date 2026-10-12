@@ -172,6 +172,7 @@ mod private
     }
 
     /// Read-only access to a node's current text layout, e.g. to seed GUI controls.
+    #[ must_use ]
     pub fn text_layout( &self, node_name : &str ) -> Option< &EngravingTextLayout >
     {
       self.entries.get( node_name ).map( | e | &e.layout )
