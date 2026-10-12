@@ -25,21 +25,16 @@ mod frame;
 use minwebgl as gl;
 use gl::GL;
 use renderer::webgl::Camera;
-use renderer::webgl::shadow::ShadowMap;
 use std::{ cell::{ Cell, RefCell }, rc::Rc };
 use debug::{ GridTuning, RenderLayers, setup_grid_tuning_panel, setup_layers_panel, refresh_selection_status };
 use hud::{ setup_hud, refresh_unit_panel, bind_reset_camera };
-use hull::{ HullPart, HullProgram };
+use hull::HullPart;
 use gpu_picking::{ IdProgram, PickBuffer };
 use gizmo::{ Gizmo, GizmoMode };
 use asteroids::Asteroids;
 use ships::Ships;
 use station::Station;
-use trajectories::Trajectories;
-use starfield::Starfield;
-use background::Background;
-use grid::TacticalGrid;
-use frame::{ ships_advance, RibbonInputs, sun_light, shadow_pass, trajectories_draw, SHADOW_MAP_RESOLUTION };
+use frame::{ Projection, SceneRenderers, viewport_resize };
 
 // Pick-id ranges handed out to each pickable group (see the `gpu_picking` crate) -
 // asteroids first, then ships, then the station gets the one id left over.
@@ -350,6 +345,34 @@ struct InteractionCtx
   tuning : Rc< RefCell< GridTuning > >,
 }
 
+impl InteractionCtx
+{
+  /// The interaction state of a scene drawn on `canvas` through `camera`: the
+  /// objects in their starting layout, a pick buffer the canvas's size,
+  /// nothing selected and the gizmo in translate mode.
+  fn new( gl : &GL, canvas : &gl::web_sys::HtmlCanvasElement, camera : &Camera, tuning : Rc< RefCell< GridTuning > > ) -> Self
+  {
+    Self
+    {
+      gl : gl.clone(),
+      canvas : canvas.clone(),
+      document : gl::web_sys::window().unwrap().document().unwrap(),
+      id_program : IdProgram::new( gl ),
+      pick_buffer : RefCell::new( PickBuffer::new( gl, canvas.width() as i32, canvas.height() as i32 ) ),
+      gizmo : Gizmo::new( gl ),
+      latest_view_proj : Cell::new( camera.projection_matrix_get() * camera.view_matrix_get() ),
+      selected_id : Cell::new( None ),
+      gizmo_mode : Cell::new( GizmoMode::Translate ),
+      drag_state : Cell::new( None ),
+      camera_controls : camera.controls_get(),
+      asteroids : RefCell::new( Asteroids::new( gl, ASTEROID_ID_BASE ) ),
+      ships : RefCell::new( Ships::new( gl, SHIP_ID_BASE ) ),
+      station : RefCell::new( Station::new( gl, STATION_ID ) ),
+      tuning,
+    }
+  }
+}
+
 /// Re-renders the id pass (including the gizmo handle, if something's
 /// selected) and reads back the pick id at `client_x`/`client_y` - shared by
 /// the pointerdown gizmo-grab check and the pointerup click-to-select path,
@@ -385,7 +408,6 @@ fn pick_at_client( ctx : &InteractionCtx, client_x : f64, client_y : f64 ) -> Op
   picked
 }
 
-#[ expect( clippy::too_many_lines, reason = "one flat setup-then-render-loop sequence (camera, scene, picking, panel, click handler, then the per-frame closure); splitting it up would scatter closely-related setup across helper functions for no real grouping" ) ]
 fn app_run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( gl::browser::Config::default() );
@@ -415,38 +437,12 @@ fn app_run() -> Result< (), gl::WebglError >
   camera.window_size_set( [ pixel_w as f32, pixel_h as f32 ].into() );
   camera.controls_bind( &canvas );
 
-  let grid = TacticalGrid::new( &gl );
-  let hull_program = HullProgram::new( &gl );
-  let starfield = Starfield::new( &gl );
-  let background = Background::new( &gl )?;
-  let shadow_map = ShadowMap::new( &gl, SHADOW_MAP_RESOLUTION )?;
+  let mut scene = SceneRenderers::new( &gl )?;
   gl.viewport( 0, 0, pixel_w as i32, pixel_h as i32 );
 
   let tuning = Rc::new( RefCell::new( GridTuning::default() ) );
   let document = gl::web_sys::window().unwrap().document().unwrap();
-
-  // Last frame's view_proj, kept for pointer/keyboard listeners below - they
-  // fire outside this closure, which owns `camera`.
-  let initial_view_proj = camera.projection_matrix_get() * camera.view_matrix_get();
-
-  let ctx = Rc::new( InteractionCtx
-  {
-    gl : gl.clone(),
-    canvas : canvas.clone(),
-    document : document.clone(),
-    id_program : IdProgram::new( &gl ),
-    pick_buffer : RefCell::new( PickBuffer::new( &gl, pixel_w as i32, pixel_h as i32 ) ),
-    gizmo : Gizmo::new( &gl ),
-    latest_view_proj : Cell::new( initial_view_proj ),
-    selected_id : Cell::new( None ),
-    gizmo_mode : Cell::new( GizmoMode::Translate ),
-    drag_state : Cell::new( None ),
-    camera_controls : camera.controls_get(),
-    asteroids : RefCell::new( Asteroids::new( &gl, ASTEROID_ID_BASE ) ),
-    ships : RefCell::new( Ships::new( &gl, SHIP_ID_BASE ) ),
-    station : RefCell::new( Station::new( &gl, STATION_ID ) ),
-    tuning : tuning.clone(),
-  } );
+  let ctx = Rc::new( InteractionCtx::new( &gl, &canvas, &camera, tuning.clone() ) );
 
   {
     let ctx = ctx.clone();
@@ -477,115 +473,25 @@ fn app_run() -> Result< (), gl::WebglError >
 
   setup_selection_and_gizmo( &ctx );
 
+  let projection = Projection { fov, near, far };
   let prev_size = Cell::new( ( pixel_w, pixel_h ) );
   let mut prev_time = 0.0f64;
 
-  let update_and_draw =
+  let update_and_draw = move | t : f64 |
   {
-    let canvas = canvas.clone();
-    let ctx = ctx.clone();
-    // Built on first use rather than at startup: the Trajectories row starts
-    // off, so a session that never shows them never builds
-    // one ribbon mesh per ship.
-    let mut trajectories : Option< Trajectories > = None;
-    move | t : f64 |
+    let delta_time = if prev_time == 0.0 { 0.0 } else { ( t - prev_time ) / 1000.0 };
+    prev_time = t;
+    camera.update( delta_time );
+
+    let size = canvas_size( &canvas );
+    if size != prev_size.get()
     {
-      let delta_time = if prev_time == 0.0 { 0.0 } else { ( t - prev_time ) / 1000.0 };
-      prev_time = t;
-      camera.update( delta_time );
-
-      let ( w, h ) = canvas_size( &canvas );
-      if ( w, h ) != prev_size.get()
-      {
-        canvas.set_width( w );
-        canvas.set_height( h );
-        gl.viewport( 0, 0, w as i32, h as i32 );
-        ctx.pick_buffer.borrow_mut().resize( &gl, w as i32, h as i32 );
-
-        let proj = gl::math::mat3x3h::perspective_rh_gl( fov, w as f32 / h as f32, near, far );
-        if let Err( e ) = camera.projection_matrix_set( proj )
-        {
-          web_sys::console::warn_1( &format!( "Falling Frontier: skipping invalid projection matrix on resize: {e}" ).into() );
-        }
-        camera.window_size_set( [ w as f32, h as f32 ].into() );
-
-        prev_size.set( ( w, h ) );
-      }
-
-      gl.clear( GL::COLOR_BUFFER_BIT | GL::DEPTH_BUFFER_BIT );
-
-      let view_proj = camera.projection_matrix_get() * camera.view_matrix_get();
-      ctx.latest_view_proj.set( view_proj );
-
-      let tuning_snapshot = *tuning.borrow();
-      selection_drop_if_hidden( &ctx, &tuning_snapshot.layers );
-      let selected = ctx.selected_id.get();
-      let selected_kind = selected.and_then( classify_pick );
-
-      if tuning_snapshot.layers.show_background
-      {
-        background.draw( &gl, view_proj, camera.eye_get() );
-      }
-
-      ships_advance( &mut ctx.ships.borrow_mut(), &tuning_snapshot, selected );
-
-      let asteroids = ctx.asteroids.borrow();
-      let ships = ctx.ships.borrow();
-      let station = ctx.station.borrow();
-
-      let ribbon = RibbonInputs::new( selected_kind, &tuning_snapshot, &asteroids, &ships );
-
-      let ( light_dir, light_view_proj ) = sun_light( &tuning_snapshot );
-      if tuning_snapshot.layers.shadows_drawn()
-      {
-        shadow_pass( &gl, &shadow_map, light_view_proj, visible_parts( &tuning_snapshot.layers, &asteroids, &ships, &station ) );
-      }
-      gl.bind_framebuffer( GL::FRAMEBUFFER, None );
-      gl.viewport( 0, 0, w as i32, h as i32 );
-      gl.disable( GL::CULL_FACE );
-
-      hull_program.begin_frame
-      (
-        &gl, view_proj, camera.eye_get(), light_dir, tuning_snapshot.light_color, tuning_snapshot.light_intensity, tuning_snapshot.light_size,
-        light_view_proj, shadow_map.depth_buffer(), &tuning_snapshot.layers,
-      );
-      for part in visible_parts( &tuning_snapshot.layers, &asteroids, &ships, &station )
-      {
-        hull_program.draw_part( &gl, part, Some( part.pick_id ) == selected );
-      }
-
-      if tuning_snapshot.layers.show_starfield
-      {
-        starfield.draw( &gl, view_proj );
-      }
-
-      if tuning_snapshot.layers.show_trajectories
-      {
-        trajectories_draw( &gl, &mut trajectories, &tuning, &ships, &camera, [ w as f32, h as f32 ] );
-      }
-
-      if tuning_snapshot.layers.show_grid
-      {
-        grid.draw
-        (
-          &gl, view_proj, camera.eye_get(), &tuning_snapshot, &ribbon.focus,
-          ribbon.boundary(), &ribbon.glow
-        );
-      }
-
-      // M6: the gizmo handle, drawn on top of everything at whatever is
-      // currently selected (translate cross or rotate ring, per
-      // `ctx.gizmo_mode`), while `gizmo_visible` - the same condition the
-      // pick pass renders it under, so it can be grabbed exactly when seen.
-      if let Some( kind ) = selected_kind && gizmo_visible( kind, &tuning_snapshot.layers )
-      {
-        let object_transform = selected_transform( kind, &asteroids, &ships, &station );
-        let gizmo_part = ctx.gizmo.part( ctx.gizmo_mode.get(), object_transform, GIZMO_ID );
-        ctx.gizmo.draw( &gl, view_proj, &gizmo_part );
-      }
-
-      true
+      viewport_resize( &gl, &ctx, &mut camera, projection, size );
+      prev_size.set( size );
     }
+
+    scene.frame_render( &gl, &ctx, &camera, &tuning, size );
+    true
   };
 
   gl::exec_loop::run( update_and_draw );

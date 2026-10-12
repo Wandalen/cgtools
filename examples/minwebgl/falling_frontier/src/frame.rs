@@ -1,7 +1,8 @@
-//! The per-frame render steps of `app_run`'s frame closure that need more
-//! than a line or two: ship motion, the view-zone ribbon's inputs, the sun
-//! light and its shadow pass, and the lazily built trajectory ribbons. The
-//! closure itself keeps only the order they run in.
+//! What `app_run`'s frame closure runs each frame: following a canvas resize
+//! (`viewport_resize`), then `SceneRenderers::frame_render`, which draws the
+//! passes in order. Its steps that need more than a line or two are separate
+//! functions: ship motion, the view-zone ribbon's inputs, the sun light and
+//! its shadow pass, and the lazily built trajectory ribbons.
 
 use minwebgl as gl;
 use gl::GL;
@@ -12,14 +13,23 @@ use renderer::webgl::shadow::{ ShadowMap, Light };
 use crate::
 {
   asteroids::Asteroids,
+  background::Background,
   boundary::{ build_boundary_polyline, MAX_BOUNDARY_PTS },
   debug::{ GridTuning, layers_panel_sync },
-  grid::{ FocusState, MAX_ASTEROID_GLOW },
-  hull::HullPart,
+  grid::{ FocusState, TacticalGrid, MAX_ASTEROID_GLOW },
+  hull::{ HullPart, HullProgram },
   ribbon_ship,
   ships::{ self, Ships },
+  starfield::Starfield,
   trajectories::Trajectories,
+  classify_pick,
+  gizmo_visible,
+  selected_transform,
+  selection_drop_if_hidden,
+  visible_parts,
+  InteractionCtx,
   PickedKind,
+  GIZMO_ID,
   SHIP_ID_BASE,
 };
 
@@ -179,5 +189,154 @@ pub fn trajectories_draw
   if let Some( trajectories ) = slot
   {
     trajectories.draw( gl, camera.view_matrix_get(), camera.projection_matrix_get(), resolution );
+  }
+}
+
+/// The camera's projection parameters, kept to rebuild its projection when
+/// the canvas is resized.
+#[ derive( Clone, Copy ) ]
+pub struct Projection
+{
+  pub fov : f32,
+  pub near : f32,
+  pub far : f32,
+}
+
+/// Follows a canvas resize to `size` (device pixels): the canvas's backing
+/// store, the viewport, the pick buffer, and the camera's projection and
+/// window size.
+pub fn viewport_resize( gl : &GL, ctx : &InteractionCtx, camera : &mut Camera, projection : Projection, size : ( u32, u32 ) )
+{
+  let ( w, h ) = size;
+  ctx.canvas.set_width( w );
+  ctx.canvas.set_height( h );
+  gl.viewport( 0, 0, w as i32, h as i32 );
+  ctx.pick_buffer.borrow_mut().resize( gl, w as i32, h as i32 );
+
+  let proj = gl::math::mat3x3h::perspective_rh_gl( projection.fov, w as f32 / h as f32, projection.near, projection.far );
+  if let Err( e ) = camera.projection_matrix_set( proj )
+  {
+    web_sys::console::warn_1( &format!( "Falling Frontier: skipping invalid projection matrix on resize: {e}" ).into() );
+  }
+  camera.window_size_set( [ w as f32, h as f32 ].into() );
+}
+
+/// The scene's draw passes, and the trajectory ribbons they build on first
+/// use: what the frame draws with, apart from the camera and the pickable
+/// objects, which `InteractionCtx` holds.
+pub struct SceneRenderers
+{
+  grid : TacticalGrid,
+  hull_program : HullProgram,
+  starfield : Starfield,
+  background : Background,
+  shadow_map : ShadowMap,
+  /// Built on first use rather than at startup: the Trajectories row starts
+  /// off, so a session that never shows them never builds one ribbon mesh
+  /// per ship.
+  trajectories : Option< Trajectories >,
+}
+
+impl SceneRenderers
+{
+  /// Creates every pass's program and bakes the background cube map.
+  ///
+  /// # Errors
+  ///
+  /// Returns the background bake's or the shadow map's `WebglError`.
+  pub fn new( gl : &GL ) -> Result< Self, gl::WebglError >
+  {
+    Ok( Self
+    {
+      grid : TacticalGrid::new( gl ),
+      hull_program : HullProgram::new( gl ),
+      starfield : Starfield::new( gl ),
+      background : Background::new( gl )?,
+      shadow_map : ShadowMap::new( gl, SHADOW_MAP_RESOLUTION )?,
+      trajectories : None,
+    } )
+  }
+
+  /// Renders one frame at `size` (device pixels). It records the frame's
+  /// view-projection for the pointer listeners and drops a selection whose
+  /// layer was hidden, then draws each pass its Render Layers row allows:
+  /// background, the shadow pass, hulls, starfield, trajectories, grid, and
+  /// last the gizmo handle on top. Ships advance along their paths between
+  /// the background and the shadow pass.
+  pub fn frame_render( &mut self, gl : &GL, ctx : &InteractionCtx, camera : &Camera, tuning : &RefCell< GridTuning >, size : ( u32, u32 ) )
+  {
+    let ( w, h ) = size;
+    gl.clear( GL::COLOR_BUFFER_BIT | GL::DEPTH_BUFFER_BIT );
+
+    let view_proj = camera.projection_matrix_get() * camera.view_matrix_get();
+    ctx.latest_view_proj.set( view_proj );
+
+    let tuning_snapshot = *tuning.borrow();
+    let layers = &tuning_snapshot.layers;
+    selection_drop_if_hidden( ctx, layers );
+    let selected = ctx.selected_id.get();
+    let selected_kind = selected.and_then( classify_pick );
+
+    if layers.show_background
+    {
+      self.background.draw( gl, view_proj, camera.eye_get() );
+    }
+
+    ships_advance( &mut ctx.ships.borrow_mut(), &tuning_snapshot, selected );
+
+    let asteroids = ctx.asteroids.borrow();
+    let ships = ctx.ships.borrow();
+    let station = ctx.station.borrow();
+
+    let ribbon = RibbonInputs::new( selected_kind, &tuning_snapshot, &asteroids, &ships );
+
+    let ( light_dir, light_view_proj ) = sun_light( &tuning_snapshot );
+    if layers.shadows_drawn()
+    {
+      shadow_pass( gl, &self.shadow_map, light_view_proj, visible_parts( layers, &asteroids, &ships, &station ) );
+    }
+    gl.bind_framebuffer( GL::FRAMEBUFFER, None );
+    gl.viewport( 0, 0, w as i32, h as i32 );
+    gl.disable( GL::CULL_FACE );
+
+    self.hull_program.begin_frame
+    (
+      gl, view_proj, camera.eye_get(), light_dir, tuning_snapshot.light_color, tuning_snapshot.light_intensity, tuning_snapshot.light_size,
+      light_view_proj, self.shadow_map.depth_buffer(), layers,
+    );
+    for part in visible_parts( layers, &asteroids, &ships, &station )
+    {
+      self.hull_program.draw_part( gl, part, Some( part.pick_id ) == selected );
+    }
+
+    if layers.show_starfield
+    {
+      self.starfield.draw( gl, view_proj );
+    }
+
+    if layers.show_trajectories
+    {
+      trajectories_draw( gl, &mut self.trajectories, tuning, &ships, camera, [ w as f32, h as f32 ] );
+    }
+
+    if layers.show_grid
+    {
+      self.grid.draw
+      (
+        gl, view_proj, camera.eye_get(), &tuning_snapshot, &ribbon.focus,
+        ribbon.boundary(), &ribbon.glow
+      );
+    }
+
+    // M6: the gizmo handle, drawn on top of everything at whatever is
+    // currently selected (translate cross or rotate ring, per
+    // `ctx.gizmo_mode`), while `gizmo_visible` - the same condition the
+    // pick pass renders it under, so it can be grabbed exactly when seen.
+    if let Some( kind ) = selected_kind && gizmo_visible( kind, layers )
+    {
+      let object_transform = selected_transform( kind, &asteroids, &ships, &station );
+      let gizmo_part = ctx.gizmo.part( ctx.gizmo_mode.get(), object_transform, GIZMO_ID );
+      ctx.gizmo.draw( gl, view_proj, &gizmo_part );
+    }
   }
 }
