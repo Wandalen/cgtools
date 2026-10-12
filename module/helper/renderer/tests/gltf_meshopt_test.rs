@@ -204,6 +204,8 @@ fn draco_is_still_refused()
 #[ test ]
 fn normalized_position_bounds_are_dequantized()
 {
+  use gltf::accessor::DataType;
+
   let gltf = fixture();
   let acc = gltf.accessors().nth( 2 ).unwrap();
   let raw = gltf::mesh::BoundingBox { min : [ -32767.0, -16384.0, 0.0 ], max : [ 32767.0, 16384.0, 32767.0 ] };
@@ -212,7 +214,6 @@ fn normalized_position_bounds_are_dequantized()
   assert_eq!( b.min, [ -1.0, -16384.0 / 32767.0, 0.0 ] );
   assert_eq!( b.max, [ 1.0, 16384.0 / 32767.0, 1.0 ] );
 
-  use gltf::accessor::DataType;
   let one = | v : f32, t, n | position_bounds_dequantize( gltf::mesh::BoundingBox { min : [ v; 3 ], max : [ v; 3 ] }, t, n ).min[ 0 ];
   assert_eq!( one( -128.0, DataType::I8, true ), -1.0, "the signed minimum clamps to -1" );
   assert_eq!( one( 127.0, DataType::I8, true ), 1.0 );

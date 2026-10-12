@@ -122,7 +122,7 @@ mod gl_scene
     let mut buffer = IdBuffer::new( &gl ).unwrap();
     buffer.size_set( SIZE, SIZE ).unwrap();
 
-    picker.render( &buffer, &scene, gl::math::mat4x4::identity(), | n | id_for( n ) ).unwrap();
+    picker.render( &buffer, &scene, gl::math::mat4x4::identity(), id_for ).unwrap();
 
     assert_eq!( buffer.read( 10, 50 ), Some( 1 ), "top-left: only `back` is there" );
     assert_eq!( buffer.read( 50, 50 ), Some( 2 ), "top-right: nearer `front` wins over `back`" );
@@ -141,12 +141,14 @@ mod gl_scene
 
     assert_eq!( buffer.size_get(), ( 0, 0 ) );
     assert_eq!( buffer.read( 0, 0 ), None );
-    assert!( picker.render( &buffer, &scene, gl::math::mat4x4::identity(), | n | id_for( n ) ).is_err() );
+    assert!( picker.render( &buffer, &scene, gl::math::mat4x4::identity(), id_for ).is_err() );
   }
 
   #[ wasm_bindgen_test::wasm_bindgen_test ]
   fn render_restores_caller_gl_state()
   {
+    use gl::JsCast;
+
     let gl = gl_init();
     let scene = scene( &gl );
     let picker = ScenePicker::new( &gl ).unwrap();
@@ -161,9 +163,8 @@ mod gl_scene
     gl.disable( GL::DEPTH_TEST );
     gl.depth_mask( false );
 
-    picker.render( &buffer, &scene, gl::math::mat4x4::identity(), | n | id_for( n ) ).unwrap();
+    picker.render( &buffer, &scene, gl::math::mat4x4::identity(), id_for ).unwrap();
 
-    use gl::JsCast;
     let framebuffer = gl.get_parameter( GL::FRAMEBUFFER_BINDING ).unwrap().dyn_into::< gl::web_sys::WebGlFramebuffer >().ok();
     assert_eq!( framebuffer.as_ref(), Some( &caller_framebuffer ), "framebuffer binding restored" );
     let viewport : gl::js_sys::Int32Array = gl.get_parameter( GL::VIEWPORT ).unwrap().dyn_into().unwrap();
@@ -185,7 +186,7 @@ mod gl_scene
     buffer.size_set( 8, 8 ).unwrap();
     buffer.size_set( SIZE, SIZE ).unwrap();
     assert_eq!( buffer.size_get(), ( SIZE, SIZE ) );
-    picker.render( &buffer, &scene, gl::math::mat4x4::identity(), | n | id_for( n ) ).unwrap();
+    picker.render( &buffer, &scene, gl::math::mat4x4::identity(), id_for ).unwrap();
     assert_eq!( buffer.read( 50, 50 ), Some( 2 ) );
 
     buffer.size_set( 0, 0 ).unwrap();
