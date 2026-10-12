@@ -254,7 +254,7 @@ mod private
       let max_text_width = ( width as f32 - 2.0 * pad_px ).max( 1.0 );
       let max_text_height = ( height as f32 - 2.0 * pad_px ).max( 1.0 );
 
-      let font_size = self.resolve_font_size( text, font_family, layout, height as f32, max_text_width, max_text_height, is_base_level )?;
+      let font_size = self.resolve_font_size( text, font_family, layout, height as f32, ( max_text_width, max_text_height ), is_base_level )?;
 
       self.ctx.set_fill_style_str( "#FFFFFF" );
       self.ctx.set_font( &format!( "{font_size}px \"{font_family}\"" ) );
@@ -284,8 +284,10 @@ mod private
     ///   config-load time, and [`crate::webgl::engraving::EngravingSession::text_layout_mut`]
     ///   allows mutating a node's layout afterwards, e.g. from a live GUI; if either field is
     ///   missing here, this falls back to the same auto-fit as `RELATIVE` rather than
-    ///   panicking). `PHYSICAL` rejects overflow of `max_width` outright; `HYBRID` shrinks
-    ///   proportionally down to `minFontSizeMm` (unboundedly if unset) before rejecting.
+    ///   panicking). `PHYSICAL` rejects overflow of `max_size`'s width outright; `HYBRID`
+    ///   shrinks proportionally down to `minFontSizeMm` (unboundedly if unset) before rejecting.
+    ///
+    /// `max_size` is the text box, `( width, height )` in canvas pixels inside the padding.
     ///
     /// `is_base_level` gates whether that rejection is actually fatal: it only is for the
     /// full-resolution mip level. A mip chain's lower levels exist purely to anti-alias the
@@ -302,12 +304,12 @@ mod private
       font_family : &str,
       layout : &EngravingTextLayout,
       canvas_height : f32,
-      max_width : f32,
-      max_height : f32,
+      max_size : ( f32, f32 ),
       is_base_level : bool,
     )
     -> Result< f32, EngravingCanvasError >
     {
+      let ( max_width, max_height ) = max_size;
       match layout.resolved_sizing_mode()
       {
         SizingMode::Relative =>
