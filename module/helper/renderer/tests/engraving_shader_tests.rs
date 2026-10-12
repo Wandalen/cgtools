@@ -19,9 +19,9 @@ mod tests
 
   wasm_bindgen_test::wasm_bindgen_test_configure!( run_in_browser );
 
-  async fn init_gl() -> GL
+  fn init_gl() -> GL
   {
-    gl::browser::setup( Default::default() );
+    gl::browser::setup( gl::browser::Config::default() );
     let options = gl::context::ContextOptions::default().antialias( false );
     let canvas = gl::canvas::make().unwrap();
     gl::context::from_canvas_with( &canvas, options ).unwrap()
@@ -51,7 +51,7 @@ mod tests
   #[ wasm_bindgen_test( async ) ]
   async fn engraving_alone_compiles()
   {
-    let gl = init_gl().await;
+    let gl = init_gl();
     let mut material = PbrMaterial::new( &gl );
     material.engraving_texture_set( Some( dummy_texture_info() ) );
     assert_compiles( &gl, &material, false, "engraving alone (derivative TBN fallback)" );
@@ -60,7 +60,7 @@ mod tests
   #[ wasm_bindgen_test( async ) ]
   async fn engraving_with_real_tangents_and_normal_map_compiles()
   {
-    let gl = init_gl().await;
+    let gl = init_gl();
     let mut material = PbrMaterial::new( &gl );
     material.engraving_texture_set( Some( dummy_texture_info() ) );
     material.normal_texture_set( Some( dummy_texture_info() ) );
@@ -74,7 +74,7 @@ mod tests
   #[ wasm_bindgen_test( async ) ]
   async fn engraving_custom_strength_roughness_darkening_compiles()
   {
-    let gl = init_gl().await;
+    let gl = init_gl();
     let mut material = PbrMaterial::new( &gl );
     material.engraving_texture_set( Some( dummy_texture_info() ) );
     material.engraving_strength = 2.5;
@@ -86,7 +86,7 @@ mod tests
   #[ wasm_bindgen_test( async ) ]
   async fn engraving_with_clearcoat_and_anisotropy_and_ibl_compiles()
   {
-    let gl = init_gl().await;
+    let gl = init_gl();
     let mut material = PbrMaterial::new( &gl );
     material.engraving_texture_set( Some( dummy_texture_info() ) );
     material.clearcoat_factor_set( Some( 1.0 ) );
