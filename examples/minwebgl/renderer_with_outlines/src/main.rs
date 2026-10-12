@@ -481,7 +481,7 @@ async fn app_run() -> Result< (), gl::WebglError >
   let ibl = renderer::webgl::loaders::ibl::load( &gl, "static/environment_maps/pink_sunrise_4k/", None ).await;
   renderer.borrow_mut().ibl_set( ibl );
   let skybox = texture_create( &gl, "environment_maps/equirectangular_maps/pink_sunrise.jpg" );
-  renderer.borrow_mut().skybox_set( skybox.texture.borrow().source.clone() );
+  renderer.borrow_mut().skybox_set( Some( skybox.texture.borrow().clone() ) );
   let renderer1 = renderer.clone();
 
   let attributes = attributes_get( &gltf )?;

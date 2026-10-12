@@ -5,7 +5,8 @@
 //! dequantized position bounds. The decode itself runs meshoptimizer's JS decoder and
 //! is covered in the browser.
 
-use renderer::webgl::loaders::gltf::{ document_validate, position_bounds_dequantize, required_extensions_check };
+use renderer::webgl::loaders::gltf::position_bounds_dequantize;
+use renderer::webgl::loaders::gltf_extensions::{ document_validate, required_extensions_check };
 use renderer::webgl::loaders::meshopt::{ buffer_is_fallback, MeshoptFilter, MeshoptMode, MeshoptView };
 use serde_json::json;
 
@@ -196,8 +197,8 @@ fn draco_is_still_refused()
   (
     br#"{ "asset": { "version": "2.0" }, "extensionsRequired": [ "KHR_draco_mesh_compression" ] }"#
   ).unwrap();
-  assert!( document_validate( &gltf ).is_ok() );
   assert!( required_extensions_check( &gltf ).is_err() );
+  assert!( document_validate( &gltf ).is_err(), "document_validate applies the extensionsRequired rule as well" );
 }
 
 #[ test ]
