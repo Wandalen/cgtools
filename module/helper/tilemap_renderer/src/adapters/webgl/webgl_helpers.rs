@@ -518,7 +518,7 @@ mod private
     #[ must_use ]
     pub fn new( gl : &gl::GL, width : u32, height : u32 ) -> Option< Self >
     {
-      #[ allow( clippy::cast_possible_wrap ) ]
+      #[ allow( clippy::cast_possible_wrap, reason = "a render target is canvas-sized, far below i32::MAX pixels a side" ) ]
       let ( w, h ) = ( width as i32, height as i32 );
 
       let color = gl.create_texture()?;
