@@ -48,6 +48,19 @@ jobs:
       - name: Install cargo-nextest
         uses: taiki-e/install-action@nextest
 
+      # The native GPU tests (gpu_hal, tilemap_renderer's native adapter,
+      # renderer) need a Vulkan driver, and this runner has no GPU. lavapipe,
+      # mesa's software Vulkan ICD, suffices — the same requirement
+      # gpu_hal's readme states for running them locally.
+      - name: Install a software Vulkan driver (lavapipe)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers libvulkan1
+
+      # shader_chunks_core's compile-fail snapshots are taken with the
+      # standard library's source, which rustc quotes from rust-src (see
+      # that crate's tests/compile_fail/readme.md).
+      - name: Install rust-src
+        run: rustup component add rust-src
+
       - name: Install dvc
         run: pipx install dvc
 
