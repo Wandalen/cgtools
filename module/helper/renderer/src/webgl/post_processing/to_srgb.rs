@@ -49,6 +49,7 @@ mod private
     }
 
     /// Whether the output keeps the input's alpha (see `alpha_forward_set`).
+    #[ must_use ]
     pub fn alpha_forward( &self ) -> bool
     {
       self.alpha_forward
