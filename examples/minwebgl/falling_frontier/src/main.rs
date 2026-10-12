@@ -612,165 +612,187 @@ fn selection_drop_if_hidden( ctx : &InteractionCtx, layers : &RenderLayers )
 /// gizmo drag survives the cursor leaving canvas bounds mid-drag, same
 /// rationale as `examples/minwebgl/object_picking`'s own mousemove/mouseup
 /// binding. `keydown` (G/R/Escape) is window-scoped too, matching the JS
-/// reference's own `window.addEventListener('keydown', ...)`.
-#[ expect( clippy::too_many_lines, reason = "four closely-related event listeners (pointerdown/pointermove/pointerup/keydown) sharing the same down_pos/ctx setup - splitting them into separate functions would just move the same total line count behind more indirection" ) ]
+/// reference's own `window.addEventListener('keydown', ...)`. Each listener
+/// only unpacks its event; what it does is in `gizmo_grab`,
+/// `gizmo_drag_move`, `pointer_release` and `key_press`.
 fn setup_selection_and_gizmo( ctx : &Rc< InteractionCtx > )
 {
   use gl::web_sys::wasm_bindgen::{ prelude::Closure, JsCast };
 
   let window = gl::web_sys::window().unwrap();
   let canvas = ctx.canvas.clone();
-  let down_pos : Rc< Cell< Option< ( f64, f64 ) > > > = Rc::new( Cell::new( None ) );
+  // Where the primary button went down, for telling a click from a drag on
+  // release.
+  let press : Rc< Cell< Option< ( f64, f64 ) > > > = Rc::new( Cell::new( None ) );
 
   {
     let ctx = ctx.clone();
-    let down_pos = down_pos.clone();
-    let closure = Closure::< dyn FnMut( _ ) >::new
-    (
-      move | e : gl::web_sys::PointerEvent |
-      {
-        if e.button() != 0 { return; }
-        let pos = pointer_client_pos( &e );
-        down_pos.set( Some( pos ) );
-
-        // A gizmo handle only exists while something's selected and the
-        // handle is shown - nothing to grab otherwise, so skip the
-        // speculative pick (an id pass plus a synchronous pixel read).
-        let layers = ctx.tuning.borrow().layers;
-        let Some( kind ) = ctx.selected_id.get().and_then( classify_pick ).filter( | kind | gizmo_visible( *kind, &layers ) ) else { return };
-        if pick_at_client( &ctx, pos.0, pos.1 ) != Some( GIZMO_ID ) { return; }
-
-        let Some( hit ) = ray_ground_hit( ctx.latest_view_proj.get(), &ctx.canvas, pos.0, pos.1 ) else { return };
-        let ( position, rotation_y ) = selected_position_rotation( kind, &ctx.asteroids.borrow(), &ctx.ships.borrow(), &ctx.station.borrow() );
-
-        let drag = match ctx.gizmo_mode.get()
-        {
-          GizmoMode::Translate => DragState
-          {
-            kind, mode : GizmoMode::Translate,
-            grab_offset : [ position[ 0 ] - hit[ 0 ], position[ 1 ] - hit[ 1 ] ],
-            rotation_offset : 0.0,
-            start_position : position,
-            start_rotation : rotation_y,
-          },
-          GizmoMode::Rotate => DragState
-          {
-            kind, mode : GizmoMode::Rotate,
-            grab_offset : [ 0.0, 0.0 ],
-            rotation_offset : rotation_y - ( hit[ 0 ] - position[ 0 ] ).atan2( hit[ 1 ] - position[ 1 ] ),
-            start_position : position,
-            start_rotation : rotation_y,
-          },
-        };
-        ctx.drag_state.set( Some( drag ) );
-        ctx.camera_controls.borrow_mut().rotation.enabled = false;
-      }
-    );
+    let press = press.clone();
+    let closure = Closure::< dyn FnMut( _ ) >::new( move | e : gl::web_sys::PointerEvent |
+    {
+      if e.button() != 0 { return; }
+      let ( x, y ) = pointer_client_pos( &e );
+      press.set( Some( ( x, y ) ) );
+      gizmo_grab( &ctx, x, y );
+    } );
     canvas.add_event_listener_with_callback( "pointerdown", closure.as_ref().unchecked_ref() ).unwrap();
     closure.forget();
   }
 
   {
     let ctx = ctx.clone();
-    let closure = Closure::< dyn FnMut( _ ) >::new
-    (
-      move | e : gl::web_sys::PointerEvent |
-      {
-        let Some( drag ) = ctx.drag_state.get() else { return };
-        let ( x, y ) = pointer_client_pos( &e );
-        let Some( hit ) = ray_ground_hit( ctx.latest_view_proj.get(), &ctx.canvas, x, y ) else { return };
-
-        let mut asteroids = ctx.asteroids.borrow_mut();
-        let mut ships = ctx.ships.borrow_mut();
-        let mut station = ctx.station.borrow_mut();
-
-        match drag.mode
-        {
-          GizmoMode::Translate =>
-          {
-            let position = [ hit[ 0 ] + drag.grab_offset[ 0 ], hit[ 1 ] + drag.grab_offset[ 1 ] ];
-            drag_selected( drag.kind, position, &mut asteroids, &mut ships, &mut station );
-          }
-          GizmoMode::Rotate =>
-          {
-            let ( position, _ ) = selected_position_rotation( drag.kind, &asteroids, &ships, &station );
-            let angle = ( hit[ 0 ] - position[ 0 ] ).atan2( hit[ 1 ] - position[ 1 ] );
-            rotate_selected( drag.kind, angle + drag.rotation_offset, &mut asteroids, &mut ships, &mut station );
-          }
-        }
-      }
-    );
+    let closure = Closure::< dyn FnMut( _ ) >::new( move | e : gl::web_sys::PointerEvent |
+    {
+      let ( x, y ) = pointer_client_pos( &e );
+      gizmo_drag_move( &ctx, x, y );
+    } );
     window.add_event_listener_with_callback( "pointermove", closure.as_ref().unchecked_ref() ).unwrap();
     closure.forget();
   }
 
   {
     let ctx = ctx.clone();
-    let down_pos = down_pos.clone();
-    let closure = Closure::< dyn FnMut( _ ) >::new
-    (
-      move | e : gl::web_sys::PointerEvent |
-      {
-        if ctx.drag_state.take().is_some()
-        {
-          ctx.camera_controls.borrow_mut().rotation.enabled = true;
-          return;
-        }
-
-        if e.button() != 0 { return; }
-        let Some( ( dx0, dy0 ) ) = down_pos.get() else { return };
-        let ( x, y ) = pointer_client_pos( &e );
-        let ( dx, dy ) = ( x - dx0, y - dy0 );
-        // A real drag (camera orbit), not a click - leave selection alone.
-        if dx.hypot( dy ) > 6.0 { return; }
-
-        let picked = pick_at_client( &ctx, x, y );
-        ctx.selected_id.set( picked );
-        let kind = picked.and_then( classify_pick );
-        refresh_selection_status( &ctx.document, &selection_status_text( kind ) );
-        let info = kind.map( | k | unit_info_for( k, &ctx.ships.borrow(), &ctx.station.borrow() ) );
-        refresh_unit_panel( &ctx.document, info.as_ref() );
-      }
-    );
+    let press = press.clone();
+    let closure = Closure::< dyn FnMut( _ ) >::new( move | e : gl::web_sys::PointerEvent |
+    {
+      let ( x, y ) = pointer_client_pos( &e );
+      pointer_release( &ctx, e.button(), press.get(), x, y );
+    } );
     window.add_event_listener_with_callback( "pointerup", closure.as_ref().unchecked_ref() ).unwrap();
     closure.forget();
   }
 
   {
     let ctx = ctx.clone();
-    let down_pos = down_pos.clone();
-    let closure = Closure::< dyn FnMut( _ ) >::new
-    (
-      move | e : gl::web_sys::KeyboardEvent |
-      {
-        // During a gizmo drag the keys act on the drag, not the selection:
-        // Escape cancels it, putting the object back where it was grabbed,
-        // and G/R wait for the drag to end, since the drag keeps the mode it
-        // was grabbed in. Deselecting or switching the drawn handle mid-drag
-        // would leave the selection and the drag disagreeing.
-        if let Some( drag ) = ctx.drag_state.get()
-        {
-          if e.key() == "Escape"
-          {
-            drag_cancel( &ctx, drag );
-            // The press that started the drag must not become a click on
-            // release: over the handle it would select the gizmo's own id.
-            down_pos.set( None );
-          }
-          return;
-        }
-        if ctx.selected_id.get().is_none() { return; }
-        match e.key().as_str()
-        {
-          "g" | "G" => ctx.gizmo_mode.set( GizmoMode::Translate ),
-          "r" | "R" => ctx.gizmo_mode.set( GizmoMode::Rotate ),
-          "Escape" => deselect( &ctx ),
-          _ => {}
-        }
-      }
-    );
+    let closure = Closure::< dyn FnMut( _ ) >::new( move | e : gl::web_sys::KeyboardEvent |
+    {
+      key_press( &ctx, &e.key(), &press );
+    } );
     window.add_event_listener_with_callback( "keydown", closure.as_ref().unchecked_ref() ).unwrap();
     closure.forget();
+  }
+}
+
+/// A primary-button press at `x`/`y` (client coordinates): grabs the gizmo
+/// handle if the press lands on it, starting a drag in the current gizmo
+/// mode. The drag remembers the grab-time offset (translate) or angle offset
+/// (rotate), so the object doesn't snap to the cursor, and the grab-time
+/// transform, which Escape restores. Camera orbit rotation is off for the
+/// drag.
+fn gizmo_grab( ctx : &InteractionCtx, x : f64, y : f64 )
+{
+  // A gizmo handle only exists while something's selected and the handle is
+  // shown - nothing to grab otherwise, so skip the speculative pick (an id
+  // pass plus a synchronous pixel read).
+  let layers = ctx.tuning.borrow().layers;
+  let Some( kind ) = ctx.selected_id.get().and_then( classify_pick ).filter( | kind | gizmo_visible( *kind, &layers ) ) else { return };
+  if pick_at_client( ctx, x, y ) != Some( GIZMO_ID ) { return; }
+
+  let Some( hit ) = ray_ground_hit( ctx.latest_view_proj.get(), &ctx.canvas, x, y ) else { return };
+  let ( position, rotation_y ) = selected_position_rotation( kind, &ctx.asteroids.borrow(), &ctx.ships.borrow(), &ctx.station.borrow() );
+
+  let drag = match ctx.gizmo_mode.get()
+  {
+    GizmoMode::Translate => DragState
+    {
+      kind, mode : GizmoMode::Translate,
+      grab_offset : [ position[ 0 ] - hit[ 0 ], position[ 1 ] - hit[ 1 ] ],
+      rotation_offset : 0.0,
+      start_position : position,
+      start_rotation : rotation_y,
+    },
+    GizmoMode::Rotate => DragState
+    {
+      kind, mode : GizmoMode::Rotate,
+      grab_offset : [ 0.0, 0.0 ],
+      rotation_offset : rotation_y - ( hit[ 0 ] - position[ 0 ] ).atan2( hit[ 1 ] - position[ 1 ] ),
+      start_position : position,
+      start_rotation : rotation_y,
+    },
+  };
+  ctx.drag_state.set( Some( drag ) );
+  ctx.camera_controls.borrow_mut().rotation.enabled = false;
+}
+
+/// The pointer moved to `x`/`y` (client coordinates): during a gizmo drag,
+/// moves (translate) or turns (rotate) the dragged object to follow the
+/// cursor's ground-plane hit.
+fn gizmo_drag_move( ctx : &InteractionCtx, x : f64, y : f64 )
+{
+  let Some( drag ) = ctx.drag_state.get() else { return };
+  let Some( hit ) = ray_ground_hit( ctx.latest_view_proj.get(), &ctx.canvas, x, y ) else { return };
+
+  let mut asteroids = ctx.asteroids.borrow_mut();
+  let mut ships = ctx.ships.borrow_mut();
+  let mut station = ctx.station.borrow_mut();
+
+  match drag.mode
+  {
+    GizmoMode::Translate =>
+    {
+      let position = [ hit[ 0 ] + drag.grab_offset[ 0 ], hit[ 1 ] + drag.grab_offset[ 1 ] ];
+      drag_selected( drag.kind, position, &mut asteroids, &mut ships, &mut station );
+    }
+    GizmoMode::Rotate =>
+    {
+      let ( position, _ ) = selected_position_rotation( drag.kind, &asteroids, &ships, &station );
+      let angle = ( hit[ 0 ] - position[ 0 ] ).atan2( hit[ 1 ] - position[ 1 ] );
+      rotate_selected( drag.kind, angle + drag.rotation_offset, &mut asteroids, &mut ships, &mut station );
+    }
+  }
+}
+
+/// A pointer `button` released at `x`/`y` (client coordinates), after a
+/// primary press at `press`: ends a gizmo drag, or else, for a primary
+/// click (released within 6 px of the press, so not a camera orbit),
+/// selects whatever is under the cursor, or nothing.
+fn pointer_release( ctx : &InteractionCtx, button : i16, press : Option< ( f64, f64 ) >, x : f64, y : f64 )
+{
+  if ctx.drag_state.take().is_some()
+  {
+    ctx.camera_controls.borrow_mut().rotation.enabled = true;
+    return;
+  }
+
+  if button != 0 { return; }
+  let Some( ( press_x, press_y ) ) = press else { return };
+  // A real drag (camera orbit), not a click - leave selection alone.
+  if ( x - press_x ).hypot( y - press_y ) > 6.0 { return; }
+
+  let picked = pick_at_client( ctx, x, y );
+  ctx.selected_id.set( picked );
+  let kind = picked.and_then( classify_pick );
+  refresh_selection_status( &ctx.document, &selection_status_text( kind ) );
+  let info = kind.map( | k | unit_info_for( k, &ctx.ships.borrow(), &ctx.station.borrow() ) );
+  refresh_unit_panel( &ctx.document, info.as_ref() );
+}
+
+/// A key press. During a gizmo drag the keys act on the drag, not the
+/// selection: Escape cancels it, putting the object back where it was
+/// grabbed, and G/R wait for the drag to end, since the drag keeps the mode
+/// it was grabbed in. Deselecting or switching the drawn handle mid-drag
+/// would leave the selection and the drag disagreeing. Otherwise, with
+/// something selected, G/R pick the gizmo mode and Escape deselects.
+fn key_press( ctx : &InteractionCtx, key : &str, press : &Cell< Option< ( f64, f64 ) > > )
+{
+  if let Some( drag ) = ctx.drag_state.get()
+  {
+    if key == "Escape"
+    {
+      drag_cancel( ctx, drag );
+      // The press that started the drag must not become a click on
+      // release: over the handle it would select the gizmo's own id.
+      press.set( None );
+    }
+    return;
+  }
+  if ctx.selected_id.get().is_none() { return; }
+  match key
+  {
+    "g" | "G" => ctx.gizmo_mode.set( GizmoMode::Translate ),
+    "r" | "R" => ctx.gizmo_mode.set( GizmoMode::Rotate ),
+    "Escape" => deselect( ctx ),
+    _ => {}
   }
 }
 
