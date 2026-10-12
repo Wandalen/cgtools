@@ -254,7 +254,7 @@ fn test_hexagonal_line_of_sight()
 // Advanced FOV Features Tests
 // =============================================================================
 
-#[ expect( clippy::float_cmp, reason = "light levels read back are the exact construction literals; no arithmetic in between" ) ]
+#[ allow( clippy::float_cmp, reason = "light levels read back are the exact construction literals; no arithmetic in between" ) ]
 #[ test ]
 fn test_visibility_state_properties()
 {
@@ -316,7 +316,7 @@ fn test_fov_distance_ranges()
 // Multi-Source Lighting Tests
 // =============================================================================
 
-#[ expect( clippy::float_cmp, reason = "the intensity read back is the exact construction literal" ) ]
+#[ allow( clippy::float_cmp, reason = "the intensity read back is the exact construction literal" ) ]
 #[ test ]
 fn test_light_source_creation()
 {
@@ -331,7 +331,7 @@ fn test_light_source_creation()
   assert!(light.penetrates_walls);
 }
 
-#[ expect( clippy::float_cmp, reason = "intensity at the source position is exactly 1.0 by the lighting model's definition" ) ]
+#[ allow( clippy::float_cmp, reason = "intensity at the source position is exactly 1.0 by the lighting model's definition" ) ]
 #[ test ]
 fn test_single_light_source_calculation()
 {

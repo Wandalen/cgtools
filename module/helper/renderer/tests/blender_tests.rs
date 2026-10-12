@@ -87,7 +87,7 @@ fn test_weights_normalize_unequal()
 }
 
 #[ test ]
-#[ expect( clippy::float_cmp, reason = "weights with zero sum are untouched by `weights_normalize`; the retrieved value is the exact input literal" ) ]
+#[ allow( clippy::float_cmp, reason = "weights with zero sum are untouched by `weights_normalize`; the retrieved value is the exact input literal" ) ]
 fn test_weights_normalize_zero_sum()
 {
   let mut values = vec!
@@ -105,7 +105,7 @@ fn test_weights_normalize_zero_sum()
 }
 
 #[ test ]
-#[ expect( clippy::float_cmp, reason = "weight literals round-trip unchanged through `weights_get`; no arithmetic in between" ) ]
+#[ allow( clippy::float_cmp, reason = "weight literals round-trip unchanged through `weights_get`; no arithmetic in between" ) ]
 fn test_blender_weights_get_mut()
 {
   let mut blender = Blender::new();
@@ -146,7 +146,7 @@ fn test_blender_animation_get()
 }
 
 #[ test ]
-#[ expect( clippy::float_cmp, reason = "weight literals round-trip unchanged through `weights_get`; no arithmetic in between" ) ]
+#[ allow( clippy::float_cmp, reason = "weight literals round-trip unchanged through `weights_get`; no arithmetic in between" ) ]
 fn test_blender_multiple_animations_with_different_weights()
 {
   let mut blender = Blender::new();
@@ -215,7 +215,7 @@ fn test_blender_normalization_enabled()
 }
 
 #[ test ]
-#[ expect( clippy::float_cmp, reason = "weight literals round-trip unchanged through `weights_get`; no arithmetic in between" ) ]
+#[ allow( clippy::float_cmp, reason = "weight literals round-trip unchanged through `weights_get`; no arithmetic in between" ) ]
 fn test_blender_independent_transform_blend()
 {
   let mut blender = Blender::new();
@@ -259,7 +259,7 @@ fn test_blender_independent_transform_blend()
 }
 
 #[ test ]
-#[ expect( clippy::float_cmp, reason = "weight literals round-trip unchanged through `weights_get`; no arithmetic in between" ) ]
+#[ allow( clippy::float_cmp, reason = "weight literals round-trip unchanged through `weights_get`; no arithmetic in between" ) ]
 fn test_blender_scale_blend_independence()
 {
   let mut blender = Blender::new();
@@ -712,7 +712,7 @@ fn test_is_completed_two_animations_same_time_both_genuinely_completed()
 /// actually exercises the fix.
 // test_kind: bug_reproducer(BUG-261)
 #[ test ]
-#[ expect( clippy::float_cmp, reason = "sentinel translation/scale values round-trip unchanged through Blender::set when no channel targets them; no arithmetic occurs in between" ) ]
+#[ allow( clippy::float_cmp, reason = "sentinel translation/scale values round-trip unchanged through Blender::set when no channel targets them; no arithmetic occurs in between" ) ]
 fn test_blender_leaves_translation_and_scale_untouched_when_only_rotation_channel_present()
 {
   let mut blender = Blender::new();
