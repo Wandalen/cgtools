@@ -17,7 +17,7 @@ mod private
   /// A GPU-resident engraving mask texture that is allocated once and updated in place.
   ///
   /// Wraps the crate's generic [`Texture`]/[`TextureInfo`] so it can be handed directly to
-  /// [`crate::webgl::material::PbrMaterial::set_engraving_texture`]. Filtering is `LINEAR`
+  /// [`crate::webgl::material::PbrMaterial::engraving_texture_set`]. Filtering is `LINEAR`
   /// magnification with trilinear (`LINEAR_MIPMAP_LINEAR`) minification, and wrapping is
   /// `CLAMP_TO_EDGE`, per the engraving texture contract: the shader already bounds-checks
   /// `vEngravingUv` against `[0, 1]` itself (see `main.frag`), so edge clamping only needs to
@@ -96,8 +96,9 @@ mod private
       };
 
       // This texture is a fresh GPU allocation made above, solely owned by this
-      // `EngravingTexture` — mark it `owned` so `Drop` frees it (see `Texture`'s doc comment).
-      let texture = Texture { target : gl::TEXTURE_2D, source : Some( source ), sampler, owned : true, gl : Some( gl.clone() ) };
+      // `EngravingTexture`, so it is built with `Texture::owning`: dropping the last clone of
+      // it frees the GPU texture (see `TextureOwner`).
+      let texture = Texture::owning( gl, gl::TEXTURE_2D, source, sampler );
       let info = TextureInfo { texture : Rc::new( RefCell::new( texture ) ), uv_position };
 
       Ok( Self { info, width, height, levels } )
@@ -159,7 +160,7 @@ mod private
     pub fn level_count( &self ) -> u32 { self.levels }
 
     /// Returns a [`TextureInfo`] handle to this texture, suitable for
-    /// `PbrMaterial::set_engraving_texture`. Cloning is cheap (the underlying `Texture` is
+    /// `PbrMaterial::engraving_texture_set`. Cloning is cheap (the underlying `Texture` is
     /// `Rc`-shared), and further [`Self::update`] calls remain visible through every clone.
     pub fn texture_info( &self ) -> TextureInfo
     {

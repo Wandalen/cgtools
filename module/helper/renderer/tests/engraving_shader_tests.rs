@@ -17,6 +17,8 @@ mod tests
   use gl::GL;
   use renderer::webgl::{ material::PbrMaterial, Material, Texture, TextureInfo };
 
+  wasm_bindgen_test::wasm_bindgen_test_configure!( run_in_browser );
+
   async fn init_gl() -> GL
   {
     gl::browser::setup( Default::default() );
@@ -51,7 +53,7 @@ mod tests
   {
     let gl = init_gl().await;
     let mut material = PbrMaterial::new( &gl );
-    material.set_engraving_texture( Some( dummy_texture_info() ) );
+    material.engraving_texture_set( Some( dummy_texture_info() ) );
     assert_compiles( &gl, &material, false, "engraving alone (derivative TBN fallback)" );
   }
 
@@ -60,12 +62,12 @@ mod tests
   {
     let gl = init_gl().await;
     let mut material = PbrMaterial::new( &gl );
-    material.set_engraving_texture( Some( dummy_texture_info() ) );
-    material.set_normal_texture( Some( dummy_texture_info() ) );
+    material.engraving_texture_set( Some( dummy_texture_info() ) );
+    material.normal_texture_set( Some( dummy_texture_info() ) );
     // Mirrors what the gltf loader does when a TANGENT attribute is present, exercising the
     // real-tangent TBN branch (shared between normal mapping and engraving) instead of the
     // screen-space-derivative fallback.
-    material.add_define( "USE_TANGENTS", "" );
+    material.define_add( "USE_TANGENTS", "" );
     assert_compiles( &gl, &material, false, "engraving + base normal map sharing a real-tangent TBN" );
   }
 
@@ -74,7 +76,7 @@ mod tests
   {
     let gl = init_gl().await;
     let mut material = PbrMaterial::new( &gl );
-    material.set_engraving_texture( Some( dummy_texture_info() ) );
+    material.engraving_texture_set( Some( dummy_texture_info() ) );
     material.engraving_strength = 2.5;
     material.engraving_roughness = 0.6;
     material.engraving_darkening = 0.5;
@@ -86,11 +88,11 @@ mod tests
   {
     let gl = init_gl().await;
     let mut material = PbrMaterial::new( &gl );
-    material.set_engraving_texture( Some( dummy_texture_info() ) );
-    material.set_clearcoat_factor( Some( 1.0 ) );
-    material.set_clearcoat_normal_texture( Some( dummy_texture_info() ) );
-    material.set_anisotropy_strength( Some( 0.8 ) );
-    material.set_anisotropy_texture( Some( dummy_texture_info() ) );
+    material.engraving_texture_set( Some( dummy_texture_info() ) );
+    material.clearcoat_factor_set( Some( 1.0 ) );
+    material.clearcoat_normal_texture_set( Some( dummy_texture_info() ) );
+    material.anisotropy_strength_set( Some( 0.8 ) );
+    material.anisotropy_texture_set( Some( dummy_texture_info() ) );
     assert_compiles( &gl, &material, true, "engraving + clearcoat + anisotropy + IBL, worst-case combo sharing one TBN" );
   }
 }
