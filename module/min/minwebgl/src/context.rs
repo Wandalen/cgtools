@@ -159,10 +159,15 @@ mod private
   /// reads on a context that wasn't created with this hint, because it then has to migrate the
   /// canvas from a GPU-backed surface to a software one after the fact. Passing
   /// `will_read_frequently: true` up front makes that choice at context-creation time instead.
+  ///
+  /// # Errors
+  /// Returns an error if the context options can't be built, if the canvas cannot provide a
+  /// 2d context, or if the retrieved context cannot be cast to `CanvasRenderingContext2d`.
   pub fn from_canvas_2d_with_options( canvas : &HtmlCanvasElement, will_read_frequently : bool ) -> Result< web_sys::CanvasRenderingContext2d, Error >
   {
     let context_options = js_sys::Object::new();
-    js_sys::Reflect::set( &context_options, &"willReadFrequently".into(), &will_read_frequently.into() ).unwrap();
+    js_sys::Reflect::set( &context_options, &"willReadFrequently".into(), &will_read_frequently.into() )
+    .map_err( |_| Error::ContextRetrievingError( "Failed to build 2d context options" ) )?;
 
     let context = canvas
     .get_context_with_context_options( "2d", &context_options )
