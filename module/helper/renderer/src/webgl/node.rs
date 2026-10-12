@@ -91,7 +91,11 @@ mod private
       Self::default()
     }
 
-    /// Clones the node and all of its descendants, creating a new independent scene graph subtree.
+    /// Clones the node and all of its descendants into a new scene graph subtree.
+    ///
+    /// Nodes, meshes, skeletons and materials are per copy, but every primitive's
+    /// `Geometry` is shared with the original (see `Primitive::clone`): mutating or
+    /// re-uploading one copy's geometry changes it for every copy.
     #[ must_use ]
     pub fn tree_clone( &self ) -> Rc< RefCell< Self > >
     {
