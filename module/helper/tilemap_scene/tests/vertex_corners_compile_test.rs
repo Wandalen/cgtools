@@ -2,7 +2,7 @@
 //! pattern matching and wildcards, `orient_to_grid` frame selection,
 //! `corner_source` channels and `offset`.
 
-#![ expect( clippy::float_cmp, reason = "assertions check exact pass-through of constant rotations; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
+#![ allow( clippy::float_cmp, reason = "assertions check exact pass-through of constant rotations; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
 
 use rustc_hash::FxHashMap as HashMap;
 
