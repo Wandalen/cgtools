@@ -130,11 +130,17 @@ delete once no longer needed, not part of the deliverable.
   every frame. The bake runs with time fixed at 0, so the clouds no longer
   drift. The face order and orientation are pinned by a unit test in
   `background.rs`.
-- **Browser tests for the layer filtering**: `src/live_gl_tests.rs`
-  (wasm32 only, `wasm-pack test --headless --chrome`) builds the real
-  asteroids, ships and station on a live context and checks that
-  `visible_parts` returns exactly the shown groups and that
-  `pick_at_client` can't pick an asteroid once its layer is hidden.
+- **Browser tests for the layer filtering and the gizmo**:
+  `src/live_gl_tests.rs` (wasm32 only, `wasm-pack test --headless --chrome`)
+  builds the real asteroids, ships and station on a live context and checks
+  that `visible_parts` returns exactly the shown groups, that
+  `pick_at_client` can't pick an asteroid once its layer is hidden, that
+  Escape mid-drag puts the object back in both gizmo modes, and that hiding
+  the selected object's layer drops the selection and its drag.
+- **Smaller app_run and listeners**: the frame body is
+  `frame::SceneRenderers::frame_render`, and each selection / gizmo listener
+  calls a named handler (`gizmo_grab`, `gizmo_drag_move`, `pointer_release`,
+  `key_press`), which the browser tests drive directly.
 
 **If picking this back up**: there's no "next task" - re-read the gap audit
 (`research/falling_frontier_cgtools_audit.md`) against what actually landed
