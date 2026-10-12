@@ -45,7 +45,7 @@ scene model + script, gated on a committed scene-file requirement.
 | File | Relationship |
 |------|--------------|
 | `module/blank/d3_scene/` | Reserved d3 scene-layer slot |
-| `module/helper/renderer/src/webgl/loaders/gltf.rs` | glTF ingestion — the de facto d3 model boundary; now enforces `extensionsRequired` (`required_extensions_check`, run right after parse) against the extensions the loader actually implements (`KHR_lights_punctual`, `KHR_materials_specular`), refusing to silently produce incomplete output for assets requiring anything else — tested by `tests/gltf_extensions_required_test.rs` |
+| `module/helper/renderer/src/webgl/loaders/gltf.rs` | glTF ingestion — the de facto d3 model boundary; now enforces `extensionsRequired` (`document_validate` in `loaders/gltf_extensions.rs`, run right after parse) against the extensions the loader actually implements (`KHR_lights_punctual`, `KHR_materials_specular`, `KHR_materials_clearcoat`, `KHR_materials_anisotropy`), refusing to silently produce incomplete output for assets requiring anything else — tested by `tests/gltf_extensions_required_test.rs` |
 | `module/helper/renderer/src/webgl/animation/loaders/gltf.rs` | Animation-specific glTF ingestion, alongside the main loader above |
 | `module/helper/renderer/tests/gltf_loader_tests.rs` | Native, off-GPU coverage for `asset_uri_resolve`'s pure URI-resolution sub-surface |
 | `module/helper/renderer/tests/gltf_light_parsing_test.rs` | Native, off-GPU coverage for `light_list_get`'s pure light-extraction sub-surface and `light_get`'s per-node lookup sub-surface (the latter's 2 tests are BUG-189/BUG-172 regression coverage) |
@@ -55,6 +55,7 @@ scene model + script, gated on a committed scene-file requirement.
 | `module/helper/renderer/tests/gltf_skeleton_displacements_test.rs` | Native, off-GPU coverage for `skeleton_displacements_data_load`'s pure morph-target displacement-packing sub-surface (task 299) |
 | `module/helper/renderer/tests/skeleton_tests.rs` | Native, off-GPU (`pure_tests` module) coverage for `skeleton_transforms_data_load`'s pure transform-resolution sub-surface; also carries wasm/browser-context skeleton-loading tests |
 | `module/helper/renderer/tests/gltf_material_variation_test.rs` | Native, off-GPU coverage for `material_variation_resolve`'s pure material-variant-caching sub-surface (BUG-245 regression) |
+| `module/helper/renderer/tests/gltf_material_extensions_test.rs` | Native, off-GPU coverage for `loaders/gltf_extensions.rs`'s pure extension-JSON sub-surface: `clearcoat_parse` / `anisotropy_parse` defaults, factors, `texCoord`, the coat normal `scale`, rotation and index-less textures (7 tests, reachable under `test_internals`) |
 | `module/helper/primitive_generation/src/primitive.rs` | Pure curve/plane/contour geometry generation (`curve_to_geometry`, `contours_to_fill_geometry`, `plane_to_geometry`, `path_to_points`) feeding `primitive_data.rs` below — zero-GL, natively tested |
 | `module/helper/primitive_generation/src/text/ufo.rs` | Pure text-mesh generation (`text_to_mesh`, `text_to_countour_mesh`) feeding `primitive_data.rs` below — zero-GL, natively tested |
 | `module/helper/primitive_generation/src/solid.rs` | Pure raw-mesh generation (`box_mesh`, `cylinder_mesh`, `torus_mesh`, `icosphere`) — zero-GL, natively tested (`solid_test.rs`, 8 cases) |

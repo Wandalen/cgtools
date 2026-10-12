@@ -619,7 +619,7 @@ async fn app_run() -> Result< (), gl::WebglError >
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
   renderer.ibl_set( renderer::webgl::loaders::ibl::load( &gl, "static/environment_maps/gltf_viewer_ibl_unreal", None ).await );
   let skybox = texture_create( &gl, "environment_maps/equirectangular_maps/space3.png" );
-  renderer.skybox_set( skybox.texture.borrow().source.clone() );
+  renderer.skybox_set( Some( skybox.texture.borrow().clone() ) );
 
   let mut swap_buffer = SwapFramebuffer::new( &gl, canvas.width(), canvas.height() );
 

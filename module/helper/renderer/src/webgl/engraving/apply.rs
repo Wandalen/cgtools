@@ -137,7 +137,7 @@ mod private
           let pbr = material_mut.as_any_mut().downcast_mut::< PbrMaterial >()
           .expect( "checked above" );
 
-          pbr.set_engraving_texture( Some( texture.texture_info() ) );
+          pbr.engraving_texture_set( Some( texture.texture_info() ) );
           pbr.engraving_strength = node_config.engraving_strength;
           pbr.engraving_roughness = node_config.engraving_roughness;
           pbr.engraving_darkening = node_config.engraving_darkening;
