@@ -1176,7 +1176,7 @@ mod private
       let ( blend, premultiplied, occlude ) = match gpu_batch
       {
         GpuBatch::Sprite { params, .. } =>
-          ( &params.blend, res.texture( params.sheet ).map_or( false, | t | t.premultiplied ), params.occlude_overlap ),
+          ( &params.blend, res.texture( params.sheet ).is_some_and( | t | t.premultiplied ), params.occlude_overlap ),
         GpuBatch::Mesh { params, .. } =>
           ( &params.blend, res.mesh_premultiplied( params.texture ), false ),
       };
