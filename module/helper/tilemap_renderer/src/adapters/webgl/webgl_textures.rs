@@ -69,9 +69,8 @@ mod private
       crate::assets::PixelFormat::GrayAlpha8 =>
       {
         let mut rgba = Vec::with_capacity( bytes.len() * 2 );
-        for pair in bytes.chunks_exact( 2 )
+        for &[ l, a ] in bytes.as_chunks::< 2 >().0
         {
-          let ( l, a ) = ( pair[ 0 ], pair[ 1 ] );
           rgba.extend_from_slice( &[ l, l, l, a ] );
         }
         ( gl::RGBA, 4, Some( rgba ) )
