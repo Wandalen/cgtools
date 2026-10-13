@@ -135,8 +135,10 @@ delete once no longer needed, not part of the deliverable.
   builds the real asteroids, ships and station on a live context and checks
   that `visible_parts` returns exactly the shown groups, that
   `pick_at_client` can't pick an asteroid once its layer is hidden, that
-  Escape mid-drag puts the object back in both gizmo modes, and that hiding
-  the selected object's layer drops the selection and its drag.
+  Escape mid-drag puts the object back in both gizmo modes, that hiding
+  the selected object's layer drops the selection and its drag, and that a
+  left click selects what it hits and updates the HUD while a drag, another
+  button or a gizmo release doesn't.
 - **Smaller app_run and listeners**: the frame body is
   `frame::SceneRenderers::frame_render`, and each selection / gizmo listener
   calls a named handler (`gizmo_grab`, `gizmo_drag_move`, `pointer_release`,

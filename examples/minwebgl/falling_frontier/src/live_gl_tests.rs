@@ -2,7 +2,8 @@
 //! because it takes real `Asteroids` / `Ships` / `Station`, whose
 //! constructors upload meshes: the layer filtering of `visible_parts` and
 //! `pick_at_client`, and the gizmo drag and selection handlers
-//! (`gizmo_grab`, `gizmo_drag_move`, `key_press`, `selection_drop_if_hidden`).
+//! (`gizmo_grab`, `gizmo_drag_move`, `pointer_release`, `key_press`,
+//! `selection_drop_if_hidden`).
 //! They run in a browser (wasm32 only, like `gpu_picking`'s
 //! `live_gl_tests`). Run with `wasm-pack test --headless --chrome`.
 
@@ -85,6 +86,30 @@ fn asteroid_0_pose( ctx : &InteractionCtx ) -> ( [ u32; 2 ], u32 )
 {
   let asteroids = ctx.asteroids.borrow();
   ( asteroids.position( 0 ).map( f32::to_bits ), asteroids.rotation_y( 0 ).to_bits() )
+}
+
+/// The HUD element with `id`, created on the test page if no test made it
+/// yet: `pointer_release` writes the selection into the debug panel's status
+/// line and the unit card, which only the app's own setup builds.
+fn hud_element( document : &gl::web_sys::Document, id : &str ) -> gl::web_sys::Element
+{
+  document.get_element_by_id( id ).unwrap_or_else( ||
+  {
+    let el = document.create_element( "div" ).unwrap();
+    el.set_id( id );
+    document.body().unwrap().append_child( &el ).unwrap();
+    el
+  } )
+}
+
+/// What the HUD shows for the selection: the status line's text, whether
+/// the unit card is visible, and the card's name.
+fn hud_selection( ctx : &InteractionCtx ) -> ( String, bool, String )
+{
+  let status = hud_element( &ctx.document, "grid-focus-status" ).text_content().unwrap_or_default();
+  let visible = hud_element( &ctx.document, "ff-unit-panel" ).class_list().contains( "visible" );
+  let name = hud_element( &ctx.document, "ff-unit-name" ).text_content().unwrap_or_default();
+  ( status, visible, name )
 }
 
 /// `visible_parts` hands each group's `parts()` to the slot of its own kind:
@@ -210,4 +235,53 @@ fn hiding_the_selected_layer_drops_the_selection()
   ctx.selected_id.set( Some( ASTEROID_ID_BASE ) );
   key_press( &ctx, "Escape", &Cell::new( None ) );
   assert_eq!( ctx.selected_id.get(), None, "Escape without a drag deselects" );
+}
+
+/// A left-button click selects what it hits and the HUD follows: a click on
+/// asteroid 0 selects it and shows its card, a click on nothing deselects and
+/// hides the card. What isn't a click leaves the selection alone: another
+/// button, a press that moved more than 6 px (a camera orbit), a release with
+/// no press, and the release that ends a gizmo drag, which also gives camera
+/// orbit rotation back and must not select the gizmo's own id.
+#[ wasm_bindgen_test ]
+fn a_click_selects_what_it_hits()
+{
+  let ctx = ctx_facing_asteroid_0();
+  for id in [ "grid-focus-status", "ff-unit-panel", "ff-unit-name" ]
+  {
+    hud_element( &ctx.document, id );
+  }
+  let ( x, y ) = canvas_center( &ctx );
+  assert_eq!( pick_at_client( &ctx, x, y ), Some( ASTEROID_ID_BASE ), "the click must be aimed at asteroid 0" );
+
+  pointer_release( &ctx, 2, Some( ( x, y ) ), x, y );
+  assert_eq!( ctx.selected_id.get(), None, "a right-button click selects nothing" );
+  pointer_release( &ctx, 0, Some( ( x - 7.0, y ) ), x, y );
+  assert_eq!( ctx.selected_id.get(), None, "a press that moved 7 px is an orbit, not a click" );
+  pointer_release( &ctx, 0, None, x, y );
+  assert_eq!( ctx.selected_id.get(), None, "a release without a press selects nothing" );
+
+  pointer_release( &ctx, 0, Some( ( x - 5.0, y ) ), x, y );
+  assert_eq!( ctx.selected_id.get(), Some( ASTEROID_ID_BASE ), "a left click within 6 px selects the asteroid" );
+  assert_eq!
+  (
+    hud_selection( &ctx ),
+    ( "selected: asteroid 0".to_string(), true, "ASTEROID 0".to_string() ),
+    "the HUD shows the selected asteroid",
+  );
+
+  let ( hx, hy ) = gizmo_handle_point( &ctx );
+  gizmo_grab( &ctx, hx, hy );
+  assert!( ctx.drag_state.get().is_some(), "a press on the handle starts a drag" );
+  pointer_release( &ctx, 0, Some( ( hx, hy ) ), hx, hy );
+  assert!( ctx.drag_state.get().is_none(), "the release ends the drag" );
+  assert!( ctx.camera_controls.borrow().rotation.enabled, "giving camera orbit rotation back" );
+  assert_eq!( ctx.selected_id.get(), Some( ASTEROID_ID_BASE ), "and keeps the selection, not the gizmo" );
+
+  ctx.tuning.borrow_mut().layers = RenderLayers { show_asteroids : false, show_ships : false, show_station : false, show_gizmo : false, ..all_shown() };
+  assert_eq!( pick_at_client( &ctx, x, y ), None, "with every pickable layer hidden the click hits nothing" );
+  pointer_release( &ctx, 0, Some( ( x, y ) ), x, y );
+  assert_eq!( ctx.selected_id.get(), None, "a click on nothing deselects" );
+  let ( status, visible, _ ) = hud_selection( &ctx );
+  assert_eq!( ( status.as_str(), visible ), ( "selected: none (click a ship, station, or asteroid)", false ), "and hides the card" );
 }
