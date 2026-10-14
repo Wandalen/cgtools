@@ -213,13 +213,30 @@ mod gl_scene
     let mut buffer = IdBuffer::new( &gl ).unwrap();
     buffer.size_set( SIZE, SIZE ).unwrap();
 
+    // Every value differs from what the pass sets, so a missing restore shows up.
     let caller_framebuffer = gl.create_framebuffer().unwrap();
+    let caller_program = gl::Program::compile_and_link
+    (
+      &gl,
+      "#version 300 es
+void main() { gl_Position = vec4( 0.0 ); }",
+      "#version 300 es
+precision mediump float;
+out vec4 color;
+void main() { color = vec4( 1.0 ); }",
+    ).unwrap();
+    let caller_vao = gl.create_vertex_array().unwrap();
     gl.bind_framebuffer( GL::FRAMEBUFFER, Some( &caller_framebuffer ) );
     gl.viewport( 3, 4, 5, 6 );
+    gl.use_program( Some( &caller_program ) );
+    gl.bind_vertex_array( Some( &caller_vao ) );
     gl.enable( GL::BLEND );
     gl.enable( GL::CULL_FACE );
+    gl.enable( GL::SCISSOR_TEST );
     gl.disable( GL::DEPTH_TEST );
+    gl.depth_func( GL::GREATER );
     gl.depth_mask( false );
+    gl.color_mask( true, false, true, false );
 
     picker.render( &buffer, &scene, gl::math::mat4x4::identity(), id_for ).unwrap();
 
@@ -227,10 +244,19 @@ mod gl_scene
     assert_eq!( framebuffer.as_ref(), Some( &caller_framebuffer ), "framebuffer binding restored" );
     let viewport : gl::js_sys::Int32Array = gl.get_parameter( GL::VIEWPORT ).unwrap().dyn_into().unwrap();
     assert_eq!( viewport.to_vec(), vec![ 3, 4, 5, 6 ], "viewport restored" );
-    assert!( gl.is_enabled( GL::BLEND ) );
-    assert!( gl.is_enabled( GL::CULL_FACE ) );
-    assert!( !gl.is_enabled( GL::DEPTH_TEST ) );
-    assert_eq!( gl.get_parameter( GL::DEPTH_WRITEMASK ).unwrap().as_bool(), Some( false ) );
+    let program = gl.get_parameter( GL::CURRENT_PROGRAM ).unwrap().dyn_into::< gl::web_sys::WebGlProgram >().ok();
+    assert_eq!( program.as_ref(), Some( &caller_program ), "program restored" );
+    let vao = gl.get_parameter( GL::VERTEX_ARRAY_BINDING ).unwrap().dyn_into::< gl::web_sys::WebGlVertexArrayObject >().ok();
+    assert_eq!( vao.as_ref(), Some( &caller_vao ), "vertex array restored" );
+    assert!( gl.is_enabled( GL::BLEND ), "blend restored" );
+    assert!( gl.is_enabled( GL::CULL_FACE ), "cull face restored" );
+    assert!( gl.is_enabled( GL::SCISSOR_TEST ), "scissor test restored" );
+    assert!( !gl.is_enabled( GL::DEPTH_TEST ), "depth test restored" );
+    assert_eq!( gl.get_parameter( GL::DEPTH_FUNC ).unwrap().as_f64(), Some( f64::from( GL::GREATER ) ), "depth func restored" );
+    assert_eq!( gl.get_parameter( GL::DEPTH_WRITEMASK ).unwrap().as_bool(), Some( false ), "depth mask restored" );
+    let color_mask : gl::js_sys::Array = gl.get_parameter( GL::COLOR_WRITEMASK ).unwrap().dyn_into().unwrap();
+    let color_mask : Vec< Option< bool > > = color_mask.iter().map( | v | v.as_bool() ).collect();
+    assert_eq!( color_mask, vec![ Some( true ), Some( false ), Some( true ), Some( false ) ], "colour mask restored" );
   }
 
   /// Binding `FRAMEBUFFER` overwrites both the read and the draw binding, so a caller
