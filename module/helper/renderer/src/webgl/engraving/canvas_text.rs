@@ -1,20 +1,27 @@
+//! Text rasterization for engraving masks: font loading through `document.fonts`, font sizing
+//! per [`crate::webgl::engraving::SizingMode`], and drawing white-on-black text into every mip
+//! level of a node's offscreen canvas.
+
 mod private
 {
   use minwebgl as gl;
   use gl::JsCast;
   use gl::wasm_bindgen::JsValue;
   use wasm_bindgen_futures::JsFuture;
-  use crate::webgl::engraving::{ EngravingTextLayout, SizingMode, TextAlign };
+  use crate::webgl::engraving::{ EngravingTextLayout, SizingMode, TextAlign, mip_dimensions };
 
   /// Error produced while loading a font or rasterizing engraving text.
   #[ derive( Debug ) ]
+  #[ non_exhaustive ]
   pub enum EngravingCanvasError
   {
     /// The runtime has no `window`/`document` (not running in a browser tab).
     NoDom,
     /// Failed to create or configure the offscreen `<canvas>`.
     CanvasSetup( String ),
-    /// `document.fonts.load()` rejected or the requested font family never became `FontFace.status == "loaded"`.
+    /// `document.fonts.load()` rejected, e.g. on a failed font download. A family the browser
+    /// doesn't know is not an error: the load resolves with no faces and the canvas draws in its
+    /// fallback font.
     FontLoad( String ),
     /// `text.chars().count()` exceeded the node's configured `max_characters`.
     TooManyCharacters
@@ -99,6 +106,37 @@ mod private
     height : u32,
   }
 
+  /// Waits for `family` to be ready for use, downloading it first if necessary.
+  ///
+  /// Mirrors the spec's `document.fonts.load(font, text)`: passing `sample_text` restricts
+  /// (browser-dependently) which glyphs are guaranteed loaded, so pass the actual string that is
+  /// about to be rendered. It borrows nothing, so a caller holding its
+  /// [`crate::webgl::engraving::EngravingSession`] in a `RefCell` can await it without keeping
+  /// the session borrowed, then render with the synchronous
+  /// [`crate::webgl::engraving::EngravingSession::text_render`].
+  ///
+  /// # Errors
+  ///
+  /// [`EngravingCanvasError::NoDom`] outside a browser tab, or [`EngravingCanvasError::FontLoad`]
+  /// if `document.fonts.load()` rejects.
+  pub async fn font_load( family : &str, sample_text : &str ) -> Result< (), EngravingCanvasError >
+  {
+    let window = web_sys::window().ok_or( EngravingCanvasError::NoDom )?;
+    let document = window.document().ok_or( EngravingCanvasError::NoDom )?;
+    let fonts = document.fonts();
+
+    // A probe size doesn't matter for *which* family gets loaded, only the family name does;
+    // the shorthand still must be syntactically valid CSS font shorthand.
+    let font_shorthand = format!( "16px \"{family}\"" );
+
+    let promise = fonts.load_with_text( &font_shorthand, sample_text );
+
+    JsFuture::from( promise ).await
+    .map_err( | e | EngravingCanvasError::FontLoad( format!( "{e:?}" ) ) )?;
+
+    Ok( () )
+  }
+
   impl EngravingCanvasManager
   {
     /// Creates a manager with an offscreen canvas of the given pixel size.
@@ -110,9 +148,15 @@ mod private
     /// # Errors
     ///
     /// [`EngravingCanvasError::NoDom`] outside a browser tab (no `window` / `document`), or
-    /// [`EngravingCanvasError::CanvasSetup`] if the canvas or its 2D context can't be created.
+    /// [`EngravingCanvasError::CanvasSetup`] if `width` or `height` is `0` or the canvas or its
+    /// 2D context can't be created.
     pub fn new( width : u32, height : u32 ) -> Result< Self, EngravingCanvasError >
     {
+      if width == 0 || height == 0
+      {
+        return Err( EngravingCanvasError::CanvasSetup( format!( "canvas must be at least 1x1, got {width}x{height}" ) ) );
+      }
+
       let window = web_sys::window().ok_or( EngravingCanvasError::NoDom )?;
       let document = window.document().ok_or( EngravingCanvasError::NoDom )?;
 
@@ -147,38 +191,15 @@ mod private
     #[ must_use ]
     pub fn height( &self ) -> u32 { self.height }
 
-    /// Waits for `family` to be ready for use, downloading it first if necessary.
-    ///
-    /// Mirrors the spec's `document.fonts.load(font, text)`: passing `sample_text` restricts
-    /// (browser-dependently) which glyphs are guaranteed loaded, so pass the actual string
-    /// that is about to be rendered.
-    async fn ensure_font_loaded( &self, family : &str, sample_text : &str ) -> Result< (), EngravingCanvasError >
-    {
-      let window = web_sys::window().ok_or( EngravingCanvasError::NoDom )?;
-      let document = window.document().ok_or( EngravingCanvasError::NoDom )?;
-      let fonts = document.fonts();
-
-      // A probe size doesn't matter for *which* family gets loaded, only the family name does;
-      // the shorthand still must be syntactically valid CSS font shorthand.
-      let font_shorthand = format!( "16px \"{family}\"" );
-
-      let promise = fonts.load_with_text( &font_shorthand, sample_text );
-
-      JsFuture::from( promise ).await
-      .map_err( | e | EngravingCanvasError::FontLoad( format!( "{e:?}" ) ) )?;
-
-      Ok( () )
-    }
-
     /// Loads `font_family`, then rasterizes `text` once per mip level of the base `width` x
     /// `height` size (standard GL halving-with-floor down to `1` x `1`), returning one
     /// [`EngravingBitmap`] per level in order (index `0` is the full-size level).
     ///
     /// Each level is drawn from scratch at its own resolution rather than downsampled from
     /// level 0: for a binary black/white text mask, box-filtering a crisp high-res rasterization
-    /// aliases badly at the glyph edges (and that aliasing feeds directly into the `dFdx`/`dFdy`
-    /// relief-normal perturbation in `main.frag`, which is what actually sparkles under
-    /// minification). Re-rasterizing at each level's true resolution lets the canvas 2D
+    /// aliases badly at the glyph edges, and `main.frag` builds the relief normal from central
+    /// differences of whichever level its explicit LOD selects, so that aliasing is what sparkles
+    /// under minification. Re-rasterizing at each level's true resolution lets the canvas 2D
     /// rasterizer's own anti-aliasing produce a properly filtered edge every time, matching what
     /// [`crate::webgl::engraving::EngravingTexture`] then uploads one-level-at-a-time instead of
     /// relying on `generateMipmap`.
@@ -208,21 +229,36 @@ mod private
         return Err( EngravingCanvasError::TooManyCharacters { got : char_count, max : layout.max_characters } );
       }
 
-      self.ensure_font_loaded( font_family, text ).await?;
+      font_load( font_family, text ).await?;
+      self.text_mip_chain_render( text, font_family, layout )
+    }
+
+    /// [`Self::render_text_mip_chain`] without the font load: rasterizes `text` into every mip
+    /// level right away, so it needs no `await`. Call [`font_load`] for `font_family` and `text`
+    /// first; a font that isn't loaded yet is silently drawn in the canvas's fallback font.
+    ///
+    /// # Errors
+    ///
+    /// The same as [`Self::render_text_mip_chain`], except [`EngravingCanvasError::FontLoad`].
+    pub fn text_mip_chain_render
+    (
+      &mut self,
+      text : &str,
+      font_family : &str,
+      layout : &EngravingTextLayout,
+    )
+    -> Result< Vec< EngravingBitmap >, EngravingCanvasError >
+    {
+      let char_count = text.chars().count();
+      if char_count > layout.max_characters
+      {
+        return Err( EngravingCanvasError::TooManyCharacters { got : char_count, max : layout.max_characters } );
+      }
 
       let mut bitmaps = Vec::new();
-      let ( mut width, mut height ) = ( self.width, self.height );
-      let mut is_base_level = true;
-      loop
+      for ( level, ( width, height ) ) in mip_dimensions( self.width, self.height ).enumerate()
       {
-        bitmaps.push( self.render_at_size( text, font_family, layout, width, height, is_base_level )? );
-        if width == 1 && height == 1
-        {
-          break;
-        }
-        width = ( width / 2 ).max( 1 );
-        height = ( height / 2 ).max( 1 );
-        is_base_level = false;
+        bitmaps.push( self.render_at_size( text, font_family, layout, width, height, level == 0 )? );
       }
 
       // Leave the exposed debug-preview canvas at the base size rather than whatever the
@@ -458,5 +494,6 @@ crate::mod_interface!
     EngravingCanvasManager,
     EngravingBitmap,
     EngravingCanvasError,
+    font_load,
   };
 }
