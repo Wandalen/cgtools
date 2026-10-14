@@ -1,11 +1,16 @@
 mod private
 {
+  use std::{ cell::RefCell, rc::Rc };
   use minwebgl as gl;
   use gl::GL;
   use rustc_hash::FxHashMap;
   use crate::webgl::
   {
+    Material,
+    Mesh,
+    Node,
     Object3D,
+    Primitive,
     Scene,
     material::PbrMaterial,
     engraving::{ EngravingBitmap, EngravingCanvasError, EngravingCanvasManager, EngravingConfig, EngravingTextLayout, EngravingTexture },
@@ -76,22 +81,162 @@ mod private
 
   /// Binds one [`EngravingConfig`] to a loaded [`Scene`]: for every configured node it allocates
   /// a persistent offscreen canvas and GPU mask texture, and wires the texture (plus the node's
-  /// bevel/roughness/darkening knobs) into that node's [`PbrMaterial`]. Call [`Self::set_text`]
-  /// afterwards, as many times as needed (e.g. once per keystroke), to actually rasterize and
-  /// upload engraving text.
+  /// bevel/roughness/darkening knobs) into that node's own copy of its [`PbrMaterial`]s. Call
+  /// [`Self::set_text`] afterwards, as many times as needed, to actually rasterize and upload
+  /// engraving text.
   pub struct EngravingSession
   {
     entries : FxHashMap< Box< str >, EngravingEntry >,
   }
 
+  /// A material slot as stored on a [`Primitive`].
+  type SharedMaterial = Rc< RefCell< Box< dyn Material > > >;
+
+  /// One configured node, resolved against the scene and checked before anything is mutated.
+  struct ResolvedNode
+  {
+    node : Rc< RefCell< Node > >,
+    mesh : Rc< RefCell< Mesh > >,
+  }
+
+  /// Resolves `node_name` to a mesh node of `scene` whose every primitive has a [`PbrMaterial`].
+  fn node_resolve( scene : &Scene, node_name : &str ) -> Result< ResolvedNode, EngravingError >
+  {
+    let node = scene.node_get( node_name )
+    .ok_or_else( || EngravingError::NodeNotFound( node_name.into() ) )?;
+
+    let mesh =
+    {
+      let node_ref = node.borrow();
+      let Object3D::Mesh( mesh ) = &node_ref.object
+      else
+      {
+        return Err( EngravingError::NotAMesh( node_name.into() ) );
+      };
+      mesh.clone()
+    };
+
+    {
+      let mesh_ref = mesh.borrow();
+      if mesh_ref.primitives.is_empty()
+      {
+        return Err( EngravingError::NotAMesh( node_name.into() ) );
+      }
+      for primitive in &mesh_ref.primitives
+      {
+        if primitive.borrow().material.borrow().as_any().downcast_ref::< PbrMaterial >().is_none()
+        {
+          return Err( EngravingError::MaterialNotPbr( node_name.into() ) );
+        }
+      }
+    }
+
+    Ok( ResolvedNode { node, mesh } )
+  }
+
+  /// Number of nodes of `scene` whose object is exactly `mesh` (the same `Rc`).
+  fn mesh_user_count( scene : &Scene, mesh : &Rc< RefCell< Mesh > > ) -> usize
+  {
+    let mut count = 0;
+    let _ = scene.traverse
+    (
+      &mut | node : Rc< RefCell< Node > > |
+      {
+        if let Object3D::Mesh( other ) = &node.borrow().object
+        {
+          if Rc::ptr_eq( other, mesh )
+          {
+            count += 1;
+          }
+        }
+        Ok( () )
+      }
+    );
+    count
+  }
+
+  /// Gives `resolved.node` its own copy of every material its primitives use, swaps the copies
+  /// into the primitives, and returns them.
+  ///
+  /// The glTF loader hands out one material per (glTF material, vertex defines) pair to every
+  /// primitive that uses it, across all meshes and nodes. Writing the engraving texture into that
+  /// shared material would engrave every other node using it too, and two configured nodes
+  /// sharing it would fight over one texture slot. Primitives of this node that shared one
+  /// material keep sharing one copy.
+  ///
+  /// glTF mesh instancing puts one [`Mesh`], and so the same primitives, on several nodes. When
+  /// another node of `scene` uses this node's mesh, the node first gets its own [`Mesh`] with new
+  /// primitives over the same geometry and skeleton, so swapping a primitive's material can't
+  /// reach the other node.
+  fn node_materials_isolate( scene : &Scene, resolved : &ResolvedNode ) -> Vec< SharedMaterial >
+  {
+    let mesh = if mesh_user_count( scene, &resolved.mesh ) > 1
+    {
+      let detached =
+      {
+        let mesh_ref = resolved.mesh.borrow();
+        Mesh
+        {
+          primitives : mesh_ref.primitives.iter()
+          .map
+          (
+            | p |
+            {
+              let p = p.borrow();
+              Rc::new( RefCell::new( Primitive { geometry : p.geometry.clone(), material : p.material.clone() } ) )
+            }
+          )
+          .collect(),
+          skeleton : mesh_ref.skeleton.clone(),
+          is_shadow_caster : mesh_ref.is_shadow_caster,
+        }
+      };
+      let detached = Rc::new( RefCell::new( detached ) );
+      resolved.node.borrow_mut().object = Object3D::Mesh( detached.clone() );
+      detached
+    }
+    else
+    {
+      resolved.mesh.clone()
+    };
+
+    let mut copies : Vec< ( SharedMaterial, SharedMaterial ) > = Vec::new();
+    for primitive in &mesh.borrow().primitives
+    {
+      let original = primitive.borrow().material.clone();
+      let copy = if let Some( ( _, copy ) ) = copies.iter().find( | ( o, _ ) | Rc::ptr_eq( o, &original ) )
+      {
+        copy.clone()
+      }
+      else
+      {
+        let copy : SharedMaterial = Rc::new( RefCell::new( original.borrow().dyn_clone() ) );
+        copies.push( ( original, copy.clone() ) );
+        copy
+      };
+      primitive.borrow_mut().material = copy;
+    }
+
+    copies.into_iter().map( | ( _, copy ) | copy ).collect()
+  }
+
   impl EngravingSession
   {
     /// Walks `config.nodes`, resolving each `nodeName` against `scene` and attaching a fresh
-    /// [`EngravingTexture`] to every `PbrMaterial` found on that node's primitives.
+    /// [`EngravingTexture`] to that node's `PbrMaterial`s.
     ///
-    /// Fails on the first node that can't be resolved (missing node, non-mesh node, or a
-    /// material that isn't `PbrMaterial`) — partial application would leave some materials
-    /// silently un-engravable, which is worth surfacing rather than skipping quietly.
+    /// Each configured node gets its own copy of every material on its primitives
+    /// (copy-on-write), swapped into the primitives before the texture is set. The glTF loader
+    /// shares one material between every primitive using the same glTF material, so engraving
+    /// it in place would engrave every other node using it too. A material handle read from the
+    /// node *before* this call is therefore no longer the one the node renders with; read it
+    /// from the node's primitives again afterwards. When another node of `scene` uses the same
+    /// [`Mesh`] (glTF mesh instancing), the configured node first gets its own `Mesh` over the
+    /// same geometry and skeleton.
+    ///
+    /// Every node is resolved and checked before anything is allocated or mutated, so a
+    /// resolution error leaves `scene` untouched. Partial application would leave some
+    /// materials silently un-engravable, which is worth surfacing rather than skipping quietly.
     ///
     /// # Errors
     ///
@@ -106,48 +251,27 @@ mod private
     /// while this runs. The `PbrMaterial` downcast can't fail: every material is checked first.
     pub fn build( gl : &GL, scene : &Scene, config : &EngravingConfig ) -> Result< Self, EngravingError >
     {
-      let mut entries = FxHashMap::default();
+      let resolved = config.nodes.iter()
+      .map( | node_config | node_resolve( scene, &node_config.node_name ) )
+      .collect::< Result< Vec< _ >, _ > >()?;
 
+      let mut allocated = Vec::with_capacity( config.nodes.len() );
       for node_config in &config.nodes
       {
-        let node = scene.node_get( &node_config.node_name )
-        .ok_or_else( || EngravingError::NodeNotFound( node_config.node_name.clone() ) )?;
-
-        let materials : Vec< _ > =
-        {
-          let node_ref = node.borrow();
-          let Object3D::Mesh( mesh ) = &node_ref.object
-          else
-          {
-            return Err( EngravingError::NotAMesh( node_config.node_name.clone() ) );
-          };
-
-          let mesh_ref = mesh.borrow();
-          if mesh_ref.primitives.is_empty()
-          {
-            return Err( EngravingError::NotAMesh( node_config.node_name.clone() ) );
-          }
-
-          mesh_ref.primitives.iter().map( | p | p.borrow().material.clone() ).collect()
-        };
-
-        for material in &materials
-        {
-          if material.borrow().as_any().downcast_ref::< PbrMaterial >().is_none()
-          {
-            return Err( EngravingError::MaterialNotPbr( node_config.node_name.clone() ) );
-          }
-        }
-
         let ( width, height ) = node_config.texture_size();
         let canvas = EngravingCanvasManager::new( width, height )?;
         let texture = EngravingTexture::new( gl, width, height, node_config.uv_channel )?;
+        allocated.push( ( canvas, texture ) );
+      }
 
-        for material in &materials
+      let mut entries = FxHashMap::default();
+      for ( ( node_config, resolved ), ( canvas, texture ) ) in config.nodes.iter().zip( &resolved ).zip( allocated )
+      {
+        for material in node_materials_isolate( scene, resolved )
         {
           let mut material_mut = material.borrow_mut();
           let pbr = material_mut.as_any_mut().downcast_mut::< PbrMaterial >()
-          .expect( "checked above" );
+          .expect( "checked by node_resolve" );
 
           pbr.engraving_texture_set( Some( texture.texture_info() ) );
           pbr.engraving_strength = node_config.engraving_strength;
