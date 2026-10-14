@@ -1844,9 +1844,9 @@ fn dual_orient_spec() -> RenderSpec
       id : "dual".into(),
       path : "dual.png".into(),
       kind : atlas_with_frames( 4, &frames ),
-      filter : Default::default(),
-      mipmap : Default::default(),
-      wrap : Default::default(),
+      filter : SamplerFilter::default(),
+      mipmap : MipmapMode::default(),
+      wrap : WrapMode::default(),
       premultiplied : false,
     }
   );
@@ -1856,7 +1856,7 @@ fn dual_orient_spec() -> RenderSpec
     anchor : Anchor::Hex,
     global_layer : "terrain".into(),
     priority : Some( 10 ),
-    sort_y_source : Default::default(),
+    sort_y_source : SortYSource::default(),
     pivot : ( 0.5, 0.5 ),
     default_state : "default".into(),
     states :
@@ -2036,9 +2036,9 @@ fn vertex_corners_orient_to_grid_triple_wildcard_allocates_six()
     id : "wild".into(),
     path : "wild.png".into(),
     kind : atlas_with_frames( 6, &frames ),
-    filter : Default::default(),
-    mipmap : Default::default(),
-    wrap : Default::default(),
+    filter : SamplerFilter::default(),
+    mipmap : MipmapMode::default(),
+    wrap : WrapMode::default(),
     premultiplied : false,
   });
   spec.objects.push( Object
@@ -2047,7 +2047,7 @@ fn vertex_corners_orient_to_grid_triple_wildcard_allocates_six()
     anchor : Anchor::Hex,
     global_layer : "terrain".into(),
     priority : Some( 10 ),
-    sort_y_source : Default::default(),
+    sort_y_source : SortYSource::default(),
     pivot : ( 0.5, 0.5 ),
     default_state : "default".into(),
     states :
@@ -2400,9 +2400,9 @@ fn vertex_corners_corner_source_isolates_channels()
     id : "region".into(),
     path : "region.png".into(),
     kind : atlas_with_frames( 4, &region_frames ),
-    filter : Default::default(),
-    mipmap : Default::default(),
-    wrap : Default::default(),
+    filter : SamplerFilter::default(),
+    mipmap : MipmapMode::default(),
+    wrap : WrapMode::default(),
     premultiplied : false,
   });
   spec.objects.push( Object
@@ -2411,7 +2411,7 @@ fn vertex_corners_corner_source_isolates_channels()
     anchor : Anchor::Hex,
     global_layer : "region".into(),
     priority : Some( 10 ),
-    sort_y_source : Default::default(),
+    sort_y_source : SortYSource::default(),
     pivot : ( 0.5, 0.5 ),
     default_state : "default".into(),
     states :
@@ -2594,18 +2594,18 @@ fn region_boundary_spec() -> RenderSpec
   spec.assets.push( Asset
   {
     id : "region".into(), path : "region.png".into(), kind : atlas_with_frames( 4, &region_frames ),
-    filter : Default::default(), mipmap : Default::default(), wrap : Default::default(), premultiplied : false,
+    filter : SamplerFilter::default(), mipmap : MipmapMode::default(), wrap : WrapMode::default(), premultiplied : false,
   });
   spec.assets.push( Asset
   {
     id : "marker".into(), path : "marker.png".into(), kind : atlas_with_frames( 1, &[ ( "0", ( 0, 0 ) ) ] ),
-    filter : Default::default(), mipmap : Default::default(), wrap : Default::default(), premultiplied : false,
+    filter : SamplerFilter::default(), mipmap : MipmapMode::default(), wrap : WrapMode::default(), premultiplied : false,
   });
 
   spec.objects.push( Object
   {
     id : "region_1".into(), anchor : Anchor::Hex, global_layer : "region".into(), priority : Some( 10 ),
-    sort_y_source : Default::default(), pivot : ( 0.5, 0.5 ), default_state : "default".into(),
+    sort_y_source : SortYSource::default(), pivot : ( 0.5, 0.5 ), default_state : "default".into(),
     states :
     {
       let mut m = HashMap::default();
@@ -2633,7 +2633,7 @@ fn region_boundary_spec() -> RenderSpec
   spec.objects.push( Object
   {
     id : "region_0".into(), anchor : Anchor::Hex, global_layer : "region".into(), priority : Some( 10 ),
-    sort_y_source : Default::default(), pivot : ( 0.5, 0.5 ), default_state : "default".into(),
+    sort_y_source : SortYSource::default(), pivot : ( 0.5, 0.5 ), default_state : "default".into(),
     states :
     {
       let mut m = HashMap::default();
