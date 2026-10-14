@@ -44,7 +44,7 @@ mod private
   /// ( node, primitive, primitive index, program UUID ).
   type TransparentNodeEntry = ( Rc< RefCell< Node > >, Rc< RefCell< Primitive > >, usize, uuid::Uuid );
   /// An opaque-pass draw-queue entry :
-  /// ( node, primitive, primitive index, program UUID, has emission ).
+  /// ( node, primitive, primitive index, program UUID, has emission, is occluder ).
   type OpaqueNodeEntry = ( Rc< RefCell< Node > >, Rc< RefCell< Primitive > >, usize, uuid::Uuid, bool, bool );
 
   /// Manages the rendering process, including program management, IBL setup, and drawing objects in the scene.
@@ -62,7 +62,7 @@ mod private
     material_program_map : FxHashMap< uuid::Uuid, ( uuid::Uuid, bool ) >,
     /// (node, primitive, primitive_index, program_uuid)
     transparent_nodes : Vec< TransparentNodeEntry >,
-    /// (node, primitive, primitive_index, program_uuid, has_emission)
+    /// (node, primitive, primitive_index, program_uuid, has_emission, is_occluder)
     opaque_nodes : Vec< OpaqueNodeEntry >,
 
     /// Holds the precomputed textures used for Image-Based Lighting.
@@ -633,7 +633,7 @@ mod private
       let mut current_emission = false;
       gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
 
-      for ( node_rc, primitive_rc, prim_idx, program_id, has_em, _is_occ ) in &self.opaque_nodes
+      for ( node_rc, primitive_rc, prim_idx, program_id, has_em, _ ) in &self.opaque_nodes
       {
         let need_emission = self.use_emission && *has_em;
         if need_emission != current_emission
