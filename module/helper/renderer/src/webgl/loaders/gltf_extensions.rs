@@ -24,10 +24,11 @@ mod private
   /// or Cargo feature in the `gltf` crate; [`material_layer_extensions_apply`] in
   /// this file reads their JSON through `extension_value`.
   /// The meshopt extensions are decoded by [`crate::webgl::loaders::meshopt::views_decode`]
-  /// before any buffer is used. `KHR_mesh_quantization` needs no code of its own: integer
-  /// attributes reach `vertexAttribPointer` with their type and `normalized` flag intact
-  /// ( `loaders/gltf.rs`'s `attribute_descriptor_make` ), and normalized position bounds are
-  /// scaled in its `position_bounds_dequantize`.
+  /// before any buffer is used. For `KHR_mesh_quantization`, GPU attributes reach
+  /// `vertexAttribPointer` with their integer type and `normalized` flag intact
+  /// ( `loaders/gltf.rs`'s `attribute_descriptor_make` ). Values read on the CPU are
+  /// dequantized there: normalized position bounds in `position_bounds_dequantize`, and
+  /// morph target displacements in `accessor_vec3_read`.
   const SUPPORTED_EXTENSIONS : &[ &str ] =
   &[
     "KHR_lights_punctual",

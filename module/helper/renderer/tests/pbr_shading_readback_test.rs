@@ -217,6 +217,39 @@ mod tests
     );
   }
 
+  /// The highlight multiplies the lit colour by `mix( 1, highlightColor, highlightStrength )`:
+  /// at strength 0 the colour is ignored, and at strength 1 a 0.5 multiplier halves the pixel.
+  #[ wasm_bindgen_test ]
+  fn highlight_scales_the_lit_colour_by_its_strength()
+  {
+    let gl = gl_init();
+    let light = ( [ 0.0, 0.0, 1.0 ], 1.0 );
+    let shade_with = | color : [ f32; 3 ], strength : f32 |
+    {
+      let mut material = PbrMaterial::new( &gl );
+      material.base_color_factor = gl::F32x4::from( [ 0.5, 0.5, 0.5, 1.0 ] );
+      material.metallic_factor = 0.0;
+      material.highlight_color = gl::F32x3::from( color );
+      material.highlight_strength = strength;
+      shade( &gl, &material, UPRIGHT, UPRIGHT, Some( light ) )
+    };
+
+    let plain = shade_with( [ 1.0, 1.0, 1.0 ], 0.0 );
+    assert!( ( 40..250 ).contains( &plain[ 0 ] ), "precondition: lit and unsaturated, got {plain:?}" );
+    assert_eq!( shade_with( [ 0.5, 0.5, 0.5 ], 0.0 ), plain, "strength 0 must ignore the colour" );
+
+    let halved = shade_with( [ 0.5, 0.5, 0.5 ], 1.0 );
+    for channel in 0..3
+    {
+      let expected = f32::from( plain[ channel ] ) * 0.5;
+      assert!
+      (
+        ( f32::from( halved[ channel ] ) - expected ).abs() <= 1.0,
+        "a full-strength 0.5 multiplier must halve the pixel: plain {plain:?}, highlighted {halved:?}"
+      );
+    }
+  }
+
   /// `anisotropyStrength` is defined on [ 0, 1 ]. Out-of-range values, from an asset or from
   /// `anisotropy_strength_set`, must shade like the nearest bound: above 1 the tangent roughness
   /// leaves the GGX model, and a negative strength widens the lobe as if it were positive.

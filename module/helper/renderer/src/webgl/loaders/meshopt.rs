@@ -42,6 +42,7 @@ mod private
 
   /// How a compressed buffer view was encoded.
   #[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
+  #[ non_exhaustive ]
   pub enum MeshoptMode
   {
     /// Vertex attributes, animation data or any other fixed-stride elements.
@@ -69,6 +70,7 @@ mod private
 
   /// The post-decode transform applied to attribute data.
   #[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
+  #[ non_exhaustive ]
   pub enum MeshoptFilter
   {
     /// Data is stored as is.
@@ -128,17 +130,18 @@ mod private
     pub fn from_view( view : &gltf::buffer::View< '_ > ) -> Option< Result< Self, String > >
     {
       MESHOPT_EXTENSIONS.iter()
-      .find_map( | name | view.extension_value( name ) )
-      .map( Self::parse )
+      .find_map( | &name | view.extension_value( name ).map( | value | ( name, value ) ) )
+      .map( | ( name, value ) | Self::parse( name, value ) )
     }
 
-    /// Parses and validates an extension object against the extension's rules for
-    /// strides, counts and filters.
+    /// Parses and validates an extension object against the rules of `extension`, one of
+    /// [`MESHOPT_EXTENSIONS`], for strides, counts and filters. The `COLOR` filter exists
+    /// only in `KHR_meshopt_compression`.
     ///
     /// # Errors
     ///
     /// Returns a description of the first missing or invalid field.
-    pub fn parse( value : &Value ) -> Result< Self, String >
+    pub fn parse( extension : &str, value : &Value ) -> Result< Self, String >
     {
       let field = | name : &str | -> Result< usize, String >
       {
@@ -162,8 +165,8 @@ mod private
         Some( "OCTAHEDRAL" ) => MeshoptFilter::Octahedral,
         Some( "QUATERNION" ) => MeshoptFilter::Quaternion,
         Some( "EXPONENTIAL" ) => MeshoptFilter::Exponential,
-        Some( "COLOR" ) => MeshoptFilter::Color,
-        Some( other ) => return Err( format!( "unknown filter `{other}`" ) ),
+        Some( "COLOR" ) if extension == "KHR_meshopt_compression" => MeshoptFilter::Color,
+        Some( other ) => return Err( format!( "unknown {extension} filter `{other}`" ) ),
       };
 
       let spec = Self

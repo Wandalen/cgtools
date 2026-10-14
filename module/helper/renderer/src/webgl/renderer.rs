@@ -90,6 +90,11 @@ mod private
     /// survives `resize()`; released only through `Texture`'s own ownership (an
     /// owning texture is deleted once its last clone, this one included, drops).
     skybox : Option< Texture >,
+    /// Whether the resolved transparent accumulation texture may hold anything but
+    /// revealage 1 : it starts zeroed, and a transparent frame leaves its coverage
+    /// behind. The next frame without transparent primitives resets it, so that
+    /// `transparent_coverage_texture` never reports a previous frame's glass.
+    transparent_coverage_dirty : bool,
   }
 
   impl Renderer
@@ -149,6 +154,7 @@ mod private
           clear_color : F32x3::splat( 0.0 ),
           skybox_shader,
           skybox : None,
+          transparent_coverage_dirty : true,
         }
       )
     }
@@ -196,6 +202,7 @@ mod private
       self.swap_buffer = None;
 
       self.framebuffer_ctx = FramebufferContext::new( gl, width, height, samples );
+      self.transparent_coverage_dirty = true;
       if self.use_emission
       {
         self.bloom_effect = Some( UnrealBloomPass::new( gl, width, height, gl::RGBA16F )? );
@@ -302,6 +309,19 @@ mod private
     pub fn main_texture( &self ) -> Option< gl::web_sys::WebGlTexture >
     {
       self.framebuffer_ctx.main_texture.clone()
+    }
+
+    /// The texture that marks which pixels of the last `render` hold transparent coverage,
+    /// for `ToneMappingPass::transparent_coverage_texture_set`.
+    ///
+    /// It is the WBOIT accumulation target: its alpha is the revealage, the product of
+    /// `1 - alpha` over the transparent layers, so exactly 1 where none covers the pixel,
+    /// and 1 everywhere after a frame without transparent primitives. The handle stays the
+    /// same from frame to frame; `resize` replaces it.
+    #[ must_use ]
+    pub fn transparent_coverage_texture( &self ) -> Option< gl::web_sys::WebGlTexture >
+    {
+      self.framebuffer_ctx.transparent_accumulate_texture.clone()
     }
 
     /// Draw equirectangular skybox
@@ -819,6 +839,11 @@ mod private
       let has_transparent = !self.transparent_nodes.is_empty();
       self.framebuffer_ctx.resolve( gl, self.use_emission, has_transparent );
       self.framebuffer_ctx.multisample_unbind( gl );
+      if !has_transparent && self.transparent_coverage_dirty
+      {
+        self.framebuffer_ctx.transparent_coverage_reset( gl );
+      }
+      self.transparent_coverage_dirty = has_transparent;
 
       if self.use_emission
       {
