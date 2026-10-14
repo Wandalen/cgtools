@@ -434,11 +434,11 @@
     <div class="stats">
         <!-- GALLERY:STATS:BEGIN -->
         <div class="stat-card" aria-live="polite" aria-atomic="true">
-            <div class="stat-number" id="totalDemos">75</div>
+            <div class="stat-number" id="totalDemos">76</div>
             <div class="stat-label">Total Examples</div>
         </div>
         <div class="stat-card">
-            <div class="stat-number" id="completedDemos">55</div>
+            <div class="stat-number" id="completedDemos">56</div>
             <div class="stat-label">Live Demos</div>
         </div>
         <div class="stat-card">
@@ -482,7 +482,7 @@
         <section class="category-section" data-category="api:webgl">
             <div class="category-header">
                 <h2>API · WebGL</h2>
-                <span class="category-badge">49 demos</span>
+                <span class="category-badge">50 demos</span>
             </div>
             <div class="demo-grid">
                 <article class="demo-card" role="article" data-name="triangle browser" data-path="gpu_hal/triangle_browser" data-tags="runtime:browser,api:webgpu,api:webgl">
@@ -691,6 +691,20 @@
                         <span class="demo-status">✓ Has Showcase</span>
                         <div class="demo-links">
                             <a href="./minwebgl/diamond/" class="demo-link" aria-label="View Diamond Rendering demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="demo-card" role="article" data-name="engraving" data-path="minwebgl/engraving" data-tags="runtime:browser,api:webgl">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Dynamic Text Engraving</h3>
+                        <p class="demo-desc">This demo shows the renderer crate's dynamic text engraving pipeline running on a flat rectangular section of a cylinder's curved side. A JSON config (engraving_config.json) maps the cylinder's glTF node name to an engraving zone — its UV channel, aspect ratio, character limit and a whitelist of CSS fonts — and EngravingSession binds that config to the loaded scene, turning on the PbrMaterial's USE_ENGRAVING shader path. Typing in the panel rasterizes white-on-black text to an offscreen canvas and uploads it to the GPU mask texture via texSubImage2D, with no shader recompilation.</p>
+                        <span class="demo-status incomplete">No Showcase Yet</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/engraving/" class="demo-link" aria-label="View Dynamic Text Engraving demo">View Details</a>
                         </div>
                     </div>
                 </article>
@@ -1380,7 +1394,7 @@
         <section class="category-section" data-category="runtime:browser">
             <div class="category-header">
                 <h2>Runtime · Browser</h2>
-                <span class="category-badge">54 demos</span>
+                <span class="category-badge">55 demos</span>
             </div>
             <div class="demo-grid">
                 <article class="demo-card" role="article" data-name="triangle browser" data-path="gpu_hal/triangle_browser" data-tags="runtime:browser,api:webgpu,api:webgl">
@@ -1589,6 +1603,20 @@
                         <span class="demo-status">✓ Has Showcase</span>
                         <div class="demo-links">
                             <a href="./minwebgl/diamond/" class="demo-link" aria-label="View Diamond Rendering demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="demo-card" role="article" data-name="engraving" data-path="minwebgl/engraving" data-tags="runtime:browser,api:webgl">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Dynamic Text Engraving</h3>
+                        <p class="demo-desc">This demo shows the renderer crate's dynamic text engraving pipeline running on a flat rectangular section of a cylinder's curved side. A JSON config (engraving_config.json) maps the cylinder's glTF node name to an engraving zone — its UV channel, aspect ratio, character limit and a whitelist of CSS fonts — and EngravingSession binds that config to the loaded scene, turning on the PbrMaterial's USE_ENGRAVING shader path. Typing in the panel rasterizes white-on-black text to an offscreen canvas and uploads it to the GPU mask texture via texSubImage2D, with no shader recompilation.</p>
+                        <span class="demo-status incomplete">No Showcase Yet</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/engraving/" class="demo-link" aria-label="View Dynamic Text Engraving demo">View Details</a>
                         </div>
                     </div>
                 </article>
