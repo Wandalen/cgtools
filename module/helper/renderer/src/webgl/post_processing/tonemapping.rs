@@ -28,28 +28,30 @@ mod private
   {
     /// The WebGL program used for the tone mapping operation.
     material : ToneMappingShader,
-    /// The renderer's transparent-coverage texture for the frame being tone mapped, if any.
+    /// The renderer's transparent-coverage texture; `None` keeps the MSAA-edge
+    /// reconstruction off.
     transparent_coverage : Option< gl::web_sys::WebGlTexture >,
     phantom : std::marker::PhantomData< T >
   }
 
   impl< T > ToneMappingPass< T >
   {
-    /// Sets the texture that tells the pass which pixels hold transparent coverage :
-    /// pass `Renderer::transparent_coverage_texture()` here every frame, after
-    /// `Renderer::render` and before this pass renders.
+    /// Turns on the MSAA-edge fix by telling the pass which pixels hold transparent
+    /// coverage : pass `Renderer::transparent_coverage_texture()` here once after the
+    /// renderer is created and again after every `Renderer::resize`, which replaces the
+    /// texture. The handle stays valid between those; the renderer keeps its contents
+    /// current every frame.
     ///
-    /// The pass tone maps a partially covered pixel with the background it lets through,
-    /// estimated from neighbouring background pixels, which removes the light fringe on
-    /// MSAA silhouettes. Transparent ( WBOIT ) surfaces over the background are partially
-    /// covered too, and only their outline has background neighbours : without this
-    /// texture, that outline is tone mapped differently from the rest of the surface and
-    /// shows as a 1-px ring. With `None` every partially covered pixel is treated as an
-    /// MSAA silhouette, which is exact for a frame without transparent primitives.
+    /// With the texture, the pass tone maps a partially covered pixel with the background
+    /// it lets through, estimated from neighbouring background pixels, which removes the
+    /// light fringe on bright MSAA silhouettes. The fix is opt-in because it needs the
+    /// texture : transparent ( WBOIT ) surfaces over the background are partially covered
+    /// too, and only their outline has background neighbours, so without knowing which
+    /// pixels hold glass the pass would tone map that outline differently from the rest of
+    /// the surface and draw a 1-px ring. With `None`, the default, every partially covered
+    /// pixel takes the plain blend: no ring, but bright silhouettes keep their fringe.
     ///
-    /// The pass does not own the texture and binds whatever it was last given, so set it
-    /// every frame : `Renderer::resize` replaces the texture, and a frame without
-    /// transparent primitives gives `None`.
+    /// The pass does not own the texture and binds whatever it was last given.
     pub fn transparent_coverage_texture_set( &mut self, texture : Option< gl::web_sys::WebGlTexture > )
     {
       self.transparent_coverage = texture;

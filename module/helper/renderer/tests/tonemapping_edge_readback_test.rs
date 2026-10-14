@@ -1,12 +1,14 @@
 //! Pixel readback of `ToneMappingPass` ( ACES ) over real `Renderer` frames, at the edge of a
 //! quad seen against the clear-colour background.
 //!
-//! The pass reconstructs partially covered pixels from their background neighbours. The tests
-//! check the two kinds of partial coverage it sees: an MSAA silhouette of an opaque quad, whose
-//! edge must not turn into a light fringe, and a transparent ( WBOIT ) quad, whose outline must
-//! not be tone mapped differently from its interior. The quad is unlit apart from the PBR
-//! shader's ambient term ( 0.1 of its white base colour ), which the exposure scales to an HDR
-//! value, so the comparisons only depend on how the pass treats each pixel, not on the shading.
+//! Given the renderer's transparent-coverage texture, the pass reconstructs partially covered
+//! pixels from their background neighbours. The tests check the two kinds of partial coverage it
+//! sees: an MSAA silhouette of an opaque quad, whose edge must not turn into a light fringe, and a
+//! transparent ( WBOIT ) quad, whose outline must not be tone mapped differently from its
+//! interior; and that without the texture the pass keeps the plain blend. The quad is unlit apart
+//! from the PBR shader's ambient term ( 0.1 of its white base colour ), which the exposure scales
+//! to an HDR value, so the comparisons only depend on how the pass treats each pixel, not on the
+//! shading.
 
 #[ cfg( target_arch = "wasm32" ) ]
 #[ cfg( test ) ]
@@ -96,16 +98,27 @@ mod tests
     Rc::new( RefCell::new( node ) )
   }
 
-  /// Renders `node` over a grey `background`, 4x MSAA; the quad's colour is `0.1 * 2^exposure`.
-  fn frame( gl : &GL, node : Rc< RefCell< Node > >, background : f32, exposure : f32 ) -> Renderer
+  /// A renderer drawing over a grey `background`, 4x MSAA; quads come out `0.1 * 2^exposure`.
+  fn renderer_make( gl : &GL, background : f32, exposure : f32 ) -> Renderer
   {
     let mut renderer = Renderer::new( gl, SIZE as u32, SIZE as u32, 4 ).expect( "Renderer::new succeeds" );
     renderer.clear_color_set( gl::F32x3::from( [ background; 3 ] ) );
     renderer.exposure_set( exposure );
+    renderer
+  }
+
+  fn draw( gl : &GL, renderer : &mut Renderer, node : Rc< RefCell< Node > > )
+  {
     let mut scene = Scene::new();
     scene.add( node );
     renderer.render( gl, &mut scene, &camera_make() ).expect( "render succeeds" );
-    renderer
+  }
+
+  /// World x of an opaque quad edge half a pixel right of the centre, so the edge column is
+  /// partially covered.
+  fn half_pixel_left() -> f32
+  {
+    0.5 / ( SIZE as f32 / 2.0 ) * HALF_WIDTH
   }
 
   /// Tone maps the renderer's frame, with `coverage` as the pass's transparent-coverage
@@ -135,48 +148,61 @@ mod tests
     row.chunks( 4 ).map( | pixel | pixel[ 0 ] ).collect()
   }
 
-  /// An opaque silhouette pixel is half quad, half background. Tone mapping it must give a
-  /// value between the two: the plain blend lets half of the quad's raw HDR value ( 3.2 here )
-  /// through and lights the edge up beyond the quad's own tone-mapped value.
+  /// An opaque silhouette pixel is half quad, half background. With the coverage texture
+  /// wired, tone mapping it must give a value between the two. Unwired, the pass keeps the
+  /// plain blend, which lets half of the quad's raw HDR value ( 3.2 here ) through and lights
+  /// the edge up beyond the quad's own tone-mapped value: the fix is opt-in.
   #[ wasm_bindgen_test ]
-  fn opaque_silhouette_has_no_light_fringe()
+  fn opaque_silhouette_has_no_light_fringe_when_wired()
   {
     let gl = gl_init();
-    // Half a pixel right of the centre, so the edge column is partially covered.
-    let left = 0.5 / ( SIZE as f32 / 2.0 ) * HALF_WIDTH;
-    let renderer = frame( &gl, quad_node( &gl, left, AlphaMode::Opaque, 1.0 ), 0.5, 5.0 );
-    assert!( renderer.transparent_coverage_texture().is_none(), "an opaque frame has no transparent coverage" );
+    let mut renderer = renderer_make( &gl, 0.5, 5.0 );
+    draw( &gl, &mut renderer, quad_node( &gl, half_pixel_left(), AlphaMode::Opaque, 1.0 ) );
 
     let row = tone_mapped_row( &gl, &renderer, renderer.transparent_coverage_texture() );
     let ( background, edge, interior ) = ( row[ BACKGROUND ], row[ EDGE ], row[ INTERIOR ] );
     assert!( background < interior, "precondition: the quad is brighter than the background: {row:?}" );
     assert!( edge > background && edge < interior, "the silhouette pixel must lie between background and quad: {row:?}" );
+
+    let unwired = tone_mapped_row( &gl, &renderer, None );
+    assert!( unwired[ EDGE ] > unwired[ INTERIOR ], "unwired, the pass keeps the plain blend and its fringe: {unwired:?}" );
+  }
+
+  /// The coverage texture outlives frames: after a transparent frame, a frame without
+  /// transparent primitives must not inherit its coverage, or the opaque silhouette below
+  /// the old glass would fall back to the plain blend and its fringe.
+  #[ wasm_bindgen_test ]
+  fn coverage_is_reset_by_a_frame_without_transparency()
+  {
+    let gl = gl_init();
+    let mut renderer = renderer_make( &gl, 0.5, 5.0 );
+    draw( &gl, &mut renderer, quad_node( &gl, -10.0, AlphaMode::Blend, 0.5 ) );
+    draw( &gl, &mut renderer, quad_node( &gl, half_pixel_left(), AlphaMode::Opaque, 1.0 ) );
+
+    let row = tone_mapped_row( &gl, &renderer, renderer.transparent_coverage_texture() );
+    let ( background, edge, interior ) = ( row[ BACKGROUND ], row[ EDGE ], row[ INTERIOR ] );
+    assert!( edge > background && edge < interior, "the silhouette pixel must lie between background and quad: {row:?}" );
   }
 
   /// A transparent quad over the background, its edge on a pixel boundary: the edge column is
-  /// as covered as the interior, so it must be tone mapped to the same value. Without the
-  /// coverage texture the pass takes the edge column, which has background neighbours, for an
-  /// MSAA silhouette and draws a darker outline. The glass ( 1.6, half covering a 0.2
-  /// background ) is kept dim enough that neither value saturates.
+  /// as covered as the interior, so it must be tone mapped to the same value, wired or not.
+  /// Reconstructing the edge column, which has background neighbours, as an MSAA silhouette
+  /// would draw a darker outline. The glass ( 1.6, half covering a 0.2 background ) is kept
+  /// dim enough that neither value saturates.
   #[ wasm_bindgen_test ]
   fn transparent_edge_matches_its_interior()
   {
     let gl = gl_init();
-    let renderer = frame( &gl, quad_node( &gl, 0.0, AlphaMode::Blend, 0.5 ), 0.2, 4.0 );
-    let coverage = renderer.transparent_coverage_texture();
-    assert!( coverage.is_some(), "a frame with a transparent primitive has transparent coverage" );
+    let mut renderer = renderer_make( &gl, 0.2, 4.0 );
+    draw( &gl, &mut renderer, quad_node( &gl, 0.0, AlphaMode::Blend, 0.5 ) );
 
-    let row = tone_mapped_row( &gl, &renderer, coverage );
+    let row = tone_mapped_row( &gl, &renderer, renderer.transparent_coverage_texture() );
     let ( background, edge, interior ) = ( row[ BACKGROUND ], row[ EDGE ], row[ INTERIOR ] );
     assert_eq!( row[ EDGE - 1 ], background, "precondition: the column left of the edge is background: {row:?}" );
     assert!( interior > background && interior < 250, "precondition: the glass is brighter than the background, unsaturated: {row:?}" );
-    assert!( edge.abs_diff( interior ) <= 1, "the glass edge must match its interior: {row:?}" );
+    assert!( edge.abs_diff( interior ) <= 1, "wired, the glass edge must match its interior: {row:?}" );
 
     let unwired = tone_mapped_row( &gl, &renderer, None );
-    assert!
-    (
-      unwired[ EDGE ].saturating_add( 10 ) < unwired[ INTERIOR ],
-      "precondition: without the coverage texture the edge is darker, so the test sees the ring: {unwired:?}"
-    );
+    assert_eq!( unwired, row, "unwired, the glass takes the same plain blend: {unwired:?}" );
   }
 }

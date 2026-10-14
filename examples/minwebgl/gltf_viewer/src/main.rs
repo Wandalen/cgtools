@@ -106,6 +106,9 @@ async fn app_run() -> Result< (), gl::WebglError >
   let mut swap_buffer = SwapFramebuffer::new( &gl, pixel_w, pixel_h );
 
   let mut tonemapping = post_processing::ToneMappingPass::< post_processing::ToneMappingAces >::new( &gl )?;
+  // Turns on the MSAA-edge fix: with the renderer's transparent coverage the pass can
+  // tell glass from silhouettes. Set again after every resize, which replaces the texture.
+  tonemapping.transparent_coverage_texture_set( renderer.borrow().transparent_coverage_texture() );
   let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
 
   gui_setup::setup( &renderer );
@@ -130,6 +133,7 @@ async fn app_run() -> Result< (), gl::WebglError >
         camera.window_size_set( [ w as f32, h as f32 ].into() );
 
         renderer.borrow_mut().resize( &gl, w, h, samples ).expect( "Failed to resize renderer" );
+        tonemapping.transparent_coverage_texture_set( renderer.borrow().transparent_coverage_texture() );
 
         swap_buffer.gl_resources_free( &gl );
         swap_buffer = SwapFramebuffer::new( &gl, w, h );
@@ -142,9 +146,6 @@ async fn app_run() -> Result< (), gl::WebglError >
       swap_buffer.reset();
       swap_buffer.bind( &gl );
       swap_buffer.input_set( renderer.borrow().main_texture() );
-      // Lets the tone mapping tell glass from MSAA edges, so a transparent mesh seen
-      // against the background gets no 1-px ring.
-      tonemapping.transparent_coverage_texture_set( renderer.borrow().transparent_coverage_texture() );
 
       let t = tonemapping.render( &gl, swap_buffer.input_get(), swap_buffer.output_get() )
       .expect( "Failed to render tonemapping pass" );
