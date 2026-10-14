@@ -15,7 +15,7 @@ mod tests
   use renderer::webgl::
   {
     Geometry, Material, Mesh, Node, Object3D, Primitive, Scene, Texture,
-    engraving::{ EngravingConfig, EngravingSession },
+    engraving::{ EngravingConfig, EngravingError, EngravingSession },
     material::PbrMaterial,
   };
 
@@ -155,5 +155,24 @@ mod tests
 
     assert!( engraving_of( &node_materials( &engraved )[ 0 ] ).is_some(), "the configured node is engraved" );
     assert!( engraving_of( &node_materials( &plain )[ 0 ] ).is_none(), "the other user of the mesh is not" );
+  }
+
+  /// `set_text` only accepts the node's `allowedFonts`.
+  #[ wasm_bindgen_test( async ) ]
+  async fn set_text_rejects_a_font_outside_the_whitelist()
+  {
+    let gl = gl_init();
+    let mut scene = Scene::new();
+    node_add( &mut scene, "A", Object3D::Mesh( mesh_make( &gl, &[ &pbr_material( &gl ) ] ) ) );
+    let mut session = EngravingSession::build( &gl, &scene, &config_for( &[ "A" ] ) ).expect( "build succeeds" );
+
+    let err = session.set_text( &gl, "A", "Hi", "serif" ).await.expect_err( "serif is not whitelisted" );
+    assert!
+    (
+      matches!( &err, EngravingError::FontNotAllowed { node, font } if &**node == "A" && &**font == "serif" ),
+      "unexpected error: {err:?}"
+    );
+
+    session.set_text( &gl, "A", "Hi", "monospace" ).await.expect( "a whitelisted font renders" );
   }
 }

@@ -32,6 +32,15 @@ mod private
     /// This session has no entry for the requested node name (it wasn't in the config passed to
     /// [`EngravingSession::build`]).
     UnknownNode( Box< str > ),
+    /// [`EngravingSession::set_text`] was asked for a font that isn't in the node's
+    /// `allowedFonts` whitelist.
+    FontNotAllowed
+    {
+      /// The node the text was for.
+      node : Box< str >,
+      /// The rejected CSS font family.
+      font : Box< str >,
+    },
     /// A WebGL call failed (texture allocation/update).
     Gl( gl::WebglError ),
     /// Font loading or text rasterization failed.
@@ -48,6 +57,7 @@ mod private
         Self::NotAMesh( n ) => write!( f, "node '{n}' is not a mesh with at least one primitive" ),
         Self::MaterialNotPbr( n ) => write!( f, "node '{n}'s material is not a PbrMaterial" ),
         Self::UnknownNode( n ) => write!( f, "no engraving config for node '{n}'" ),
+        Self::FontNotAllowed { node, font } => write!( f, "font '{font}' is not in node '{node}'s allowedFonts" ),
         Self::Gl( e ) => write!( f, "{e}" ),
         Self::Canvas( e ) => write!( f, "{e}" ),
       }
@@ -72,6 +82,8 @@ mod private
     /// the geometry fields (`uv_channel`, `aspect_ratio`, `texture_height`, ...) aren't here at
     /// all, rather than merely being documented as unsafe to touch.
     layout : EngravingTextLayout,
+    /// The node's `allowedFonts`, checked by [`EngravingSession::set_text`].
+    allowed_fonts : Vec< Box< str > >,
     canvas : EngravingCanvasManager,
     /// Re-rendering text only needs to update the GPU texture in place ([`EngravingTexture::update`]);
     /// every `PbrMaterial` this was attached to already shares it via `Rc<RefCell<Texture>>`
@@ -279,7 +291,13 @@ mod private
           pbr.engraving_darkening = node_config.engraving_darkening;
         }
 
-        entries.insert( node_config.node_name.clone(), EngravingEntry { layout : node_config.text_layout(), canvas, texture } );
+        entries.insert( node_config.node_name.clone(), EngravingEntry
+        {
+          layout : node_config.text_layout(),
+          allowed_fonts : node_config.allowed_fonts.clone(),
+          canvas,
+          texture,
+        } );
       }
 
       Ok( Self { entries } )
@@ -294,6 +312,7 @@ mod private
     /// # Errors
     ///
     /// [`EngravingError::UnknownNode`] if the session has no entry for `node_name`,
+    /// [`EngravingError::FontNotAllowed`] if `font_family` isn't in that node's `allowedFonts`,
     /// [`EngravingError::Canvas`] if rasterizing fails (see
     /// [`EngravingCanvasManager::render_text_mip_chain`]), or [`EngravingError::Gl`] if the
     /// upload fails (see [`EngravingTexture::update`]).
@@ -301,6 +320,11 @@ mod private
     {
       let entry = self.entries.get_mut( node_name )
       .ok_or_else( || EngravingError::UnknownNode( node_name.into() ) )?;
+
+      if !entry.allowed_fonts.iter().any( | f | **f == *font_family )
+      {
+        return Err( EngravingError::FontNotAllowed { node : node_name.into(), font : font_family.into() } );
+      }
 
       let bitmaps : Vec< EngravingBitmap > = entry.canvas.render_text_mip_chain
       (
