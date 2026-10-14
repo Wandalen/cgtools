@@ -304,6 +304,26 @@ mod private
       self.framebuffer_ctx.main_texture.clone()
     }
 
+    /// The texture that marks which pixels of the last `render` hold transparent coverage,
+    /// for `ToneMappingPass::transparent_coverage_texture_set`; `None` when that frame drew
+    /// no transparent primitives.
+    ///
+    /// It is the WBOIT accumulation target: its alpha is the revealage, the product of
+    /// `1 - alpha` over the transparent layers, so exactly 1 where none covers the pixel.
+    /// `resize` replaces it.
+    #[ must_use ]
+    pub fn transparent_coverage_texture( &self ) -> Option< gl::web_sys::WebGlTexture >
+    {
+      if self.transparent_nodes.is_empty()
+      {
+        None
+      }
+      else
+      {
+        self.framebuffer_ctx.transparent_accumulate_texture.clone()
+      }
+    }
+
     /// Draw equirectangular skybox
     ///
     /// # Panics

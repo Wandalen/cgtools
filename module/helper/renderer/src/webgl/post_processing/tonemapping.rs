@@ -2,10 +2,23 @@ mod private
 {
   use std::marker::PhantomData;
   use minwebgl as gl;
+  use gl::web_sys::WebGlProgram;
+  use rustc_hash::FxHashMap;
   use crate::webgl::
   {
-    ShaderProgram, post_processing::{ Pass, VS_TRIANGLE }, program::EmptyShader
+    ShaderProgram, ProgramInfo, post_processing::{ Pass, VS_TRIANGLE }
   };
+  use crate::webgl::impl_locations;
+
+  // The tone mapping program: the HDR source on unit 0, the optional transparent-coverage
+  // texture on unit 1.
+  impl_locations!
+  (
+    ToneMappingShader,
+    "sourceTexture",
+    "transparentCoverage",
+    "useTransparentCoverage"
+  );
 
   /// Represents the ACES (Academy Color Encoding System) tone mapping algorithm.
   pub struct ToneMappingAces;
@@ -14,8 +27,33 @@ mod private
   pub struct ToneMappingPass< T >
   {
     /// The WebGL program used for the tone mapping operation.
-    material : EmptyShader,
+    material : ToneMappingShader,
+    /// The renderer's transparent-coverage texture for the frame being tone mapped, if any.
+    transparent_coverage : Option< gl::web_sys::WebGlTexture >,
     phantom : std::marker::PhantomData< T >
+  }
+
+  impl< T > ToneMappingPass< T >
+  {
+    /// Sets the texture that tells the pass which pixels hold transparent coverage :
+    /// pass `Renderer::transparent_coverage_texture()` here every frame, after
+    /// `Renderer::render` and before this pass renders.
+    ///
+    /// The pass tone maps a partially covered pixel with the background it lets through,
+    /// estimated from neighbouring background pixels, which removes the light fringe on
+    /// MSAA silhouettes. Transparent ( WBOIT ) surfaces over the background are partially
+    /// covered too, and only their outline has background neighbours : without this
+    /// texture, that outline is tone mapped differently from the rest of the surface and
+    /// shows as a 1-px ring. With `None` every partially covered pixel is treated as an
+    /// MSAA silhouette, which is exact for a frame without transparent primitives.
+    ///
+    /// The pass does not own the texture and binds whatever it was last given, so set it
+    /// every frame : `Renderer::resize` replaces the texture, and a frame without
+    /// transparent primitives gives `None`.
+    pub fn transparent_coverage_texture_set( &mut self, texture : Option< gl::web_sys::WebGlTexture > )
+    {
+      self.transparent_coverage = texture;
+    }
   }
 
   impl< T > Pass for ToneMappingPass< T >
@@ -41,6 +79,18 @@ mod private
       gl.clear_color( 0.0, 0.0, 0.0, 1.0 );
 
       self.material.bind( gl );
+      let locations = self.material.locations();
+      gl.uniform1i
+      (
+        locations.get( "useTransparentCoverage" ).and_then( Clone::clone ).as_ref(),
+        i32::from( self.transparent_coverage.is_some() )
+      );
+
+      // Unit 1 always gets a texture, the source itself when there is no coverage
+      // texture: the shader doesn't read it then, but a sampler on an empty unit still
+      // draws a "no texture bound" warning every frame.
+      gl.active_texture( gl::TEXTURE1 );
+      gl.bind_texture( gl::TEXTURE_2D, self.transparent_coverage.as_ref().or( input_texture.as_ref() ) );
       gl.active_texture( gl::TEXTURE0 );
       gl.bind_texture( gl::TEXTURE_2D, input_texture.as_ref() );
       gl.framebuffer_texture_2d
@@ -55,6 +105,8 @@ mod private
       gl.clear( gl::COLOR_BUFFER_BIT );
       gl.draw_arrays( gl::TRIANGLES, 0, 3 );
 
+      gl::clean::texture_2d_active( gl, 1 );
+      gl.active_texture( gl::TEXTURE0 );
       gl::clean::texture_2d( gl );
       gl::clean::framebuffer_texture_2d( gl );
 
@@ -73,13 +125,19 @@ mod private
     {
       let fs_shader = include_str!( "../shaders/tonemapping/aces.frag" );
       let program = gl::ProgramFromSources::new( VS_TRIANGLE, fs_shader ).compile_and_link( gl )?;
-      let material = EmptyShader::new( gl, &program );
+      let material = ToneMappingShader::new( gl, &program );
+
+      material.bind( gl );
+      let locations = material.locations();
+      gl.uniform1i( locations.get( "sourceTexture" ).and_then( Clone::clone ).as_ref(), 0 );
+      gl.uniform1i( locations.get( "transparentCoverage" ).and_then( Clone::clone ).as_ref(), 1 );
 
       Ok
       (
         Self
         {
           material,
+          transparent_coverage : None,
           phantom : PhantomData
         }
       )
