@@ -34,7 +34,7 @@ use tiles_tools::coordinates::hexagonal::{ Coordinate, Offset, Odd, Flat };
 /// Invisible whenever the bounds span only one column (`min.q == max.q`) --
 /// both the buggy and fixed guards degenerate to the same `else` branch. Only
 /// a multi-column `Flat` bounds range exposes the wrong axis.
-#[ expect( clippy::float_cmp, reason = "1.5 == 3/2 is exactly representable in f32; pins the exact stored value" ) ]
+#[ allow( clippy::float_cmp, reason = "1.5 == 3/2 is exactly representable in f32; pins the exact stored value" ) ]
 #[ test ]
 fn flat_center_accounts_for_the_shifted_middle_column()
 {
