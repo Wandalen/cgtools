@@ -154,6 +154,41 @@ mod gl_scene
     assert_eq!( buffer.read( 10, 50 ), Some( 1 ), "reads work again once the cause is gone" );
   }
 
+  /// The world and view-projection matrices must both reach the shader, untransposed,
+  /// and be applied as `viewProjection * world`. A ±0.25 square is translated to
+  /// ( 0.5, 0.5 ) by its node, then the view-projection halves x and shifts it left by
+  /// 0.25: correctly it covers NDC x ∈ [ -0.125, 0.125 ], y ∈ [ 0.25, 0.75 ]. A dropped
+  /// or transposed matrix, or the reversed product, all move it off pixel ( 32, 48 ).
+  #[ wasm_bindgen_test::wasm_bindgen_test ]
+  fn render_applies_node_transform_and_view_projection()
+  {
+    let gl = gl_init();
+    let node = mesh_node( &gl, "front", rect( &gl, [ -0.25, -0.25, 0.25, 0.25 ], 0.0 ) );
+    node.borrow_mut().translation_set( [ 0.5, 0.5, 0.0 ] );
+    let mut scene = Scene::new();
+    scene.add( node );
+    scene.world_matrix_update();
+
+    let view_projection = gl::F32x4x4::from_row_major
+    ( [
+      0.5, 0.0, 0.0, -0.25,
+      0.0, 1.0, 0.0, 0.0,
+      0.0, 0.0, 1.0, 0.0,
+      0.0, 0.0, 0.0, 1.0,
+    ] );
+
+    let picker = ScenePicker::new( &gl ).unwrap();
+    let mut buffer = IdBuffer::new( &gl ).unwrap();
+    buffer.size_set( SIZE, SIZE ).unwrap();
+    picker.render( &buffer, &scene, view_projection, id_for ).unwrap();
+
+    // NDC x ∈ [ -0.125, 0.125 ] and y ∈ [ 0.25, 0.75 ] are pixels x ∈ [ 28, 36 ), y ∈ [ 40, 56 ).
+    assert_eq!( buffer.read( 32, 48 ), Some( 2 ), "the square, where both matrices put it" );
+    assert_eq!( buffer.read( 40, 48 ), None, "where `world * viewProjection` would put it" );
+    assert_eq!( buffer.read( 48, 48 ), None, "where the node transform alone would put it" );
+    assert_eq!( buffer.read( 24, 32 ), None, "where the view-projection alone would put it" );
+  }
+
   #[ wasm_bindgen_test::wasm_bindgen_test ]
   fn read_before_storage_and_render_without_storage()
   {
