@@ -43,7 +43,8 @@ enabled = [
   "dep:serde",
   "dep:serde_json",
   "dep:quick-xml",
-  "dep:wasm-bindgen-futures"
+  "dep:wasm-bindgen-futures",
+  "dep:wasm-bindgen"
 ]
 default = [ "enabled", "webgl" ]
 full = [ "enabled", "webgl", "animation", "webgpu", "native", "native-formats" ]
@@ -57,7 +58,8 @@ native = [ "dep:minwebgpu", "dep:bytemuck", "dep:gpu_hal", "gpu_hal/native" ]
 animation = [ "dep:animation", "dep:clone_dyn_types" ]
 # Exposes crate-private state to `tests/`, which is a separate crate and so cannot
 # reach it otherwise. Off by default: nothing a dependent builds changes, and every
-# item behind it is `#[ doc( hidden ) ]` and suffixed `_for_test`.
+# item behind it is `#[ doc( hidden ) ]`, either suffixed `_for_test` or inside a
+# hidden `internal` module.
 test_internals = []
 # Native OpenPBR content formats beyond glTF : the `loaders::usd` scene reader
 # built on the pure-Rust `openusd` / `openusd-schemas` crates ( OpenPBR adoption
@@ -95,6 +97,8 @@ quick-xml = { workspace = true, optional = true }
 openusd = { workspace = true, optional = true }
 openusd-schemas = { workspace = true, optional = true }
 wasm-bindgen-futures = { workspace = true, optional = true }
+# The meshopt decoder is imported from a JS module ( `src/webgl/loaders/meshopt_decoder.mjs` ).
+wasm-bindgen = { workspace = true, optional = true }
 
 [dependencies.web-sys]
 workspace = true

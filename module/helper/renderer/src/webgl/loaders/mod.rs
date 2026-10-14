@@ -26,6 +26,12 @@ crate::mod_interface!
   #[ cfg( feature = "native-formats" ) ]
   layer usd;
 
+  /// meshopt-compressed buffer views ( EXT_meshopt_compression )
+  layer meshopt;
+
+  /// glTF material extensions read from raw extension JSON
+  layer gltf_extensions;
+
   /// IBL textures loader
   layer ibl;
 

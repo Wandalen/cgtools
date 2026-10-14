@@ -16,13 +16,14 @@ use std::cell::RefCell;
 /// ## Fix Applied
 /// The `skeleton` arm now mirrors `primitives`'s own pattern exactly:
 /// `self.skeleton.as_ref().map( | s | Rc::new( RefCell::new( s.borrow().clone() ) ) )` -- a fresh
-/// `Rc` wrapping a clone of the pointee, matching `Primitive::clone`'s identical
-/// geometry/material pattern elsewhere in this same crate.
+/// `Rc` wrapping a clone of the pointee, the same pattern `primitives` uses and
+/// `Primitive::clone` uses for its material.
 /// ## Prevention
-/// Any `Clone` arm for an `Rc< RefCell< T > > ` field must produce a *new* `Rc`, never `self`'s
-/// own via a bare `.clone()` on the `Rc` itself -- compare a new arm against an already-correct
-/// sibling field in the same `impl` before trusting it compiles, since both shapes type-check
-/// identically.
+/// Every `Clone` arm for an `Rc< RefCell< T > > ` field must choose on purpose between a *new*
+/// `Rc` (an independent copy per clone, as for `skeleton`) and `self`'s own `Rc` (deliberate
+/// sharing, as for `Primitive::geometry`, which owns a VAO and is not `Clone`); a bare `.clone()`
+/// on an `Rc` that was meant to be independent is this bug. Both shapes type-check identically,
+/// so compare a new arm against a sibling field with the same intent.
 /// ## Pitfall
 /// `Rc::strong_count`/`Rc::ptr_eq` are the only way to catch this from the outside -- the cloned
 /// `Mesh`'s `skeleton` field is `Some( .. )` either way, so a naive `is_some()` assertion passes

@@ -67,4 +67,7 @@ crate::mod_interface!
 
   /// Shadows related functionality
   layer shadow;
+
+  /// GPU id-buffer object picking
+  layer picking;
 }

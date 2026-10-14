@@ -89,7 +89,7 @@ fn bgra_to_rgba_swizzle_empty_is_noop()
 {
   let mut pixels : Vec< u8 > = vec![];
   bgra_to_rgba_swizzle( &mut pixels );
-  assert!( pixels.is_empty() );
+  assert_eq!( pixels, [] );
 }
 
 /// A buffer whose length is not a multiple of 4 is a caller bug ( a malformed pixel buffer,

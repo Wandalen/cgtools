@@ -3,6 +3,7 @@ mod private
   use std::{ cell::RefCell, rc::Rc };
   use gltf::mesh::iter::MorphTargets;
   use gltf::json::Value;
+  use crate::webgl::loaders::gltf_extensions::{ document_validate, material_layer_extensions_apply };
   use mingl::F32x3;
   use minwebgl as gl;
   use gl::
@@ -476,9 +477,11 @@ mod private
     }
   }
 
-  /// Collects the raw byte payload of every glTF buffer : the embedded GLB
-  /// binary chunk first ( when present ), then each URI-addressed buffer
-  /// fetched relative to `folder_path`.
+  /// Collects the raw byte payload of every glTF buffer, indexed like the
+  /// document's `buffers` : the embedded GLB binary chunk, each URI-addressed
+  /// buffer fetched relative to `folder_path`, and a zeroed placeholder for each
+  /// meshopt fallback buffer, which [`crate::webgl::loaders::meshopt::views_decode`]
+  /// then fills.
   async fn buffers_load
   (
     gltf_file : &mut gltf::Gltf,
@@ -487,45 +490,81 @@ mod private
   -> Result< Vec< gl::js_sys::Uint8Array >, gl::WebglError >
   {
     let mut buffers : Vec< gl::js_sys::Uint8Array > = Vec::new();
-
-    // Move the GLB bin into buffers
-    if let Some( blob ) = gltf_file.blob.as_mut()
-    {
-      let blob = std::mem::take( blob );
-      gl::debug!( "The gltf binary payload is present: {}", blob.len() );
-      buffers.push( blob.as_slice().into() );
-    }
+    let mut blob = gltf_file.blob.take();
 
     for gltf_buffer in gltf_file.buffers()
     {
-      if let gltf::buffer::Source::Uri( uri ) = gltf_buffer.source()
+      if crate::webgl::loaders::meshopt::buffer_is_fallback( &gltf_buffer )
       {
-        let path = asset_uri_resolve( folder_path, uri );
-        let buffer = gl::file::load( &path ).await
-        .map_err( | e |
+        let length = u32::try_from( gltf_buffer.length() )
+        .map_err( | _ | gl::WebglError::Other( "glTF buffer is larger than 4 GiB" ) )?;
+        buffers.push( gl::js_sys::Uint8Array::new_with_length( length ) );
+        continue;
+      }
+
+      match gltf_buffer.source()
+      {
+        gltf::buffer::Source::Bin =>
         {
-          gl::browser::error!( "Failed to load gltf buffer '{path}': {e:?}" );
-          gl::WebglError::Other( "Failed to load a buffer" )
-        } )?;
+          // Only the first buffer may omit its uri : it is the GLB binary chunk.
+          let blob = blob.take().ok_or_else( ||
+          {
+            gl::browser::error!( "glTF buffer {} has no uri and no GLB binary chunk", gltf_buffer.index() );
+            gl::WebglError::Other( "glTF buffer has no data" )
+          } )?;
+          gl::debug!( "The gltf binary payload is present: {}", blob.len() );
+          buffers.push( blob.as_slice().into() );
+        },
+        gltf::buffer::Source::Uri( uri ) =>
+        {
+          let path = asset_uri_resolve( folder_path, uri );
+          let buffer = gl::file::load( &path ).await
+          .map_err( | e |
+          {
+            gl::browser::error!( "Failed to load gltf buffer '{path}': {e:?}" );
+            gl::WebglError::Other( "Failed to load a buffer" )
+          } )?;
 
-        gl::debug!
-        (
-          "Buffer path: {}\n
-          \tBuffer length: {}",
-          path,
-          buffer.len()
-        );
+          gl::debug!
+          (
+            "Buffer path: {}\n
+            \tBuffer length: {}",
+            path,
+            buffer.len()
+          );
 
-        buffers.push( buffer.as_slice().into() );
+          buffers.push( buffer.as_slice().into() );
+        }
       }
     }
 
     Ok( buffers )
   }
 
+  std::thread_local!
+  {
+    static TEXTURE_UPLOAD_COUNT : std::cell::Cell< u64 > = const { std::cell::Cell::new( 0 ) };
+  }
+
+  /// Number of glTF images whose decoded pixels have replaced their 1x1 white
+  /// placeholder, counted across every [`load`] since the page started.
+  ///
+  /// Image uploads finish asynchronously, after `load` has returned, and nothing
+  /// else signals them. A renderer that skips redrawing unchanged frames should
+  /// redraw whenever this value moves : otherwise the frame drawn with the white
+  /// placeholders stays on screen until something unrelated changes, and a
+  /// textured model shows up blank. Compare against the value seen last frame;
+  /// reading it is one thread-local load.
+  #[ must_use ]
+  pub fn texture_upload_count_get() -> u64
+  {
+    TEXTURE_UPLOAD_COUNT.with( std::cell::Cell::get )
+  }
+
   /// Creates an `<img>` element for `src` and uploads it into a new WebGL
   /// texture pushed onto `images` : a 1x1 white placeholder immediately, the
-  /// decoded image ( with mipmaps ) once the element's onload fires.
+  /// decoded image ( with mipmaps ) once the element's onload fires, which bumps
+  /// [`texture_upload_count_get`].
   fn texture_upload
   (
     document : &gl::web_sys::Document,
@@ -577,6 +616,7 @@ mod private
 
           gl.generate_mipmap( gl::TEXTURE_2D );
           gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
+          TEXTURE_UPLOAD_COUNT.with( | count | count.set( count.get() + 1 ) );
 
           // revoke_object_url is specified only for blob: URLs; for data: URIs or
           // plain file paths it is a no-op, and unwrapping its result is a latent
@@ -807,49 +847,7 @@ mod private
         material.specular_color_texture_set( make_texture_info( s.specular_color_texture() ) );
       }
 
-      // The `gltf` crate has no typed accessors for KHR_materials_clearcoat / KHR_materials_anisotropy,
-      // so their JSON is parsed manually via `extension_value`.
-      let parse_ext_texture_info = | json : &Value | -> Option< TextureInfo >
-      {
-        let index = json.get( "index" )?.as_u64()? as usize;
-        let uv_position = json.get( "texCoord" ).and_then( Value::as_u64 ).unwrap_or( 0 ) as u32;
-        textures.get( index ).map( | t | TextureInfo { texture : t.clone(), uv_position } )
-      };
-
-      // KHR_materials_clearcoat
-      if let Some( cc ) = gltf_m.extension_value( "KHR_materials_clearcoat" )
-      {
-        material.set_clearcoat_factor( Some( cc.get( "clearcoatFactor" ).and_then( Value::as_f64 ).unwrap_or( 0.0 ) as f32 ) );
-        material.set_clearcoat_roughness_factor( Some( cc.get( "clearcoatRoughnessFactor" ).and_then( Value::as_f64 ).unwrap_or( 0.0 ) as f32 ) );
-
-        if let Some( t ) = cc.get( "clearcoatTexture" )
-        {
-          material.set_clearcoat_texture( parse_ext_texture_info( t ) );
-        }
-        if let Some( t ) = cc.get( "clearcoatRoughnessTexture" )
-        {
-          material.set_clearcoat_roughness_texture( parse_ext_texture_info( t ) );
-        }
-        if let Some( t ) = cc.get( "clearcoatNormalTexture" )
-        {
-          material.clearcoat_normal_scale = t.get( "scale" ).and_then( Value::as_f64 ).unwrap_or( 1.0 ) as f32;
-          material.set_clearcoat_normal_texture( parse_ext_texture_info( t ) );
-        }
-      }
-
-      // KHR_materials_anisotropy
-      if let Some( an ) = gltf_m.extension_value( "KHR_materials_anisotropy" )
-      {
-        material.set_anisotropy_strength( Some( an.get( "anisotropyStrength" ).and_then( Value::as_f64 ).unwrap_or( 0.0 ) as f32 ) );
-        material.anisotropy_rotation = an.get( "anisotropyRotation" ).and_then( Value::as_f64 ).unwrap_or( 0.0 ) as f32;
-        if let Some( t ) = an.get( "anisotropyTexture" )
-        {
-          material.set_anisotropy_texture( parse_ext_texture_info( t ) );
-        }
-      }
-
-      // KHR_materials_sheen / KHR_materials_iridescence textures ( adoption plan §3.1 subset ).
-      lobe_textures_apply( &mut material, &gltf_m, &parse_ext_texture_info );
+      material_layer_extensions_apply( &gltf_m, textures, &mut material );
 
       // OpenPBR Surface adoption ( ASWF OpenPBR → ratified KHR_materials_* ):
       // capture the scalar/color factor carriers of the remaining extensions
@@ -993,36 +991,6 @@ mod private
     params
   }
 
-  /// Wires the textured lobe carriers ( adoption plan §3.1 subset :
-  /// `KHR_materials_sheen` color/roughness textures and
-  /// `KHR_materials_iridescence` weight texture ) from raw extension JSON into
-  /// a [`PbrMaterial`]. Split out of `materials_create` ( at the clippy
-  /// function-length budget ); `parse_ext_texture_info` is the shared
-  /// `TextureInfo` resolver over the document's texture list.
-  fn lobe_textures_apply< F >( material : &mut PbrMaterial, gltf_m : &gltf::Material< '_ >, parse_ext_texture_info : &F )
-  where
-    F : Fn( &Value ) -> Option< TextureInfo >
-  {
-    if let Some( sh ) = gltf_m.extension_value( "KHR_materials_sheen" )
-    {
-      if let Some( t ) = sh.get( "sheenColorTexture" )
-      {
-        material.set_sheen_color_texture( parse_ext_texture_info( t ) );
-      }
-      if let Some( t ) = sh.get( "sheenRoughnessTexture" )
-      {
-        material.set_sheen_roughness_texture( parse_ext_texture_info( t ) );
-      }
-    }
-    if let Some( ir ) = gltf_m.extension_value( "KHR_materials_iridescence" )
-    {
-      if let Some( t ) = ir.get( "iridescenceTexture" )
-      {
-        material.set_iridescence_texture( parse_ext_texture_info( t ) );
-      }
-    }
-  }
-
   /// Computes a vertex attribute's [`gl::BufferDescriptor`] from its glTF
   /// accessor : data type, offset, stride, and dimensionality. Split out of
   /// [`attribute_info_make`] -- pure data transform over the accessor's own
@@ -1052,6 +1020,42 @@ mod private
     .normalized( acc.normalized() )
     .stride( acc.view().unwrap().stride().unwrap_or( 0 ) as i32 / data_type.byte_size() )
     .vector( gl::VectorDataType::new( data_type, acc.dimensions().multiplicity() as i32, 1 ) )
+  }
+
+  /// Converts a `POSITION` accessor's `min` / `max` into the values the vertex
+  /// shader sees. `KHR_mesh_quantization` stores positions as integers and the
+  /// accessor's bounds use the same raw integers, but WebGL reads a normalized
+  /// accessor as -1..1 or 0..1 : an `i16` bound of 32767 is really 1.0. Bounds of
+  /// float and non-normalized integer accessors are already in shader units.
+  #[ must_use ]
+  pub fn position_bounds_dequantize
+  (
+    bounds : gltf::mesh::BoundingBox,
+    data_type : gltf::accessor::DataType,
+    normalized : bool
+  )
+  -> gltf::mesh::BoundingBox
+  {
+    use gltf::accessor::DataType;
+
+    if !normalized
+    {
+      return bounds;
+    }
+    // Per the glTF spec's normalization equations : signed types clamp at -1.
+    let scale = | v : f32 | match data_type
+    {
+      DataType::I8 => ( v / 127.0 ).max( -1.0 ),
+      DataType::U8 => v / 255.0,
+      DataType::I16 => ( v / 32767.0 ).max( -1.0 ),
+      DataType::U16 => v / 65535.0,
+      DataType::U32 | DataType::F32 => v,
+    };
+    gltf::mesh::BoundingBox
+    {
+      min : bounds.min.map( scale ),
+      max : bounds.max.map( scale ),
+    }
   }
 
   /// Describes one vertex attribute over the uploaded GPU buffers from its
@@ -1104,7 +1108,12 @@ mod private
         gltf::Semantic::Positions =>
         {
           geometry.vertex_count = acc.count() as u32;
-          let gltf_box = gltf_primitive.bounding_box();
+          let gltf_box = position_bounds_dequantize
+          (
+            gltf_primitive.bounding_box(),
+            acc.data_type(),
+            acc.normalized()
+          );
 
           let mut attr_info = attribute_info_make( gl_buffers, &acc, 0 );
           attr_info.bounding_box = BoundingBox::new( gltf_box.min, gltf_box.max );
@@ -1278,6 +1287,18 @@ mod private
         for ( name, value ) in dummy_material.vertex_defines()
         {
           m.vertex_define_add( name.clone(), value );
+        }
+
+        // Fix(BUG-535): attribute defines are needed in the fragment stage too: `main.frag` builds
+        // its tangent frame from `vTangent` only under `USE_TANGENTS`, so every asset that ships
+        // TANGENT data was shaded with the derivative frame instead of its authored tangents.
+        // Root cause: only `dummy_material.vertex_defines()` was copied. Master never copied the
+        // fragment defines, and this loop, once added on the branch, was lost in the merge 7a37bd43.
+        // Pitfall: the two stages compile from separate define sets, so a define recorded for both
+        // must be copied to both.
+        for ( name, value ) in dummy_material.fragment_defines()
+        {
+          m.fragment_define_add( name.clone(), value );
         }
 
         std::mem::drop( m );
@@ -1510,57 +1531,13 @@ mod private
     scenes
   }
 
-  /// glTF extensions this loader actually implements support for. Kept in sync
-  /// with the `gltf`-crate extension Cargo features this crate enables in
-  /// `Cargo.toml` ( `[dependencies.gltf].features` ) -- an extension whose
-  /// Cargo feature isn't turned on has no typed accessor exposed by the `gltf`
-  /// crate at all, so this loader could not act on it even if it were listed
-  /// here. Cross-checked against this file's own code, not just the feature
-  /// list: `KHR_lights_punctual` is read in [`light_list_get`] / [`light_get`];
-  /// `KHR_materials_specular` is read in `materials_create`'s `gltf_m.specular()`
-  /// branch.
-  const SUPPORTED_EXTENSIONS : &[ &str ] = &[ "KHR_lights_punctual", "KHR_materials_specular" ];
-
-  /// Validates a parsed glTF document's `extensionsRequired` against
-  /// [`SUPPORTED_EXTENSIONS`], per glTF 2.0's "Specifying Extensions" : a
-  /// conformant client MUST refuse to load an asset that requires an extension
-  /// it doesn't support, rather than silently proceeding and producing
-  /// incomplete/incorrect output ( e.g. silently ignoring
-  /// `KHR_materials_transmission` or `KHR_draco_mesh_compression` content ).
-  /// Pure check over the parsed document -- no GL calls -- so it can run
-  /// immediately after parsing, before any buffer/image/GL work begins, and be
-  /// unit-tested without a live `WebGl2RenderingContext`.
-  ///
-  /// # Errors
-  ///
-  /// Returns `WebglError::Other` if any entry in `extensionsRequired` is not in
-  /// [`SUPPORTED_EXTENSIONS`] -- the offending extension name and the full
-  /// supported list are logged via `gl::browser::error!` before returning,
-  /// since `WebglError::Other` itself only carries a static summary.
-  pub fn required_extensions_check( gltf_file : &gltf::Gltf ) -> Result< (), gl::WebglError >
-  {
-    for required in gltf_file.extensions_required()
-    {
-      if !SUPPORTED_EXTENSIONS.contains( &required )
-      {
-        gl::browser::error!
-        (
-          "glTF asset requires unsupported extension '{required}' ( loader supports: {SUPPORTED_EXTENSIONS:?} )"
-        );
-        return Err( gl::WebglError::Other( "glTF asset requires an unsupported extension" ) );
-      }
-    }
-
-    Ok( () )
-  }
-
   /// Asynchronously loads a glTF (GL Transmission Format) file and its associated resources.
   ///
   /// # Errors
   ///
   /// Returns `WebglError` if fetching or parsing the glTF file or its buffers fails, or if the
-  /// glTF asset's `extensionsRequired` lists an extension this loader doesn't support ( see
-  /// [`required_extensions_check`] ).
+  /// glTF asset fails validation, including an `extensionsRequired` entry this loader doesn't
+  /// support ( see [`document_validate`] ).
   ///
   /// # Panics
   ///
@@ -1594,7 +1571,10 @@ mod private
       gl::browser::error!( "Failed to load gltf file '{gltf_path}': {e:?}" );
       gl::WebglError::Other( "Failed to load gltf file" )
     } )?;
-    let mut gltf_file = gltf::Gltf::from_slice( &gltf_slice )
+    // Parsed without `gltf`'s own validation, which would reject any required extension
+    // outside `gltf-json`'s typed list ( see `document_validate` ); `document_validate` runs
+    // the same checks with this loader's extension rule right below.
+    let mut gltf_file = gltf::Gltf::from_slice_without_validation( &gltf_slice )
     .map_err( | e |
     {
       gl::browser::error!( "Failed to parse gltf file '{gltf_path}': {e}" );
@@ -1604,13 +1584,29 @@ mod private
     // Per glTF 2.0's "Specifying Extensions", a conformant client MUST refuse to
     // load an asset whose `extensionsRequired` names an extension it doesn't
     // support. Checked immediately after parsing, before any buffer/image/GL work.
-    required_extensions_check( &gltf_file )?;
+    document_validate( &gltf_file )
+    .inspect_err( | _ | gl::browser::error!( "Invalid gltf file '{gltf_path}'" ) )?;
 
     let buffers = buffers_load( &mut gltf_file, folder_path ).await?;
+    crate::webgl::loaders::meshopt::views_decode( &gltf_file, &buffers ).await?;
 
-    let bin_buffers = buffers.iter()
-    .map( minwebgl::js_sys::Uint8Array::to_vec )
-    .collect::< Vec< _ > >();
+    // Only skins, morph targets and animations are read on the CPU. Everything else goes
+    // straight from the JS buffers to the GPU, so skip the copy into wasm memory when
+    // nothing needs it : it costs as much as the decoded model again, and the wasm heap
+    // never shrinks afterwards.
+    let cpu_buffers_needed = gltf_file.skins().next().is_some()
+    || gltf_file.animations().next().is_some()
+    || gltf_file.meshes().any( | m | m.primitives().any( | p | p.morph_targets().next().is_some() ) );
+    let bin_buffers = if cpu_buffers_needed
+    {
+      buffers.iter()
+      .map( minwebgl::js_sys::Uint8Array::to_vec )
+      .collect::< Vec< _ > >()
+    }
+    else
+    {
+      Vec::new()
+    };
 
     gl::debug!( "Buffers: {}", buffers.len() );
 
@@ -1677,8 +1673,9 @@ crate::mod_interface!
   {
     GLTF,
     load,
-    required_extensions_check,
     material_openpbr_params_read,
+    texture_upload_count_get,
+    position_bounds_dequantize,
     asset_uri_resolve,
     light_list_get,
     light_get,

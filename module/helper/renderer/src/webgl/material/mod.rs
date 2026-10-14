@@ -365,6 +365,18 @@ mod private
       false
     }
 
+    /// Returns `true` if this material exists purely to write depth (its
+    /// `color_write_mask()` is normally `(false,false,false,false)`) so that
+    /// later-drawn opaque geometry behind it is correctly hidden by the
+    /// standard depth test — e.g. a real-world object occluding part of a
+    /// virtual one in AR. The opaque pass sorts occluders first regardless
+    /// of `has_emission()`, since draw order (not just depth-test state)
+    /// determines whether an occluder can retract already-written color.
+    fn is_occluder( &self ) -> bool
+    {
+      false
+    }
+
     /// Returns `true` if the shader defines have changed and the shader
     /// program needs to be recompiled.
     fn needs_recompile( &self ) -> bool
@@ -374,6 +386,34 @@ mod private
 
     /// Called by the renderer after recompilation to clear the recompile flag.
     fn recompile_flag_clear( &self ) {}
+  }
+
+  /// The vertex and fragment sources the renderer compiles for `material`: the `#version 300 es`
+  /// header, each stage's own defines, `USE_IBL` in the fragment stage only when `use_ibl`, then
+  /// the stage's source.
+  #[ cfg( feature = "test_internals" ) ]
+  #[ must_use ]
+  pub fn shader_sources( material : &dyn Material, use_ibl : bool ) -> ( String, String )
+  {
+    shader_sources_with_defines( material, use_ibl, "" )
+  }
+
+  /// [`shader_sources`] plus `extra_fragment_defines` after `USE_IBL`: the defines the renderer
+  /// adds from its own state rather than the material's ( the Kulla-Conty and fuzz-albedo LUTs ).
+  #[ must_use ]
+  pub fn shader_sources_with_defines( material : &dyn Material, use_ibl : bool, extra_fragment_defines : &str ) -> ( String, String )
+  {
+    let ibl_define = if use_ibl { "#define USE_IBL\n" } else { "" };
+    let vs = format!( "#version 300 es\n{}\n{}", material.vertex_defines_str(), material.vertex_shader() );
+    let fs = format!
+    (
+      "#version 300 es\n{}\n{}\n{}\n{}",
+      material.fragment_defines_str(),
+      ibl_define,
+      extra_fragment_defines,
+      material.fragment_shader()
+    );
+    ( vs, fs )
   }
 
 }
@@ -401,4 +441,17 @@ crate::mod_interface!
     MaterialUploadContext,
     Material
   };
+}
+
+pub( crate ) use private::shader_sources_with_defines;
+
+/// The internals `tests/` reaches, exposed only under `test_internals`.
+///
+/// Not part of the surface: with the feature off, the default and what every dependent gets,
+/// this module does not exist.
+#[ cfg( feature = "test_internals" ) ]
+#[ doc( hidden ) ]
+pub mod internal
+{
+  pub use super::private::shader_sources;
 }

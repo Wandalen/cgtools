@@ -92,6 +92,18 @@ mod private
     /// Fails on the first node that can't be resolved (missing node, non-mesh node, or a
     /// material that isn't `PbrMaterial`) — partial application would leave some materials
     /// silently un-engravable, which is worth surfacing rather than skipping quietly.
+    ///
+    /// # Errors
+    ///
+    /// [`EngravingError::NodeNotFound`], [`EngravingError::NotAMesh`] or
+    /// [`EngravingError::MaterialNotPbr`] for the first node that can't take an engraving, and
+    /// [`EngravingError::Canvas`] / [`EngravingError::Gl`] if a node's canvas or texture can't be
+    /// created.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a node, mesh, primitive or material of `scene` is already mutably borrowed
+    /// while this runs. The `PbrMaterial` downcast can't fail: every material is checked first.
     pub fn build( gl : &GL, scene : &Scene, config : &EngravingConfig ) -> Result< Self, EngravingError >
     {
       let mut entries = FxHashMap::default();
@@ -137,7 +149,7 @@ mod private
           let pbr = material_mut.as_any_mut().downcast_mut::< PbrMaterial >()
           .expect( "checked above" );
 
-          pbr.set_engraving_texture( Some( texture.texture_info() ) );
+          pbr.engraving_texture_set( Some( texture.texture_info() ) );
           pbr.engraving_strength = node_config.engraving_strength;
           pbr.engraving_roughness = node_config.engraving_roughness;
           pbr.engraving_darkening = node_config.engraving_darkening;
@@ -154,6 +166,13 @@ mod private
     /// no reallocation, no shader recompilation (the `PbrMaterial`'s `USE_ENGRAVING` define was
     /// already turned on by [`Self::build`], for every node in the config, whether or not it has
     /// text yet).
+    ///
+    /// # Errors
+    ///
+    /// [`EngravingError::UnknownNode`] if the session has no entry for `node_name`,
+    /// [`EngravingError::Canvas`] if rasterizing fails (see
+    /// [`EngravingCanvasManager::render_text_mip_chain`]), or [`EngravingError::Gl`] if the
+    /// upload fails (see [`EngravingTexture::update`]).
     pub async fn set_text( &mut self, gl : &GL, node_name : &str, text : &str, font_family : &str ) -> Result< (), EngravingError >
     {
       let entry = self.entries.get_mut( node_name )
@@ -172,6 +191,7 @@ mod private
     }
 
     /// Read-only access to a node's current text layout, e.g. to seed GUI controls.
+    #[ must_use ]
     pub fn text_layout( &self, node_name : &str ) -> Option< &EngravingTextLayout >
     {
       self.entries.get( node_name ).map( | e | &e.layout )

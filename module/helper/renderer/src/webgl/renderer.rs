@@ -1,10 +1,13 @@
+/// `FramebufferContext`: the multisample and resolved framebuffers `Renderer` draws into.
+mod framebuffer_context;
+
 mod private
 {
+  use super::framebuffer_context::FramebufferContext;
   use std::{ cell::RefCell, rc::Rc };
   use rustc_hash::{ FxHashMap, FxHashSet };
   use minwebgl as gl;
   use gl::{ GL, F32x3 };
-  use web_sys::WebGlTexture;
 
   use crate::webgl::
   {
@@ -34,485 +37,16 @@ mod private
     ShaderProgram,
     Scene,
     IBL,
-    Light
+    Light,
+    Texture
   };
-
-  /// Manages WebGL2 framebuffers and associated renderbuffers/textures for a rendering
-  /// context, specifically designed for multisampling and post-processing effects.
-  ///
-  /// This struct handles the setup and management of two primary framebuffers:
-  /// - A **multisample framebuffer** for rendering with anti-aliasing.
-  /// - A **resolved framebuffer** for storing the anti-aliased result as textures,
-  ///   ready for further post-processing or display.
-  ///
-  /// It supports two color attachments: a 'main' color buffer and an 'emission' color buffer,
-  /// allowing for separate rendering of different visual components.
-  pub struct FramebufferContext
-  {
-    /// The width of the textures attached to the resolved framebuffer.
-    pub texture_width : u32,
-    /// The height of the textures attached to the resolved framebuffer.
-    pub texture_height : u32,
-    /// The WebGL framebuffer used for multisampled rendering. This framebuffer
-    /// renders into `multisample_main_renderbuffer` and `multisample_emission_renderbuffer`.
-    pub multisample_framebuffer : Option< gl::web_sys::WebGlFramebuffer >,
-    /// The WebGL framebuffer used to store the resolved (non-multisampled)
-    /// textures. This is where the results of the multisample framebuffer
-    /// are blitted to, making them ready for sampling.
-    pub resolved_framebuffer : Option< gl::web_sys::WebGlFramebuffer >,
-    /// The renderbuffer used for depth and stencil testing in the multisample framebuffer.
-    #[ allow( dead_code, reason = "never read back after attachment; held so the GPU resource outlives the framebuffer" ) ]
-    pub multisample_depth_renderbuffer : Option< gl::web_sys::WebGlRenderbuffer >,
-    /// The renderbuffer that receives the main color output during multisampled rendering.
-    pub multisample_main_renderbuffer : Option< gl::web_sys::WebGlRenderbuffer >,
-    /// The renderbuffer that receives the emission color output during multisampled rendering.
-    pub multisample_emission_renderbuffer : Option< gl::web_sys::WebGlRenderbuffer>,
-    /// The renderbuffer that accumulates color during blending pass.
-    pub multisample_transparent_accumulate_renderbuffer : Option< gl::web_sys::WebGlRenderbuffer>,
-     /// The renderbuffer that calculates total revealage during blending pass.
-    pub multisample_transparent_revealage_renderbuffer : Option< gl::web_sys::WebGlRenderbuffer>,
-    /// The 2D texture that receives the resolved main color output after multisample resolution.
-    /// This texture can be sampled in shaders.
-    pub main_texture : Option< gl::web_sys::WebGlTexture >,
-    /// The 2D texture that receives the resolved emission color output after multisample resolution.
-    /// This texture can be sampled in shaders.
-    pub emission_texture : Option< gl::web_sys::WebGlTexture >,
-    /// The 2D texture that accumulates color during blending pass.
-    pub transparent_accumulate_texture : Option< gl::web_sys::WebGlTexture >,
-    /// The 2D texture that calculates total revealage during blending pass.
-    pub transparent_revealage_texture : Option< gl::web_sys::WebGlTexture >,
-    /// Transmission target color : a non-multisampled copy of the resolved
-    /// opaque scene image ( color attachment 0 + skybox ), captured after the
-    /// opaque pass so transmissive materials can sample "the scene behind them"
-    /// ( OpenPBR adoption plan §3.3 ). Screen-space; linear filtering for the
-    /// refracted offset fetch.
-    pub transmission_color_texture : Option< gl::web_sys::WebGlTexture >,
-    /// Transmission target depth ( DEPTH24_STENCIL8 sampled as `sampler2D`,
-    /// `.r` in [0, 1 ] ), for the depth-guided parallax correction of the
-    /// refracted sample. Nearest filtering ( depth textures are unfilterable ).
-    pub transmission_depth_texture : Option< gl::web_sys::WebGlTexture >,
-    /// FBO the opaque MSAA buffers are resolved into for the transmission pass.
-    pub transmission_framebuffer : Option< gl::web_sys::WebGlFramebuffer >,
-    #[ allow( dead_code, reason = "never read back after attachment; held so the GPU resource outlives the framebuffer" ) ]
-    pub depth_renderbuffer : Option< gl::web_sys::WebGlRenderbuffer >,
-    /// Texture with equirectangular map
-    pub skybox_texture : Option< gl::web_sys::WebGlTexture >,
-  }
-
-  /// Creates a multisampled renderbuffer and allocates `format` storage for it.
-  fn renderbuffer_multisample_create
-  (
-    gl : &gl::WebGl2RenderingContext,
-    samples : i32,
-    format : u32,
-    width : u32,
-    height : u32
-  )
-  -> Option< gl::web_sys::WebGlRenderbuffer >
-  {
-    let renderbuffer = gl.create_renderbuffer();
-    gl.bind_renderbuffer( gl::RENDERBUFFER, renderbuffer.as_ref() );
-    gl.renderbuffer_storage_multisample
-    (
-      gl::RENDERBUFFER,
-      samples,
-      format,
-      width as i32,
-      height as i32
-    );
-    renderbuffer
-  }
-
-  /// Creates a 2D texture with immutable `format` storage, linear filtering, and clamped wrap.
-  fn texture_2d_create
-  (
-    gl : &gl::WebGl2RenderingContext,
-    format : u32,
-    width : u32,
-    height : u32
-  )
-  -> Option< gl::web_sys::WebGlTexture >
-  {
-    let texture = gl.create_texture();
-    gl.bind_texture( gl::TEXTURE_2D, texture.as_ref() );
-    gl.tex_storage_2d( gl::TEXTURE_2D, 1, format, width as i32, height as i32 );
-    gl::texture::d2::filter_linear( gl );
-    gl::texture::d2::wrap_clamp( gl );
-    texture
-  }
-
-  /// Creates a 2D texture with a full mip chain, trilinear minification and
-  /// clamped wrap - the transmission target's color attachment, whose coarser
-  /// levels stand in for the roughness blur of a refracted ray ( adoption plan
-  /// §3.3b ). Only level 0 is ever rendered/blitted into; the rest are filled by
-  /// `generate_mipmap` in `transmission_capture`.
-  fn texture_2d_mipped_create
-  (
-    gl : &gl::WebGl2RenderingContext,
-    format : u32,
-    width : u32,
-    height : u32
-  )
-  -> Option< gl::web_sys::WebGlTexture >
-  {
-    let texture = gl.create_texture();
-    gl.bind_texture( gl::TEXTURE_2D, texture.as_ref() );
-    let levels = gl::texture::d2::mip_levels_for_dimensions( width, height );
-    gl.tex_storage_2d( gl::TEXTURE_2D, levels as i32, format, width as i32, height as i32 );
-    gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
-    gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
-    gl::texture::d2::wrap_clamp( gl );
-    texture
-  }
-
-  /// Creates a depth/stencil texture ( `DEPTH24_STENCIL8` ) with the nearest
-  /// filtering depth sampling requires, for the transmission target's
-  /// occluder-rejection test.
-  fn depth_texture_create
-  (
-    gl : &gl::WebGl2RenderingContext,
-    width : u32,
-    height : u32
-  )
-  -> Option< gl::web_sys::WebGlTexture >
-  {
-    let texture = gl.create_texture();
-    gl.bind_texture( gl::TEXTURE_2D, texture.as_ref() );
-    gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::DEPTH24_STENCIL8, width as i32, height as i32 );
-    gl::texture::d2::filter_nearest( gl );
-    gl::texture::d2::wrap_clamp( gl );
-    texture
-  }
-
-  impl FramebufferContext
-  {
-    /// Creates a new `FramebufferContext` instance, initializing all necessary
-    /// WebGL2 framebuffers, renderbuffers, and textures.
-    ///
-    /// This constructor sets up:
-    /// - A multisampled framebuffer with a depth/stencil renderbuffer and two
-    ///   multisampled color renderbuffers (`RGBA16F` format).
-    /// - A resolved framebuffer with two 2D textures (`RGBA16F` format) to store
-    ///   the anti-aliased results.
-    ///
-    /// # Arguments
-    ///
-    /// * `gl` - A reference to the WebGl2RenderingContext.
-    /// * `width` - The desired width of the framebuffers and textures.
-    /// * `height` - The desired height of the framebuffers and textures.
-    /// * `samples` - The number of samples to use for multisample anti-aliasing (e.g., 4, 8).
-    ///
-    /// # Returns
-    ///
-    /// A new `FramebufferContext` instance.
-    pub fn new( gl : &gl::WebGl2RenderingContext, width : u32, height : u32, samples : i32 ) -> Self
-    {
-      // Create the core framebuffer objects.
-      let multisample_framebuffer = gl.create_framebuffer();
-      let resolved_framebuffer = gl.create_framebuffer();
-
-      // Multisampled renderbuffers : depth/stencil plus the four color attachments.
-      let multisample_depth_renderbuffer = renderbuffer_multisample_create( gl, samples, gl::DEPTH24_STENCIL8, width, height );
-      let multisample_main_renderbuffer = renderbuffer_multisample_create( gl, samples, gl::RGBA16F, width, height );
-      let multisample_emission_renderbuffer = renderbuffer_multisample_create( gl, samples, gl::RGBA16F, width, height );
-      let multisample_transparent_accumulate_renderbuffer = renderbuffer_multisample_create( gl, samples, gl::RGBA16F, width, height );
-      let multisample_transparent_revealage_renderbuffer = renderbuffer_multisample_create( gl, samples, gl::R16F, width, height );
-      gl.bind_renderbuffer( gl::RENDERBUFFER, None );
-
-      // Resolved ( non-multisampled ) targets that will receive the blit.
-      let depth_renderbuffer = gl.create_renderbuffer();
-      gl.bind_renderbuffer( gl::RENDERBUFFER, depth_renderbuffer.as_ref() );
-      gl.renderbuffer_storage( gl::RENDERBUFFER, gl::DEPTH24_STENCIL8, width as i32, height as i32 );
-      let main_texture = texture_2d_create( gl, gl::RGBA16F, width, height );
-      let emission_texture = texture_2d_create( gl, gl::RGBA16F, width, height );
-      let transparent_accumulate_texture = texture_2d_create( gl, gl::RGBA16F, width, height );
-      let transparent_revealage_texture = texture_2d_create( gl, gl::R16F, width, height );
-
-      // Transmission target ( §3.3 ) : non-multisampled copies of the opaque
-      // color + depth, captured mid-frame for transmissive materials to sample.
-      let transmission_framebuffer = gl.create_framebuffer();
-      let transmission_color_texture = texture_2d_mipped_create( gl, gl::RGBA16F, width, height );
-      let transmission_depth_texture = depth_texture_create( gl, width, height );
-      gl.bind_framebuffer( gl::FRAMEBUFFER, transmission_framebuffer.as_ref() );
-      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, transmission_color_texture.as_ref(), 0 );
-      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::DEPTH_STENCIL_ATTACHMENT, gl::TEXTURE_2D, transmission_depth_texture.as_ref(), 0 );
-      gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
-
-      // --- Attach Renderbuffers to Multisample Framebuffer ---
-      // Bind the multisample framebuffer to configure its attachments.
-      gl.bind_framebuffer( gl::FRAMEBUFFER, multisample_framebuffer.as_ref() );
-      // Attach the depth/stencil renderbuffer.
-      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::DEPTH_STENCIL_ATTACHMENT, gl::RENDERBUFFER, multisample_depth_renderbuffer.as_ref() );
-      // Attach the main and emission color renderbuffers as color attachments.
-      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::RENDERBUFFER, multisample_main_renderbuffer.as_ref() );
-      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::RENDERBUFFER, multisample_emission_renderbuffer.as_ref() );
-      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT2, gl::RENDERBUFFER, multisample_transparent_accumulate_renderbuffer.as_ref() );
-      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT3, gl::RENDERBUFFER, multisample_transparent_revealage_renderbuffer.as_ref() );
-      // Specify which color attachments are active for drawing.
-      gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] );
-
-      // --- Attach Textures to Resolved Framebuffer ---
-      // Bind the resolved framebuffer to configure its attachments.
-      gl.bind_framebuffer( gl::FRAMEBUFFER, resolved_framebuffer.as_ref() );
-      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::DEPTH_STENCIL_ATTACHMENT, gl::RENDERBUFFER, depth_renderbuffer.as_ref() );
-      // Attach the main and emission textures as color attachments.
-      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, main_texture.as_ref(), 0 );
-      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::TEXTURE_2D, emission_texture.as_ref(), 0 );
-      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT2, gl::TEXTURE_2D, transparent_accumulate_texture.as_ref(), 0 );
-      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT3, gl::TEXTURE_2D, transparent_revealage_texture.as_ref(), 0 );
-      // Specify which color attachments are active for drawing (though for resolved,
-      // these will typically be written to via `blit_framebuffer`).
-      gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] );
-
-      // Unbind all resources to clean up the global WebGL state.
-      gl.bind_texture( gl::TEXTURE_2D, None );
-      gl.bind_renderbuffer( gl::RENDERBUFFER, None );
-      gl.bind_framebuffer( gl::FRAMEBUFFER, None );
-
-      let texture_width = width;
-      let texture_height = height;
-
-      Self
-      {
-        texture_height,
-        texture_width,
-        resolved_framebuffer,
-        multisample_framebuffer,
-        multisample_depth_renderbuffer,
-        multisample_emission_renderbuffer,
-        multisample_main_renderbuffer,
-        multisample_transparent_accumulate_renderbuffer,
-        multisample_transparent_revealage_renderbuffer,
-        depth_renderbuffer,
-        main_texture,
-        emission_texture,
-        transparent_accumulate_texture,
-        transparent_revealage_texture,
-        transmission_framebuffer,
-        transmission_color_texture,
-        transmission_depth_texture,
-        skybox_texture : None
-      }
-    }
-
-    /// Resolves the multisampled framebuffer into the non-multisampled textures
-    /// of the resolved framebuffer using `gl.blit_framebuffer`.
-    ///
-    /// This operation performs the anti-aliasing process, taking the averaged
-    /// color values from the multisample renderbuffers and writing them into
-    /// the corresponding textures.
-    ///
-    /// # Arguments
-    ///
-    /// * `gl` - A reference to the WebGl2RenderingContext.
-    pub fn resolve( &self, gl : &gl::WebGl2RenderingContext, use_emission : bool, has_transparent : bool )
-    {
-      self.multisample_bind( gl );
-      self.resolved_bind( gl );
-
-      gl.bind_framebuffer( gl::READ_FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
-      gl.bind_framebuffer( gl::DRAW_FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
-
-      gl.clear_bufferfi( gl::DEPTH_STENCIL, 0, 1.0, 0 );
-      gl.blit_framebuffer
-      (
-        0, 0, self.texture_width as i32, self.texture_height as i32,
-        0, 0, self.texture_width as i32, self.texture_height as i32,
-        gl::DEPTH_BUFFER_BIT | gl::STENCIL_BUFFER_BIT,
-        gl::NEAREST
-      );
-
-      gl.read_buffer( gl::COLOR_ATTACHMENT0 );
-      gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
-      gl.blit_framebuffer
-      (
-        0, 0, self.texture_width as i32, self.texture_height as i32,
-        0, 0, self.texture_width as i32, self.texture_height as i32,
-        gl::COLOR_BUFFER_BIT,
-        gl::LINEAR
-      );
-
-      if use_emission
-      {
-        gl.read_buffer( gl::COLOR_ATTACHMENT1 );
-        gl::drawbuffers::drawbuffers( gl, &[ 1 ] );
-        gl.blit_framebuffer
-        (
-          0, 0, self.texture_width as i32, self.texture_height as i32,
-          0, 0, self.texture_width as i32, self.texture_height as i32,
-          gl::COLOR_BUFFER_BIT,
-          gl::LINEAR
-        );
-      }
-
-      if has_transparent
-      {
-        gl.read_buffer( gl::COLOR_ATTACHMENT2 );
-        gl::drawbuffers::drawbuffers( gl, &[ 2 ] );
-        gl.blit_framebuffer
-        (
-          0, 0, self.texture_width as i32, self.texture_height as i32,
-          0, 0, self.texture_width as i32, self.texture_height as i32,
-          gl::COLOR_BUFFER_BIT, gl::LINEAR
-        );
-
-        gl.read_buffer( gl::COLOR_ATTACHMENT3 );
-        gl::drawbuffers::drawbuffers( gl, &[ 3 ] );
-        gl.blit_framebuffer
-        (
-          0, 0, self.texture_width as i32, self.texture_height as i32,
-          0, 0, self.texture_width as i32, self.texture_height as i32,
-          gl::COLOR_BUFFER_BIT, gl::LINEAR
-        );
-      }
-
-      gl.bind_framebuffer( gl::READ_FRAMEBUFFER, None );
-      gl.bind_framebuffer( gl::DRAW_FRAMEBUFFER, None );
-      self.multisample_unbind( gl );
-      self.resolved_unbind( gl );
-    }
-
-    /// Captures the current opaque-scene image + depth from the multisample
-    /// framebuffer into the transmission target ( §3.3 ). Called after the
-    /// opaque pass and before the transmission pass, so transmissive materials
-    /// can sample "the scene behind them" screen-space, with depth-guided
-    /// parallax. Restores the multisample FBO binding afterwards.
-    pub fn transmission_capture( &self, gl : &gl::WebGl2RenderingContext )
-    {
-      gl.bind_framebuffer( gl::READ_FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
-      gl.bind_framebuffer( gl::DRAW_FRAMEBUFFER, self.transmission_framebuffer.as_ref() );
-
-      // Depth/stencil first ( nearest, format-matched DEPTH24_STENCIL8 resolve ),
-      // then the MSAA color resolve into the sampleable RGBA16F texture. The
-      // destination defaults are the right blit targets ( depth attachment /
-      // COLOR_ATTACHMENT0 ), so no draw-buffer selection is needed.
-      //
-      // No `read_buffer` call guards the depth blit : `readBuffer` selects the
-      // *color* source and only accepts `BACK`, `NONE` or `COLOR_ATTACHMENT<i>`,
-      // so naming `DEPTH_STENCIL` there raised `INVALID_ENUM` every frame. The
-      // depth/stencil blit reads the read-framebuffer's depth attachment
-      // implicitly and needs no selection at all.
-      gl.blit_framebuffer
-      (
-        0, 0, self.texture_width as i32, self.texture_height as i32,
-        0, 0, self.texture_width as i32, self.texture_height as i32,
-        gl::DEPTH_BUFFER_BIT | gl::STENCIL_BUFFER_BIT, gl::NEAREST
-      );
-
-      gl.read_buffer( gl::COLOR_ATTACHMENT0 );
-      gl.blit_framebuffer
-      (
-        0, 0, self.texture_width as i32, self.texture_height as i32,
-        0, 0, self.texture_width as i32, self.texture_height as i32,
-        gl::COLOR_BUFFER_BIT, gl::LINEAR
-      );
-
-      gl.bind_framebuffer( gl::READ_FRAMEBUFFER, None );
-      gl.bind_framebuffer( gl::DRAW_FRAMEBUFFER, None );
-
-      // Filter the freshly captured level 0 down the chain : the transmission
-      // shader reads a coarser level the rougher the surface is ( §3.3b ), which
-      // is what stands in for a multi-tap blur of the refracted ray. `RGBA16F`
-      // is both color-renderable ( via `EXT_color_buffer_float`, which this
-      // crate already requires ) and texture-filterable in core WebGL2, so
-      // `generate_mipmap` is legal on it - unlike `RGBA32F`.
-      gl.bind_texture( gl::TEXTURE_2D, self.transmission_color_texture.as_ref() );
-      gl.generate_mipmap( gl::TEXTURE_2D );
-      gl.bind_texture( gl::TEXTURE_2D, None );
-
-      self.multisample_bind( gl );
-    }
-
-    /// Binds the `multisample_framebuffer` and attaches its renderbuffers.
-    ///
-    /// This function should be called before rendering operations that require
-    /// multisampling. It ensures that subsequent drawing commands write to
-    /// the multisampled color and depth renderbuffers.
-    ///
-    /// # Arguments
-    ///
-    /// * `gl` - A reference to the WebGl2RenderingContext.
-    pub fn multisample_bind( &self, gl : &gl::WebGl2RenderingContext )
-    {
-      gl.viewport( 0, 0, self.texture_width as i32, self.texture_height as i32 );
-      gl.bind_framebuffer( gl::FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
-    }
-
-    /// Binds the `resolved_framebuffer` and attaches its textures.
-    ///
-    /// This function should be called when you want to render directly into
-    /// the resolved textures (e.g., for post-processing that doesn't require
-    /// multisampling, or after a `resolve` operation).
-    ///
-    /// # Arguments
-    ///
-    /// * `gl` - A reference to the WebGl2RenderingContext.
-    pub fn resolved_bind( &self, gl : &gl::WebGl2RenderingContext )
-    {
-      gl.viewport( 0, 0, self.texture_width as i32, self.texture_height as i32 );
-      gl.bind_framebuffer( gl::FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
-    }
-
-    /// Unbinds the color renderbuffers from the `multisample_framebuffer`
-    /// and then unbinds the framebuffer itself.
-    ///
-    /// This function is useful for resetting the framebuffer state after
-    /// rendering to the multisample target, preventing accidental draws to it.
-    ///
-    /// # Arguments
-    ///
-    /// * `gl` - A reference to the WebGl2RenderingContext.
-    #[ expect( clippy::unused_self, reason = "kept as a method, not an associated fn, for API symmetry with `multisample_bind` -- which does need `self` -- not because this body needs it" ) ]
-    pub fn multisample_unbind( &self, gl : &gl::WebGl2RenderingContext )
-    {
-      gl.bind_framebuffer( gl::FRAMEBUFFER, None );
-    }
-
-    /// Unbinds the color textures from the `resolved_framebuffer` and then
-    /// unbinds the framebuffer itself.
-    ///
-    /// This function is useful for resetting the framebuffer state after
-    /// operations that write to the resolved textures, allowing them to be
-    /// used as input textures in subsequent rendering passes.
-    ///
-    /// # Arguments
-    ///
-    /// * `gl` - A reference to the WebGl2RenderingContext.
-    #[ expect( clippy::unused_self, reason = "kept as a method, not an associated fn, for API symmetry with `resolved_bind` -- which does need `self` -- not because this body needs it" ) ]
-    pub fn resolved_unbind( &self, gl : &gl::WebGl2RenderingContext )
-    {
-      gl.bind_framebuffer( gl::FRAMEBUFFER, None );
-    }
-
-    /// Free [`FramebufferContext`] WebGL resources
-    pub fn gl_resources_free( &mut self, gl : &GL )
-    {
-      gl.delete_framebuffer( self.resolved_framebuffer.as_ref() );
-      gl.delete_framebuffer( self.multisample_framebuffer.as_ref() );
-      gl.delete_renderbuffer( self.multisample_depth_renderbuffer.as_ref() );
-      gl.delete_renderbuffer( self.multisample_emission_renderbuffer.as_ref() );
-      gl.delete_renderbuffer( self.multisample_main_renderbuffer.as_ref() );
-      gl.delete_renderbuffer( self.multisample_transparent_accumulate_renderbuffer.as_ref() );
-      gl.delete_renderbuffer( self.multisample_transparent_revealage_renderbuffer.as_ref() );
-      gl.delete_renderbuffer( self.depth_renderbuffer.as_ref() );
-      gl.delete_texture( self.main_texture.as_ref() );
-      gl.delete_texture( self.emission_texture.as_ref() );
-      gl.delete_texture( self.transparent_accumulate_texture.as_ref() );
-      gl.delete_texture( self.transparent_revealage_texture.as_ref() );
-      gl.delete_framebuffer( self.transmission_framebuffer.as_ref() );
-      gl.delete_texture( self.transmission_color_texture.as_ref() );
-      gl.delete_texture( self.transmission_depth_texture.as_ref() );
-      gl.delete_texture( self.skybox_texture.as_ref() );
-    }
-  }
-
 
   /// A transparent-pass draw-queue entry :
   /// ( node, primitive, primitive index, program UUID ).
   type TransparentNodeEntry = ( Rc< RefCell< Node > >, Rc< RefCell< Primitive > >, usize, uuid::Uuid );
   /// An opaque-pass draw-queue entry :
   /// ( node, primitive, primitive index, program UUID, has emission ).
-  type OpaqueNodeEntry = ( Rc< RefCell< Node > >, Rc< RefCell< Primitive > >, usize, uuid::Uuid, bool );
+  type OpaqueNodeEntry = ( Rc< RefCell< Node > >, Rc< RefCell< Primitive > >, usize, uuid::Uuid, bool, bool );
 
   /// Manages the rendering process, including program management, IBL setup, and drawing objects in the scene.
   pub struct Renderer
@@ -563,7 +97,11 @@ mod private
     /// Clear color
     clear_color : F32x3,
     /// Shader for drawing background
-    skybox_shader : SkyboxShader
+    skybox_shader : SkyboxShader,
+    /// Equirectangular background texture. Kept outside `framebuffer_ctx` so it
+    /// survives `resize()`; released only through `Texture`'s own ownership (an
+    /// owning texture is deleted once its last clone, this one included, drops).
+    skybox : Option< Texture >,
   }
 
   impl Renderer
@@ -626,7 +164,8 @@ mod private
           exposure,
           composite_shader,
           clear_color : F32x3::splat( 0.0 ),
-          skybox_shader
+          skybox_shader,
+          skybox : None,
         }
       )
     }
@@ -733,10 +272,21 @@ mod private
       self.exposure
     }
 
-    /// Sets the skybox cube map texture.
-    pub fn skybox_set( &mut self, texture : Option< WebGlTexture > )
+    /// Sets the skybox: an equirectangular map, bound and sampled as a 2D texture.
+    ///
+    /// The renderer keeps `texture` (a clone of a `Texture` shares its GPU owner),
+    /// so an owning texture such as [`Texture::load_from_path`]'s stays alive for as
+    /// long as it is the skybox, across `resize()`, and is released when it is
+    /// replaced, cleared with `None`, freed by [`Renderer::gl_resources_free`] or
+    /// dropped with the renderer, unless the caller still holds a clone. The renderer
+    /// never deletes the GPU texture itself; a non-owning view stays its creator's.
+    ///
+    /// The skybox is always bound to `TEXTURE_2D` and drawn with the GL texture's own
+    /// parameters: `texture`'s `target` and `sampler` are not applied. A `texture`
+    /// with no `source` draws no skybox, the same as `None`.
+    pub fn skybox_set( &mut self, texture : Option< Texture > )
     {
-      self.framebuffer_ctx.skybox_texture = texture;
+      self.skybox = texture;
     }
 
     /// Sets a new exposure value.
@@ -809,7 +359,7 @@ mod private
       let inv_view_loc = locations.get( "invView" ).unwrap();
 
       gl.active_texture( gl::TEXTURE0 );
-      gl.bind_texture( gl::TEXTURE_2D, self.framebuffer_ctx.skybox_texture.as_ref() );
+      gl.bind_texture( gl::TEXTURE_2D, self.skybox.as_ref().and_then( | t | t.source.as_ref() ) );
       gl.uniform1i( equirect_map_loc.as_ref(), 0_i32 );
       gl::uniform::matrix_upload( gl, inv_projection_loc.clone(), &camera.projection_matrix_get().inverse().unwrap().to_array(), true ).unwrap();
       gl::uniform::matrix_upload( gl, inv_view_loc.clone(), &camera.view_matrix_get().inverse().unwrap().to_array(), true ).unwrap();
@@ -1027,8 +577,7 @@ mod private
           //   shader stages caused fragment-only defines to appear in the vertex shader and vice versa.
           // Pitfall: defines_str() remains correct as the cache key (it covers all variants) — only
           //   the per-stage compilation calls must use the stage-specific accessors.
-          let vs_src = format!( "#version 300 es\n{}\n{}", material.vertex_defines_str(), material.vertex_shader() );
-          let fs_src = format!( "#version 300 es\n{}\n{}\n{}\n{}\n{}", material.fragment_defines_str(), ibl_define, kulla_define, sheen_define, material.fragment_shader() );
+          let ( vs_src, fs_src ) = crate::webgl::material::shader_sources_with_defines( &**material, use_ibl, &format!( "{kulla_define}{sheen_define}" ) );
           let program = gl::ProgramFromSources::new( &vs_src, &fs_src ).compile_and_link( gl )?;
           let shader_program = material.shader_program_make( gl, &program );
           let new_id = uuid::Uuid::new_v4();
@@ -1107,7 +656,7 @@ mod private
         {
           AlphaMode::Blend
           => self.transparent_nodes.push( ( node.clone(), primitive_rc.clone(), primitive_index, program_uuid ) ),
-          _ => self.opaque_nodes.push( ( node.clone(), primitive_rc.clone(), primitive_index, program_uuid, material.has_emission() ) ),
+          _ => self.opaque_nodes.push( ( node.clone(), primitive_rc.clone(), primitive_index, program_uuid, material.has_emission(), material.is_occluder() ) ),
         }
       }
 
@@ -1124,7 +673,7 @@ mod private
     ) -> Result< (), gl::WebglError >
     {
       let mut active_program_ids : FxHashSet< uuid::Uuid > = FxHashSet::default();
-      for ( _, _, _, pid, _ ) in &self.opaque_nodes
+      for ( _, _, _, pid, _, _ ) in &self.opaque_nodes
       {
         active_program_ids.insert( *pid );
       }
@@ -1167,14 +716,19 @@ mod private
       camera : &Camera
     ) -> Result< (), gl::WebglError >
     {
-      self.opaque_nodes.sort_by_key( | ( _, _, _, pid, has_em ) | ( *has_em, *pid ) );
+      // Occluders (depth-only, no color output) MUST draw before anything they should
+      // hide — a later depth-only draw can't retract color a prior draw already wrote.
+      // Sorting `!is_occluder` first (so occluders land in the `false` bucket) makes
+      // that ordering guaranteed rather than an accident of the has_emission bucketing
+      // below (which is what non-occluder materials still fall back to).
+      self.opaque_nodes.sort_by_key( | ( _, _, _, pid, has_em, is_occ ) | ( !*is_occ, *has_em, *pid ) );
 
       let mut current_program_id : Option< uuid::Uuid > = None;
       let mut last_material_id : Option< uuid::Uuid > = None;
       let mut current_emission = false;
       gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
 
-      for ( node_rc, primitive_rc, prim_idx, program_id, has_em ) in &self.opaque_nodes
+      for ( node_rc, primitive_rc, prim_idx, program_id, has_em, _is_occ ) in &self.opaque_nodes
       {
         let need_emission = self.use_emission && *has_em;
         if need_emission != current_emission
@@ -1243,7 +797,9 @@ mod private
 
       gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
 
-      if self.framebuffer_ctx.skybox_texture.is_some()
+      // A sourceless skybox would bind no texture, and the shader would write the
+      // unbound sampler's black at alpha 1 over the whole background.
+      if self.skybox.as_ref().is_some_and( | t | t.source.is_some() )
       {
         self.skybox_draw( gl, camera );
       }
@@ -1543,6 +1099,9 @@ mod private
       }
       gl.delete_program( Some( self.composite_shader.program() ) );
       gl.delete_program( Some( self.skybox_shader.program() ) );
+      // Releases the renderer's share of the skybox; `Texture` decides whether
+      // that deletes anything (see `skybox_set`).
+      self.skybox = None;
     }
   }
 

@@ -72,7 +72,7 @@ fn test_scaler_remove_group()
 }
 
 #[ test ]
-#[ expect( clippy::float_cmp, reason = "values read back through a getter are the exact literals just written; no arithmetic in between" ) ]
+#[ allow( clippy::float_cmp, reason = "values read back through a getter are the exact literals just written; no arithmetic in between" ) ]
 fn test_scaler_scale_get_mut()
 {
   let sequencer = Sequencer::new();
@@ -106,7 +106,7 @@ fn test_scaler_clear()
 }
 
 #[ test ]
-#[ expect( clippy::float_cmp, reason = "values read back through a getter are the exact literals just written; no arithmetic in between" ) ]
+#[ allow( clippy::float_cmp, reason = "values read back through a getter are the exact literals just written; no arithmetic in between" ) ]
 fn test_grouped_nodes_independence()
 {
   let mut sequencer = Sequencer::new();
@@ -154,7 +154,7 @@ fn test_animatable_composition_update()
 }
 
 #[ test ]
-#[ expect( clippy::float_cmp, reason = "values read back through a getter are the exact literals just written; no arithmetic in between" ) ]
+#[ allow( clippy::float_cmp, reason = "values read back through a getter are the exact literals just written; no arithmetic in between" ) ]
 fn test_scaler_weights_structure()
 {
   let sequencer = Sequencer::new();

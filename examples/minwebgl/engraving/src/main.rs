@@ -7,16 +7,6 @@
 //! controls through a lil-gui panel so the relief-normal and roughness/darkening shader path
 //! (`USE_ENGRAVING` in `main.frag`) can be inspected live.
 
-#![ allow( clippy::std_instead_of_core ) ]
-#![ allow( clippy::too_many_lines ) ]
-#![ allow( clippy::min_ident_chars ) ]
-#![ allow( clippy::cast_precision_loss ) ]
-#![ allow( clippy::implicit_return ) ]
-#![ allow( clippy::default_trait_access ) ]
-#![ allow( clippy::uninlined_format_args ) ]
-#![ allow( clippy::cast_possible_wrap ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::no_effect_underscore_binding ) ]
 
 use std::{ cell::RefCell, rc::Rc };
 use minwebgl as gl;
@@ -35,8 +25,8 @@ fn canvas_size( canvas : &gl::web_sys::HtmlCanvasElement ) -> ( u32, u32 )
 {
   let window = gl::web_sys::window().unwrap();
   let dpr = window.device_pixel_ratio();
-  let css_w = canvas.client_width() as f64;
-  let css_h = canvas.client_height() as f64;
+  let css_w = f64::from( canvas.client_width() );
+  let css_h = f64::from( canvas.client_height() );
   let w = ( css_w * dpr ) as u32;
   let h = ( css_h * dpr ) as u32;
   ( w.max( 1 ), h.max( 1 ) )
@@ -58,7 +48,7 @@ fn find_material( scene : &Scene, node_name : &str ) -> Option< Rc< RefCell< Box
 
 async fn run() -> Result< (), gl::WebglError >
 {
-  gl::browser::setup( Default::default() );
+  gl::browser::setup( gl::browser::Config::default() );
   let options = gl::context::ContextOptions::default()
   .antialias( false )
   .depth( false )
@@ -125,7 +115,7 @@ async fn run() -> Result< (), gl::WebglError >
   let tonemapping = post_processing::ToneMappingPass::< post_processing::ToneMappingAces >::new( &gl )?;
   let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
 
-  gui_setup::setup( gl.clone(), node_name, default_font, allowed_fonts, Rc::new( RefCell::new( session ) ), material );
+  gui_setup::setup( &gl, &node_name, &default_font, &allowed_fonts, &Rc::new( RefCell::new( session ) ), &material );
 
   let prev_size : Rc< RefCell< ( u32, u32 ) > > = Rc::new( RefCell::new( ( pixel_w, pixel_h ) ) );
 

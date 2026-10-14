@@ -189,7 +189,7 @@ fn test_quadtree_insert_rejects_out_of_bounds_entity()
   assert_eq!(all[0].id, 1);
 
   let far_query = SpatialBounds::new(900, 900, 1100, 1100);
-  assert!(quadtree.region_query(&far_query).is_empty());
+  assert_eq!(quadtree.region_query(&far_query), []);
 }
 
 // test_kind: bug_reproducer(BUG-482)

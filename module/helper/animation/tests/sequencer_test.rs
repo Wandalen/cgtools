@@ -1,5 +1,5 @@
 //! Integration tests related to Sequencer struct
-#![ expect( clippy::float_cmp, reason = "assertions check deterministic tween/sequencer arithmetic against exact expected values" ) ]
+#![ allow( clippy::float_cmp, reason = "assertions check deterministic tween/sequencer arithmetic against exact expected values" ) ]
 
 #[ cfg( test ) ]
 mod tests

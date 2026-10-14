@@ -218,7 +218,7 @@ async fn environment_setup( renderer : &mut Renderer, gl : &gl::WebGl2RenderingC
   renderer::webgl::loaders::hdr_texture::load_to_mip_d2( gl, Some( &equirect ), 0, "static/venice_sunset_1k.hdr", true ).await;
   let ibl = renderer::webgl::loaders::pmrem::generate( gl, &equirect, 512 )?;
   renderer.ibl_set( ibl );
-  renderer.skybox_set( Some( equirect ) );
+  renderer.skybox_set( Some( renderer::webgl::Texture::owning( gl, gl::TEXTURE_2D, equirect, renderer::webgl::Sampler::default() ) ) );
   Ok( () )
 }
 

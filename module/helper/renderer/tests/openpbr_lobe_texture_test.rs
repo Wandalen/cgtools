@@ -53,8 +53,8 @@ mod tests
     let mut material = PbrMaterial::new( &gl );
     // No scalar carriers at all : texture presence must be the sole gate.
     assert_eq!( material.openpbr_params, OpenPbrParams::default() );
-    material.set_sheen_color_texture( Some( dummy_texture_info() ) );
-    material.set_sheen_roughness_texture( Some( dummy_texture_info() ) );
+    material.sheen_color_texture_set( Some( dummy_texture_info() ) );
+    material.sheen_roughness_texture_set( Some( dummy_texture_info() ) );
 
     let defines = material.defines_str().to_owned();
     assert!( defines.contains( "#define USE_OPENPBR\n" ), "sheen textures must raise USE_OPENPBR ( exact line ) : {defines}" );
@@ -71,7 +71,7 @@ mod tests
   {
     let gl = init_gl().await;
     let mut material = PbrMaterial::new( &gl );
-    material.set_iridescence_texture( Some( dummy_texture_info() ) );
+    material.iridescence_texture_set( Some( dummy_texture_info() ) );
 
     let defines = material.defines_str().to_owned();
     assert!( defines.contains( "#define USE_OPENPBR\n" ), "iridescence texture must raise USE_OPENPBR ( exact line ) : {defines}" );
@@ -88,8 +88,8 @@ mod tests
     let mut material = PbrMaterial::new( &gl );
     let mut info = dummy_texture_info();
     info.uv_position = 1;
-    material.set_sheen_color_texture( Some( info.clone() ) );
-    material.set_iridescence_texture( Some( info ) );
+    material.sheen_color_texture_set( Some( info.clone() ) );
+    material.iridescence_texture_set( Some( info ) );
 
     let defines = material.defines_str().to_owned();
     assert!( defines.contains( "#define vSheenColorUv vUv_1" ), "uv alias must follow TextureInfo::uv_position : {defines}" );
@@ -116,9 +116,9 @@ mod tests
         ..OpenPbrParams::default()
       }
     );
-    material.set_sheen_color_texture( Some( dummy_texture_info() ) );
-    material.set_sheen_roughness_texture( Some( dummy_texture_info() ) );
-    material.set_iridescence_texture( Some( dummy_texture_info() ) );
+    material.sheen_color_texture_set( Some( dummy_texture_info() ) );
+    material.sheen_roughness_texture_set( Some( dummy_texture_info() ) );
+    material.iridescence_texture_set( Some( dummy_texture_info() ) );
     material.specular_factor_set( Some( 0.5 ) );
 
     assert_compiles( &gl, &material, true, true, "all three lobe textures + scalars + IBL + Kulla-Conty, worst-case combo" );
@@ -159,12 +159,12 @@ mod tests
   {
     let gl = init_gl().await;
     let mut material = PbrMaterial::new( &gl );
-    material.set_sheen_color_texture( Some( dummy_texture_info() ) );
-    material.set_iridescence_texture( Some( dummy_texture_info() ) );
+    material.sheen_color_texture_set( Some( dummy_texture_info() ) );
+    material.iridescence_texture_set( Some( dummy_texture_info() ) );
     assert!( material.defines_str().contains( "USE_SHEEN_COLOR_TEXTURE" ));
 
-    material.set_sheen_color_texture( None );
-    material.set_iridescence_texture( None );
+    material.sheen_color_texture_set( None );
+    material.iridescence_texture_set( None );
 
     let defines = material.defines_str().to_owned();
     assert!( !defines.contains( "USE_SHEEN_COLOR_TEXTURE" ), "define must disappear with the texture" );

@@ -1945,8 +1945,8 @@ coincidental to the two backend families, not duplicated logic" ) ]
     /// `texture_rgba8_read`'s errors: [`Error::Unsupported`] if the
     /// surface's texture format is not `Rgba8Unorm`, or [`Error::Native`]
     /// if the GPU readback fails.
-    #[ cfg_attr( all( feature = "webgpu", feature = "webgl", target_arch = "wasm32" ), expect( clippy::match_same_arms, reason = "the WebGpu and WebGl arms are gated by independent features and cannot be merged into an or-pattern without breaking single-feature builds" ) ) ]
-    #[ cfg_attr( all( feature = "native", feature = "vulkan", not( target_arch = "wasm32" ) ), expect( clippy::match_same_arms, reason = "the NativeWindow and VulkanWindow arms are gated by independent features and cannot be merged into an or-pattern without breaking single-feature builds" ) ) ]
+    #[ cfg_attr( all( feature = "webgpu", feature = "webgl", target_arch = "wasm32" ), allow( clippy::match_same_arms, reason = "the WebGpu and WebGl arms are gated by independent features and cannot be merged into an or-pattern without breaking single-feature builds" ) ) ]
+    #[ cfg_attr( all( feature = "native", feature = "vulkan", not( target_arch = "wasm32" ) ), allow( clippy::match_same_arms, reason = "the NativeWindow and VulkanWindow arms are gated by independent features and cannot be merged into an or-pattern without breaking single-feature builds" ) ) ]
     pub fn pixels_read( &self, device : &Device, queue : &Queue ) -> Result< Vec< u8 >, Error >
     {
       match self

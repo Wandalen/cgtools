@@ -7,7 +7,7 @@
 //! here ), so the arithmetic it evaluates is lifted into Rust, tested against
 //! the ASWF OpenPBR Surface spec's own equations, and mirrored line-for-line in
 //! the shader. Zero `WebGl2RenderingContext` calls: the same off-GPU pattern as
-//! `gltf_material_extensions_test.rs`.
+//! `gltf_openpbr_params_test.rs`.
 //!
 //! Spec reference ( <https://academysoftwarefoundation.github.io/OpenPBR/> ):
 //! `transmission_depth` is the distance white light travels inside the medium
