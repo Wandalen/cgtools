@@ -125,6 +125,7 @@ mod tests
     assert_eq!( cloned.vertex_defines_str(), original.vertex_defines_str(), "Clone must preserve define state" );
     assert_eq!( cloned.base_color_factor, original.base_color_factor, "Clone must preserve scalar/vector state" );
   }
+
   #[ wasm_bindgen_test ]
   fn highlight_defaults_to_a_no_op_and_survives_clone()
   {
