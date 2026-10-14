@@ -701,6 +701,10 @@ mod private
       }
 
       gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
+      // The colour mask is per-material state. An occluder drawn last (one with nothing
+      // else in the queue) would leave it off for the skybox, the post-processing passes
+      // and next frame's clear.
+      gl.color_mask( true, true, true, true );
 
       // A sourceless skybox would bind no texture, and the shader would write the
       // unbound sampler's black at alpha 1 over the whole background.
@@ -798,6 +802,7 @@ mod private
         primitive.draw( gl );
       }
 
+      gl.color_mask( true, true, true, true );
       gl.disable( gl::CULL_FACE );
       gl.depth_mask( true );
 
