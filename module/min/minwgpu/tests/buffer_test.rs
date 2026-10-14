@@ -68,7 +68,7 @@ fn vertex_buffer_builder_defaults()
   assert_eq!( builder.usage_get(), wgpu::BufferUsages::VERTEX );
   assert_eq!( builder.step_mode_get(), wgpu::VertexStepMode::Vertex );
   assert_eq!( builder.array_stride_get(), 0 );
-  assert!( builder.attributes_get().is_empty() );
+  assert_eq!( builder.attributes_get(), [] );
 }
 
 #[ test ]

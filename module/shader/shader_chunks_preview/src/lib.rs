@@ -143,16 +143,38 @@ mod private
   /// directory — trunk copies the file into the served site ), returning
   /// the written path.
   ///
+  /// The JSON goes to a uniquely named sibling first and is then renamed over
+  /// `-preview.json`, so whoever reads the file meanwhile ( trunk's watcher,
+  /// another preview run ) sees the previous bundle or the new one, never a
+  /// truncated or half-written file.
+  ///
   /// # Errors
   ///
-  /// Returns [`PreviewCliError::Io`] when serialization or the write fails.
+  /// Returns [`PreviewCliError::Io`] when serialization, the write or the
+  /// rename fails.
   pub fn bundle_write( bundle : &PreviewBundle, dir : &Path ) -> Result< PathBuf, PreviewCliError >
   {
+    use std::sync::atomic::{ AtomicU64, Ordering };
+    // Distinguishes concurrent writes from the same process; the process id
+    // distinguishes processes.
+    static WRITE_SEQUENCE : AtomicU64 = AtomicU64::new( 0 );
+
     let path = dir.join( "-preview.json" );
     let json = serde_json::to_string_pretty( bundle )
     .map_err( | err | PreviewCliError::Io( format!( "serializing bundle: {err}" ) ) )?;
-    std::fs::write( &path, json )
-    .map_err( | err | PreviewCliError::Io( format!( "writing `{}`: {err}", path.display() ) ) )?;
+    let staging = dir.join( format!
+    (
+      "-preview.json.{}.{}.tmp",
+      std::process::id(),
+      WRITE_SEQUENCE.fetch_add( 1, Ordering::Relaxed ),
+    ) );
+    std::fs::write( &staging, json )
+    .map_err( | err | PreviewCliError::Io( format!( "writing `{}`: {err}", staging.display() ) ) )?;
+    std::fs::rename( &staging, &path ).map_err( | err |
+    {
+      let _ = std::fs::remove_file( &staging );
+      PreviewCliError::Io( format!( "writing `{}`: {err}", path.display() ) )
+    } )?;
     Ok( path )
   }
 
