@@ -24,7 +24,7 @@ fn accepts_a_non_uniform_scale_and_computes_its_inverse_transpose()
 
   let expected = [ 0.5, 0.0, 0.0, 0.0, 0.25, 0.0, 0.0, 0.0, 1.0 ];
   let got = normal.to_array();
-  #[ expect( clippy::float_cmp, reason = "exact expected values from a hand-computed diagonal inverse, not an approximation" ) ]
+  #[ allow( clippy::float_cmp, reason = "exact expected values from a hand-computed diagonal inverse, not an approximation" ) ]
   let matches = got == expected;
   assert!( matches, "expected the inverse-transpose of a diagonal scale to be its reciprocal diagonal -- got {got:?}" );
 }
@@ -69,7 +69,7 @@ fn rejects_a_singular_matrix_by_falling_back_to_identity_not_the_raw_block()
   let normal = normal_matrix_compute( singular );
 
   let identity = math::mat3x3::identity::< f32 >();
-  #[ expect( clippy::float_cmp, reason = "identity is an exact, hand-known constant, not an approximation" ) ]
+  #[ allow( clippy::float_cmp, reason = "identity is an exact, hand-known constant, not an approximation" ) ]
   let is_identity = normal.to_array() == identity.to_array();
   assert!( is_identity, "a singular rotation-scale block must fall back to identity ( matching webgl::Node's BUG-171 fix ), not the raw un-inverted block -- got {:?}", normal.to_array() );
 }
