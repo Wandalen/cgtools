@@ -585,12 +585,12 @@ fn camera_pan_leaves_world_sprite_and_shifts_view_matrix()
 
   // The +100x pan instead subtracts 100 from the view-matrix translation
   // (column-major, tx at index 6).
-  let base_tx = Camera::default().to_view_mat3()[ 6 ];
-  let shifted_tx = shifted_cam.to_view_mat3()[ 6 ];
+  let base_view_tx = Camera::default().to_view_mat3()[ 6 ];
+  let shifted_view_tx = shifted_cam.to_view_mat3()[ 6 ];
   assert!
   (
-    ( shifted_tx - ( base_tx - 100.0 ) ).abs() < 1e-3,
-    "camera +100x should subtract 100 from view-matrix tx: base={base_tx} shifted={shifted_tx}",
+    ( shifted_view_tx - ( base_view_tx - 100.0 ) ).abs() < 1e-3,
+    "camera +100x should subtract 100 from view-matrix tx: base={base_view_tx} shifted={shifted_view_tx}",
   );
 }
 
