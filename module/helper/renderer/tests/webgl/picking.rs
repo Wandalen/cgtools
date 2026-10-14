@@ -1,31 +1,35 @@
-use super::*;
-use the_module::picking::{ pick_in_bounds, readback_to_pick_id, PICK_ID_NONE };
-
-#[ test ]
-fn pick_in_bounds_accepts_edges_and_rejects_outside()
+/// The pure helpers behind `IdBuffer::read`, reachable under `test_internals`.
+#[ cfg( feature = "test_internals" ) ]
+mod helpers
 {
-  assert!( pick_in_bounds( 0, 0, 4, 3 ) );
-  assert!( pick_in_bounds( 3, 2, 4, 3 ) );
-  assert!( !pick_in_bounds( 4, 2, 4, 3 ), "x == width is out of bounds" );
-  assert!( !pick_in_bounds( 3, 3, 4, 3 ), "y == height is out of bounds" );
-  assert!( !pick_in_bounds( -1, 0, 4, 3 ) );
-  assert!( !pick_in_bounds( 0, -1, 4, 3 ) );
-  assert!( !pick_in_bounds( 0, 0, 0, 0 ), "a buffer without storage has no pixels" );
-}
+  use renderer::webgl::picking::{ PICK_ID_NONE, internal::{ pick_in_bounds, readback_to_pick_id } };
 
-#[ test ]
-fn readback_maps_sentinel_and_out_of_range_to_none()
-{
-  assert_eq!( readback_to_pick_id( u32::from( PICK_ID_NONE ) ), None );
-  assert_eq!( readback_to_pick_id( 1 ), Some( 1 ) );
-  assert_eq!( readback_to_pick_id( u32::from( u16::MAX ) ), Some( u16::MAX ) );
-  assert_eq!( readback_to_pick_id( u32::from( u16::MAX ) + 1 ), None );
+  #[ test ]
+  fn pick_in_bounds_accepts_edges_and_rejects_outside()
+  {
+    assert!( pick_in_bounds( 0, 0, 4, 3 ) );
+    assert!( pick_in_bounds( 3, 2, 4, 3 ) );
+    assert!( !pick_in_bounds( 4, 2, 4, 3 ), "x == width is out of bounds" );
+    assert!( !pick_in_bounds( 3, 3, 4, 3 ), "y == height is out of bounds" );
+    assert!( !pick_in_bounds( -1, 0, 4, 3 ) );
+    assert!( !pick_in_bounds( 0, -1, 4, 3 ) );
+    assert!( !pick_in_bounds( 0, 0, 0, 0 ), "a buffer without storage has no pixels" );
+  }
+
+  #[ test ]
+  fn readback_maps_sentinel_and_out_of_range_to_none()
+  {
+    assert_eq!( readback_to_pick_id( u32::from( PICK_ID_NONE ) ), None );
+    assert_eq!( readback_to_pick_id( 1 ), Some( 1 ) );
+    assert_eq!( readback_to_pick_id( u32::from( u16::MAX ) ), Some( u16::MAX ) );
+    assert_eq!( readback_to_pick_id( u32::from( u16::MAX ) + 1 ), None );
+  }
 }
 
 #[ cfg( target_arch = "wasm32" ) ]
 mod gl_scene
 {
-  use super::*;
+  use renderer::webgl as the_module;
   use minwebgl as gl;
   use gl::GL;
   use std::{ cell::RefCell, rc::Rc };
@@ -33,7 +37,7 @@ mod gl_scene
   {
     AttributeInfo, Geometry, Mesh, Node, Object3D, Primitive, Scene,
     material::PbrMaterial,
-    picking::{ IdBuffer, ScenePicker },
+    picking::{ IdBuffer, ScenePicker, PICK_ID_NONE },
   };
 
   const SIZE : u32 = 64;

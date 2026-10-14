@@ -470,9 +470,18 @@ crate::mod_interface!
   {
     PickId,
     PICK_ID_NONE,
-    pick_in_bounds,
-    readback_to_pick_id,
     IdBuffer,
     ScenePicker,
   };
+}
+
+/// The internals `tests/` reaches, exposed only under `test_internals`.
+///
+/// Not part of the surface: with the feature off, the default and what every dependent gets,
+/// this module does not exist.
+#[ cfg( feature = "test_internals" ) ]
+#[ doc( hidden ) ]
+pub mod internal
+{
+  pub use super::private::{ pick_in_bounds, readback_to_pick_id };
 }
