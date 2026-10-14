@@ -45,7 +45,10 @@ shader differentiates whichever level it samples. `mip_dimensions`
 `EngravingTexture::update` uploads the chain with `texSubImage2D` per level,
 with no reallocation or shader recompile, but every call still re-rasterizes,
 reads back and uploads each level, so editors should re-render when an edit is
-committed rather than per keystroke.
+committed rather than per keystroke. `set_text` holds the session mutably
+across the font load; a caller keeping the session in a `RefCell` awaits
+`font_load` without borrowing it and then calls the synchronous
+`EngravingSession::text_render`, as the example does.
 
 **Sizing.** `SizingMode::Physical` and `Hybrid` derive the font size from
 `defaultFontSizeMm / stripHeightMm`; `Physical` rejects text that overflows

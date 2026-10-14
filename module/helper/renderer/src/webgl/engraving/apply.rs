@@ -1,3 +1,7 @@
+//! Binding an [`crate::webgl::engraving::EngravingConfig`] to a loaded scene: resolving nodes by
+//! name, giving each configured node its own `PbrMaterial` copies with a mask texture, and
+//! re-rendering a node's text on request.
+
 mod private
 {
   use std::{ cell::RefCell, rc::Rc };
@@ -13,12 +17,13 @@ mod private
     Primitive,
     Scene,
     material::PbrMaterial,
-    engraving::{ EngravingBitmap, EngravingCanvasError, EngravingCanvasManager, EngravingConfig, EngravingTextLayout, EngravingTexture },
+    engraving::{ EngravingCanvasError, EngravingCanvasManager, EngravingConfig, EngravingTextLayout, EngravingTexture, font_load },
   };
 
   /// Error produced while binding an [`EngravingConfig`] to a loaded [`Scene`], or while
   /// re-rendering text for one of its nodes.
   #[ derive( Debug ) ]
+  #[ non_exhaustive ]
   pub enum EngravingError
   {
     /// No node named this way exists in the scene.
@@ -337,10 +342,38 @@ mod private
     ///
     /// [`EngravingError::UnknownNode`] if the session has no entry for `node_name`,
     /// [`EngravingError::FontNotAllowed`] if `font_family` isn't in that node's `allowedFonts`,
-    /// [`EngravingError::Canvas`] if rasterizing fails (see
+    /// [`EngravingError::Canvas`] if loading the font or rasterizing fails (see
     /// [`EngravingCanvasManager::render_text_mip_chain`]), or [`EngravingError::Gl`] if the
     /// upload fails (see [`EngravingTexture::update`]).
+    ///
+    /// This holds `&mut self` across the font load. A session kept in a `RefCell` would stay
+    /// borrowed for that whole wait, so any other borrow in the meantime (e.g. a GUI callback
+    /// calling [`Self::text_layout_mut`]) panics; await [`font_load`] without the borrow and
+    /// call [`Self::text_render`] instead.
     pub async fn set_text( &mut self, gl : &GL, node_name : &str, text : &str, font_family : &str ) -> Result< (), EngravingError >
+    {
+      self.entry_for_font( node_name, font_family )?;
+      font_load( font_family, text ).await?;
+      self.text_render( gl, node_name, text, font_family )
+    }
+
+    /// [`Self::set_text`] without the font load: rasterizes and uploads right away, so it needs no
+    /// `await`. Await [`font_load`] for `font_family` and `text` first; a font that isn't loaded
+    /// yet is silently drawn in the canvas's fallback font.
+    ///
+    /// # Errors
+    ///
+    /// The same as [`Self::set_text`], except that the font isn't loaded here.
+    pub fn text_render( &mut self, gl : &GL, node_name : &str, text : &str, font_family : &str ) -> Result< (), EngravingError >
+    {
+      let entry = self.entry_for_font( node_name, font_family )?;
+      let bitmaps = entry.canvas.text_mip_chain_render( text, font_family, &entry.layout )?;
+      entry.texture.update( gl, &bitmaps )?;
+      Ok( () )
+    }
+
+    /// The entry for `node_name`, if `font_family` is on its whitelist.
+    fn entry_for_font( &mut self, node_name : &str, font_family : &str ) -> Result< &mut EngravingEntry, EngravingError >
     {
       let entry = self.entries.get_mut( node_name )
       .ok_or_else( || EngravingError::UnknownNode( node_name.into() ) )?;
@@ -350,16 +383,7 @@ mod private
         return Err( EngravingError::FontNotAllowed { node : node_name.into(), font : font_family.into() } );
       }
 
-      let bitmaps : Vec< EngravingBitmap > = entry.canvas.render_text_mip_chain
-      (
-        text,
-        font_family,
-        &entry.layout,
-      ).await?;
-
-      entry.texture.update( gl, &bitmaps )?;
-
-      Ok( () )
+      Ok( entry )
     }
 
     /// Read-only access to a node's current text layout, e.g. to seed GUI controls.

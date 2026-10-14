@@ -18,7 +18,7 @@ mod tests
     engraving::
     {
       EngravingBitmap, EngravingCanvasError, EngravingCanvasManager, EngravingConfig, EngravingError, EngravingSession,
-      EngravingTextLayout, EngravingTexture, SizingMode, TextAlign, mip_dimensions,
+      EngravingTextLayout, EngravingTexture, SizingMode, TextAlign, font_load, mip_dimensions,
     },
     material::PbrMaterial,
   };
@@ -225,7 +225,7 @@ mod tests
     assert!( Rc::ptr_eq( &node_materials( &node )[ 0 ], &material ), "a failed build leaves the scene untouched" );
   }
 
-  /// `set_text` only accepts the node's `allowedFonts`.
+  /// `set_text` and its synchronous half `text_render` only accept the node's `allowedFonts`.
   #[ wasm_bindgen_test( async ) ]
   async fn set_text_rejects_a_font_outside_the_whitelist()
   {
@@ -242,6 +242,11 @@ mod tests
     );
 
     session.set_text( &gl, "A", "Hi", "monospace" ).await.expect( "a whitelisted font renders" );
+
+    let err = session.text_render( &gl, "A", "Hi", "serif" ).expect_err( "text_render checks the whitelist too" );
+    assert!( matches!( err, EngravingError::FontNotAllowed { .. } ), "unexpected error: {err:?}" );
+    font_load( "monospace", "Hey" ).await.expect( "font loads" );
+    session.text_render( &gl, "A", "Hey", "monospace" ).expect( "a loaded whitelisted font renders synchronously" );
   }
 
   /// `build` names the node it can't engrave, and why.

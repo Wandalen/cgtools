@@ -1,10 +1,12 @@
+//! The lil-gui panel of the engraving demo: text and font, the relief knobs on the engraved
+//! `PbrMaterial`, and the node's text-sizing layout, each re-rendering the engraving as needed.
 
 use std::{ cell::RefCell, rc::Rc };
 
 use minwebgl as gl;
 use gl::GL;
 use gl::wasm_bindgen::prelude::*;
-use renderer::webgl::{ Material, engraving::{ EngravingSession, EngravingTextLayout, SizingMode, TextAlign }, material::PbrMaterial };
+use renderer::webgl::{ Material, engraving::{ EngravingSession, EngravingTextLayout, SizingMode, TextAlign, font_load }, material::PbrMaterial };
 use serde::{ Deserialize, Serialize };
 
 use crate::lil_gui::{ add_dropdown, add_folder, add_slider, add_text, new_gui, on_change, on_change_str, on_finish_change, show };
@@ -38,7 +40,8 @@ fn sizing_mode_to_str( mode : SizingMode ) -> &'static str
   {
     SizingMode::Physical => "PHYSICAL",
     SizingMode::Hybrid => "HYBRID",
-    SizingMode::Relative => "RELATIVE",
+    // `Relative` and any mode added later: the dropdown offers only the three above.
+    _ => "RELATIVE",
   }
 }
 
@@ -57,8 +60,9 @@ fn align_to_str( align : TextAlign ) -> &'static str
   match align
   {
     TextAlign::Left => "left",
-    TextAlign::Center => "center",
     TextAlign::Right => "right",
+    // `Center` and any alignment added later.
+    _ => "center",
   }
 }
 
@@ -75,11 +79,10 @@ fn align_from_str( s : &str ) -> TextAlign
 /// Current text/font, shared between the two GUI fields that can trigger a re-render (typing
 /// text and switching the font both need to reuse whichever value the *other* field last had).
 ///
-/// `in_flight`/`dirty` serialize calls into [`EngravingSession::set_text`]: it holds `session`
-/// mutably across an `await` (font loading), so a second call spawned while the first is still
-/// suspended there would panic on the `RefCell` borrow. Rather than allow that race, a change
-/// that arrives mid-render just flips `dirty` and lets the in-flight call loop once more with
-/// the latest values, instead of racing it.
+/// `in_flight`/`dirty` serialize re-renders: each one awaits a font load, and two overlapping
+/// renders could finish out of order and leave the older text on the mask. A change that
+/// arrives mid-render just flips `dirty` and lets the in-flight render loop once more with the
+/// latest values.
 struct EngravingState
 {
   text : String,
@@ -88,7 +91,6 @@ struct EngravingState
   dirty : bool,
 }
 
-#[ allow( clippy::await_holding_refcell_ref, reason = "single in-flight call is enforced by the in_flight/dirty guard below" ) ]
 fn spawn_set_text( gl : GL, session : Rc< RefCell< EngravingSession > >, node_name : String, state : Rc< RefCell< EngravingState > > )
 {
   if state.borrow().in_flight
@@ -110,7 +112,15 @@ fn spawn_set_text( gl : GL, session : Rc< RefCell< EngravingSession > >, node_na
           ( state.text.clone(), state.font.clone() )
         };
 
-        if let Err( e ) = session.borrow_mut().set_text( &gl, &node_name, &text, &font ).await
+        // The font load is awaited without borrowing `session`, so GUI callbacks that borrow it
+        // (the layout sliders) stay safe while a web font downloads; the render itself is
+        // synchronous.
+        let result = match font_load( &font, &text ).await
+        {
+          Ok( () ) => session.borrow_mut().text_render( &gl, &node_name, &text, &font ),
+          Err( e ) => Err( e.into() ),
+        };
+        if let Err( e ) = result
         {
           gl::info!( "failed to set engraving text: {e}" );
         }

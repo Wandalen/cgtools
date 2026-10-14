@@ -1,3 +1,6 @@
+//! The GPU side of an engraving mask: a texture whose full mip chain is allocated once and then
+//! updated in place, and [`mip_dimensions`], the mip-chain sizes it shares with the canvas.
+
 mod private
 {
   use std::{ cell::RefCell, rc::Rc };

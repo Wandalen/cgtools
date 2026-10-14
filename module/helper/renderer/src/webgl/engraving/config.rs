@@ -1,3 +1,7 @@
+//! `engraving_config.json`: the per-node engraving zones of one glTF asset, parsed with serde
+//! and validated against the same ranges as `engraving_config.schema.json`, plus the subset of
+//! a node's settings ([`EngravingTextLayout`]) that stays editable after the session is built.
+
 mod private
 {
   use serde::Deserialize;
@@ -142,6 +146,7 @@ mod private
   /// relative sizing fields.
   #[ derive( Debug, Clone, Copy, PartialEq, Eq, Deserialize ) ]
   #[ serde( rename_all = "UPPERCASE" ) ]
+  #[ non_exhaustive ]
   pub enum SizingMode
   {
     /// Font size is fixed by `defaultFontSizeMm / stripHeightMm`, constant regardless of text
@@ -159,6 +164,7 @@ mod private
   /// Horizontal text alignment within the padded engraving strip.
   #[ derive( Debug, Clone, Copy, PartialEq, Eq, Deserialize ) ]
   #[ serde( rename_all = "lowercase" ) ]
+  #[ non_exhaustive ]
   pub enum TextAlign
   {
     /// Text starts at the left padding edge.
