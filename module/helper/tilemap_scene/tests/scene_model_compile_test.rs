@@ -1922,12 +1922,10 @@ fn vertex_corners_orient_to_grid_single_hex_six_orientations()
   for c in &cmds
   {
     if let RenderCommand::Sprite( s ) = c
+      && let Some( o ) = corner_ids.iter().position( | id | *id == s.sprite )
     {
-      if let Some( o ) = corner_ids.iter().position( | id | *id == s.sprite )
-      {
-        seen.insert( o );
-        assert_eq!( s.transform.rotation, 0.0, "orient mode must not rotate sprites at runtime" );
-      }
+      seen.insert( o );
+      assert_eq!( s.transform.rotation, 0.0, "orient mode must not rotate sprites at runtime" );
     }
   }
   // Six triangles around the lone hex, each a distinct 60°-orientation frame.
@@ -1968,12 +1966,10 @@ fn vertex_corners_orient_to_grid_pointy_top_six_orientations()
   for c in &cmds
   {
     if let RenderCommand::Sprite( s ) = c
+      && let Some( o ) = corner_ids.iter().position( | id | *id == s.sprite )
     {
-      if let Some( o ) = corner_ids.iter().position( | id | *id == s.sprite )
-      {
-        seen.insert( o );
-        assert_eq!( s.transform.rotation, 0.0, "orient mode must not rotate sprites at runtime" );
-      }
+      seen.insert( o );
+      assert_eq!( s.transform.rotation, 0.0, "orient mode must not rotate sprites at runtime" );
     }
   }
   assert_eq!( seen.len(), 6, "pointy-top lone hex must emit all six distinct corner orientations; got {seen:?}" );
