@@ -172,7 +172,7 @@ fn f32x2_and_f64x2_are_distinct_types_not_interchangeable()
 }
 
 #[ test ]
-#[ expect( clippy::float_cmp, reason = "assertion checks exact expected value; no arithmetic drift is possible and epsilon comparison would weaken it" ) ]
+#[ allow( clippy::float_cmp, reason = "assertion checks exact expected value; no arithmetic drift is possible and epsilon comparison would weaken it" ) ]
 fn vector_dot_product_computes_scalar()
 {
   let engine = engine_build();
@@ -181,7 +181,7 @@ fn vector_dot_product_computes_scalar()
 }
 
 #[ test ]
-#[ expect( clippy::float_cmp, reason = "assertions check exact expected values; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
+#[ allow( clippy::float_cmp, reason = "assertions check exact expected values; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
 fn vector_magnitude_and_magnitude_squared_match_pythagorean_length()
 {
   let engine = engine_build();
@@ -193,7 +193,7 @@ fn vector_magnitude_and_magnitude_squared_match_pythagorean_length()
 }
 
 #[ test ]
-#[ expect( clippy::float_cmp, reason = "the mutation-check assertion compares against the exact input literal, never a computed result; epsilon comparison would weaken it" ) ]
+#[ allow( clippy::float_cmp, reason = "the mutation-check assertion compares against the exact input literal, never a computed result; epsilon comparison would weaken it" ) ]
 fn vector_normalize_returns_new_unit_length_copy_without_mutating_original()
 {
   let engine = engine_build();
@@ -208,7 +208,7 @@ fn vector_normalize_returns_new_unit_length_copy_without_mutating_original()
 }
 
 #[ test ]
-#[ expect( clippy::float_cmp, reason = "assertion checks exact expected value; no arithmetic drift is possible and epsilon comparison would weaken it" ) ]
+#[ allow( clippy::float_cmp, reason = "assertion checks exact expected value; no arithmetic drift is possible and epsilon comparison would weaken it" ) ]
 fn vector_distance_computes_separation_between_two_points()
 {
   let engine = engine_build();
@@ -217,7 +217,7 @@ fn vector_distance_computes_separation_between_two_points()
 }
 
 #[ test ]
-#[ expect( clippy::float_cmp, reason = "assertion checks exact expected value; no arithmetic drift is possible and epsilon comparison would weaken it" ) ]
+#[ allow( clippy::float_cmp, reason = "assertion checks exact expected value; no arithmetic drift is possible and epsilon comparison would weaken it" ) ]
 fn vector_distance_squared_computes_squared_separation()
 {
   let engine = engine_build();
@@ -277,7 +277,7 @@ fn vector_f32x4_from_two_f32x2_concatenates_components()
 }
 
 #[ test ]
-#[ expect( clippy::float_cmp, reason = "assertions check exact expected values; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
+#[ allow( clippy::float_cmp, reason = "assertions check exact expected values; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
 fn vector_f64_universal_math_uses_native_precision_without_casting()
 {
   let engine = engine_build();
@@ -289,7 +289,7 @@ fn vector_f64_universal_math_uses_native_precision_without_casting()
 }
 
 #[ test ]
-#[ expect( clippy::float_cmp, reason = "0.25 is exactly representable in binary floating point and the division producing it has no rounding error; epsilon comparison would weaken the assertion" ) ]
+#[ allow( clippy::float_cmp, reason = "0.25 is exactly representable in binary floating point and the division producing it has no rounding error; epsilon comparison would weaken the assertion" ) ]
 fn tween_progress_reports_fraction_of_duration_elapsed()
 {
   let engine = engine_build();
@@ -302,7 +302,7 @@ fn tween_progress_reports_fraction_of_duration_elapsed()
 }
 
 #[ test ]
-#[ expect( clippy::float_cmp, reason = "assertions check exact expected values; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
+#[ allow( clippy::float_cmp, reason = "assertions check exact expected values; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
 fn tween_builder_methods_configure_duration_and_delay()
 {
   let engine = engine_build();
@@ -320,7 +320,7 @@ fn tween_builder_methods_configure_duration_and_delay()
 }
 
 #[ test ]
-#[ expect( clippy::float_cmp, reason = "assertion checks exact expected value; no arithmetic drift is possible and epsilon comparison would weaken it" ) ]
+#[ allow( clippy::float_cmp, reason = "assertion checks exact expected value; no arithmetic drift is possible and epsilon comparison would weaken it" ) ]
 fn tween_time_accumulates_elapsed_delta_time()
 {
   let engine = engine_build();
@@ -333,7 +333,7 @@ fn tween_time_accumulates_elapsed_delta_time()
 }
 
 #[ test ]
-#[ expect( clippy::float_cmp, reason = "assertion checks exact expected value; no arithmetic drift is possible and epsilon comparison would weaken it" ) ]
+#[ allow( clippy::float_cmp, reason = "assertion checks exact expected value; no arithmetic drift is possible and epsilon comparison would weaken it" ) ]
 fn tween_pause_halts_further_progress_until_resumed()
 {
   let engine = engine_build();

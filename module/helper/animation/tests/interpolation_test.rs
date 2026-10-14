@@ -1,5 +1,5 @@
 //! Integration tests related to Tween struct and trait Animatable
-#![ expect( clippy::float_cmp, reason = "assertions check deterministic interpolation arithmetic against exact expected values" ) ]
+#![ allow( clippy::float_cmp, reason = "assertions check deterministic interpolation arithmetic against exact expected values" ) ]
 
 #[ cfg( test ) ]
 mod tests
