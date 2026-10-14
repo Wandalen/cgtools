@@ -88,6 +88,7 @@ fn external_layer( slot : &str ) -> ObjectLayer
   }
 }
 
+#[ expect( clippy::too_many_lines, reason = "linear fixture build; splitting would scatter one spec across helpers" ) ]
 fn spec_build() -> RenderSpec
 {
   let mut grass_states = HashMap::default();
