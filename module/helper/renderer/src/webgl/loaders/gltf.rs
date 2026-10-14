@@ -496,10 +496,17 @@ mod private
       {
         gltf::buffer::Source::Bin =>
         {
-          // Only the first buffer may omit its uri : it is the GLB binary chunk.
+          // GLB stores its binary chunk as `buffers[ 0 ]`, the only buffer allowed to omit
+          // its uri. Handing the chunk to a later uri-less buffer would hide a malformed file
+          // behind misplaced data.
+          if gltf_buffer.index() != 0
+          {
+            gl::browser::error!( "glTF buffer {} has no uri; only buffer 0 may omit it", gltf_buffer.index() );
+            return Err( gl::WebglError::Other( "glTF buffer has no data" ) );
+          }
           let blob = blob.take().ok_or_else( ||
           {
-            gl::browser::error!( "glTF buffer {} has no uri and no GLB binary chunk", gltf_buffer.index() );
+            gl::browser::error!( "glTF buffer 0 has no uri and the file has no GLB binary chunk" );
             gl::WebglError::Other( "glTF buffer has no data" )
           } )?;
           gl::debug!( "The gltf binary payload is present: {}", blob.len() );
