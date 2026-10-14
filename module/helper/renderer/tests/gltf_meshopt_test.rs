@@ -45,6 +45,9 @@ const MESHOPT_FIXTURE : &str = r#"
 }
 "#;
 
+/// The extension name the fixtures parse under, unless a test says otherwise.
+const EXT : &str = "EXT_meshopt_compression";
+
 fn fixture() -> gltf::Gltf
 {
   gltf::Gltf::from_slice_without_validation( MESHOPT_FIXTURE.as_bytes() ).expect( "fixture is well-formed JSON" )
@@ -111,19 +114,19 @@ fn finds_the_fallback_buffer()
 fn rejects_malformed_extension_objects()
 {
   let base = json!( { "buffer": 0, "byteLength": 8, "byteStride": 4, "count": 3, "mode": "ATTRIBUTES" } );
-  assert!( MeshoptView::parse( &base ).is_ok() );
+  assert!( MeshoptView::parse( EXT, &base ).is_ok() );
 
   let with = | key : &str, value : serde_json::Value |
   {
     let mut v = base.clone();
     v[ key ] = value;
-    MeshoptView::parse( &v )
+    MeshoptView::parse( EXT, &v )
   };
   let without = | key : &str |
   {
     let mut v = base.clone();
     v.as_object_mut().unwrap().remove( key );
-    MeshoptView::parse( &v )
+    MeshoptView::parse( EXT, &v )
   };
 
   assert!( without( "buffer" ).is_err() );
@@ -141,16 +144,24 @@ fn rejects_malformed_extension_objects()
   assert!( with( "filter", json!( "OCTAHEDRAL" ) ).is_ok() );
 
   let indices = json!( { "buffer": 0, "byteLength": 8, "byteStride": 4, "count": 6, "mode": "TRIANGLES" } );
-  assert!( MeshoptView::parse( &indices ).is_ok() );
+  assert!( MeshoptView::parse( EXT, &indices ).is_ok() );
   let mut odd = indices.clone();
   odd[ "count" ] = json!( 7 );
-  assert!( MeshoptView::parse( &odd ).is_err(), "TRIANGLES count must be a multiple of 3" );
+  assert!( MeshoptView::parse( EXT, &odd ).is_err(), "TRIANGLES count must be a multiple of 3" );
   let mut filtered = indices.clone();
   filtered[ "filter" ] = json!( "OCTAHEDRAL" );
-  assert!( MeshoptView::parse( &filtered ).is_err(), "index data takes no filter" );
+  assert!( MeshoptView::parse( EXT, &filtered ).is_err(), "index data takes no filter" );
   let mut wide = indices;
   wide[ "byteStride" ] = json!( 8 );
-  assert!( MeshoptView::parse( &wide ).is_err(), "index stride is 2 or 4" );
+  assert!( MeshoptView::parse( EXT, &wide ).is_err(), "index stride is 2 or 4" );
+}
+
+#[ test ]
+fn the_color_filter_is_khr_only()
+{
+  let color = json!( { "buffer": 0, "byteLength": 8, "byteStride": 4, "count": 4, "mode": "ATTRIBUTES", "filter": "COLOR" } );
+  assert_eq!( MeshoptView::parse( "KHR_meshopt_compression", &color ).unwrap().filter, MeshoptFilter::Color );
+  assert!( MeshoptView::parse( EXT, &color ).is_err(), "EXT_meshopt_compression defines no COLOR filter" );
 }
 
 #[ test ]
