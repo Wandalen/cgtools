@@ -156,7 +156,7 @@ mod private
   pub fn bgra_to_rgba_swizzle( pixels : &mut [ u8 ] )
   {
     assert!( pixels.len().is_multiple_of( 4 ), "pixels must be a whole number of 4-byte RGBA/BGRA pixels" );
-    for pixel in pixels.chunks_exact_mut( 4 )
+    for pixel in pixels.as_chunks_mut::< 4 >().0
     {
       pixel.swap( 0, 2 );
     }

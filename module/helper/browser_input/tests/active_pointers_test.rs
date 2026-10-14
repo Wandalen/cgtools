@@ -102,5 +102,5 @@ fn full_sequence_ends_empty()
       cancel( 2 ),
     ]
   );
-  assert!( state.active_pointers.is_empty() );
+  assert_eq!( state.active_pointers, [] );
 }
