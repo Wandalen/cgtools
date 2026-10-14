@@ -756,8 +756,8 @@ mod private
       upload( "engravingStrength", self.engraving_strength )?;
       upload( "engravingRoughness", self.engraving_roughness )?;
       upload( "engravingDarkening", self.engraving_darkening )?;
-      gl::uniform::upload( gl, locations.get( "highlightColor" ).expect( "PBRShader::impl_locations! missing \"highlightColor\"" ).clone(), self.highlight_color.as_slice() )?;
-      gl::uniform::upload( gl, locations.get( "highlightStrength" ).expect( "PBRShader::impl_locations! missing \"highlightStrength\"" ).clone(), &self.highlight_strength )?;
+      upload_array( "highlightColor", self.highlight_color.as_slice() )?;
+      upload( "highlightStrength", self.highlight_strength )?;
 
       Ok( () )
     }
