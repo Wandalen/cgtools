@@ -1,5 +1,6 @@
 //! Browser tests for the buffer-index rules of `gltf::load` : the GLB binary chunk can only be
-//! `buffers[ 0 ]`, and a uri-less buffer with no chunk to take is an error.
+//! `buffers[ 0 ]`, a uri-less buffer with no chunk to take is an error, and an oversized meshopt
+//! fallback buffer is refused instead of allocated.
 
 #[ cfg( target_arch = "wasm32" ) ]
 #[ cfg( test ) ]
@@ -134,6 +135,24 @@ mod tests
   {
     let gl = gl_init();
     let json = triangle_gltf( &[], r#"{ "byteLength" : 36 }"#, r#"{ "buffer" : 0, "byteLength" : 36, "target" : 34962 }"# );
+    let uri = data_uri( "model/gltf+json", json.as_bytes() );
+
+    assert!( gltf::load( &document(), &uri, &gl ).await.is_err() );
+  }
+
+  /// A fallback buffer's size comes only from its declared `byteLength`, so a huge declaration
+  /// is refused with an error rather than allocated or thrown as a `RangeError`.
+  #[ wasm_bindgen_test( async ) ]
+  async fn load_refuses_an_oversized_fallback_buffer()
+  {
+    let gl = gl_init();
+    let buffers = format!
+    (
+      r#"{{ "byteLength" : 36, "uri" : "{}" }},
+      {{ "byteLength" : 3000000000, "extensions" : {{ "EXT_meshopt_compression" : {{ "fallback" : true }} }} }}"#,
+      data_uri( "application/octet-stream", &triangle_bytes() )
+    );
+    let json = triangle_gltf( &[ "EXT_meshopt_compression" ], &buffers, r#"{ "buffer" : 0, "byteLength" : 36, "target" : 34962 }"# );
     let uri = data_uri( "model/gltf+json", json.as_bytes() );
 
     assert!( gltf::load( &document(), &uri, &gl ).await.is_err() );

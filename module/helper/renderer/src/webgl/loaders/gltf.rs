@@ -467,6 +467,45 @@ mod private
     }
   }
 
+  /// Largest meshopt fallback buffer [`load`] allocates. A fallback holds no data of its
+  /// own, so its size is only the `byteLength` the JSON declares : without a limit a few
+  /// bytes of JSON could commit gigabytes, and copying such a buffer into wasm memory for
+  /// skins or animations would abort the module. Decoded web geometry is far below this.
+  const FALLBACK_BUFFER_MAX : usize = 1 << 30;
+
+  /// Allocates the zeroed buffer a meshopt fallback's views decode into.
+  ///
+  /// # Errors
+  ///
+  /// Returns `WebglError::Other` when the declared length exceeds [`FALLBACK_BUFFER_MAX`]
+  /// or the browser refuses the allocation. `Uint8Array::new_with_length` would throw that
+  /// `RangeError` straight through the wasm frames, so the array is built through
+  /// `Reflect.construct`, which hands the exception back as a value.
+  fn fallback_buffer_allocate( gltf_buffer : &gltf::Buffer< '_ > ) -> Result< gl::js_sys::Uint8Array, gl::WebglError >
+  {
+    use gl::js_sys::{ Array, Reflect, Uint8Array };
+
+    let length = gltf_buffer.length();
+    let Some( length ) = u32::try_from( length ).ok().filter( | _ | length <= FALLBACK_BUFFER_MAX ) else
+    {
+      gl::browser::error!
+      (
+        "glTF meshopt fallback buffer {} declares {length} bytes, more than the {FALLBACK_BUFFER_MAX} this loader allocates",
+        gltf_buffer.index()
+      );
+      return Err( gl::WebglError::Other( "glTF meshopt fallback buffer is too large" ) );
+    };
+
+    let constructor = Uint8Array::new_with_length( 0 ).constructor();
+    Reflect::construct( &constructor, &Array::of1( &length.into() ) )
+    .map( JsCast::unchecked_into )
+    .map_err( | e |
+    {
+      gl::browser::error!( "glTF meshopt fallback buffer {}: allocation failed: {e:?}", gltf_buffer.index() );
+      gl::WebglError::Other( "glTF meshopt fallback buffer allocation failed" )
+    } )
+  }
+
   /// Collects the raw byte payload of every glTF buffer, indexed like the
   /// document's `buffers` : the embedded GLB binary chunk, each URI-addressed
   /// buffer fetched relative to `folder_path`, and a zeroed placeholder for each
@@ -486,9 +525,7 @@ mod private
     {
       if crate::webgl::loaders::meshopt::buffer_is_fallback( &gltf_buffer )
       {
-        let length = u32::try_from( gltf_buffer.length() )
-        .map_err( | _ | gl::WebglError::Other( "glTF buffer is larger than 4 GiB" ) )?;
-        buffers.push( gl::js_sys::Uint8Array::new_with_length( length ) );
+        buffers.push( fallback_buffer_allocate( &gltf_buffer )? );
         continue;
       }
 
