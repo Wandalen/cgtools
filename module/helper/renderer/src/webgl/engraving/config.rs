@@ -95,7 +95,7 @@ mod private
     /// Fractional padding (of the shorter canvas dimension) kept empty around the text on every side.
     #[ serde( default = "default_padding" ) ]
     pub padding : f32,
-    /// Intensity of the derivative-based normal perturbation at letter edges (bevel depth).
+    /// Intensity of the relief normal perturbation at letter edges (bevel depth).
     #[ serde( rename = "engravingStrength", default = "default_engraving_strength" ) ]
     pub engraving_strength : f32,
     /// Target PBR roughness inside the carved groove, in `0.0..=1.0`.

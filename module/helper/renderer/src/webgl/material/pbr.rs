@@ -220,7 +220,7 @@ mod private
     /// sampled at `vUv_{uv_position}` and bounds-checked against `[0, 1]` in the shader. This is
     /// the sole gate for the `USE_ENGRAVING` define — see [`Self::engraving_texture_set`].
     pub( super ) engraving_texture : Option< TextureInfo >,
-    /// Intensity of the derivative-based normal perturbation at letter edges (bevel depth).
+    /// Intensity of the relief normal perturbation at letter edges (bevel depth).
     pub engraving_strength : f32,
     /// Target roughness inside the carved groove, simulating a matte laser-etched finish.
     pub engraving_roughness : f32,

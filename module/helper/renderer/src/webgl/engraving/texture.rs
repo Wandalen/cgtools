@@ -23,12 +23,12 @@ mod private
   /// `vEngravingUv` against `[0, 1]` itself (see `main.frag`), so edge clamping only needs to
   /// avoid sampling garbage at the exact boundary, not implement the "outside the strip" logic.
   ///
-  /// Mipmaps matter more here than on a typical color texture: the mask's `dFdx`/`dFdy`
-  /// derivative drives the relief-normal perturbation in `main.frag`, and without mipmaps a
-  /// minified (zoomed-out) mask aliases hard at the black/white glyph edges — each screen pixel
-  /// can land on a wildly different raw texel, so the derivative spikes and the bevel highlight
-  /// sparkles. Mipmapping pre-filters the mask so both the sampled value and its derivative stay
-  /// smooth under minification.
+  /// Mipmaps matter more here than on a typical color texture: `main.frag` builds the relief
+  /// normal from central differences of `textureLod` samples, at the LOD that matches the
+  /// fragment's UV footprint. Without mips a minified (zoomed-out) mask has only the full-size
+  /// level to sample, where neighbouring samples land on unrelated texels at the hard
+  /// black/white glyph edges, so the gradient spikes and the bevel highlight sparkles. The mip
+  /// chain gives that LOD a pre-filtered mask whose edges stay smooth at every distance.
   pub struct EngravingTexture
   {
     info : TextureInfo,
@@ -131,8 +131,8 @@ mod private
     }
 
     /// Uploads a freshly rasterized mip chain into the existing GPU allocation via
-    /// `texSubImage2D` per level, so re-engraving text (e.g. on every keystroke) never
-    /// reallocates or triggers a texture-completeness re-check.
+    /// `texSubImage2D` per level, so re-engraving text never reallocates or triggers a
+    /// texture-completeness re-check.
     ///
     /// `bitmaps` must have exactly [`Self::level_count`] entries, ordered the same way
     /// [`crate::webgl::engraving::EngravingCanvasManager::render_text_mip_chain`] returns them

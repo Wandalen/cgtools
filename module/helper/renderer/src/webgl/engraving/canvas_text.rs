@@ -14,7 +14,9 @@ mod private
     NoDom,
     /// Failed to create or configure the offscreen `<canvas>`.
     CanvasSetup( String ),
-    /// `document.fonts.load()` rejected or the requested font family never became `FontFace.status == "loaded"`.
+    /// `document.fonts.load()` rejected, e.g. on a failed font download. A family the browser
+    /// doesn't know is not an error: the load resolves with no faces and the canvas draws in its
+    /// fallback font.
     FontLoad( String ),
     /// `text.chars().count()` exceeded the node's configured `max_characters`.
     TooManyCharacters
@@ -182,9 +184,9 @@ mod private
     ///
     /// Each level is drawn from scratch at its own resolution rather than downsampled from
     /// level 0: for a binary black/white text mask, box-filtering a crisp high-res rasterization
-    /// aliases badly at the glyph edges (and that aliasing feeds directly into the `dFdx`/`dFdy`
-    /// relief-normal perturbation in `main.frag`, which is what actually sparkles under
-    /// minification). Re-rasterizing at each level's true resolution lets the canvas 2D
+    /// aliases badly at the glyph edges, and `main.frag` builds the relief normal from central
+    /// differences of whichever level its explicit LOD selects, so that aliasing is what sparkles
+    /// under minification. Re-rasterizing at each level's true resolution lets the canvas 2D
     /// rasterizer's own anti-aliasing produce a properly filtered edge every time, matching what
     /// [`crate::webgl::engraving::EngravingTexture`] then uploads one-level-at-a-time instead of
     /// relying on `generateMipmap`.

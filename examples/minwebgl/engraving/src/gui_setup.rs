@@ -246,8 +246,8 @@ pub fn setup
 
   let text_folder = add_folder( &gui, "Text" );
 
-  // Rasterizing + uploading a new mask is comparatively expensive, so it only fires once the
-  // field loses focus / Enter is pressed, not on every keystroke.
+  // Each `set_text` re-rasterizes, reads back and uploads every mip level of the mask, so it
+  // only fires once the field loses focus / Enter is pressed, not on every keystroke.
   let prop = add_text( &text_folder, &object, "text" );
   let callback = Closure::new
   (

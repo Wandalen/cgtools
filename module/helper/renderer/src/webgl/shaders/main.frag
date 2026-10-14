@@ -928,26 +928,18 @@ void main()
   //     for that -h displacement and is what actually reads as a carved/concave groove rather
   //     than a raised/convex bump — see step 3's code below.
   //
-  //     A prior version of this code computed dh/du, dh/dv as dFdx(h)/dFdy(h) — the change in
-  //     mask value per *screen* pixel — and fed that directly into the T/B (UV-axis tangent)
-  //     projection above. That's a unit mismatch: screen X/Y only line up with UV U/V when the
-  //     camera is exactly front-on with no in-plane rotation, so at any other angle a screen-space
-  //     step mixes U and V in the wrong proportions and the bump rotates away from the true groove
-  //     wall as the camera turns. Worse, dFdx/dFdy of a *filtered texture fetch* differentiates
-  //     across a 2x2 fragment quad, and each fragment in that quad can resolve a slightly
-  //     different mip/bilinear sample — so even the magnitude was jittery, which reads as
-  //     sparkling specular noise (worst at low roughness, where the lobe is narrow enough to make
-  //     per-pixel normal jitter visible as flickering).
-  //
-  //     Both problems go away by computing dh/du, dh/dv as explicit central differences of
-  //     `textureLod` samples taken along the actual U and V axes, at a fixed LOD derived from
-  //     step 2: every fragment now samples the exact same, deliberately-chosen texels (instead of
-  //     an implicit, quad-dependent derivative), and the offset is expressed purely in UV space,
-  //     so it composes correctly with T = dP/du and B = dP/dv regardless of camera orientation.
-  //     The finite difference is left undivided by the UV step (rather than forming a literal
-  //     dh/du = Δh / (2Δu)) so the gradient stays O(1) — matching the previous tuning range of
-  //     engravingStrength — and bounded at any LOD/distance instead of blowing up as the sample
-  //     step shrinks at grazing angles.
+  //     dh/du and dh/dv are central differences of `textureLod` samples taken along the U and V
+  //     axes, at the explicit LOD from step 2, not dFdx/dFdy of the mask. Screen-space
+  //     derivatives measure change per screen pixel, and screen X/Y line up with U/V only when
+  //     the strip faces the camera with no in-plane rotation; projected onto T = dP/du and
+  //     B = dP/dv they would mix U and V in the wrong proportions and rotate the bevel away from
+  //     the groove wall as the camera turns. Differentiating a filtered fetch across a 2x2
+  //     fragment quad also picks up each fragment's slightly different mip/bilinear sample,
+  //     which reads as sparkling specular at low roughness. UV-space samples at one fixed LOD
+  //     give every fragment the same texels and compose with T and B at any view angle.
+  //     The difference is not divided by the UV step (no literal dh/du = Δh / (2Δu)), so the
+  //     gradient stays O(1) and bounded at any LOD or distance instead of growing as the step
+  //     shrinks at grazing angles, and one engravingStrength reads the same at every distance.
   //
   //  4. PBR response — inside the groove (mask towards 1) roughness is pushed towards
   //     engravingRoughness (a matte, laser-scattered finish) and the albedo / specular color is
