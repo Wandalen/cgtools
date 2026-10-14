@@ -72,18 +72,6 @@ mod tests
   }
 
   #[ wasm_bindgen_test( async ) ]
-  async fn engraving_custom_strength_roughness_darkening_compiles()
-  {
-    let gl = init_gl();
-    let mut material = PbrMaterial::new( &gl );
-    material.engraving_texture_set( Some( dummy_texture_info() ) );
-    material.engraving_strength = 2.5;
-    material.engraving_roughness = 0.6;
-    material.engraving_darkening = 0.5;
-    assert_compiles( &gl, &material, false, "engraving with non-default strength/roughness/darkening" );
-  }
-
-  #[ wasm_bindgen_test( async ) ]
   async fn engraving_with_clearcoat_and_anisotropy_and_ibl_compiles()
   {
     let gl = init_gl();

@@ -86,5 +86,5 @@ must keep its orientation (see the format doc, §2).
 | File | Relationship |
 |------|--------------|
 | `tests/engraving_config_tests.rs` | Config parsing, `SizingMode` resolution, validation ranges, `mip_dimensions` |
-| `tests/engraving_session_tests.rs` | `build`'s per-node material copies, the font whitelist, `MAX_TEXTURE_SIZE` |
+| `tests/engraving_session_tests.rs` | `build` errors and per-node material copies, `MAX_TEXTURE_SIZE`, the font whitelist, `EngravingTexture::update`'s chain checks, the canvas mip count, `PHYSICAL` vs `HYBRID` sizing |
 | `tests/engraving_shader_tests.rs` | The `USE_ENGRAVING` variants compile alone and alongside normal maps, clearcoat, anisotropy and IBL |
