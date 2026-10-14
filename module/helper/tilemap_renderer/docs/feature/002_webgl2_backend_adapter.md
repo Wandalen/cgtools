@@ -64,5 +64,6 @@ Given the number of unimplemented command families and the `Overlay` blend-mode 
 | File | Relationship |
 |------|--------------|
 | `src/adapters/webgl/webgl_helpers.rs` (`staged_vec_tests`) | Inline tests of the GL-free `StagedVec` bookkeeping behind `ArrayBuffer`: one range per batch of writes, realloc growth policy, merged set/swap-remove ranges, no upload for tail removes |
+| `src/adapters/webgl.rs` (`target_slots_tests`) | Inline tests of the GL-free slot table behind `RenderTargetId`: a handle kept across `reset_render_targets` is rejected even after its slot is reused |
 | `tests/webgl_backend_test.rs` | Compile-and-construct-level coverage: `declared_capabilities`'s honest-subset pin (`meshes`/`sprites`/`batches` true, everything else false, exact 4-entry `supported_blend_modes`) and an anti-hardcoding pin (two different `max_texture_size` inputs produce two different, input-matching outputs). No `WebGl2RenderingContext`/`web_sys` call — a live-context `wasm-bindgen-test` harness still does not exist in this crate |
 | `tests/manual/readme.md` | Real-browser (`browsee`) pixel verification beyond compile-and-construct-level — confirms `WebGlBackend::new` + `assets_load` + `submit` + `output` paints a correctly-centered `rgb 255 0 0` sprite on a `rgb 0 0 255` clear through a live WebGL2 context (Firefox) |

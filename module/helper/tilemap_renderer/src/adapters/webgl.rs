@@ -311,6 +311,65 @@ mod private
   }
 
   // ============================================================================
+  // Render-target handle
+  // ============================================================================
+
+  /// Handle to an offscreen cache surface, returned by
+  /// [`WebGlBackend::create_render_target`].
+  ///
+  /// Besides the surface's slot it records which generation of surfaces it
+  /// belongs to. [`WebGlBackend::reset_render_targets`] starts a new
+  /// generation and reuses the slots, so a handle kept across a reset is
+  /// rejected (the methods taking it do nothing) instead of silently
+  /// addressing whichever new surface took its slot.
+  #[ derive( Debug, Clone, Copy, PartialEq, Eq, Hash ) ]
+  pub struct RenderTargetId
+  {
+    index : u32,
+    generation : u32,
+  }
+
+  /// Slot table behind [`RenderTargetId`]: dense slots plus the generation
+  /// stamped into each handle. GL-free so the stale-handle rule is testable
+  /// on the host.
+  pub struct TargetSlots< T >
+  {
+    items : Vec< T >,
+    generation : u32,
+  }
+
+  impl< T > TargetSlots< T >
+  {
+    pub const fn new() -> Self
+    {
+      Self { items : Vec::new(), generation : 0 }
+    }
+
+    /// Store `item` and return its handle; `None` only past `u32::MAX` slots.
+    pub fn push( &mut self, item : T ) -> Option< RenderTargetId >
+    {
+      let index = u32::try_from( self.items.len() ).ok()?;
+      self.items.push( item );
+      Some( RenderTargetId { index, generation : self.generation } )
+    }
+
+    /// The item `id` names, or `None` if `id` predates the last [`Self::clear`].
+    pub fn get( &self, id : RenderTargetId ) -> Option< &T >
+    {
+      if id.generation != self.generation { return None; }
+      self.items.get( id.index as usize )
+    }
+
+    /// Drop every item and start a new generation, so no earlier handle
+    /// resolves even once its slot is reused.
+    pub fn clear( &mut self )
+    {
+      self.items.clear();
+      self.generation = self.generation.wrapping_add( 1 );
+    }
+  }
+
+  // ============================================================================
   // Backend struct
   // ============================================================================
 
@@ -343,11 +402,11 @@ mod private
     // -- batch editing state --
     recording_batch : Option< ResourceId< Batch > >,
 
-    /// Offscreen cache surfaces (see [`Self::create_render_target`]), indexed by
-    /// the `usize` id `create_render_target` returns. Used by consumers that bake
-    /// a subset of the frame into a texture and composite it back as a world quad
-    /// via [`Self::draw_render_target`].
-    render_targets : Vec< GpuFramebuffer >,
+    /// Offscreen cache surfaces (see [`Self::create_render_target`]), addressed
+    /// by [`RenderTargetId`]. Used by consumers that bake a subset of the frame
+    /// into a texture and composite it back as a world quad via
+    /// [`Self::draw_render_target`].
+    render_targets : TargetSlots< GpuFramebuffer >,
 
     /// Viewport override in force while a render-target pass is bound. The
     /// vertex shaders divide world coords by `u_viewport` to reach NDC, so during
@@ -431,7 +490,7 @@ mod private
         max_texture_size,
         camera : IDENTITY_MAT3,
         recording_batch : None,
-        render_targets : Vec::new(),
+        render_targets : TargetSlots::new(),
         active_viewport : None,
         context_lost,
       })
@@ -533,20 +592,18 @@ mod private
     }
 
     /// Allocate an offscreen cache surface (`width×height`, RGBA8 + depth) and
-    /// return its id, or `None` if allocation / completeness fails. Ids are dense
-    /// (`0`, `1`, …) and stable for the backend's lifetime.
-    pub fn create_render_target( &mut self, width : u32, height : u32 ) -> Option< usize >
+    /// return its handle, or `None` if allocation / completeness fails. The
+    /// handle stays valid until the next [`Self::reset_render_targets`].
+    pub fn create_render_target( &mut self, width : u32, height : u32 ) -> Option< RenderTargetId >
     {
       let fb = GpuFramebuffer::new( &self.gl, width, height )?;
-      let id = self.render_targets.len();
-      self.render_targets.push( fb );
-      Some( id )
+      self.render_targets.push( fb )
     }
 
-    /// Free every cache surface and reset id allocation to `0`. The GL objects
-    /// are released via each `GpuFramebuffer`'s `Drop`. Call before rebuilding a
-    /// fresh set of targets (e.g. a chunk grid at a new extent / map load) so the
-    /// old textures don't leak and new ids start dense from `0`.
+    /// Free every cache surface and invalidate every [`RenderTargetId`] handed
+    /// out so far. The GL objects are released via each `GpuFramebuffer`'s
+    /// `Drop`. Call before rebuilding a fresh set of targets (e.g. a chunk grid
+    /// at a new extent / map load) so the old textures don't leak.
     pub fn reset_render_targets( &mut self )
     {
       self.render_targets.clear();
@@ -555,8 +612,8 @@ mod private
     /// Bind cache surface `id` as the draw target and set the viewport to its
     /// size. `clear` optionally clears it (colour + depth) — pass a transparent
     /// colour for an overlay cache that must composite over another. Pair with
-    /// [`Self::end_render_target`]. No-op if `id` is unknown.
-    pub fn begin_render_target( &mut self, id : usize, clear : Option< [ f32; 4 ] > )
+    /// [`Self::end_render_target`]. No-op if `id` is stale.
+    pub fn begin_render_target( &mut self, id : RenderTargetId, clear : Option< [ f32; 4 ] > )
     {
       // Copy out size + a handle clone before mutating `active_viewport` (which
       // would otherwise conflict with the `render_targets` borrow).
@@ -640,14 +697,14 @@ mod private
     /// Composite cache surface `id` as a textured quad covering the world-pixel
     /// rectangle `[ min, max ]`, projected through the current camera (so it pans
     /// and zooms with the board). The cache is treated as premultiplied "over".
-    /// No-op if `id` is unknown.
+    /// No-op if `id` is stale.
     ///
     /// V-orientation: uploaded atlases use `UNPACK_FLIP_Y`, so their visual top
     /// sits at the high texel row — the same as an FBO render — so the stock
     /// sprite shader composites the cache upright with a plain `[0,0,w,h]` region.
     /// If a cache ever renders vertically mirrored, negate the region height
     /// (`[0, h, w, -h]`).
-    pub fn draw_render_target( &self, id : usize, min : [ f32; 2 ], max : [ f32; 2 ] )
+    pub fn draw_render_target( &self, id : RenderTargetId, min : [ f32; 2 ], max : [ f32; 2 ] )
     {
       let Some( fb ) = self.render_targets.get( id ) else { return; };
       let ( tw, th ) = ( fb.width as f32, fb.height as f32 );
@@ -2000,4 +2057,34 @@ mod_interface::mod_interface!
   layer webgl_helpers;
 
   own use WebGlBackend;
+  own use RenderTargetId;
+}
+
+#[ cfg( test ) ]
+mod target_slots_tests
+{
+  use super::private::TargetSlots;
+
+  #[ test ]
+  fn handle_resolves_until_reset()
+  {
+    let mut slots = TargetSlots::new();
+    let a = slots.push( "a" ).expect( "slot" );
+    let b = slots.push( "b" ).expect( "slot" );
+    assert_ne!( a, b );
+    assert_eq!( slots.get( a ), Some( &"a" ) );
+    assert_eq!( slots.get( b ), Some( &"b" ) );
+  }
+
+  #[ test ]
+  fn stale_handle_is_rejected_after_slot_reuse()
+  {
+    let mut slots = TargetSlots::new();
+    let old = slots.push( "old" ).expect( "slot" );
+    slots.clear();
+    let new = slots.push( "new" ).expect( "slot" );
+    assert_ne!( old, new, "same slot, new generation" );
+    assert_eq!( slots.get( old ), None, "a handle from before the reset must not reach the new surface" );
+    assert_eq!( slots.get( new ), Some( &"new" ) );
+  }
 }
