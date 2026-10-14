@@ -744,6 +744,12 @@ mod private
     fn cmd_clear( &self, c : &Clear )
     {
       let [ r, g, b, a ] = c.color;
+      // A depth clear is a no-op while `depthMask` is false. A frame whose
+      // `submit` bailed out between `SetDepthWrite( false )` and the restore
+      // would leave writes off, and this clear would then keep last frame's
+      // depth. Forcing writes on also makes `true` the state every frame
+      // starts from, which the command stream assumes.
+      self.gl.depth_mask( true );
       self.gl.clear_color( r, g, b, a );
       self.gl.clear_depth( 1.0 );
       self.gl.clear( gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT );
