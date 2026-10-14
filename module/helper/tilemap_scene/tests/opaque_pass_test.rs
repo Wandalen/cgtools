@@ -481,3 +481,46 @@ fn occlude_bucket_spanning_two_batches_paints_once_two_pass()
     "opaque bg, then the occluder once across both batches, then the transparent top",
   );
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// 6. A per-sprite draw has no alpha clip, so in the opaque pass it would write
+//    depth over its whole quad and punch holes in the layers under it. An
+//    opaque bucket that has to draw per sprite (here: sorted, two sheets) is
+//    moved to the transparent pass for the frame.
+// ────────────────────────────────────────────────────────────────────────────
+
+#[ test ]
+fn opaque_bucket_drawn_per_sprite_falls_back_to_transparent_pass()
+{
+  let mut spec = build_spec( [ ( true, false ), ( true, false ), ( false, false ) ] );
+  spec.pipeline.layers[ 1 ].sort = SortMode::YAsc;
+  spec.assets.push( atlas_asset( "sheet2" ) );
+  spec.objects.push( object_on( "mid_b", "sheet2", "1", "mid" ) );
+  let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
+  let mut scene = Scene::new( Arc::new( spec ) );
+  spawn_one_per_bucket( &mut scene );
+  let mid_b = scene.object( "mid_b" ).unwrap();
+  scene.spawn( mid_b, Placement::Hex { q : 1, r : 1 } );
+
+  let cmds = renderer.render( &scene, &Camera::default() ).expect( "render" ).to_vec();
+
+  // Walk the raw stream: `mid` draws as plain `Sprite` commands; record the
+  // depth-write state each one sees.
+  let mut write = true;
+  let mut mid_writes : Vec< bool > = Vec::new();
+  for c in &cmds
+  {
+    match c
+    {
+      RenderCommand::SetDepthWrite( s ) => write = s.enabled,
+      RenderCommand::Sprite( _ ) => mid_writes.push( write ),
+      _ => {},
+    }
+  }
+  assert_eq!( mid_writes, vec![ false, false ], "the per-sprite opaque bucket draws with depth writes off" );
+  assert_eq!
+  (
+    painted_depths( &cmds ), vec![ 0.0, 1.0 / 3.0, 1.0 / 3.0, 2.0 / 3.0 ],
+    "bg in the opaque pass, then mid and top in painter's order on top of it",
+  );
+}

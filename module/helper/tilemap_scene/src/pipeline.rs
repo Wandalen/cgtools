@@ -58,6 +58,14 @@ mod private
     /// fringe so the depth test can reject the overlap cleanly. Edges become
     /// hard at the clip contour — that is the intended trade for not
     /// double-blending the overlap.
+    ///
+    /// **Batched draws only.** `alpha_clip` and `occlude_overlap` ride the
+    /// sprite-batch params; a sprite the renderer draws on its own ignores
+    /// both. That covers viewport-anchored sprites and every sprite of a
+    /// sorted bucket that mixes sheets, blend modes or clip masks in a frame
+    /// (only a single-key sorted bucket batches). Keep a coverage-controlled
+    /// layer on `SortMode::None`, or on one sheet / blend / clip, and free of
+    /// viewport sprites.
     #[ serde( default ) ]
     pub alpha_clip : f32,
     /// When `true`, this bucket draws with depth writes on and the depth test
@@ -92,6 +100,11 @@ mod private
     ///   layer meant to show what is beneath it must stay `false`.
     /// - Pair with a non-zero [`alpha_clip`](Self::alpha_clip) so transparent
     ///   texels `discard` (no depth write) and lower layers show through gaps.
+    /// - Keep it fully batched (see [`alpha_clip`](Self::alpha_clip)). In a
+    ///   frame where it has to draw any sprite on its own, that sprite would
+    ///   write depth over its whole quad, so the renderer draws the bucket in
+    ///   the transparent pass for that frame instead: still correct, but
+    ///   without the overdraw saving or the clip.
     ///
     /// When no layer is opaque the renderer takes the single painter's-order
     /// pass, so this is inert for existing specs.

@@ -490,6 +490,27 @@ mod private
       // bucket count, so disabling a layer never shifts the others' depths.
       let disabled = self.disabled_buckets;
       let is_disabled = | i : usize | i < 64 && ( disabled >> i ) & 1 == 1;
+      // `alpha_clip` / `occlude_overlap` live on the batch params; a per-sprite
+      // `Sprite` / `ScreenSpaceSprite` draw has no clip and no `LESS` test.
+      // Drawn in the opaque pass such a sprite would write depth over its whole
+      // quad, transparent corners included, and punch holes in every layer
+      // under it. So an opaque bucket that has to draw anything per sprite this
+      // frame (a sorted bucket mixing sheets / blends / clip masks, or any
+      // viewport sprite) rides the transparent pass instead: painter's order,
+      // no depth writes, still hidden by nearer opaque layers. Batch params do
+      // not change (an opaque bucket's batches never carry `occlude_overlap`),
+      // so the live batches stay valid.
+      for ( i, b ) in buckets.iter_mut().enumerate()
+      {
+        if !b.opaque { continue; }
+        // A fully opaque layer has nothing to gain from single coverage (its
+        // overlaps are invisible), and `LESS` would flip which of two
+        // overlapping opaque tiles wins from last-drawn to first-drawn.
+        b.occlude_overlap = false;
+        let per_sprite = !b.sprites.is_empty()
+          && matches!( self.bucket_classify( i as u32, b ), BucketDispatch::PerSprite );
+        if per_sprite || !b.screen_space.is_empty() { b.opaque = false; }
+      }
       let any_opaque = buckets.iter().any( | b | b.opaque );
       let any_occlude = buckets.iter().any( | b | b.occlude_overlap );
       if any_opaque || any_occlude
@@ -500,10 +521,6 @@ mod private
           let depth = i as f32 / n as f32;
           for s in &mut b.sprites { s.transform.depth = depth; }
           for s in &mut b.screen_space { s.transform.depth = depth; }
-          // A fully opaque layer has nothing to gain from single coverage (its
-          // overlaps are invisible), and `LESS` would flip which of two
-          // overlapping opaque tiles wins from last-drawn to first-drawn.
-          if b.opaque { b.occlude_overlap = false; }
         }
       }
 
