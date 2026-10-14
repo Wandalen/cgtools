@@ -2315,6 +2315,46 @@ fn vertex_corners_fade_gate_eases_toward_target()
   }
 }
 
+/// The first `fade_target_set( id, false )` snaps the gate from the implicit
+/// `1.0` to `0.0` without a tick, so the clock does not move. A renderer that
+/// already drew the visible frame must still re-walk the scene instead of
+/// replaying it from the idle cache.
+#[ test ]
+fn fade_gate_first_hide_invalidates_idle_replay()
+{
+  let mut spec = dual_orient_spec();
+  spec.effects.push( Effect
+  {
+    id : "dim_fade".into(),
+    kind : EffectKind::FadeGate { duration_ms : 100.0 },
+    phase_offset : PhaseOffset::None,
+  });
+  let stack = spec.objects[ 0 ].states.get_mut( "default" ).expect( "default state" );
+  stack[ 0 ].behaviour.effects.push( EffectRef( "dim_fade".into() ) );
+
+  let scene_snap = SceneSnapshot
+  {
+    tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "hexagon".into() ] } ],
+    ..minimal_scene_3x3()
+  };
+  let mut scene = Scene::from_snapshot( &scene_snap, Arc::new( spec.clone() ) ).expect( "scene" );
+  let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
+  let mut flattener = common::BatchFlattener::new();
+
+  let _ = flattener.apply( renderer.render( &scene, &Camera::default() ).expect( "render" ) );
+  let walks = renderer.scene_walks();
+
+  scene.fade_target_set( "dim_fade", false );
+  let hidden_cmds = flattener.apply( renderer.render( &scene, &Camera::default() ).expect( "render" ) );
+  assert_eq!( renderer.scene_walks(), walks + 1, "the first hide must miss the idle-replay cache" );
+  let hidden = sprite_commands( &hidden_cmds );
+  assert!( !hidden.is_empty(), "lone hex must still emit corner sprites" );
+  for s in &hidden
+  {
+    assert!( s.tint.iter().all( | c | c.abs() < 1e-5 ), "the re-walked frame must be fully transparent, got {:?}", s.tint );
+  }
+}
+
 /// `TintBehaviour::Flat` must colour a regular hex instance layer, not only
 /// VertexCorners. Before this was wired, `compile_instance_layer` passed the
 /// global tint straight to `final_tint` and silently discarded the layer's

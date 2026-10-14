@@ -629,17 +629,27 @@ mod private
     ///
     /// The first call for a given `effect_id` snaps `value` straight to the
     /// target with no ramp — an object's very first show/hide isn't a fade,
-    /// only a target *change* is. Does **not** bump `revision`: the gate's
-    /// progress is runtime state read fresh at render time (like the master
-    /// clock), not scene structure, so driving it never invalidates the
-    /// vertex-resolve cache.
+    /// only a target *change* is.
+    ///
+    /// A target change does not bump `revision`: it moves nothing until
+    /// [`Self::tick_into`] eases the value, and that tick also advances the
+    /// master clock, which the renderer's idle-replay cache already keys on.
+    /// The first-call snap is the exception — `false` moves the value from
+    /// the implicit `1.0` to `0.0` with no tick — so it bumps `revision` to
+    /// make the next render re-walk instead of replaying the visible frame.
+    /// Neither path touches `tiles_revision`, so the vertex-resolve cache
+    /// stays valid.
     pub fn fade_target_set( &mut self, effect_id : impl Into< String >, target : bool )
     {
       use std::collections::hash_map::Entry;
       match self.fade_gates.entry( effect_id.into() )
       {
         Entry::Occupied( mut e ) => { e.get_mut().target = target; },
-        Entry::Vacant( e ) => { e.insert( FadeGateState { target, value : if target { 1.0 } else { 0.0 } } ); },
+        Entry::Vacant( e ) =>
+        {
+          e.insert( FadeGateState { target, value : if target { 1.0 } else { 0.0 } } );
+          if !target { self.revision += 1; }
+        },
       }
     }
 
