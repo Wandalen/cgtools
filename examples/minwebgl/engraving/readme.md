@@ -10,7 +10,7 @@ The cylinder asset (`assets/gltf/cylinder.glb`) ships two UV sets: `TEXCOORD_0` 
 
 **[How to run](../how_to_run.md)**
 
-Preparing your own model (mesh topology, dual UV channels, export settings, `engraving_config.json` fields) for this pipeline: see the [artist guide](../../../module/helper/renderer/src/webgl/engraving/artist_guide.md).
+Preparing your own model (mesh topology, dual UV channels, export settings, `engraving_config.json` fields) for this pipeline: see the [engraving asset pipeline](../../../module/helper/renderer/docs/format/001_engraving_asset_pipeline.md).
 
 **References:**
 
