@@ -30,7 +30,7 @@ fn declared_capabilities_matches_honest_subset()
   assert!( !capabilities.clip_masks );
   assert!( !capabilities.effects );
   assert!( !capabilities.blend_modes );
-  assert!( capabilities.supported_blend_modes.is_empty() );
+  assert_eq!( capabilities.supported_blend_modes, [] );
   assert!( !capabilities.text_on_path );
 }
 

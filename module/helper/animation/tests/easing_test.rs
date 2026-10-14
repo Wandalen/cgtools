@@ -1,6 +1,6 @@
 //! Integration tests related to `EasingFunction` and `EasingBuilder`
 //! traits and structs that implements them
-#![ expect( clippy::float_cmp, reason = "assertions check deterministic easing-curve arithmetic against exact endpoint values" ) ]
+#![ allow( clippy::float_cmp, reason = "assertions check deterministic easing-curve arithmetic against exact endpoint values" ) ]
 
 #[ cfg( test ) ]
 mod tests

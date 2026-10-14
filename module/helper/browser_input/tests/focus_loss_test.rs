@@ -122,7 +122,7 @@ fn focus_lost_with_nothing_held_is_a_harmless_no_op()
 {
   let mut state = State::new();
   events_apply_to_state( &mut state, &[ ev( EventType::FocusLost ) ] );
-  assert!( state.active_pointers.is_empty() );
+  assert_eq!( state.active_pointers, [] );
   assert!( state.keyboard_keys.iter().all( | held | !held ) );
   assert!( state.mouse_buttons.iter().all( | held | !held ) );
 }

@@ -597,10 +597,7 @@ impl BehaviorNode for ParallelNode
     {
       child.reset();
     }
-    for succeeded in &mut self.succeeded
-    {
-      *succeeded = false;
-    }
+    self.succeeded.fill( false );
   }
 
   #[ inline ]
