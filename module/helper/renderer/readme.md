@@ -163,6 +163,15 @@ fn render_frame
 
 See `examples/minwebgl/postprocessing` for the full interactive version of this pipeline.
 
+### AR / Transparent Canvas
+
+To composite the canvas over other content, such as a camera photo or video behind it:
+
+- Call `to_srgb.alpha_forward_set( &gl, true )?`. The canvas then keeps the scene's coverage alpha instead of being opaque. The output is premultiplied, which matches the WebGL default `premultipliedAlpha: true` canvas.
+- Clear to colour 0: `renderer.clear_color_set( F32x3::from_array( [ 0.0, 0.0, 0.0 ] ) )`. With any other clear colour, silhouette edges carry it blended in.
+- Every pass between the renderer and `ToSrgbPass` must pass alpha through. ACES tone mapping and `ColorGradingPass` do.
+- For real-world objects that hide part of the model (a finger through a ring), give an invisible stand-in mesh a material whose `is_occluder()` returns `true` and whose `color_write_mask()` is all `false`. The opaque pass draws occluders first, so their depth hides the geometry behind them and the photo shows through.
+
 ## 📖 API Reference
 
 ### Core Components
@@ -179,7 +188,7 @@ See `examples/minwebgl/postprocessing` for the full interactive version of this 
 | Pass | Description | Use Case |
 |------|-------------|----------|
 | `ToneMappingPass<ToneMappingAces>` | ACES tone mapping | HDR to LDR conversion |
-| `ToSrgbPass` | Gamma correction | Final color space conversion |
+| `ToSrgbPass` | Linear to sRGB encoding; opaque by default, optional premultiplied alpha output (`alpha_forward_set`) | Final color space conversion, AR over a photo |
 | Custom passes | User-defined effects | Bloom, blur, color grading |
 
 ### Asset Loading
