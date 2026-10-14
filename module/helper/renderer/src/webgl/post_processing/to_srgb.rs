@@ -31,9 +31,15 @@ mod private
     /// Off by default: the output is opaque, as a page expects of a canvas that
     /// paints its own background. On, background pixels keep the alpha the scene
     /// cleared them with (0 for a transparent clear), so the canvas can be
-    /// alpha-composited over other content — a photo or video behind it. The
-    /// canvas is premultiplied-alpha, so a transparent background also needs a
-    /// clear colour of 0.
+    /// alpha-composited over other content — a photo or video behind it.
+    ///
+    /// The output is premultiplied alpha, for a canvas created with
+    /// `premultipliedAlpha: true` (the WebGL default): the pass treats its input as
+    /// premultiplied, sRGB-encodes the straight colour and multiplies alpha back in,
+    /// so `rgb <= alpha` holds on every pixel. The input is premultiplied only when
+    /// the scene is cleared with colour 0: with any other clear colour, the MSAA edge
+    /// pixels carry that colour blended in, and the background itself comes out
+    /// fully transparent.
     ///
     /// # Errors
     ///
