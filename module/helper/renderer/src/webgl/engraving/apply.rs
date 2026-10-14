@@ -41,6 +41,20 @@ mod private
       /// The rejected CSS font family.
       font : Box< str >,
     },
+    /// The node's engraving texture (`textureHeight` tall, `round( textureHeight * aspectRatio )`
+    /// wide) is larger than the context's `MAX_TEXTURE_SIZE` in one dimension. Lower
+    /// `textureHeight`.
+    TextureTooLarge
+    {
+      /// The node whose texture doesn't fit.
+      node : Box< str >,
+      /// Requested texture width in pixels.
+      width : u32,
+      /// Requested texture height in pixels.
+      height : u32,
+      /// The context's `MAX_TEXTURE_SIZE`.
+      max : u32,
+    },
     /// A WebGL call failed (texture allocation/update).
     Gl( gl::WebglError ),
     /// Font loading or text rasterization failed.
@@ -58,6 +72,10 @@ mod private
         Self::MaterialNotPbr( n ) => write!( f, "node '{n}'s material is not a PbrMaterial" ),
         Self::UnknownNode( n ) => write!( f, "no engraving config for node '{n}'" ),
         Self::FontNotAllowed { node, font } => write!( f, "font '{font}' is not in node '{node}'s allowedFonts" ),
+        Self::TextureTooLarge { node, width, height, max } => write!
+        (
+          f, "node '{node}'s engraving texture is {width}x{height}, larger than MAX_TEXTURE_SIZE ({max}); lower textureHeight"
+        ),
         Self::Gl( e ) => write!( f, "{e}" ),
         Self::Canvas( e ) => write!( f, "{e}" ),
       }
@@ -253,9 +271,10 @@ mod private
     /// # Errors
     ///
     /// [`EngravingError::NodeNotFound`], [`EngravingError::NotAMesh`] or
-    /// [`EngravingError::MaterialNotPbr`] for the first node that can't take an engraving, and
-    /// [`EngravingError::Canvas`] / [`EngravingError::Gl`] if a node's canvas or texture can't be
-    /// created.
+    /// [`EngravingError::MaterialNotPbr`] for the first node that can't take an engraving,
+    /// [`EngravingError::TextureTooLarge`] if a node's texture exceeds the context's
+    /// `MAX_TEXTURE_SIZE`, and [`EngravingError::Canvas`] / [`EngravingError::Gl`] if a node's
+    /// canvas or texture can't be created.
     ///
     /// # Panics
     ///
@@ -267,10 +286,15 @@ mod private
       .map( | node_config | node_resolve( scene, &node_config.node_name ) )
       .collect::< Result< Vec< _ >, _ > >()?;
 
+      let max = EngravingTexture::max_size( gl );
       let mut allocated = Vec::with_capacity( config.nodes.len() );
       for node_config in &config.nodes
       {
         let ( width, height ) = node_config.texture_size();
+        if width > max || height > max
+        {
+          return Err( EngravingError::TextureTooLarge { node : node_config.node_name.clone(), width, height, max } );
+        }
         let canvas = EngravingCanvasManager::new( width, height )?;
         let texture = EngravingTexture::new( gl, width, height, node_config.uv_channel )?;
         allocated.push( ( canvas, texture ) );

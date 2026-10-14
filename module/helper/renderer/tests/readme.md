@@ -47,7 +47,7 @@
 | tangent_frame_test.rs | Pixel readback of `main.frag`'s tangent-less `getTBN`: frame columns point along glTF's tangent space |
 | clearcoat_anisotropy_shader_tests.rs | Headless-browser shader-compilation tests for KHR_materials_clearcoat / KHR_materials_anisotropy, from the renderer's own source assembly (`test_internals`) |
 | engraving_shader_tests.rs | Headless-browser shader-compilation tests for the USE_ENGRAVING relief/roughness/darkening block |
-| engraving_config_tests.rs | Native tests for engraving_config.json parsing, SizingMode resolution and validation |
+| engraving_config_tests.rs | Native tests for engraving_config.json parsing, SizingMode resolution and validation, and the shared mip-chain sizes |
 | engraving_session_tests.rs | Browser tests for `EngravingSession`: per-node material copy-on-write in `build`, the `set_text` font whitelist |
 | pmrem_tests.rs | Structural browser tests of the PMREM IBL generator |
 | fbo_pass_cycle_test.rs | Live-context FBO pass-cycle tests for `ShadowMap`/`GBuffer` bind/render |

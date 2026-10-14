@@ -36,15 +36,25 @@ mod private
     height : u32,
     /// Number of mip levels a complete chain from `width` x `height` down to `1` x `1` requires
     /// (`floor(log2(max(width, height))) + 1`). Every [`Self::update`] call must supply exactly
-    /// this many bitmaps, in the same order [`Self::mip_dimensions`] yields.
+    /// this many bitmaps, in the order [`mip_dimensions`] yields.
     levels : u32,
   }
 
-  /// `floor(log2(max(width, height))) + 1` — the standard GL rule for how many mip levels a
-  /// complete chain from `width` x `height` down to `1` x `1` requires.
-  fn mip_level_count( width : u32, height : u32 ) -> u32
+  /// The size of every level of a complete mip chain from `width` x `height` down to `1` x `1`,
+  /// level 0 first: each level halves both dimensions, rounding down and never below `1`, the
+  /// standard GL rule. It yields `floor(log2(max(width, height))) + 1` sizes.
+  ///
+  /// [`EngravingTexture`] allocates and uploads by it and
+  /// [`crate::webgl::engraving::EngravingCanvasManager::render_text_mip_chain`] rasterizes by
+  /// it, so the bitmap chain always matches the texture's levels. A `0` dimension is treated as
+  /// `1`.
+  pub fn mip_dimensions( width : u32, height : u32 ) -> impl Iterator< Item = ( u32, u32 ) >
   {
-    u32::BITS - width.max( height ).leading_zeros()
+    std::iter::successors
+    (
+      Some( ( width.max( 1 ), height.max( 1 ) ) ),
+      | &( w, h ) | ( w > 1 || h > 1 ).then( || ( ( w / 2 ).max( 1 ), ( h / 2 ).max( 1 ) ) ),
+    )
   }
 
   impl EngravingTexture
@@ -63,17 +73,30 @@ mod private
     ///
     /// # Errors
     ///
-    /// Returns [`gl::WebglError::FailedToAllocateResource`] if the texture or the storage of one
-    /// of its mip levels can't be allocated.
+    /// Returns [`gl::WebglError::Other`] if `width` or `height` is `0` or larger than
+    /// [`Self::max_size`]: WebGL reports an oversized `texImage2D` only through `getError`, so
+    /// without this check the texture would silently stay incomplete and sample black. Returns
+    /// [`gl::WebglError::FailedToAllocateResource`] if the texture or the storage of one of its
+    /// mip levels can't be allocated.
     pub fn new( gl : &GL, width : u32, height : u32, uv_position : u32 ) -> Result< Self, gl::WebglError >
     {
+      if width == 0 || height == 0
+      {
+        return Err( gl::WebglError::Other( "engraving texture must be at least 1x1" ) );
+      }
+      let max = Self::max_size( gl );
+      if width > max || height > max
+      {
+        return Err( gl::WebglError::Other( "engraving texture is larger than the context's MAX_TEXTURE_SIZE" ) );
+      }
+
       let source = gl.create_texture().ok_or( gl::WebglError::FailedToAllocateResource( "engraving texture" ) )?;
       gl.bind_texture( gl::TEXTURE_2D, Some( &source ) );
 
-      let levels = mip_level_count( width, height );
-      let ( mut w, mut h ) = ( width, height );
-      for level in 0..levels
+      let mut levels = 0;
+      for ( level, ( w, h ) ) in mip_dimensions( width, height ).enumerate()
       {
+        levels += 1;
         gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array
         (
           gl::TEXTURE_2D,
@@ -87,8 +110,6 @@ mod private
           None,
         )
         .map_err( | _ | gl::WebglError::FailedToAllocateResource( "engraving texture storage" ) )?;
-        w = ( w / 2 ).max( 1 );
-        h = ( h / 2 ).max( 1 );
       }
 
       let sampler = Sampler
@@ -130,8 +151,7 @@ mod private
 
       gl.bind_texture( gl::TEXTURE_2D, self.info.texture.borrow().source.as_ref() );
 
-      let ( mut w, mut h ) = ( self.width, self.height );
-      for ( level, bitmap ) in bitmaps.iter().enumerate()
+      for ( level, ( bitmap, ( w, h ) ) ) in bitmaps.iter().zip( mip_dimensions( self.width, self.height ) ).enumerate()
       {
         if bitmap.width != w || bitmap.height != h
         {
@@ -151,12 +171,20 @@ mod private
           Some( &bitmap.pixels ),
         )
         .map_err( | _ | gl::WebglError::Other( "tex_sub_image_2d failed for engraving texture" ) )?;
-
-        w = ( w / 2 ).max( 1 );
-        h = ( h / 2 ).max( 1 );
       }
 
       Ok( () )
+    }
+
+    /// The largest width or height `gl` accepts for a 2D texture (`MAX_TEXTURE_SIZE`). WebGL2
+    /// guarantees at least 2048; many mobile GPUs report 4096. Returns `u32::MAX` if the query
+    /// fails (a lost context), leaving the allocation itself to fail.
+    #[ must_use ]
+    pub fn max_size( gl : &GL ) -> u32
+    {
+      gl.get_parameter( gl::MAX_TEXTURE_SIZE ).ok()
+      .and_then( | v | v.as_f64() )
+      .map_or( u32::MAX, | v | v as u32 )
     }
 
     /// Width in pixels of mip level 0 of the GPU allocation.
@@ -188,5 +216,6 @@ crate::mod_interface!
   orphan use
   {
     EngravingTexture,
+    mip_dimensions,
   };
 }

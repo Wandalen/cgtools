@@ -157,6 +157,29 @@ mod tests
     assert!( engraving_of( &node_materials( &plain )[ 0 ] ).is_none(), "the other user of the mesh is not" );
   }
 
+  /// `build` rejects a node whose texture the GPU can't hold, before touching the scene.
+  #[ wasm_bindgen_test ]
+  fn build_rejects_a_texture_above_max_texture_size()
+  {
+    let gl = gl_init();
+    let mut scene = Scene::new();
+    let material = pbr_material( &gl );
+    let node = node_add( &mut scene, "Long", Object3D::Mesh( mesh_make( &gl, &[ &material ] ) ) );
+    let config = EngravingConfig::from_json
+    (
+      r#"{ "nodes": [ { "nodeName": "Long", "uvChannel": 1, "aspectRatio": 100000.0, "maxCharacters": 8,
+      "textureHeight": 16, "defaultFont": "monospace", "allowedFonts": [ "monospace" ] } ] }"#
+    ).expect( "valid config" );
+
+    let Err( err ) = EngravingSession::build( &gl, &scene, &config ) else { panic!( "a 1600000 px wide texture must be rejected" ) };
+    assert!
+    (
+      matches!( &err, EngravingError::TextureTooLarge { node, width : 1_600_000, height : 16, .. } if &**node == "Long" ),
+      "unexpected error: {err:?}"
+    );
+    assert!( Rc::ptr_eq( &node_materials( &node )[ 0 ], &material ), "a failed build leaves the scene untouched" );
+  }
+
   /// `set_text` only accepts the node's `allowedFonts`.
   #[ wasm_bindgen_test( async ) ]
   async fn set_text_rejects_a_font_outside_the_whitelist()

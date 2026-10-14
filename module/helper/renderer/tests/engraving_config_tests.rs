@@ -1,9 +1,10 @@
-//! Tests for `engraving_config.json` parsing and `SizingMode` resolution/validation.
+//! Tests for `engraving_config.json` parsing and `SizingMode` resolution/validation, and for
+//! the mip-chain sizes (`mip_dimensions`) the canvas and the GPU texture share.
 //!
 //! Unlike the other `engraving_*_tests.rs` files, this one exercises pure config logic with no
 //! GL/DOM dependency, so it runs natively (not `wasm32`-gated like `engraving_shader_tests.rs`).
 
-use renderer::webgl::engraving::{ EngravingConfig, SizingMode };
+use renderer::webgl::engraving::{ EngravingConfig, SizingMode, mip_dimensions };
 
 fn node_json( extra : &str ) -> String
 {
@@ -117,4 +118,56 @@ fn valid_hybrid_config_with_min_font_size_parses()
   assert_eq!( node.strip_height_mm, Some( 2.5 ) );
   assert_eq!( node.default_font_size_mm, Some( 1.5 ) );
   assert_eq!( node.min_font_size_mm, Some( 0.8 ) );
+}
+
+#[ test ]
+fn zero_texture_height_fails_validation()
+{
+  let err = EngravingConfig::from_json( &node_json( r#""textureHeight": 0"# ) ).expect_err( "textureHeight 0 must fail" );
+  assert!( err.to_string().contains( "textureHeight" ) );
+}
+
+#[ test ]
+fn negative_engraving_strength_fails_validation()
+{
+  let err = EngravingConfig::from_json( &node_json( r#""engravingStrength": -0.5"# ) ).expect_err( "negative strength must fail" );
+  assert!( err.to_string().contains( "engravingStrength" ) );
+}
+
+#[ test ]
+fn engraving_roughness_out_of_range_fails_validation()
+{
+  let err = EngravingConfig::from_json( &node_json( r#""engravingRoughness": 1.5"# ) ).expect_err( "roughness above 1 must fail" );
+  assert!( err.to_string().contains( "engravingRoughness" ) );
+}
+
+#[ test ]
+fn engraving_darkening_out_of_range_fails_validation()
+{
+  let err = EngravingConfig::from_json( &node_json( r#""engravingDarkening": -0.1"# ) ).expect_err( "darkening below 0 must fail" );
+  assert!( err.to_string().contains( "engravingDarkening" ) );
+}
+
+#[ test ]
+fn duplicate_node_name_fails_validation()
+{
+  let node = r#"{ "nodeName": "Node", "uvChannel": 1, "aspectRatio": 4.0, "maxCharacters": 20,
+    "defaultFont": "Roboto", "allowedFonts": [ "Roboto" ] }"#;
+  let json = format!( r#"{{ "nodes": [ {node}, {node} ] }}"# );
+  let err = EngravingConfig::from_json( &json ).expect_err( "a node listed twice must fail" );
+  assert!( err.to_string().contains( "more than once" ) );
+}
+
+#[ test ]
+fn mip_dimensions_halve_down_to_one_by_one()
+{
+  let levels : Vec< _ > = mip_dimensions( 10, 3 ).collect();
+  assert_eq!( levels, vec![ ( 10, 3 ), ( 5, 1 ), ( 2, 1 ), ( 1, 1 ) ] );
+
+  // floor( log2( max( w, h ) ) ) + 1 levels, ending at 1x1.
+  let levels : Vec< _ > = mip_dimensions( 8038, 256 ).collect();
+  assert_eq!( levels.len(), 13 );
+  assert_eq!( levels.last(), Some( &( 1, 1 ) ) );
+
+  assert_eq!( mip_dimensions( 1, 1 ).collect::< Vec< _ > >(), vec![ ( 1, 1 ) ] );
 }

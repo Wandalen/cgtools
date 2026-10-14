@@ -75,7 +75,9 @@ $$\text{Aspect Ratio} = \frac{\text{Strip Length } (L)}{\text{Strip Height } (H)
    * *For Partial Mesh Strips:* $L = \text{Length of 1 horizontal edge} \times \text{Number of segment quads in the strip}$.
 
 > **Example:** Circumference length $L = 62.8\text{ mm}$, height $H = 2.0\text{ mm}$.
-> $\text{Aspect Ratio} = 62.8 / 2.0 = 31.4$. The developer will initialize an offscreen Canvas at $4096 \times 128\text{ px}$.
+> $\text{Aspect Ratio} = 62.8 / 2.0 = 31.4$. At the default `textureHeight` of 256 the canvas and texture would be $8038 \times 256\text{ px}$, wider than the 4096 px `MAX_TEXTURE_SIZE` many mobile GPUs report, and `EngravingSession::build` rejects a texture the GPU can't hold. Set `"textureHeight": 128` for this strip, giving $4019 \times 128\text{ px}$.
+>
+> Keep $\text{textureHeight} \times \text{aspectRatio}$ at or below 4096 for long strips.
 
 ---
 

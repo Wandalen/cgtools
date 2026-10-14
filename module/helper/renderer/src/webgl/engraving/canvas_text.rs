@@ -4,7 +4,7 @@ mod private
   use gl::JsCast;
   use gl::wasm_bindgen::JsValue;
   use wasm_bindgen_futures::JsFuture;
-  use crate::webgl::engraving::{ EngravingTextLayout, SizingMode, TextAlign };
+  use crate::webgl::engraving::{ EngravingTextLayout, SizingMode, TextAlign, mip_dimensions };
 
   /// Error produced while loading a font or rasterizing engraving text.
   #[ derive( Debug ) ]
@@ -110,9 +110,15 @@ mod private
     /// # Errors
     ///
     /// [`EngravingCanvasError::NoDom`] outside a browser tab (no `window` / `document`), or
-    /// [`EngravingCanvasError::CanvasSetup`] if the canvas or its 2D context can't be created.
+    /// [`EngravingCanvasError::CanvasSetup`] if `width` or `height` is `0` or the canvas or its
+    /// 2D context can't be created.
     pub fn new( width : u32, height : u32 ) -> Result< Self, EngravingCanvasError >
     {
+      if width == 0 || height == 0
+      {
+        return Err( EngravingCanvasError::CanvasSetup( format!( "canvas must be at least 1x1, got {width}x{height}" ) ) );
+      }
+
       let window = web_sys::window().ok_or( EngravingCanvasError::NoDom )?;
       let document = window.document().ok_or( EngravingCanvasError::NoDom )?;
 
@@ -211,18 +217,9 @@ mod private
       self.ensure_font_loaded( font_family, text ).await?;
 
       let mut bitmaps = Vec::new();
-      let ( mut width, mut height ) = ( self.width, self.height );
-      let mut is_base_level = true;
-      loop
+      for ( level, ( width, height ) ) in mip_dimensions( self.width, self.height ).enumerate()
       {
-        bitmaps.push( self.render_at_size( text, font_family, layout, width, height, is_base_level )? );
-        if width == 1 && height == 1
-        {
-          break;
-        }
-        width = ( width / 2 ).max( 1 );
-        height = ( height / 2 ).max( 1 );
-        is_base_level = false;
+        bitmaps.push( self.render_at_size( text, font_family, layout, width, height, level == 0 )? );
       }
 
       // Leave the exposed debug-preview canvas at the base size rather than whatever the
