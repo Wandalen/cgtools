@@ -4,7 +4,7 @@ use super::*;
 // All inputs are small integer-valued floats and `dot` only sums products of them, so the
 // results are exactly representable with no rounding error — exact equality is correct here.
 #[ test ]
-#[ expect( clippy::float_cmp, reason = "assertions check exact expected values; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
+#[ allow( clippy::float_cmp, reason = "assertions check exact expected values; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
 fn test_dot_product()
 {
   use the_module::vector;
@@ -254,7 +254,7 @@ fn test_project_on()
   vector::project_on( &mut vec_zero, &vec_b );
   // Projecting the zero vector yields exactly 0.0 (0 / anything = 0, 0 * anything = 0 in
   // IEEE-754) — no rounding is possible, so exact equality is correct here.
-  #[ expect( clippy::float_cmp, reason = "assertions check exact expected values; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
+  #[ allow( clippy::float_cmp, reason = "assertions check exact expected values; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
   { assert_eq!( vec_zero, [ 0.0, 0.0, 0.0 ], "Projection failed for zero vector" ); }
 }
 
@@ -278,7 +278,7 @@ fn test_projected_on()
   let got = vector::projected_on( &vec_zero, &vec_b );
   // Projecting the zero vector yields exactly 0.0 (0 / anything = 0, 0 * anything = 0 in
   // IEEE-754) — no rounding is possible, so exact equality is correct here.
-  #[ expect( clippy::float_cmp, reason = "assertions check exact expected values; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
+  #[ allow( clippy::float_cmp, reason = "assertions check exact expected values; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
   { assert_eq!( got, [ 0.0, 0.0, 0.0 ], "Projected on function failed for zero vector" ); }
 }
 
@@ -578,7 +578,7 @@ fn test_is_finite()
   // Every component finite and nonzero, magnitude exactly zero: the squares underflow.
   let underflowing = [ 1e-200, 1e-200, 1e-200 ];
   assert!( vector::is_finite( &underflowing ) );
-  #[ expect( clippy::float_cmp, reason = "the magnitude is exactly zero by underflow, not approximately zero" ) ]
+  #[ allow( clippy::float_cmp, reason = "the magnitude is exactly zero by underflow, not approximately zero" ) ]
   { assert_eq!( vector::mag( &underflowing ), 0.0 ); }
 }
 
@@ -596,7 +596,7 @@ fn test_try_normalized()
 
   let a : [ f64 ; 3 ] = [ 3.0, 0.0, 4.0 ];
   let checked = vector::try_normalized( &a ).expect( "a nonzero vector has a direction" );
-  #[ expect( clippy::float_cmp, reason = "the documented contract is bit-exact agreement, not approximate" ) ]
+  #[ allow( clippy::float_cmp, reason = "the documented contract is bit-exact agreement, not approximate" ) ]
   { assert_eq!( checked, vector::normalized( &a ), "checked and unchecked must agree bit for bit" ); }
   assert!( ( vector::mag( &checked ) - 1.0 ).abs() < 1e-15 );
 

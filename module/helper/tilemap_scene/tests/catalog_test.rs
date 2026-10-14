@@ -155,7 +155,7 @@ fn catalog_build_reports_every_missing_object_together()
   assert_eq!( err.missing_objects.len(), 2 );
   assert!( err.missing_objects.iter().any( | id | id == "wizard" ) );
   assert!( err.missing_objects.iter().any( | id | id == "dragon" ) );
-  assert!( err.missing_states.is_empty() );
+  assert_eq!( err.missing_states, [] );
 }
 
 #[ test ]

@@ -591,8 +591,8 @@ pub fn to_rgba8( bytes : &[ u8 ], format : PixelFormat ) -> Vec< u8 >
   match format
   {
     PixelFormat::Rgba8 => bytes.to_vec(),
-    PixelFormat::Rgb8 => bytes.chunks_exact( 3 ).flat_map( | p | [ p[ 0 ], p[ 1 ], p[ 2 ], 255 ] ).collect(),
+    PixelFormat::Rgb8 => bytes.as_chunks::< 3 >().0.iter().flat_map( | &[ r, g, b ] | [ r, g, b, 255 ] ).collect(),
     PixelFormat::Gray8 => bytes.iter().flat_map( | &g | [ g, g, g, 255 ] ).collect(),
-    PixelFormat::GrayAlpha8 => bytes.chunks_exact( 2 ).flat_map( | p | [ p[ 0 ], p[ 0 ], p[ 0 ], p[ 1 ] ] ).collect(),
+    PixelFormat::GrayAlpha8 => bytes.as_chunks::< 2 >().0.iter().flat_map( | &[ l, a ] | [ l, l, l, a ] ).collect(),
   }
 }

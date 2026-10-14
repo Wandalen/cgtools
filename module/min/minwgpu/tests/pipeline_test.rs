@@ -16,8 +16,8 @@ fn defaults_match_the_fullscreen_shortcut()
   assert_eq!( builder.fragment_entry_get(), "fs_main" );
   assert_eq!( builder.blend_get(), Some( wgpu::BlendState::REPLACE ) );
   assert_eq!( builder.write_mask_get(), wgpu::ColorWrites::ALL );
-  assert!( builder.buffer_layouts_get().is_empty() );
-  assert!( builder.bind_group_layouts_get().is_empty() );
+  assert_eq!( builder.buffer_layouts_get(), [] );
+  assert_eq!( builder.bind_group_layouts_get(), [] as [ &wgpu::BindGroupLayout; 0 ] );
   assert!( builder.depth_stencil_get().is_none() );
   assert!( builder.format_get().is_none(), "format has no default -- build must be told the target" );
 }
