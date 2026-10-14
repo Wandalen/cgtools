@@ -46,8 +46,8 @@ pipeline is exercised only by this crate's own tests.
 
 - Buckets with `SortMode::{ None, XAsc, XDesc, YAsc, YDesc, XAscYDesc, XAscYAsc, YDescXAsc, YAscXAsc }`
 - Per-layer pipeline-bucket override via `ObjectLayer.pipeline_layer`
-- Single-coverage buckets — `PipelineLayer.{ alpha_clip, occlude_overlap }` (both default off) forwarded onto every emitted `SpriteBatchParams`; turn a bucket of overlapping translucent tiles (bled dual-grid drop shadow) into a single-coverage mask so the overlap composites once. See SPEC §8.5
-- Opaque pass — `PipelineLayer.opaque` (default off) joins a bucket to a front-to-back depth-culling pass via the new `SetDepthWrite` render command; when any layer is opaque the frame splits into opaque (depth writes on) then transparent (depth writes off) passes, cutting the flat tilemap's multi-layer overdraw. Inert when no layer is opaque. See SPEC §8.6
+- Single-coverage buckets — `PipelineLayer.{ alpha_clip, occlude_overlap }` (both default off) forwarded onto every emitted `SpriteBatchParams`; turn a bucket of overlapping translucent tiles (bled dual-grid drop shadow) into a single-coverage mask so the overlap composites once (draws under `LESS` with each bucket pinned to its own depth slot, no mid-frame depth clear). Batched draws only. See `docs/format/007_render_pipeline.md`
+- Opaque pass — `PipelineLayer.opaque` (default off) joins a bucket to a front-to-back depth-culling pass via the new `SetDepthWrite` render command; when any layer is opaque the frame splits into opaque (depth writes on) then transparent (depth writes off) passes, cutting the flat tilemap's multi-layer overdraw. Inert when no layer is opaque; an opaque bucket that must draw per sprite in a frame falls back to the transparent pass. See `docs/format/007_render_pipeline.md`
 - `RenderPipeline.clear_color` (linear RGBA; `None` = transparent-black)
 - `RenderPipeline.global_tint` (composition — lerp(white, color, strength) multiplied into every emitted sprite)
 

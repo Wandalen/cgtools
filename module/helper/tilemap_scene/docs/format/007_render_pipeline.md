@@ -4,7 +4,7 @@
 
 - **Purpose**: Define `RenderPipeline` — the ordered z-bucket list objects draw into, and each bucket's sort mode.
 - **Responsibility**: Document `RenderPipeline`/`PipelineLayer`/`SortMode`/`HexConfig` fields and the per-layer bucket-override mechanism.
-- **In Scope**: Pipeline-level fields (`hex`, `viewport_size`, `clear_color`, `layers`, `global_tint`), the 8 `SortMode` variants, `pipeline_layer` override semantics.
+- **In Scope**: Pipeline-level fields (`hex`, `viewport_size`, `clear_color`, `layers`, `global_tint`), per-layer coverage and depth controls (`alpha_clip`, `occlude_overlap`, `opaque`), the 8 `SortMode` variants, `pipeline_layer` override semantics.
 - **Out of Scope**: The tiling strategy `hex` declares (see `format/002`); how a bucket's draw calls are actually gathered, sorted, and submitted per frame (see `algorithm/002`).
 
 ### Abstract
@@ -15,7 +15,7 @@ A scene declares exactly one `RenderPipeline`: a bottom-to-top ordered list of n
 
 `RenderPipeline`: `hex: HexConfig`, `layers: Vec<PipelineLayer>`, `global_tint: Option<TintRef>`, `viewport_size: Option<(u32, u32)>` (derived from the window when absent), `clear_color: Option<[f32; 4]>` (linear RGBA; `None` = transparent).
 
-`PipelineLayer`: `id: String`, `sort: SortMode` (default `None`), `tint_mask: Option<TintRef>`.
+`PipelineLayer`: `id: String`, `sort: SortMode` (default `None`), `tint_mask: Option<TintRef>`, `alpha_clip: f32` (default `0.0` = off), `occlude_overlap: bool` (default `false`), `opaque: bool` (default `false`). The last three are described under Coverage and Depth Controls below.
 
 `SortMode` (8 variants):
 
@@ -35,6 +35,18 @@ For `Multihex` instances, the Y used by any Y-based sort mode is `sort_y_source`
 ### Encoding Structure
 
 `layers` is a flat RON list, read bottom-to-top — the list's declaration order *is* the draw order between buckets. `HexConfig` additionally exposes an `from_hex_size(width, height, tiling)` convenience constructor that derives `grid_stride` from a sprite's pixel dimensions rather than requiring the stride to be computed by hand. `pipeline_layer` (declared per-`ObjectLayer`, see `format/001`) overrides `Object.global_layer` for exactly that one layer, letting a single object contribute draw calls to more than one bucket in the same frame — the canonical use is the Wesnoth-style edge-transition idiom (see `format/005`): a terrain object's base layer draws in `terrain`, its edge-blend layer draws in `terrain_edges`, so every hex's edge overlap lands on top of *all* hexes' base terrain rather than just its own. Within one bucket, draw calls from every contributing object are gathered together, the bucket's own `sort` mode is applied once across all of them, and `z_in_object` (see `format/001`) breaks ties when two draw calls share a sort key. `global_tint` applies multiplicatively to every draw call after all per-object tints and effects — the typical use is a time-of-day overlay.
+
+### Coverage and Depth Controls
+
+All three fields default off; a pipeline that sets none of them renders in one painter's-order pass with every sprite at depth `0`, exactly as before they existed.
+
+- `alpha_clip` — fragments whose sampled texture alpha is below the value are discarded (no colour, no depth write). Tested before the tint multiply, so a translucent tint does not pull every fragment under the threshold.
+- `occlude_overlap` — single coverage: the bucket draws with depth writes on under `LESS`, so the first fragment at a pixel wins and the bucket's own overlapping fragments (e.g. a bled dual-grid drop shadow) are rejected instead of blending twice. Pair with a non-zero `alpha_clip` so the soft fringe does not write depth. Ignored on an `opaque` layer.
+- `opaque` — the layer is fully opaque where it covers. When any layer sets it, the frame splits in two: opaque buckets first, topmost layer first, with depth writes on, so nearer layers depth-reject the covered pixels of farther ones; then the other buckets in declared order with depth writes off (except `occlude_overlap` ones). The split rides the `SetDepthWrite` render command.
+
+When any layer is `opaque` or `occlude_overlap`, every bucket's sprites are pinned to depth `pipeline_index / bucket_count`, so each bucket sits strictly nearer than every layer under it. That one layout gives single coverage across all of an `occlude_overlap` bucket's batches and keeps opaque layers hiding what lies under them, with no mid-frame depth clear.
+
+`alpha_clip` and `occlude_overlap` reach the backend through the sprite-batch params, so they only apply to batched draws. Viewport-anchored sprites, and the sprites of a sorted bucket that mixes sheets, blend modes or clip masks in a frame, draw one by one and ignore both. An `opaque` bucket that has to draw anything that way in a frame is moved to the transparent pass for that frame, since a per-sprite quad would write depth over its transparent corners.
 
 ### Version Compatibility
 
@@ -79,3 +91,4 @@ New `SortMode` variants are expected to be additive. `HexConfig.tiling` carries 
 |------|--------------|
 | `tests/sorted_batching_test.rs` | Bucket gathering + all `SortMode` variants |
 | `tests/hex_config_test.rs` | `HexConfig`/`from_hex_size` arithmetic |
+| `tests/opaque_pass_test.rs` | Opaque/transparent split, depth pinning, single coverage across batches and under opaque layers |

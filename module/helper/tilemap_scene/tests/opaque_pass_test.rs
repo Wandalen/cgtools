@@ -1,13 +1,14 @@
-//! Opaque/transparent two-pass split — SPEC §8.6.
+//! Opaque/transparent two-pass split and single-coverage buckets — see
+//! `docs/format/007_render_pipeline.md` (Coverage and Depth Controls).
 //!
 //! When any `PipelineLayer` sets `opaque: true` the renderer splits the frame:
 //! opaque buckets draw first, front-to-back (topmost pipeline layer first) with
 //! depth writes on; transparent buckets draw after in painter's order with depth
 //! writes off — except an `occlude_overlap` bucket, which keeps writes on for its
 //! own draws. Depth-write toggling rides the `SetDepthWrite` render command, and
-//! each bucket's sprites are pinned to `pipeline_index / bucket_count`. With no
-//! opaque layer the renderer takes the original single-pass path and emits no
-//! `SetDepthWrite` at all.
+//! each bucket's sprites are pinned to `pipeline_index / bucket_count` whenever
+//! any layer is opaque or `occlude_overlap`. With no opaque layer the renderer
+//! takes the single-pass path and emits no `SetDepthWrite` at all.
 
 #![ allow( clippy::min_ident_chars, reason = "one-letter closure bindings ( `c`, `s` ) over render commands keep the command filters on one line" ) ]
 #![ allow
