@@ -9,12 +9,13 @@
 //! opaque layer the renderer takes the original single-pass path and emits no
 //! `SetDepthWrite` at all.
 
-#![ allow( clippy::min_ident_chars ) ]
+#![ allow( clippy::min_ident_chars, reason = "one-letter closure bindings ( `c`, `s` ) over render commands keep the command filters on one line" ) ]
 #![ allow
 (
   clippy::default_trait_access,
   clippy::too_many_lines,
   clippy::float_cmp,
+  reason = "spec fixtures fill unused enum fields with `Default::default()`, build one linear spec per test, and assert exact pinned depths with no arithmetic drift"
 ) ]
 
 extern crate alloc;
