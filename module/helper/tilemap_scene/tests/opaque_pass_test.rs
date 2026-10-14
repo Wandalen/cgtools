@@ -45,7 +45,7 @@ use tilemap_scene::
   SpriteSource,
   TilingStrategy,
 };
-use tilemap_renderer::types::{ MipmapMode, SamplerFilter, WrapMode };
+use tilemap_renderer::types::{ Batch, MipmapMode, ResourceId, SamplerFilter, WrapMode };
 
 mod common;
 
@@ -56,24 +56,24 @@ mod common;
 // under test.
 // ────────────────────────────────────────────────────────────────────────────
 
-fn static_layer( frame : &str ) -> ObjectLayer
+fn static_layer( asset : &str, frame : &str ) -> ObjectLayer
 {
   ObjectLayer
   {
     id : None,
-    sprite_source : SpriteSource::Static( SpriteRef { asset : "sheet".into(), frame : frame.into() } ),
+    sprite_source : SpriteSource::Static( SpriteRef { asset : asset.into(), frame : frame.into() } ),
     behaviour : LayerBehaviour::default(),
     z_in_object : 0,
     pipeline_layer : None,
   }
 }
 
-fn atlas_asset() -> Asset
+fn atlas_asset( id : &str ) -> Asset
 {
   Asset
   {
-    id : "sheet".into(),
-    path : "sheet.png".into(),
+    id : id.into(),
+    path : format!( "{id}.png" ),
     kind : AssetKind::Atlas
     {
       tile_size : ( 72, 64 ),
@@ -93,8 +93,13 @@ fn atlas_asset() -> Asset
 
 fn object( id : &str, frame : &str, bucket : &str ) -> Object
 {
+  object_on( id, "sheet", frame, bucket )
+}
+
+fn object_on( id : &str, asset : &str, frame : &str, bucket : &str ) -> Object
+{
   let mut states = HashMap::default();
-  states.insert( "default".into(), vec![ static_layer( frame ) ] );
+  states.insert( "default".into(), vec![ static_layer( asset, frame ) ] );
   Object
   {
     id : id.into(),
@@ -128,7 +133,7 @@ fn build_spec( flags : [ ( bool, bool ); 3 ] ) -> RenderSpec
   RenderSpec
   {
     version : "0.2.0".into(),
-    assets : vec![ atlas_asset() ],
+    assets : vec![ atlas_asset( "sheet" ) ],
     tints : Vec::new(),
     animations : Vec::new(),
     effects : Vec::new(),
@@ -278,5 +283,201 @@ fn occlude_overlap_keeps_depth_writes_in_transparent_pass()
     vec![ ( 0.0, true ), ( 1.0 / 3.0, false ), ( 2.0 / 3.0, true ) ],
     "opaque draws with writes on, plain transparent with writes off, \
      occlude_overlap restores writes for its own draw",
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// One-pixel model of the WebGL backend's depth contract, for the
+// single-coverage tests below. Every sprite is taken to cover the one probed
+// pixel, so the model answers "which draws reach this pixel, in which order".
+//
+// It mirrors the backend: the depth test is `LEQUAL`, or `LESS` while an
+// `occlude_overlap` batch draws; a fragment that passes is blended and, when
+// depth writes are on, stores its depth; `Clear` resets depth to the far plane
+// (and the backend forces writes on there). Nearer = larger `Transform::depth`.
+// There is no mid-frame depth clear: the renderer's depth layout alone must
+// give single coverage and keep opaque layers hiding what lies under them.
+// ────────────────────────────────────────────────────────────────────────────
+
+/// Depth of every fragment blended into the probed pixel, in draw order.
+fn painted_depths( cmds : &[ RenderCommand ] ) -> Vec< f32 >
+{
+  struct Pixel
+  {
+    stored : Option< f32 >,
+    write : bool,
+    painted : Vec< f32 >,
+  }
+
+  impl Pixel
+  {
+    fn fragment( &mut self, depth : f32, less : bool )
+    {
+      let pass = match self.stored
+      {
+        None => true,
+        Some( stored ) => if less { depth > stored } else { depth >= stored },
+      };
+      if !pass { return; }
+      self.painted.push( depth );
+      if self.write { self.stored = Some( depth ); }
+    }
+  }
+
+  let mut batches : HashMap< ResourceId< Batch >, ( bool, Vec< f32 > ) > = HashMap::default();
+  let mut bound : Option< ResourceId< Batch > > = None;
+  let mut pixel = Pixel { stored : None, write : true, painted : Vec::new() };
+  for cmd in cmds
+  {
+    match cmd
+    {
+      RenderCommand::Clear( _ ) =>
+      {
+        pixel.stored = None;
+        pixel.write = true;
+      },
+      RenderCommand::SetDepthWrite( s ) => pixel.write = s.enabled,
+      RenderCommand::CreateSpriteBatch( c ) =>
+      {
+        batches.insert( c.batch, ( c.params.occlude_overlap, Vec::new() ) );
+      },
+      RenderCommand::BindBatch( b ) => bound = Some( b.batch ),
+      RenderCommand::UnbindBatch( _ ) => bound = None,
+      RenderCommand::AddSpriteInstance( a ) =>
+      {
+        let batch = batches.get_mut( &bound.expect( "bound batch" ) ).expect( "known batch" );
+        batch.1.push( a.transform.depth );
+      },
+      RenderCommand::SetSpriteInstance( s ) =>
+      {
+        let batch = batches.get_mut( &bound.expect( "bound batch" ) ).expect( "known batch" );
+        batch.1[ s.index as usize ] = s.transform.depth;
+      },
+      RenderCommand::RemoveInstance( r ) =>
+      {
+        let batch = batches.get_mut( &bound.expect( "bound batch" ) ).expect( "known batch" );
+        batch.1.swap_remove( r.index as usize );
+      },
+      RenderCommand::DrawBatch( d ) =>
+      {
+        let ( occlude, depths ) = batches.get( &d.batch ).expect( "known batch" );
+        for &depth in depths { pixel.fragment( depth, *occlude ); }
+      },
+      RenderCommand::Sprite( s ) | RenderCommand::ScreenSpaceSprite( s ) =>
+      {
+        pixel.fragment( s.transform.depth, false );
+      },
+      _ => {},
+    }
+  }
+  pixel.painted
+}
+
+/// Number of `DrawBatch` commands emitted for `occlude_overlap` batches.
+fn occlude_draw_batches( cmds : &[ RenderCommand ] ) -> usize
+{
+  let occluders : Vec< ResourceId< Batch > > = cmds.iter()
+    .filter_map( | c | match c
+    {
+      RenderCommand::CreateSpriteBatch( c ) if c.params.occlude_overlap => Some( c.batch ),
+      _ => None,
+    })
+    .collect();
+  cmds.iter()
+    .filter( | c | matches!( c, RenderCommand::DrawBatch( d ) if occluders.contains( &d.batch ) ) )
+    .count()
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// 4. An `occlude_overlap` bucket UNDER an opaque one stays hidden by it. The
+//    opaque pass writes the upper layer's depth first; the occluder must not
+//    wipe that depth, or it paints over the layer that should cover it.
+// ────────────────────────────────────────────────────────────────────────────
+
+#[ test ]
+fn occlude_bucket_below_opaque_layer_stays_hidden()
+{
+  // bg opaque; mid = transparent occluder (e.g. a drop shadow); top opaque.
+  let spec = build_spec( [ ( true, false ), ( false, true ), ( true, false ) ] );
+  let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
+  let mut scene = Scene::new( Arc::new( spec ) );
+  spawn_one_per_bucket( &mut scene );
+
+  let cmds = renderer.render( &scene, &Camera::default() ).expect( "render" ).to_vec();
+
+  assert_eq!( occlude_draw_batches( &cmds ), 1, "the mid bucket draws as one occlude batch" );
+  // Opaque pass front-to-back: `top` (2/3) paints, `bg` (0) is hidden by it.
+  // The occluder at 1/3 sits under `top`, so it must fail the depth test too.
+  assert_eq!
+  (
+    painted_depths( &cmds ), vec![ 2.0 / 3.0 ],
+    "only the topmost opaque layer reaches the pixel; the occluder below it stays hidden",
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// 5. A `SortMode::None` occlude bucket whose sprites span two sheets splits
+//    into two batches (one per `(sheet, blend, clip)` group). Single coverage
+//    must hold across the groups, not just inside each one, and the buckets
+//    above it must still draw over it.
+// ────────────────────────────────────────────────────────────────────────────
+
+fn multi_group_spec( bg_opaque : bool ) -> RenderSpec
+{
+  let mut spec = build_spec( [ ( bg_opaque, false ), ( false, true ), ( false, false ) ] );
+  spec.assets.push( atlas_asset( "sheet2" ) );
+  spec.objects.push( object_on( "mid_b", "sheet2", "1", "mid" ) );
+  spec
+}
+
+fn spawn_multi_group( scene : &mut Scene )
+{
+  spawn_one_per_bucket( scene );
+  // A second `mid` instance on the same sheet, plus one on the other sheet:
+  // three overlapping occluder fragments across two batch groups.
+  let mid = scene.object( "mid" ).unwrap();
+  scene.spawn( mid, Placement::Hex { q : 1, r : 1 } );
+  let mid_b = scene.object( "mid_b" ).unwrap();
+  scene.spawn( mid_b, Placement::Hex { q : 2, r : 1 } );
+}
+
+#[ test ]
+fn occlude_bucket_spanning_two_batches_paints_once_single_pass()
+{
+  let spec = multi_group_spec( false );
+  let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
+  let mut scene = Scene::new( Arc::new( spec ) );
+  spawn_multi_group( &mut scene );
+
+  let cmds = renderer.render( &scene, &Camera::default() ).expect( "render" ).to_vec();
+
+  assert_eq!( occlude_draw_batches( &cmds ), 2, "the mid bucket splits into two occlude batches" );
+  assert!
+  (
+    depth_write_sequence( &cmds ).is_empty(),
+    "no opaque layer ⇒ single pass on the default depth-write state",
+  );
+  assert_eq!
+  (
+    painted_depths( &cmds ), vec![ 0.0, 1.0 / 3.0, 2.0 / 3.0 ],
+    "bg paints, the occluder paints the pixel once across both batches, top paints over it",
+  );
+}
+
+#[ test ]
+fn occlude_bucket_spanning_two_batches_paints_once_two_pass()
+{
+  let spec = multi_group_spec( true );
+  let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
+  let mut scene = Scene::new( Arc::new( spec ) );
+  spawn_multi_group( &mut scene );
+
+  let cmds = renderer.render( &scene, &Camera::default() ).expect( "render" ).to_vec();
+
+  assert_eq!( occlude_draw_batches( &cmds ), 2, "the mid bucket splits into two occlude batches" );
+  assert_eq!
+  (
+    painted_depths( &cmds ), vec![ 0.0, 1.0 / 3.0, 2.0 / 3.0 ],
+    "opaque bg, then the occluder once across both batches, then the transparent top",
   );
 }

@@ -60,18 +60,21 @@ mod private
     /// double-blending the overlap.
     #[ serde( default ) ]
     pub alpha_clip : f32,
-    /// When `true`, the backend clears the depth buffer immediately before
-    /// this bucket draws and switches the depth test to `LESS` for its draw
-    /// calls (restoring the default `LEQUAL` afterwards). The first fragment
-    /// to cover a pixel wins; later overlapping fragments (from a sibling
-    /// tile's bleed) are rejected, so a translucent bucket composites each
-    /// pixel exactly once — no double-blend on the overlap.
+    /// When `true`, this bucket draws with depth writes on and the depth test
+    /// switched to `LESS` (the default `LEQUAL` is restored afterwards). The
+    /// first fragment to cover a pixel wins; later overlapping fragments of
+    /// the same bucket (from a sibling tile's bleed, in any batch of the
+    /// bucket) are rejected, so a translucent bucket composites each pixel
+    /// exactly once — no double-blend on the overlap.
     ///
-    /// Safe because every *other* bucket draws painter's-style at depth `0`
-    /// under `LEQUAL`: they never read the depth this bucket writes, and the
-    /// pre-clear only discards depth they don't depend on. Pair with a
+    /// To make that work without a mid-frame depth clear, a pipeline with any
+    /// `occlude_overlap` (or [`opaque`](Self::opaque)) layer pins every
+    /// bucket to its own depth, `pipeline_index / bucket_count`: a bucket sits
+    /// strictly nearer than all the layers under it, so their depth never
+    /// blocks it, while a nearer opaque layer still hides it. Pair with a
     /// non-zero [`alpha_clip`](Self::alpha_clip) so the AA fringe doesn't
-    /// write depth and block a neighbour. Default `false` = unchanged.
+    /// write depth and block a neighbour. Ignored on an `opaque` layer.
+    /// Default `false` = unchanged.
     #[ serde( default ) ]
     pub occlude_overlap : bool,
     /// Marks this bucket as **fully opaque** (after `alpha_clip` coverage), so
@@ -90,8 +93,8 @@ mod private
     /// - Pair with a non-zero [`alpha_clip`](Self::alpha_clip) so transparent
     ///   texels `discard` (no depth write) and lower layers show through gaps.
     ///
-    /// When no layer is opaque the renderer takes the original single-pass
-    /// path unchanged, so this is inert for existing specs.
+    /// When no layer is opaque the renderer takes the single painter's-order
+    /// pass, so this is inert for existing specs.
     #[ serde( default ) ]
     pub opaque : bool,
   }

@@ -303,11 +303,17 @@ mod private
     /// are `discard`ed (no colour, no depth write). `0.0` keeps every
     /// fragment (default — identical to the pre-feature behaviour).
     pub alpha_clip : f32,
-    /// When `true`, the backend clears the depth buffer before this batch and
-    /// draws it under `depth_func = LESS` (restoring `LEQUAL` after), so
-    /// overlapping instances composite each pixel exactly once. Pair with a
-    /// non-zero `alpha_clip` so the transparent quad area doesn't write depth.
-    /// Default `false`.
+    /// When `true`, the backend draws this batch under `depth_func = LESS`
+    /// (restoring `LEQUAL` after), so once an instance writes the batch's
+    /// depth at a pixel, overlapping instances at the same depth are rejected
+    /// and each pixel composites exactly once. Pair with a non-zero
+    /// `alpha_clip` so the transparent quad area doesn't write depth.
+    ///
+    /// The backend does not clear depth for this. The caller must keep depth
+    /// writes on (see [`SetDepthWrite`]) and give the batch a depth strictly
+    /// nearer than every earlier draw it should cover; an earlier draw at the
+    /// same or a nearer depth hides it. Two such batches at one depth share
+    /// single coverage between them. Default `false`.
     pub occlude_overlap : bool,
   }
 

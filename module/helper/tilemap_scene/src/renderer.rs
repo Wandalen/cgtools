@@ -469,16 +469,20 @@ mod private
       // `self.batches` not in this set at the end gets `DeleteBatch`'d.
       let mut used_keys : Vec< BatchKey > = Vec::new();
 
-      // Opaque/transparent split. When any bucket is opaque, render in two
-      // passes so the depth buffer cuts the flat tilemap's multi-layer
-      // overdraw: opaque buckets first, **front-to-back** (topmost pipeline
-      // layer first) with depth writes on; transparent buckets after, painter's
-      // order, with depth writes off so blending is unaffected. Each bucket is
-      // pinned to a distinct clip-space depth = `pipeline_index / bucket_count`
-      // (kept in `[0, 1)` so the default `max_depth = 1.0` needs no change), so
-      // a later (higher-index) layer sits nearer and wins `LEQUAL` over the ones
-      // it covers. With no opaque bucket this is exactly the original single
-      // pass — `any_opaque` is false and the `else` branch runs unchanged.
+      // Depth layout. When any bucket is opaque or `occlude_overlap`, each
+      // bucket is pinned to its own depth slot = `pipeline_index /
+      // bucket_count` (kept in `[0, 1)` so the default `max_depth = 1.0` needs
+      // no change): a later (higher-index) layer sits strictly nearer than
+      // every layer under it. That one layout serves both features without
+      // any mid-frame depth clear:
+      // - opaque layers occlude the layers they cover (nearer wins the test);
+      // - an `occlude_overlap` bucket draws under `LESS` with depth writes on,
+      //   so its first fragment at a pixel stores the bucket's depth and every
+      //   later fragment of the SAME bucket (same depth, any batch group) is
+      //   rejected, while the depth of the layers under it never blocks it and
+      //   a nearer opaque layer drawn earlier still does.
+      // With neither flag set every sprite keeps depth 0 and the frame is the
+      // original single pass, unchanged.
       let mut buckets = emits.buckets;
       // Perf/diagnostic layer gate: bit `i` set ⇒ skip bucket `i` entirely.
       // Read into a local Copy so the closure doesn't borrow `self` across the
@@ -487,20 +491,33 @@ mod private
       let disabled = self.disabled_buckets;
       let is_disabled = | i : usize | i < 64 && ( disabled >> i ) & 1 == 1;
       let any_opaque = buckets.iter().any( | b | b.opaque );
-      if any_opaque
+      let any_occlude = buckets.iter().any( | b | b.occlude_overlap );
+      if any_opaque || any_occlude
       {
         let n = buckets.len();
-        // Pin each bucket's sprites to its per-layer depth, and drop the
-        // `occlude_overlap` depth-clear on opaque buckets: that mid-frame clear
-        // would wipe the cross-layer depth the opaque pass relies on, and a
-        // fully opaque layer never needs it (its own overlaps simply overwrite).
         for ( i, b ) in buckets.iter_mut().enumerate()
         {
           let depth = i as f32 / n as f32;
           for s in &mut b.sprites { s.transform.depth = depth; }
           for s in &mut b.screen_space { s.transform.depth = depth; }
+          // A fully opaque layer has nothing to gain from single coverage (its
+          // overlaps are invisible), and `LESS` would flip which of two
+          // overlapping opaque tiles wins from last-drawn to first-drawn.
           if b.opaque { b.occlude_overlap = false; }
         }
+      }
+
+      // Opaque/transparent split. When any bucket is opaque, render in two
+      // passes so the depth buffer cuts the flat tilemap's multi-layer
+      // overdraw: opaque buckets first, **front-to-back** (topmost pipeline
+      // layer first) with depth writes on; transparent buckets after, painter's
+      // order, with depth writes off so blending is unaffected. With no opaque
+      // bucket the `else` branch draws every bucket in painter's order with the
+      // backend's default depth writes on, which the pinned layout above keeps
+      // painter's-correct.
+      if any_opaque
+      {
+        let n = buckets.len();
 
         // Take buckets out by index so each pass can visit them in its own
         // order without cloning the sprite vectors.
@@ -521,9 +538,9 @@ mod private
 
         // Transparent pass: painter's (forward pipeline order), depth writes
         // off so back-to-front blending is not corrupted by leftover opaque
-        // depth — EXCEPT a bucket that self-manages depth via `occlude_overlap`
-        // (it clears + draws under `LESS` to reject its own bled-tile overlap,
-        // which needs writes enabled). Toggle per bucket, tracking the current
+        // depth — EXCEPT an `occlude_overlap` bucket, which draws under `LESS`
+        // and needs writes on so its first fragment at a pixel rejects the
+        // bucket's own overlapping ones. Toggle per bucket, tracking the current
         // state so we emit a `SetDepthWrite` only when it actually changes.
         // `depth_write` starts `true`, inherited from the opaque pass.
         let mut depth_write = true;

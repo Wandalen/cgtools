@@ -1182,15 +1182,18 @@ mod private
       };
       blend_apply( &self.gl, blend, premultiplied );
       // Single-coverage mode: paint each pixel once regardless of how many
-      // overlapping (bled) instances cover it. Clearing depth first gives this
-      // batch a fresh slate — safe because every other bucket draws painter's-
-      // style at depth 0 under LEQUAL and never reads the depth written here —
-      // and LESS rejects the second+ fragment at equal depth (the discard in
-      // the frag shader keeps the transparent quad area from writing depth).
-      // Restored to LEQUAL after so following buckets composite normally.
+      // overlapping (bled) instances cover it. LESS rejects every fragment at
+      // a depth already stored, so once the first instance writes the batch's
+      // depth at a pixel the overlapping ones fail (the discard in the frag
+      // shader keeps the transparent quad area from writing depth). There is
+      // deliberately no depth clear here: it would also wipe the depth of
+      // nearer opaque draws that must keep hiding this batch. The caller
+      // instead places the batch strictly nearer than whatever it draws over
+      // (the scene renderer gives every bucket its own depth slot) and keeps
+      // depth writes on. Restored to LEQUAL after so following draws
+      // composite normally.
       if occlude
       {
-        self.gl.clear( gl::DEPTH_BUFFER_BIT );
         self.gl.depth_func( gl::LESS );
       }
       match gpu_batch
