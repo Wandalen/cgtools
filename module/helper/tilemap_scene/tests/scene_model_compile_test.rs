@@ -1,7 +1,7 @@
 //! Integration tests for the Slice-1 compile layer
 //! (`tilemap_scene::compile::assets_compile` + `compile_frame`).
 
-#![ expect( clippy::float_cmp, reason = "assertions check exact pass-through of constant tints/coordinates; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
+#![ allow( clippy::float_cmp, reason = "assertions check exact pass-through of constant tints/coordinates; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
 
 // Test-only idioms: exact array comparisons and ref-in-closure patterns are
 // intentional; fixture builders sometimes exceed the 100-line heuristic.

@@ -79,7 +79,7 @@ mod private
     let hex_b = ( hex_a.0 + offset.0, hex_a.1 + offset.1 );
     let ca = hex_pixel( hex_a, tiling, grid_stride )?;
     let cb = hex_pixel( hex_b, tiling, grid_stride )?;
-    Some( ( ( ca.0 + cb.0 ) * 0.5, ( ca.1 + cb.1 ) * 0.5 ) )
+    Some( ( f32::midpoint( ca.0, cb.0 ), f32::midpoint( ca.1, cb.1 ) ) )
   }
 
   #[ inline ]

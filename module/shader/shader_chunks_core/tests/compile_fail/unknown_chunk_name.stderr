@@ -7,7 +7,8 @@ error[E0080]: evaluation panicked: unknown chunk name — see CHUNKS for the bun
 note: inside `chunk`
  --> $RUST/core/src/panic.rs
   |
-  = note: the failure occurred here
+  |         $crate::panicking::panic_fmt($crate::const_format_args!($($t)+));
+  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the failure occurred here
   |
  ::: src/lib.rs
   |
