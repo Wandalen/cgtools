@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+- `context::from_canvas_2d_with_options( canvas, will_read_frequently )`: creates a 2D context with the `willReadFrequently` hint, for canvases read back with `getImageData` repeatedly. `from_canvas_2d` now delegates to it with `false`, the browser default, so its behaviour is unchanged.
+
 ## [0.2.0] - 2024-08-08
 
 ### Added
