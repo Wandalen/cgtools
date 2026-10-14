@@ -208,10 +208,36 @@ mod private
 
     fn storage_free( &mut self )
     {
+      // Deleting an object attached to a framebuffer that is not bound only frees its
+      // name: the attachment keeps the storage alive ( GL ES 3.0 §5.1.2, §5.1.3 ). So
+      // detach both first, or a released buffer would still hold its GPU memory.
+      if self.id_texture.is_some() || self.depth_renderbuffer.is_some()
+      {
+        let gl = &self.gl;
+        let previous_framebuffer = framebuffer_binding_get( gl, GL::DRAW_FRAMEBUFFER_BINDING );
+        gl.bind_framebuffer( GL::DRAW_FRAMEBUFFER, self.framebuffer.as_ref() );
+        gl.framebuffer_texture_2d( GL::DRAW_FRAMEBUFFER, GL::COLOR_ATTACHMENT0, GL::TEXTURE_2D, None, 0 );
+        gl.framebuffer_renderbuffer( GL::DRAW_FRAMEBUFFER, GL::DEPTH_ATTACHMENT, GL::RENDERBUFFER, None );
+        gl.bind_framebuffer( GL::DRAW_FRAMEBUFFER, previous_framebuffer.as_ref() );
+      }
+
       if let Some( texture ) = self.id_texture.take() { self.gl.delete_texture( Some( &texture ) ); }
       if let Some( rb ) = self.depth_renderbuffer.take() { self.gl.delete_renderbuffer( Some( &rb ) ); }
       self.width = 0;
       self.height = 0;
+    }
+  }
+
+  /// The framebuffer, reachable from `tests/` under `test_internals`, so a test can
+  /// ask the context what is still attached to it after the storage is released.
+  #[ cfg( feature = "test_internals" ) ]
+  impl IdBuffer
+  {
+    #[ doc( hidden ) ]
+    #[ must_use ]
+    pub fn framebuffer_for_test( &self ) -> Option< WebGlFramebuffer >
+    {
+      self.framebuffer.clone()
     }
   }
 

@@ -247,4 +247,29 @@ mod gl_scene
     assert_eq!( buffer.size_get(), ( 0, 0 ) );
     assert_eq!( buffer.read( 0, 0 ), None );
   }
+
+  /// Deleting a texture or renderbuffer that is still attached to a framebuffer that
+  /// is not bound only drops its name; the attachment keeps the storage alive
+  /// ( GL ES 3.0 §5.1.2, §5.1.3 ). Releasing the storage therefore has to detach both first.
+  #[ cfg( feature = "test_internals" ) ]
+  #[ wasm_bindgen_test::wasm_bindgen_test ]
+  fn releasing_storage_detaches_the_attachments()
+  {
+    let gl = gl_init();
+    let mut buffer = IdBuffer::new( &gl ).unwrap();
+    buffer.size_set( SIZE, SIZE ).unwrap();
+    buffer.size_set( 0, 0 ).unwrap();
+
+    gl.bind_framebuffer( GL::FRAMEBUFFER, buffer.framebuffer_for_test().as_ref() );
+    let object_type = | attachment | gl.get_framebuffer_attachment_parameter
+    (
+      GL::FRAMEBUFFER, attachment, GL::FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE
+    ).unwrap().as_f64();
+    let colour = object_type( GL::COLOR_ATTACHMENT0 );
+    let depth = object_type( GL::DEPTH_ATTACHMENT );
+    gl.bind_framebuffer( GL::FRAMEBUFFER, None );
+
+    assert_eq!( colour, Some( f64::from( GL::NONE ) ), "id texture still attached" );
+    assert_eq!( depth, Some( f64::from( GL::NONE ) ), "depth renderbuffer still attached" );
+  }
 }
