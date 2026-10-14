@@ -2,8 +2,8 @@
 //! ( `EXT_meshopt_compression` / `KHR_mesh_quantization` ) : parsing and validating
 //! each buffer view's extension object, the range checks run before decoding,
 //! fallback-buffer detection, validation that lets these extensions through, and the
-//! dequantized position bounds. The decode itself runs meshoptimizer's JS decoder and
-//! is covered in the browser.
+//! dequantized position bounds. The decode itself runs meshoptimizer's JS decoder, so
+//! its tests, and those of `load`'s buffer-index rules, are in `gltf_meshopt_browser_test.rs`.
 
 use renderer::webgl::loaders::gltf::position_bounds_dequantize;
 use renderer::webgl::loaders::gltf_extensions::{ document_validate, required_extensions_check };
