@@ -131,6 +131,29 @@ mod gl_scene
     assert_eq!( buffer.read( SIZE as i32, 0 ), None, "out of bounds" );
   }
 
+  /// A `readPixels` that fails with a GL error instead of throwing — here because a
+  /// `PIXEL_PACK_BUFFER` is bound — writes nothing. `read` reuses one readback array,
+  /// so it must report the failure instead of returning the previous read's id.
+  #[ wasm_bindgen_test::wasm_bindgen_test ]
+  fn failed_readback_returns_none_not_the_previous_id()
+  {
+    let gl = gl_init();
+    let scene = scene( &gl );
+    let picker = ScenePicker::new( &gl ).unwrap();
+    let mut buffer = IdBuffer::new( &gl ).unwrap();
+    buffer.size_set( SIZE, SIZE ).unwrap();
+    picker.render( &buffer, &scene, gl::math::mat4x4::identity(), id_for ).unwrap();
+    assert_eq!( buffer.read( 50, 50 ), Some( 2 ), "precondition: a successful read" );
+
+    let pack_buffer = gl.create_buffer().unwrap();
+    gl.bind_buffer( GL::PIXEL_PACK_BUFFER, Some( &pack_buffer ) );
+    assert_eq!( buffer.read( 10, 50 ), None, "a read that wrote nothing must not report a hit" );
+    assert_eq!( gl.get_error(), GL::INVALID_OPERATION, "precondition: the readback failed" );
+    gl.bind_buffer( GL::PIXEL_PACK_BUFFER, None );
+
+    assert_eq!( buffer.read( 10, 50 ), Some( 1 ), "reads work again once the cause is gone" );
+  }
+
   #[ wasm_bindgen_test::wasm_bindgen_test ]
   fn read_before_storage_and_render_without_storage()
   {

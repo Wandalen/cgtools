@@ -45,6 +45,9 @@ mod private
   /// be reported as a hit. [`IdBuffer::read`] maps it to `None`.
   pub const PICK_ID_NONE : PickId = 0;
 
+  /// Written to the readback slot before every read; no `R16UI` texel can hold it.
+  const READBACK_UNWRITTEN : u32 = u32::MAX;
+
   /// Whether `( x, y )` names an in-bounds pixel of a `width`×`height` buffer.
   #[ must_use ]
   pub fn pick_in_bounds( x : i32, y : i32, width : u32, height : u32 ) -> bool
@@ -181,6 +184,15 @@ mod private
       if self.id_texture.is_none() || !pick_in_bounds( x, y, self.width, self.height ) { return None; }
 
       let gl = &self.gl;
+      // A lost context turns `readPixels` into a silent no-op, which would leave the
+      // previous read's id in `readback`.
+      if gl.is_context_lost() { return None; }
+
+      // `readPixels` can also fail without throwing — a GL error such as a bound
+      // `PIXEL_PACK_BUFFER` writes nothing. `R16UI` only ever fills the low 16 bits,
+      // so a value above `u16::MAX` that survives the read means nothing was written,
+      // and `readback_to_pick_id` rejects it.
+      self.readback.set_index( 0, READBACK_UNWRITTEN );
       let previous_framebuffer = framebuffer_binding_get( gl );
       gl.bind_framebuffer( GL::FRAMEBUFFER, self.framebuffer.as_ref() );
       gl.read_buffer( GL::COLOR_ATTACHMENT0 );
