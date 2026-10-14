@@ -8,7 +8,7 @@
 //! anywhere in `src/` -- so `guarded_tangent` below is a line-for-line Rust port of the fixed
 //! GLSL, kept deliberately close to the shader source so the mapping stays auditable.
 
-#![ expect( clippy::float_cmp, reason = "assertions check the guard's exact fallback/no-op identity (same deterministic operations in the same order, no accumulated rounding drift), not approximate equality" ) ]
+#![ allow( clippy::float_cmp, reason = "assertions check the guard's exact fallback/no-op identity (same deterministic operations in the same order, no accumulated rounding drift), not approximate equality" ) ]
 
 fn normalize( v : [ f32; 2 ] ) -> [ f32; 2 ]
 {

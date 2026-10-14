@@ -261,7 +261,7 @@ fn test_from_mat3_tiny_rotation_no_nan()
   assert!( !got.w().is_nan(), "w component must not be NaN, got {}", got.w() );
   // `n1` (proportional to x^2) clamps to exactly 0.0, and a pure Y-axis rotation has no X
   // component either way -- so `x` is exactly 0.0, not just "close to it".
-  #[ expect( clippy::float_cmp, reason = "x is exactly 0.0 by construction: n1 clamps to 0.0, sqrt(0.0) is exactly 0.0, and 0.0 times any finite signum is exactly 0.0 -- no rounding drift is possible" ) ]
+  #[ allow( clippy::float_cmp, reason = "x is exactly 0.0 by construction: n1 clamps to 0.0, sqrt(0.0) is exactly 0.0, and 0.0 times any finite signum is exactly 0.0 -- no rounding drift is possible" ) ]
   { assert_eq!( got.x(), 0.0, "x should be exactly 0.0 (n1 clamped) for a pure Y-axis rotation" ); }
 }
 

@@ -192,7 +192,7 @@ fn projection_matrix_set_accepts_a_valid_matrix()
   assert!( result.is_ok(), "a well-formed, invertible projection matrix must be accepted — got {:?}", result.err() );
   // A bit-exact store-then-load round-trip, not a computed-value comparison prone to rounding --
   // `clippy::float_cmp` guards against the latter, which doesn't apply here.
-  #[ expect( clippy::float_cmp, reason = "round-trip identity check: the setter must store the exact bits it was given, not an approximation" ) ]
+  #[ allow( clippy::float_cmp, reason = "round-trip identity check: the setter must store the exact bits it was given, not an approximation" ) ]
   let round_trips = camera.projection_matrix_get().to_array() == valid.to_array();
   assert!( round_trips, "the setter must actually store the accepted matrix" );
 }

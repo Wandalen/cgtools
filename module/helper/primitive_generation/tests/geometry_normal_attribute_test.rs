@@ -196,7 +196,7 @@ mod tests
       // (`src/primitive.rs`), so every vertex's normal is a bit-exact copy
       // of the same value -- exact equality is the actual invariant being
       // tested here, not an approximate numerical comparison.
-      #[ expect( clippy::float_cmp, reason = "asserting a verbatim broadcast copy, not an independently-computed approximation" ) ]
+      #[ allow( clippy::float_cmp, reason = "asserting a verbatim broadcast copy, not an independently-computed approximation" ) ]
       let identical_to_first = [ x, y, z ] == first;
       assert!
       (

@@ -93,7 +93,7 @@ fn test_ray_casting_fov()
 
   // Should have reasonable coverage around viewer
   let visible_coords = visibility.visible_coordinates();
-  assert!(!visible_coords.is_empty());
+  assert!(!visible_coords.is_empty(), "the viewer must see coordinates around it");
 }
 
 #[ test ]
@@ -109,7 +109,7 @@ fn test_flood_fill_fov()
 
   // Should spread to nearby positions
   let nearby_positions = visibility.coordinates_in_range(1, 3);
-  assert!(!nearby_positions.is_empty());
+  assert!(!nearby_positions.is_empty(), "visibility must spread to positions 1 to 3 away");
 }
 
 #[ test ]
@@ -254,7 +254,7 @@ fn test_hexagonal_line_of_sight()
 // Advanced FOV Features Tests
 // =============================================================================
 
-#[ expect( clippy::float_cmp, reason = "light levels read back are the exact construction literals; no arithmetic in between" ) ]
+#[ allow( clippy::float_cmp, reason = "light levels read back are the exact construction literals; no arithmetic in between" ) ]
 #[ test ]
 fn test_visibility_state_properties()
 {
@@ -303,7 +303,7 @@ fn test_fov_distance_ranges()
   let _far_coords = visibility.coordinates_in_range(3, 5);
 
   // Should have coordinates in both ranges
-  assert!(!close_coords.is_empty());
+  assert!(!close_coords.is_empty(), "positions 0 to 2 away must be visible");
 
   // All close coordinates should have higher light levels
   for coord in &close_coords {
@@ -316,7 +316,7 @@ fn test_fov_distance_ranges()
 // Multi-Source Lighting Tests
 // =============================================================================
 
-#[ expect( clippy::float_cmp, reason = "the intensity read back is the exact construction literal" ) ]
+#[ allow( clippy::float_cmp, reason = "the intensity read back is the exact construction literal" ) ]
 #[ test ]
 fn test_light_source_creation()
 {
@@ -331,7 +331,7 @@ fn test_light_source_creation()
   assert!(light.penetrates_walls);
 }
 
-#[ expect( clippy::float_cmp, reason = "intensity at the source position is exactly 1.0 by the lighting model's definition" ) ]
+#[ allow( clippy::float_cmp, reason = "intensity at the source position is exactly 1.0 by the lighting model's definition" ) ]
 #[ test ]
 fn test_single_light_source_calculation()
 {
@@ -447,8 +447,8 @@ fn test_square_vs_hex_fov_consistency()
   assert!(hex_vis.is_visible(&hex_viewer));
 
   // Both should have reasonable coverage
-  assert!(!square_vis.visible_coordinates().is_empty());
-  assert!(!hex_vis.visible_coordinates().is_empty());
+  assert!(!square_vis.visible_coordinates().is_empty(), "square FOV must see coordinates around the viewer");
+  assert!(!hex_vis.visible_coordinates().is_empty(), "hex FOV must see coordinates around the viewer");
 }
 
 #[ test ]
@@ -470,7 +470,7 @@ fn test_fov_algorithm_comparison()
 
     // All algorithms should at least see the viewer
     assert!(visibility.is_visible(&viewer));
-    assert!(!visibility.visible_coordinates().is_empty());
+    assert!(!visibility.visible_coordinates().is_empty(), "{algorithm:?} must see coordinates around the viewer");
   }
 }
 
