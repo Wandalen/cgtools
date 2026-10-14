@@ -16,6 +16,9 @@
 mod tests
 {
   use wasm_bindgen_test::wasm_bindgen_test;
+  // Browser, not Node: without it the binary runs under Node, where `web_sys::window()` is
+  // `None` and every test fails at runtime with `CanvasRetrievingError("Failed to get window")`.
+  wasm_bindgen_test::wasm_bindgen_test_configure!( run_in_browser );
   use minwebgl as gl;
   use gl::GL;
   use renderer::webgl::{ material::PbrMaterial, Material };
