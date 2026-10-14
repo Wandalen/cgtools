@@ -198,6 +198,37 @@ mod gl_scene
     assert_eq!( gl.get_parameter( GL::DEPTH_WRITEMASK ).unwrap().as_bool(), Some( false ) );
   }
 
+  /// Binding `FRAMEBUFFER` overwrites both the read and the draw binding, so a caller
+  /// with different framebuffers on each must get both back from every entry point.
+  #[ wasm_bindgen_test::wasm_bindgen_test ]
+  fn read_and_draw_framebuffer_bindings_survive_separately()
+  {
+    use gl::JsCast;
+
+    let gl = gl_init();
+    let scene = scene( &gl );
+    let picker = ScenePicker::new( &gl ).unwrap();
+    let mut buffer = IdBuffer::new( &gl ).unwrap();
+
+    let caller_read = gl.create_framebuffer().unwrap();
+    let caller_draw = gl.create_framebuffer().unwrap();
+    gl.bind_framebuffer( GL::READ_FRAMEBUFFER, Some( &caller_read ) );
+    gl.bind_framebuffer( GL::DRAW_FRAMEBUFFER, Some( &caller_draw ) );
+    let bindings = ||
+    {
+      let get = | pname | gl.get_parameter( pname ).unwrap().dyn_into::< gl::web_sys::WebGlFramebuffer >().ok();
+      ( get( GL::READ_FRAMEBUFFER_BINDING ), get( GL::DRAW_FRAMEBUFFER_BINDING ) )
+    };
+    let expected = ( Some( caller_read.clone() ), Some( caller_draw.clone() ) );
+
+    buffer.size_set( SIZE, SIZE ).unwrap();
+    assert_eq!( bindings(), expected, "size_set" );
+    picker.render( &buffer, &scene, gl::math::mat4x4::identity(), id_for ).unwrap();
+    assert_eq!( bindings(), expected, "render" );
+    assert_eq!( buffer.read( 50, 50 ), Some( 2 ) );
+    assert_eq!( bindings(), expected, "read" );
+  }
+
   #[ wasm_bindgen_test::wasm_bindgen_test ]
   fn resize_reallocates_and_zero_releases()
   {
