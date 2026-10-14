@@ -4,7 +4,7 @@
 
 use std::path::PathBuf;
 use assert_cmd::Command;
-use shader_chunks_preview::{ bundle_prepare, preview, web_crate_dir, PreviewCliError, PreviewTarget };
+use shader_chunks_preview::{ bundle_prepare, bundle_write, preview, web_crate_dir, PreviewCliError, PreviewTarget };
 
 fn temp_wgsl( label : &str ) -> PathBuf
 {
@@ -65,6 +65,40 @@ fn preview_without_serve_writes_the_bundle_into_the_web_runner_crate()
   let json = std::fs::read_to_string( &written ).expect( "-preview.json must exist in the web runner crate" );
   let bundle : shader_chunks_preview_core::PreviewBundle = serde_json::from_str( &json ).expect( "written bundle must round-trip" );
   assert_eq!( bundle.target, "fbm3" );
+}
+
+/// Readers racing several writers of `-preview.json` only ever see a whole
+/// bundle. The preview tests share the web runner crate's file and run in
+/// parallel processes, so a write that truncated it in place let
+/// `preview_without_serve_writes_the_bundle_into_the_web_runner_crate` read an
+/// empty file.
+#[ test ]
+fn bundle_write_never_exposes_a_partial_file()
+{
+  let dir = std::env::temp_dir().join( format!( "shader_chunks_preview_bundle_write_{}", std::process::id() ) );
+  std::fs::create_dir_all( &dir ).expect( "temp dir" );
+  let bundle = bundle_prepare( &PreviewTarget::Name( "fbm3".to_string() ) ).expect( "fbm3 prepares" );
+  let path = bundle_write( &bundle, &dir ).expect( "first write" );
+
+  std::thread::scope( | scope |
+  {
+    for _ in 0 .. 4
+    {
+      scope.spawn( || for _ in 0 .. 100 { bundle_write( &bundle, &dir ).expect( "concurrent write" ); } );
+    }
+    for _ in 0 .. 1000
+    {
+      let json = std::fs::read_to_string( &path ).expect( "the file is never missing" );
+      let read : shader_chunks_preview_core::PreviewBundle = serde_json::from_str( &json )
+      .unwrap_or_else( | err | panic!( "a reader saw a partial file ( {} bytes ): {err}", json.len() ) );
+      assert_eq!( read.target, "fbm3" );
+    }
+  } );
+
+  let leftovers : Vec< _ > = std::fs::read_dir( &dir ).expect( "dir lists" ).filter_map( Result::ok )
+  .map( | e | e.file_name() ).filter( | name | name != "-preview.json" ).collect();
+  assert!( leftovers.is_empty(), "staging files must not be left behind: {leftovers:?}" );
+  let _ = std::fs::remove_dir_all( &dir );
 }
 
 #[ test ]

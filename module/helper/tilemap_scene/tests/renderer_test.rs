@@ -5,7 +5,7 @@
 //! to the emitted `RenderCommand`s, and `Scene::from_snapshot` materialises
 //! to a render result byte-equal with the snapshot-driven baseline.
 
-#![ expect( clippy::float_cmp, reason = "assertions check exact pass-through of constant tints/coordinates; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
+#![ allow( clippy::float_cmp, reason = "assertions check exact pass-through of constant tints/coordinates; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
 
 extern crate alloc;
 use alloc::sync::Arc;

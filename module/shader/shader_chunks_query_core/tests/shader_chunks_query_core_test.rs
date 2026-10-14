@@ -93,7 +93,7 @@ fn query_pattern_with_case_switch_demands_exact_case()
   let mut params = QueryParams::list_defaults();
   params.pattern = "NOISE".to_string();
   params.case_sensitive = true;
-  assert!( names_of( &params ).is_empty() );
+  assert_eq!( names_of( &params ), [] as [ &str; 0 ] );
 }
 
 #[ test ]
@@ -113,7 +113,7 @@ fn query_pair_tag_selector_demands_the_exact_group()
 
   // `fractal` exists only under `technique:` — the `category:` pair must not match.
   params.tags = vec![ "category:fractal".to_string() ];
-  assert!( names_of( &params ).is_empty() );
+  assert_eq!( names_of( &params ), [] as [ &str; 0 ] );
 }
 
 #[ test ]
@@ -129,7 +129,7 @@ fn query_tags_mode_any_unions_and_all_intersects_selectors()
   );
 
   params.tags_mode = TagsMode::All;
-  assert!( names_of( &params ).is_empty() );
+  assert_eq!( names_of( &params ), [] as [ &str; 0 ] );
 
   // fbm3 carries both category:noise and technique:fractal.
   params.tags = vec![ "noise".to_string(), "fractal".to_string() ];
@@ -163,7 +163,7 @@ fn query_stage_filter_selects_none_literal_and_any()
   assert_eq!( names_of( &params ), [ "fullscreen_triangle" ] );
 
   params.stage = "fragment".to_string();
-  assert!( names_of( &params ).is_empty() );
+  assert_eq!( names_of( &params ), [] as [ &str; 0 ] );
 }
 
 #[ test ]
@@ -238,7 +238,7 @@ fn query_exports_filter_matches_signatures_with_case_switch()
   assert_eq!( names_of( &params ), [ "hash21" ] );
 
   params.case_sensitive = true;
-  assert!( names_of( &params ).is_empty() );
+  assert_eq!( names_of( &params ), [] as [ &str; 0 ] );
 }
 
 #[ test ]
@@ -258,7 +258,7 @@ fn query_source_filter_matches_wgsl_body_text_with_case_switch()
   assert_eq!( names_of( &params ), [ "hash21" ] );
 
   params.case_sensitive = true;
-  assert!( names_of( &params ).is_empty() );
+  assert_eq!( names_of( &params ), [] as [ &str; 0 ] );
 }
 
 #[ test ]
@@ -560,7 +560,7 @@ fn query_offset_and_limit_page_the_result()
   // only exercises offset overrunning the total chunk count — bump past it.
   params.offset = 100;
   params.limit = 0;
-  assert!( names_of( &params ).is_empty() );
+  assert_eq!( names_of( &params ), [] as [ &str; 0 ] );
 }
 
 #[ test ]
