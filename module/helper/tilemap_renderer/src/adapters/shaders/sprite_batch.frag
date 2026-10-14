@@ -17,16 +17,16 @@ out vec4 frag_color;
 //     can still cover the pixel, and the transparent quad corners of a
 //     junction tile don't seal the depth buffer. Tested against tex.a BEFORE
 //     the tint multiply so a translucent tint (e.g. a 0.25-alpha drop shadow)
-//     doesn't pull every fragment under the threshold. Used by the opaque
-//     cutout layers (`alpha_clip > 0`: terrain, region, selected, attack).
+//     doesn't pull every fragment under the threshold. Used by every batch with
+//     `alpha_clip > 0`, typically opaque cutout tiles.
 //
 //   • USE_ALPHA_CLIP undefined → the plain variant, with NO `discard`. A
 //     shader that can discard forces the GPU to disable early-Z (it can't
 //     reject a fragment before running a shader that might kill it), so every
-//     `alpha_clip == 0` layer (background, terrain_side, river, objects, fx,
-//     preview) uses THIS variant. Discard-free ⇒ early-Z re-engages ⇒ these
-//     full-board layers are depth-rejected under the opaque terrain BEFORE the
-//     fragment shader runs, instead of shading then failing the late test.
+//     batch with `alpha_clip == 0` uses THIS variant. Discard-free ⇒ early-Z
+//     re-engages ⇒ fragments hidden under a nearer opaque layer are rejected
+//     BEFORE the fragment shader runs, instead of shading then failing the
+//     late test.
 #ifdef USE_ALPHA_CLIP
 uniform float u_alpha_clip;
 #endif

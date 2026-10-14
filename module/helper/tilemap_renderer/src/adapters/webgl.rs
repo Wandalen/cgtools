@@ -47,12 +47,12 @@ mod private
   {
     program : gl::Program,
     /// Cutout variant of the batch shader (`#define USE_ALPHA_CLIP`): has the
-    /// `discard`, used for `alpha_clip > 0` batches (terrain / region / …).
+    /// `discard`, used for `alpha_clip > 0` batches (cutout tiles).
     batch_program : gl::Program,
-    /// Plain variant with NO `discard`, used for `alpha_clip == 0` batches
-    /// (background / `terrain_side` / river / objects / …). Discard-free so the
-    /// GPU keeps early-Z and rejects these under the opaque terrain before
-    /// their fragment shader runs — the fillrate win over the flat board.
+    /// Plain variant with NO `discard`, used for `alpha_clip == 0` batches.
+    /// Discard-free so the GPU keeps early-Z and rejects their fragments under
+    /// a nearer opaque layer before the fragment shader runs — the fillrate
+    /// win for stacked full-screen layers.
     batch_program_noclip : gl::Program,
   }
 
@@ -1631,8 +1631,8 @@ mod private
       // Each command stream is self-contained: the scene renderer always emits
       // balanced `BindBatch`…`UnbindBatch` pairs within one stream. Clear any
       // leftover bind state before starting so a prior submit that errored
-      // part-way — or a DIFFERENT renderer sharing this backend (the dual adapter
-      // runs three: main + static + region bakes) — cannot poison this one. Without
+      // part-way — or a DIFFERENT renderer sharing this backend (e.g. a main
+      // renderer plus separate bake renderers) — cannot poison this one. Without
       // this, one mid-stream failure sticks `recording_batch` and every subsequent
       // submit fails on its first `BindBatch` ("batch N is already bound"),
       // cascading into an error spam that never recovers.
