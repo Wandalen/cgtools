@@ -1,3 +1,7 @@
+//! `engraving_config.json`: the per-node engraving zones of one glTF asset, parsed with serde
+//! and validated against the same ranges as `engraving_config.schema.json`, plus the subset of
+//! a node's settings ([`EngravingTextLayout`]) that stays editable after the session is built.
+
 mod private
 {
   use serde::Deserialize;
@@ -38,14 +42,19 @@ mod private
     /// # Errors
     ///
     /// Returns an [`EngravingConfigError`] if `json` doesn't parse into this shape, or if a
-    /// node fails its validation (`EngravingNodeConfig::validate`).
+    /// node fails its validation (`EngravingNodeConfig::validate`), or if two nodes share a
+    /// `nodeName`.
     pub fn from_json( json : &str ) -> Result< Self, EngravingConfigError >
     {
       let config : Self = serde_json::from_str( json ).map_err( | e | EngravingConfigError( e.to_string() ) )?;
 
-      for node in &config.nodes
+      for ( i, node ) in config.nodes.iter().enumerate()
       {
         node.validate()?;
+        if config.nodes[ ..i ].iter().any( | other | other.node_name == node.node_name )
+        {
+          return Err( EngravingConfigError( format!( "nodeName '{}' is listed more than once", node.node_name ) ) );
+        }
       }
 
       Ok( config )
@@ -82,19 +91,21 @@ mod private
     /// Whitelist of CSS font-family names selectable for this node.
     #[ serde( rename = "allowedFonts" ) ]
     pub allowed_fonts : Vec< Box< str > >,
-    /// Height in pixels of the offscreen canvas / GPU texture. Width is `round( texture_height * aspect_ratio )`.
+    /// Height in pixels of the offscreen canvas / GPU texture, at least `1`. Width is
+    /// `round( texture_height * aspect_ratio )`; both must fit the GPU's `MAX_TEXTURE_SIZE`
+    /// (4096 on many mobile GPUs), which `EngravingSession::build` checks.
     #[ serde( rename = "textureHeight", default = "default_texture_height" ) ]
     pub texture_height : u32,
     /// Fractional padding (of the shorter canvas dimension) kept empty around the text on every side.
     #[ serde( default = "default_padding" ) ]
     pub padding : f32,
-    /// Intensity of the derivative-based normal perturbation at letter edges (bevel depth).
+    /// Intensity of the relief normal perturbation at letter edges (bevel depth).
     #[ serde( rename = "engravingStrength", default = "default_engraving_strength" ) ]
     pub engraving_strength : f32,
-    /// Target PBR roughness inside the carved groove.
+    /// Target PBR roughness inside the carved groove, in `0.0..=1.0`.
     #[ serde( rename = "engravingRoughness", default = "default_engraving_roughness" ) ]
     pub engraving_roughness : f32,
-    /// Fraction by which the base albedo / specular color is darkened inside the groove.
+    /// Fraction by which the base albedo / specular color is darkened inside the groove, in `0.0..=1.0`.
     #[ serde( rename = "engravingDarkening", default = "default_engraving_darkening" ) ]
     pub engraving_darkening : f32,
     /// Explicit text-sizing strategy. Optional; if omitted, resolves to `HYBRID` when both
@@ -135,6 +146,7 @@ mod private
   /// relative sizing fields.
   #[ derive( Debug, Clone, Copy, PartialEq, Eq, Deserialize ) ]
   #[ serde( rename_all = "UPPERCASE" ) ]
+  #[ non_exhaustive ]
   pub enum SizingMode
   {
     /// Font size is fixed by `defaultFontSizeMm / stripHeightMm`, constant regardless of text
@@ -152,6 +164,7 @@ mod private
   /// Horizontal text alignment within the padded engraving strip.
   #[ derive( Debug, Clone, Copy, PartialEq, Eq, Deserialize ) ]
   #[ serde( rename_all = "lowercase" ) ]
+  #[ non_exhaustive ]
   pub enum TextAlign
   {
     /// Text starts at the left padding edge.
@@ -294,6 +307,28 @@ mod private
       if !self.allowed_fonts.iter().any( | f | **f == *self.default_font )
       {
         return Err( EngravingConfigError( format!( "node '{}': defaultFont '{}' is not listed in allowedFonts", self.node_name, self.default_font ) ) );
+      }
+      if self.texture_height == 0
+      {
+        return Err( EngravingConfigError( format!( "node '{}': textureHeight must be at least 1", self.node_name ) ) );
+      }
+      if self.engraving_strength < 0.0
+      {
+        return Err( EngravingConfigError( format!(
+          "node '{}': engravingStrength must not be negative, got {}", self.node_name, self.engraving_strength
+        ) ) );
+      }
+      if !( 0.0..=1.0 ).contains( &self.engraving_roughness )
+      {
+        return Err( EngravingConfigError( format!(
+          "node '{}': engravingRoughness must be in 0.0..=1.0, got {}", self.node_name, self.engraving_roughness
+        ) ) );
+      }
+      if !( 0.0..=1.0 ).contains( &self.engraving_darkening )
+      {
+        return Err( EngravingConfigError( format!(
+          "node '{}': engravingDarkening must be in 0.0..=1.0, got {}", self.node_name, self.engraving_darkening
+        ) ) );
       }
       if !( 0.0..=0.49 ).contains( &self.padding )
       {

@@ -21,7 +21,7 @@
       "properties": {
         "nodeName": {
           "type": "string",
-          "description": "Exact name of the mesh node in the glTF file (matched via Scene::get_node)."
+          "description": "Exact name of the mesh node in the glTF file (matched via Scene::node_get)."
         },
         "uvChannel": {
           "type": "integer",
@@ -32,7 +32,7 @@
         "aspectRatio": {
           "type": "number",
           "exclusiveMinimum": 0,
-          "description": "width / height of the engraving zone, e.g. 4.0 for a 1024x256 strip. Drives the offscreen canvas size (see EngravingCanvasManager::canvas_size_for)."
+          "description": "width / height of the engraving zone, e.g. 4.0 for a 1024x256 strip. Drives the offscreen canvas size (see EngravingNodeConfig::texture_size)."
         },
         "maxCharacters": {
           "type": "integer",
@@ -53,7 +53,7 @@
           "type": "integer",
           "minimum": 1,
           "default": 256,
-          "description": "Height in pixels of the offscreen canvas / GPU texture. Width is derived as round(textureHeight * aspectRatio). Optional; defaults to 256."
+          "description": "Height in pixels of the offscreen canvas / GPU texture. Width is derived as round(textureHeight * aspectRatio). Both must fit the GPU's MAX_TEXTURE_SIZE (4096 on many mobile GPUs); EngravingSession::build fails otherwise, so lower this for long strips. Optional; defaults to 256."
         },
         "padding": {
           "type": "number",
@@ -66,7 +66,7 @@
           "type": "number",
           "minimum": 0,
           "default": 1.0,
-          "description": "Intensity of the derivative-based normal perturbation at letter edges (bevel depth). Optional; defaults to 1.0."
+          "description": "Intensity of the relief normal perturbation at letter edges (bevel depth). Optional; defaults to 1.0."
         },
         "engravingRoughness": {
           "type": "number",

@@ -1,9 +1,13 @@
 #version 300 es
 precision highp float;
-// Texel addressing below; the fragment-stage default `mediump int` is 16-bit on Mali.
-precision highp int;
 
 uniform sampler2D sourceTexture;
+// The renderer's WBOIT accumulation target ( `Renderer::transparent_coverage_texture` ):
+// its alpha is the revealage of the transparent layers, 1 where none covers the pixel.
+// Bound only when `useTransparentCoverage` is set; without it the MSAA-edge
+// reconstruction below stays off.
+uniform sampler2D transparentCoverage;
+uniform bool useTransparentCoverage;
 
 in vec2 vUv;
 out vec4 frag_color;
@@ -50,8 +54,22 @@ void main()
   // neighbours — which a silhouette pixel always has on its outer side — and
   // `geometry` is solved for. That covers the flat clear colour and the shadowed
   // ground alike. Neighbours are addressed in the source's own texel grid.
+  //
+  // WBOIT transparency over the background also leaves 0 < a < 1 ( a = the transparent
+  // coverage ), and only the pixels on a transparent mesh's outline have an alpha-0
+  // neighbour. Reconstructing those but not the interior ones would ring every glass
+  // surface seen against the background with a 1-px outline of a different brightness,
+  // so any pixel with transparent coverage takes the plain blend, edge and interior
+  // alike. Without the coverage texture the pass can't tell glass from a silhouette, so
+  // every partially covered pixel takes the plain blend.
   ivec2 size = textureSize( sourceTexture, 0 );
   ivec2 p = ivec2( vUv * vec2( size ) );
+  if( !useTransparentCoverage || texelFetch( transparentCoverage, p, 0 ).a < 1.0 )
+  {
+    frag_color = vec4( mix( src.rgb, aces_tone_map( src.rgb ), src.a ), 1.0 );
+    return;
+  }
+
   vec3 backgroundSum = vec3( 0.0 );
   float backgroundCount = 0.0;
   for( int y = -1; y <= 1; y++ )
@@ -64,8 +82,9 @@ void main()
     }
   }
 
-  // No pure-background neighbour (a partially covered pixel wedged between geometry):
-  // keep the previous blend rather than guess.
+  // No pure-background neighbour, so no background estimate: every neighbour is
+  // geometry ( a pixel wedged between two surfaces ) or covered by transparency. Fall
+  // back to the plain blend rather than guess.
   if( backgroundCount == 0.0 )
   {
     frag_color = vec4( mix( src.rgb, aces_tone_map( src.rgb ), src.a ), 1.0 );

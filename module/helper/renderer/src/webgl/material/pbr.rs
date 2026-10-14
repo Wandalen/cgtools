@@ -223,7 +223,7 @@ mod private
     /// sampled at `vUv_{uv_position}` and bounds-checked against `[0, 1]` in the shader. This is
     /// the sole gate for the `USE_ENGRAVING` define — see [`Self::engraving_texture_set`].
     pub( super ) engraving_texture : Option< TextureInfo >,
-    /// Intensity of the derivative-based normal perturbation at letter edges (bevel depth).
+    /// Intensity of the relief normal perturbation at letter edges (bevel depth).
     pub engraving_strength : f32,
     /// Target roughness inside the carved groove, simulating a matte laser-etched finish.
     pub engraving_roughness : f32,
@@ -756,8 +756,8 @@ mod private
       upload( "engravingStrength", self.engraving_strength )?;
       upload( "engravingRoughness", self.engraving_roughness )?;
       upload( "engravingDarkening", self.engraving_darkening )?;
-      gl::uniform::upload( gl, locations.get( "highlightColor" ).expect( "PBRShader::impl_locations! missing \"highlightColor\"" ).clone(), self.highlight_color.as_slice() )?;
-      gl::uniform::upload( gl, locations.get( "highlightStrength" ).expect( "PBRShader::impl_locations! missing \"highlightStrength\"" ).clone(), &self.highlight_strength )?;
+      upload_array( "highlightColor", self.highlight_color.as_slice() )?;
+      upload( "highlightStrength", self.highlight_strength )?;
 
       Ok( () )
     }

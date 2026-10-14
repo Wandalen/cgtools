@@ -268,6 +268,17 @@ mod private
       self.resolved_unbind( gl );
     }
 
+    /// Clears the resolved transparent targets to their empty state : revealage 1, no
+    /// accumulated color. A frame without transparent primitives doesn't resolve them, so
+    /// without this they would keep the last transparent frame's coverage.
+    pub fn transparent_coverage_reset( &self, gl : &gl::WebGl2RenderingContext )
+    {
+      self.resolved_bind( gl );
+      gl::drawbuffers::drawbuffers( gl, &[ 2 ] );
+      gl.clear_bufferfv_with_f32_array( gl::COLOR, 2, &[ 0.0, 0.0, 0.0, 1.0 ] );
+      self.resolved_unbind( gl );
+    }
+
     /// Binds the `multisample_framebuffer` and attaches its renderbuffers.
     ///
     /// This function should be called before rendering operations that require

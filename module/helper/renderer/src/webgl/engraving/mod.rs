@@ -4,8 +4,9 @@
 //! [`crate::webgl::material::PbrMaterial`] instances by node name ([`apply`]).
 //!
 //! On the shader side this pairs with the `USE_ENGRAVING` block in `shaders/main.frag`: a
-//! derivative-based bevel/normal perturbation at mask edges, plus a roughness/albedo change
-//! inside the mask, simulating a laser-etched groove. See `engraving_config.schema.json` and
+//! bevel/normal perturbation at mask edges, from central differences of explicit-LOD
+//! `textureLod` samples of the mask, plus a roughness/albedo change inside the mask,
+//! simulating a laser-etched groove. See `engraving_config.schema.json` and
 //! `engraving_config.example.json` next to this file for the on-disk config format.
 
 mod private

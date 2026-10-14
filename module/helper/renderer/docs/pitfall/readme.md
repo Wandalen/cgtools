@@ -14,3 +14,4 @@ A **pitfall** documents one way this crate's API can be misused or misunderstood
 | ID | Name | Purpose | Status |
 |----|------|---------|--------|
 | 001 | [Requires EXT_color_buffer_float](001_requires_ext_color_buffer_float.md) | The crate renders into `RGBA16F` targets but never enables the WebGL2 extension that makes them color-renderable — callers must | ✅ |
+| 002 | [glTF images upload after load](002_gltf_images_upload_after_load.md) | `gltf::load` returns with placeholder textures; a redraw-on-change loop must also redraw when `texture_upload_count_get()` moves | ✅ |

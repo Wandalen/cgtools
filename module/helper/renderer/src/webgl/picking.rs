@@ -45,6 +45,9 @@ mod private
   /// be reported as a hit. [`IdBuffer::read`] maps it to `None`.
   pub const PICK_ID_NONE : PickId = 0;
 
+  /// Written to the readback slot before every read; no `R16UI` texel can hold it.
+  const READBACK_UNWRITTEN : u32 = u32::MAX;
+
   /// Whether `( x, y )` names an in-bounds pixel of a `width`×`height` buffer.
   #[ must_use ]
   pub fn pick_in_bounds( x : i32, y : i32, width : u32, height : u32 ) -> bool
@@ -64,6 +67,10 @@ mod private
   ///
   /// Created without storage; [`IdBuffer::size_set`] allocates it, so a picker that is
   /// constructed but never used costs one framebuffer object and nothing else.
+  ///
+  /// Owns its framebuffer, texture and renderbuffer: they are deleted on drop, and the
+  /// texture and renderbuffer also whenever `size_set` replaces or releases them.
+  /// Not `Clone`, so each object has exactly one deleter.
   #[ derive( Debug ) ]
   pub struct IdBuffer
   {
@@ -148,12 +155,12 @@ mod private
       gl.renderbuffer_storage( GL::RENDERBUFFER, GL::DEPTH_COMPONENT16, w, h );
       gl.bind_renderbuffer( GL::RENDERBUFFER, None );
 
-      let previous_framebuffer = framebuffer_binding_get( gl );
-      gl.bind_framebuffer( GL::FRAMEBUFFER, self.framebuffer.as_ref() );
-      gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0, GL::TEXTURE_2D, Some( &id_texture ), 0 );
-      gl.framebuffer_renderbuffer( GL::FRAMEBUFFER, GL::DEPTH_ATTACHMENT, GL::RENDERBUFFER, Some( &depth_renderbuffer ) );
-      let status = gl.check_framebuffer_status( GL::FRAMEBUFFER );
-      gl.bind_framebuffer( GL::FRAMEBUFFER, previous_framebuffer.as_ref() );
+      let previous_framebuffer = framebuffer_binding_get( gl, GL::DRAW_FRAMEBUFFER_BINDING );
+      gl.bind_framebuffer( GL::DRAW_FRAMEBUFFER, self.framebuffer.as_ref() );
+      gl.framebuffer_texture_2d( GL::DRAW_FRAMEBUFFER, GL::COLOR_ATTACHMENT0, GL::TEXTURE_2D, Some( &id_texture ), 0 );
+      gl.framebuffer_renderbuffer( GL::DRAW_FRAMEBUFFER, GL::DEPTH_ATTACHMENT, GL::RENDERBUFFER, Some( &depth_renderbuffer ) );
+      let status = gl.check_framebuffer_status( GL::DRAW_FRAMEBUFFER );
+      gl.bind_framebuffer( GL::DRAW_FRAMEBUFFER, previous_framebuffer.as_ref() );
 
       self.id_texture = Some( id_texture );
       self.depth_renderbuffer = Some( depth_renderbuffer );
@@ -181,14 +188,23 @@ mod private
       if self.id_texture.is_none() || !pick_in_bounds( x, y, self.width, self.height ) { return None; }
 
       let gl = &self.gl;
-      let previous_framebuffer = framebuffer_binding_get( gl );
-      gl.bind_framebuffer( GL::FRAMEBUFFER, self.framebuffer.as_ref() );
+      // A lost context turns `readPixels` into a silent no-op, which would leave the
+      // previous read's id in `readback`.
+      if gl.is_context_lost() { return None; }
+
+      // `readPixels` can also fail without throwing — a GL error such as a bound
+      // `PIXEL_PACK_BUFFER` writes nothing. `R16UI` only ever fills the low 16 bits,
+      // so a value above `u16::MAX` that survives the read means nothing was written,
+      // and `readback_to_pick_id` rejects it.
+      self.readback.set_index( 0, READBACK_UNWRITTEN );
+      let previous_framebuffer = framebuffer_binding_get( gl, GL::READ_FRAMEBUFFER_BINDING );
+      gl.bind_framebuffer( GL::READ_FRAMEBUFFER, self.framebuffer.as_ref() );
       gl.read_buffer( GL::COLOR_ATTACHMENT0 );
       let result = gl.read_pixels_with_opt_array_buffer_view
       (
         x, y, 1, 1, GL::RGBA_INTEGER, GL::UNSIGNED_INT, Some( &self.readback )
       );
-      gl.bind_framebuffer( GL::FRAMEBUFFER, previous_framebuffer.as_ref() );
+      gl.bind_framebuffer( GL::READ_FRAMEBUFFER, previous_framebuffer.as_ref() );
 
       result.ok()?;
       readback_to_pick_id( self.readback.get_index( 0 ) )
@@ -196,10 +212,36 @@ mod private
 
     fn storage_free( &mut self )
     {
+      // Deleting an object attached to a framebuffer that is not bound only frees its
+      // name: the attachment keeps the storage alive ( GL ES 3.0 §5.1.2, §5.1.3 ). So
+      // detach both first, or a released buffer would still hold its GPU memory.
+      if self.id_texture.is_some() || self.depth_renderbuffer.is_some()
+      {
+        let gl = &self.gl;
+        let previous_framebuffer = framebuffer_binding_get( gl, GL::DRAW_FRAMEBUFFER_BINDING );
+        gl.bind_framebuffer( GL::DRAW_FRAMEBUFFER, self.framebuffer.as_ref() );
+        gl.framebuffer_texture_2d( GL::DRAW_FRAMEBUFFER, GL::COLOR_ATTACHMENT0, GL::TEXTURE_2D, None, 0 );
+        gl.framebuffer_renderbuffer( GL::DRAW_FRAMEBUFFER, GL::DEPTH_ATTACHMENT, GL::RENDERBUFFER, None );
+        gl.bind_framebuffer( GL::DRAW_FRAMEBUFFER, previous_framebuffer.as_ref() );
+      }
+
       if let Some( texture ) = self.id_texture.take() { self.gl.delete_texture( Some( &texture ) ); }
       if let Some( rb ) = self.depth_renderbuffer.take() { self.gl.delete_renderbuffer( Some( &rb ) ); }
       self.width = 0;
       self.height = 0;
+    }
+  }
+
+  /// The framebuffer, reachable from `tests/` under `test_internals`, so a test can
+  /// ask the context what is still attached to it after the storage is released.
+  #[ cfg( feature = "test_internals" ) ]
+  impl IdBuffer
+  {
+    #[ doc( hidden ) ]
+    #[ must_use ]
+    pub fn framebuffer_for_test( &self ) -> Option< WebGlFramebuffer >
+    {
+      self.framebuffer.clone()
     }
   }
 
@@ -213,6 +255,8 @@ mod private
   }
 
   /// Draws a [`Scene`]'s pick ids into an [`IdBuffer`].
+  ///
+  /// Owns its id program and deletes it on drop.
   #[ derive( Debug ) ]
   pub struct ScenePicker
   {
@@ -263,7 +307,7 @@ mod private
     /// World matrices are taken as they are; call `Scene::world_matrix_update` first
     /// if transforms changed.
     ///
-    /// GL state this pass touches — framebuffer binding, viewport, program, vertex
+    /// GL state this pass touches — draw framebuffer binding, viewport, program, vertex
     /// array, depth test/func/mask, colour mask, cull face, blend and scissor — is
     /// restored before returning, including on error.
     ///
@@ -288,7 +332,9 @@ mod private
 
       let result = ( || -> Result< (), WebglError >
       {
-        gl.bind_framebuffer( GL::FRAMEBUFFER, buffer.framebuffer.as_ref() );
+        // Clears and draws only go through the draw binding, so the caller's read
+        // binding is left alone rather than overwritten by a `FRAMEBUFFER` bind.
+        gl.bind_framebuffer( GL::DRAW_FRAMEBUFFER, buffer.framebuffer.as_ref() );
         #[ allow( clippy::cast_possible_wrap, reason = "size_set already rejected dimensions above i32::MAX" ) ]
         gl.viewport( 0, 0, buffer.width as i32, buffer.height as i32 );
 
@@ -346,16 +392,19 @@ mod private
     }
   }
 
-  fn framebuffer_binding_get( gl : &GL ) -> Option< WebGlFramebuffer >
+  /// The framebuffer bound at `pname` — `DRAW_FRAMEBUFFER_BINDING` or
+  /// `READ_FRAMEBUFFER_BINDING`. Each is saved and restored on its own target, since
+  /// binding `FRAMEBUFFER` would overwrite both.
+  fn framebuffer_binding_get( gl : &GL, pname : u32 ) -> Option< WebGlFramebuffer >
   {
-    gl.get_parameter( GL::FRAMEBUFFER_BINDING ).ok()?.dyn_into::< WebGlFramebuffer >().ok()
+    gl.get_parameter( pname ).ok()?.dyn_into::< WebGlFramebuffer >().ok()
   }
 
   /// The GL state [`ScenePicker::render`] changes, captured so it can be put back.
   /// Queries are CPU-side state lookups; none of them forces a GPU sync.
   struct GlState
   {
-    framebuffer : Option< WebGlFramebuffer >,
+    draw_framebuffer : Option< WebGlFramebuffer >,
     viewport : [ i32; 4 ],
     program : Option< WebGlProgram >,
     vertex_array : Option< WebGlVertexArrayObject >,
@@ -385,7 +434,7 @@ mod private
 
       Self
       {
-        framebuffer : framebuffer_binding_get( gl ),
+        draw_framebuffer : framebuffer_binding_get( gl, GL::DRAW_FRAMEBUFFER_BINDING ),
         viewport,
         program : gl.get_parameter( GL::CURRENT_PROGRAM ).ok().and_then( | v | v.dyn_into().ok() ),
         vertex_array : gl.get_parameter( GL::VERTEX_ARRAY_BINDING ).ok().and_then( | v | v.dyn_into().ok() ),
@@ -404,7 +453,7 @@ mod private
     {
       let toggle = | cap : u32, on : bool | if on { gl.enable( cap ) } else { gl.disable( cap ) };
 
-      gl.bind_framebuffer( GL::FRAMEBUFFER, self.framebuffer.as_ref() );
+      gl.bind_framebuffer( GL::DRAW_FRAMEBUFFER, self.draw_framebuffer.as_ref() );
       let [ x, y, w, h ] = self.viewport;
       gl.viewport( x, y, w, h );
       gl.use_program( self.program.as_ref() );
@@ -427,9 +476,18 @@ crate::mod_interface!
   {
     PickId,
     PICK_ID_NONE,
-    pick_in_bounds,
-    readback_to_pick_id,
     IdBuffer,
     ScenePicker,
   };
+}
+
+/// The internals `tests/` reaches, exposed only under `test_internals`.
+///
+/// Not part of the surface: with the feature off, the default and what every dependent gets,
+/// this module does not exist.
+#[ cfg( feature = "test_internals" ) ]
+#[ doc( hidden ) ]
+pub mod internal
+{
+  pub use super::private::{ pick_in_bounds, readback_to_pick_id };
 }
