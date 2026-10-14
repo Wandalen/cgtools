@@ -41,6 +41,12 @@ mod private
     /// pixels carry that colour blended in, and the background itself comes out
     /// fully transparent.
     ///
+    /// The alpha only arrives here if every pass between the scene and this one
+    /// passes it through. `ToneMappingPass< ToneMappingAces >` and
+    /// `ColorGradingPass` do; a custom pass that writes alpha 1 makes the whole
+    /// canvas opaque again. `ColorGradingPass` grades the premultiplied colour, so
+    /// at partially covered edge pixels its result is approximate.
+    ///
     /// # Errors
     ///
     /// Returns `WebglError` if the shader variant fails to compile or link.
