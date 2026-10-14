@@ -1,7 +1,5 @@
 #version 300 es
 precision highp float;
-// Texel addressing below; the fragment-stage default `mediump int` is 16-bit on Mali.
-precision highp int;
 
 uniform sampler2D sourceTexture;
 // The renderer's WBOIT accumulation target ( `Renderer::transparent_coverage_texture` ):
