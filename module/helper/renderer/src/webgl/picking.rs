@@ -67,6 +67,10 @@ mod private
   ///
   /// Created without storage; [`IdBuffer::size_set`] allocates it, so a picker that is
   /// constructed but never used costs one framebuffer object and nothing else.
+  ///
+  /// Owns its framebuffer, texture and renderbuffer: they are deleted on drop, and the
+  /// texture and renderbuffer also whenever `size_set` replaces or releases them.
+  /// Not `Clone`, so each object has exactly one deleter.
   #[ derive( Debug ) ]
   pub struct IdBuffer
   {
@@ -251,6 +255,8 @@ mod private
   }
 
   /// Draws a [`Scene`]'s pick ids into an [`IdBuffer`].
+  ///
+  /// Owns its id program and deletes it on drop.
   #[ derive( Debug ) ]
   pub struct ScenePicker
   {

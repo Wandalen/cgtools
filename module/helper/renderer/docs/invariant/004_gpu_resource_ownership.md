@@ -16,7 +16,7 @@ implemented.
 - **Purpose**: Pin who deletes which GPU object, so `Drop` impls release resources without double deletes or deleting objects still in use.
 - **Responsibility**: State the ownership rules for the shared scene-graph types, name where they are enforced, and record what breaks when they are violated.
 - **In Scope**: `Geometry`, `Texture` / `TextureOwner`, `TransformsData` / `DisplacementsData`, the `Renderer`'s skybox, and the `Clone` semantics that keep them single-deleter.
-- **Out of Scope**: Passes and render targets with their own `gl_resources_free` / `Drop` (`GBuffer`, `SwapFramebuffer`, bloom, outline, shadow, `IBL`), each documented at its type.
+- **Out of Scope**: Passes and render targets with their own `gl_resources_free` / `Drop` (`GBuffer`, `SwapFramebuffer`, bloom, outline, shadow, `IBL`, the picking `IdBuffer` and `ScenePicker`), each documented at its type.
 
 ### Invariant Statement
 
