@@ -108,9 +108,9 @@ fn render_of_a_constant_fragment_chunk_is_exact()
   let image = render( &bundle, ( 16, 16 ), 0.0 ).expect( "the constant probe renders" );
   assert_eq!( image.size, ( 16, 16 ) );
   assert_eq!( image.pixels.len(), 16 * 16 * 4 );
-  for pixel in image.pixels.chunks_exact( 4 )
+  for pixel in image.pixels.as_chunks::< 4 >().0
   {
-    assert_eq!( pixel, [ 51, 102, 153, 255 ], "every pixel must be the exact constant color" );
+    assert_eq!( *pixel, [ 51, 102, 153, 255 ], "every pixel must be the exact constant color" );
   }
 }
 
@@ -124,7 +124,7 @@ fn render_of_a_value_chunk_matches_the_synthesized_grayscale_harness()
   assert_eq!( image.pixels.len(), 64 * 64 * 4 );
 
   let mut distinct = std::collections::BTreeSet::new();
-  for pixel in image.pixels.chunks_exact( 4 )
+  for pixel in image.pixels.as_chunks::< 4 >().0
   {
     assert_eq!( pixel[ 0 ], pixel[ 1 ], "the synthesized harness writes grayscale: R == G" );
     assert_eq!( pixel[ 1 ], pixel[ 2 ], "the synthesized harness writes grayscale: G == B" );

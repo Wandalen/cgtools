@@ -119,7 +119,7 @@ fn test_game_state_machine() {
   assert_eq!(machine.current_state(), GameState::Loading);
 }
 
-#[ expect( clippy::float_cmp, reason = "whole-number resource arithmetic is exact; the asserts pin the exact stored values" ) ]
+#[ allow( clippy::float_cmp, reason = "whole-number resource arithmetic is exact; the asserts pin the exact stored values" ) ]
 #[test]
 fn test_resource_management() {
   let mut resource = Resource::new(100.0);
@@ -141,7 +141,7 @@ fn test_resource_management() {
   assert!(!resource.is_full());
 }
 
-#[ expect( clippy::float_cmp, reason = "whole-number resource arithmetic is exact; the asserts pin the exact stored values" ) ]
+#[ allow( clippy::float_cmp, reason = "whole-number resource arithmetic is exact; the asserts pin the exact stored values" ) ]
 #[test]
 fn test_resource_manager() {
   let mut manager = ResourceManager::new();
@@ -373,7 +373,7 @@ fn test_resource_new_with_negative_maximum_does_not_panic_on_modify()
 /// `1e-6`, etc.) is only valid for comparisons near the magnitude it was
 /// implicitly chosen for -- comparisons against values of materially
 /// different magnitude need a tolerance scaled to that magnitude.
-#[ expect( clippy::float_cmp, reason = "direct field write to pin an exact float value for the reproducer, not a computed comparison" ) ]
+#[ allow( clippy::float_cmp, reason = "direct field write to pin an exact float value for the reproducer, not a computed comparison" ) ]
 #[test]
 fn test_resource_is_full_uses_magnitude_scaled_tolerance()
 {

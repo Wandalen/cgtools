@@ -57,7 +57,7 @@ mod private
     // Pitfall: any code that normalizes a difference vector must validate
     // that the two inputs actually differ first -- `normalize()` has no
     // zero-length guard anywhere in the underlying vector math stack.
-    #[ expect( clippy::float_cmp, reason = "coincident-point detection needs exact equality : normalize() yields NaN precisely when two consecutive points are bit-identical; an epsilon test would wrongly reject valid short segments" ) ]
+    #[ allow( clippy::float_cmp, reason = "coincident-point detection needs exact equality : normalize() yields NaN precisely when two consecutive points are bit-identical; an epsilon test would wrongly reject valid short segments" ) ]
     if curve.windows( 2 ).any( | pair | pair[ 0 ] == pair[ 1 ] ) || curve.first() == curve.last()
     {
       return None;

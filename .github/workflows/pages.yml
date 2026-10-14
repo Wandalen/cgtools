@@ -1,15 +1,11 @@
 name: examples-gallery-pages
 
-# Two independent jobs:
-#   gallery-check  — every PR into master: fails fast if examples/index.html or index.md
-#                    drifted from action/gallery's source of truth (action/run's discovery
-#                    + each example's own readme.md). Cheap (no Rust/trunk/DVC), pure bash+awk.
-#   build-deploy   — push to master or manual dispatch only, never PRs: builds every
-#                    browser-kind example via trunk and deploys the result as the live
-#                    GitHub Pages site. Excluded from pull_request on purpose — a PR's
-#                    GITHUB_TOKEN is read-only by default (fork safety), so it could not
-#                    deploy anyway, and deploying unreviewed PR content would be wrong
-#                    even if it could.
+# Builds every browser-kind example via trunk and deploys the result as the live GitHub
+# Pages site. Push to master or manual dispatch only, never PRs: a PR's GITHUB_TOKEN is
+# read-only by default (fork safety), so it could not deploy anyway, and deploying
+# unreviewed PR content would be wrong even if it could. The PR-side drift check lives in
+# gallery.yml — a separate workflow rather than a job here, so a PR's checks list doesn't
+# carry this job as a permanently "skipped" entry.
 #
 # One-time manual step this workflow cannot perform on its own: a repo admin must enable
 # Pages (Settings > Pages > Source: GitHub Actions) — the token this workflow runs under
@@ -17,8 +13,6 @@ name: examples-gallery-pages
 
 "on":
   push:
-    branches: [master]
-  pull_request:
     branches: [master]
   workflow_dispatch: {}
 
@@ -30,17 +24,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  gallery-check:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Check examples/index.html + index.md are up to date
-        run: action/gallery verify::1
-
   build-deploy:
-    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read

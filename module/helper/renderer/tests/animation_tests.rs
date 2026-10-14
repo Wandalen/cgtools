@@ -91,10 +91,46 @@ mod tests
     assert_eq!( morph_target_player.value_get().len(), 53 );
   }
 
+  /// BUG-188's fixture as a self-contained `data:` URI: one node whose translation channel has
+  /// exactly one keyframe, `( 1.5, 2.5, -3.5 )` at time 0. The file this test first read,
+  /// `assets/gltf/animated/single_keyframe_translation.gltf`, was never added to the DVC
+  /// remote, so no checkout had it.
+  fn single_keyframe_translation_uri() -> String
+  {
+    let floats = [ 0.0_f32, 1.5, 2.5, -3.5 ];
+    let bytes : Vec< u8 > = floats.iter().flat_map( | f | f.to_le_bytes() ).collect();
+    // `btoa` encodes a "binary string", one char per byte.
+    let window = gl::web_sys::window().unwrap();
+    let buffer = window.btoa( &bytes.iter().map( | &b | char::from( b ) ).collect::< String >() ).unwrap();
+    let json = format!
+    (
+      r#"{{
+        "asset" : {{ "version" : "2.0" }},
+        "scene" : 0,
+        "scenes" : [ {{ "nodes" : [ 0 ] }} ],
+        "nodes" : [ {{ "name" : "probe" }} ],
+        "buffers" : [ {{ "byteLength" : 16, "uri" : "data:application/octet-stream;base64,{buffer}" }} ],
+        "bufferViews" : [
+          {{ "buffer" : 0, "byteOffset" : 0, "byteLength" : 4 }},
+          {{ "buffer" : 0, "byteOffset" : 4, "byteLength" : 12 }}
+        ],
+        "accessors" : [
+          {{ "bufferView" : 0, "componentType" : 5126, "count" : 1, "type" : "SCALAR", "min" : [ 0.0 ], "max" : [ 0.0 ] }},
+          {{ "bufferView" : 1, "componentType" : 5126, "count" : 1, "type" : "VEC3" }}
+        ],
+        "animations" : [ {{
+          "samplers" : [ {{ "input" : 0, "output" : 1, "interpolation" : "LINEAR" }} ],
+          "channels" : [ {{ "sampler" : 0, "target" : {{ "node" : 0, "path" : "translation" }} }} ]
+        }} ]
+      }}"#
+    );
+    format!( "data:model/gltf+json;base64,{}", window.btoa( &json ).unwrap() )
+  }
+
   #[ wasm_bindgen_test( async ) ]
   async fn test_single_keyframe_translation_not_dropped()
   {
-    let gltf = animation_test_init( "../../../../assets/gltf/animated/single_keyframe_translation.gltf" ).await;
+    let gltf = animation_test_init( &single_keyframe_translation_uri() ).await;
 
     assert_eq!( gltf.animations.len(), 1 );
 
