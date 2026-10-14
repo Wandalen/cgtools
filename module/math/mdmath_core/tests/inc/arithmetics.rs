@@ -4,7 +4,7 @@ use super::*;
 // All inputs are small integer-valued floats and `dot` only sums products of them, so the
 // results are exactly representable with no rounding error — exact equality is correct here.
 #[ test ]
-#[ expect( clippy::float_cmp, reason = "assertions check exact expected values; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
+#[ allow( clippy::float_cmp, reason = "assertions check exact expected values; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
 fn test_dot_product()
 {
   use the_module::vector;
@@ -254,7 +254,7 @@ fn test_project_on()
   vector::project_on( &mut vec_zero, &vec_b );
   // Projecting the zero vector yields exactly 0.0 (0 / anything = 0, 0 * anything = 0 in
   // IEEE-754) — no rounding is possible, so exact equality is correct here.
-  #[ expect( clippy::float_cmp, reason = "assertions check exact expected values; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
+  #[ allow( clippy::float_cmp, reason = "assertions check exact expected values; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
   { assert_eq!( vec_zero, [ 0.0, 0.0, 0.0 ], "Projection failed for zero vector" ); }
 }
 
@@ -278,7 +278,7 @@ fn test_projected_on()
   let got = vector::projected_on( &vec_zero, &vec_b );
   // Projecting the zero vector yields exactly 0.0 (0 / anything = 0, 0 * anything = 0 in
   // IEEE-754) — no rounding is possible, so exact equality is correct here.
-  #[ expect( clippy::float_cmp, reason = "assertions check exact expected values; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
+  #[ allow( clippy::float_cmp, reason = "assertions check exact expected values; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
   { assert_eq!( got, [ 0.0, 0.0, 0.0 ], "Projected on function failed for zero vector" ); }
 }
 
@@ -550,4 +550,90 @@ fn test_integer_arithmetics()
   let mut v = [ 1i32, 2, 3 ];
   vector::cross_mut( &mut v, &[ 1i32, 5, 7 ] );
   assert_eq!( v, [ -1, -4, 3 ] );
+}
+
+/// `is_finite` is component-wise, and deliberately not a magnitude test.
+///
+/// The last two cases are the ones worth having a test for: they are exactly where a reader
+/// is likely to assume `is_finite` implies a usable magnitude. It does not, in either
+/// direction, which is why `try_normalized` checks the magnitude rather than calling this.
+#[ test ]
+fn test_is_finite()
+{
+  use the_module::vector;
+
+  assert!( vector::is_finite( &[ 1.0, 2.0, 3.0 ] ) );
+  assert!( vector::is_finite( &[ 0.0, 0.0, 0.0 ] ), "the zero vector is finite" );
+  assert!( vector::is_finite( &[ -0.0, f64::MIN_POSITIVE, f64::MAX ] ) );
+
+  assert!( !vector::is_finite( &[ 1.0, f64::NAN, 3.0 ] ) );
+  assert!( !vector::is_finite( &[ 1.0, f64::INFINITY, 3.0 ] ) );
+  assert!( !vector::is_finite( &[ f64::NEG_INFINITY, 2.0, 3.0 ] ) );
+
+  // Every component finite, magnitude not: the sum of their squares overflows to infinity.
+  let overflowing = [ f64::MAX, f64::MAX, f64::MAX ];
+  assert!( vector::is_finite( &overflowing ) );
+  assert!( !vector::mag( &overflowing ).is_finite() );
+
+  // Every component finite and nonzero, magnitude exactly zero: the squares underflow.
+  let underflowing = [ 1e-200, 1e-200, 1e-200 ];
+  assert!( vector::is_finite( &underflowing ) );
+  #[ allow( clippy::float_cmp, reason = "the magnitude is exactly zero by underflow, not approximately zero" ) ]
+  { assert_eq!( vector::mag( &underflowing ), 0.0 ); }
+}
+
+/// `try_normalized` agrees with `normalized` wherever a direction exists, and reports the
+/// cases where none does as `None` instead of as `NaN`/infinite components.
+///
+/// The equality against `normalized` is asserted bit-exactly rather than within a tolerance,
+/// because the documented claim is that the two divide by the same magnitude through the same
+/// `normalize` call — a tolerance would pass just as happily on a reimplementation that had
+/// drifted.
+#[ test ]
+fn test_try_normalized()
+{
+  use the_module::vector;
+
+  let a : [ f64 ; 3 ] = [ 3.0, 0.0, 4.0 ];
+  let checked = vector::try_normalized( &a ).expect( "a nonzero vector has a direction" );
+  #[ allow( clippy::float_cmp, reason = "the documented contract is bit-exact agreement, not approximate" ) ]
+  { assert_eq!( checked, vector::normalized( &a ), "checked and unchecked must agree bit for bit" ); }
+  assert!( ( vector::mag( &checked ) - 1.0 ).abs() < 1e-15 );
+
+  // Zero vector: `normalized` yields NaN components, `try_normalized` yields None.
+  let zero : [ f64 ; 3 ] = [ 0.0, 0.0, 0.0 ];
+  assert!( vector::normalized( &zero ).iter().all( | e | e.is_nan() ), "BUG-448's contract, unchanged" );
+  assert!( vector::try_normalized( &zero ).is_none() );
+
+  // Non-finite input reaches the magnitude, so it is caught too.
+  assert!( vector::try_normalized( &[ 1.0, f64::NAN, 3.0 ] ).is_none() );
+  assert!( vector::try_normalized( &[ 1.0, f64::INFINITY, 3.0 ] ).is_none() );
+
+  // Overflowing magnitude: `normalized` divides by infinity and silently returns a zero
+  // vector, which is not a unit vector at all — the case `is_finite` alone cannot catch.
+  let overflowing = [ f64::MAX, f64::MAX, f64::MAX ];
+  assert!( vector::is_finite( &overflowing ) );
+  assert!( vector::try_normalized( &overflowing ).is_none() );
+
+  // Underflowing magnitude: `normalized` divides nonzero components by zero and returns
+  // infinities.
+  let underflowing = [ 1e-200, 1e-200, 1e-200 ];
+  assert!( vector::is_finite( &underflowing ) );
+  assert!( vector::try_normalized( &underflowing ).is_none() );
+
+  // Whenever `Some` is returned, the payload is a finite unit vector — the guarantee the
+  // `Option` exists to make.
+  let representable : [ [ f64 ; 3 ] ; 4 ] =
+  [
+    [ 1.0, 0.0, 0.0 ],
+    [ -2.0, 5.0, 0.5 ],
+    [ 1e-150, 2e-150, 2e-150 ],
+    [ 1e150, 0.0, 0.0 ],
+  ];
+  for v in representable
+  {
+    let unit = vector::try_normalized( &v ).expect( "each of these has a representable direction" );
+    assert!( vector::is_finite( &unit ) );
+    assert!( ( vector::mag( &unit ) - 1.0 ).abs() < 1e-15, "{v:?} did not normalize to unit length" );
+  }
 }

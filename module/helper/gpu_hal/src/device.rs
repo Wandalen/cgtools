@@ -1576,26 +1576,18 @@ coincidental to the two backend families, not duplicated logic" ) ]
         Self::Native( _ ) => panic!( "expect_vulkan called on a Device::Native handle" )
       }
     }
-  }
 
-  // `expect_vulkan` is `pub( crate )`, unreachable from `tests/` ( which only
-  // ever sees the public API ) — this is the one test in this crate that
-  // must live beside its target instead of in `tests/`, since it exercises a
-  // crate-private panic contract no external caller can reach. See task
-  // 202's T04. Requires both backends compiled in, since constructing a
-  // "non-vulkan-constructed `Device`" needs `Device::new_native`.
-  #[ cfg( all( test, feature = "native", feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
-  mod device_expect_vulkan_tests
-  {
-    use super::Device;
-
-    #[ test ]
-    #[ should_panic( expected = "expect_vulkan called on a Device::Native handle" ) ]
-    fn expect_vulkan_panics_on_native_device()
+    /// [`Self::expect_vulkan`], reachable from `tests/` under `test_internals`.
+    ///
+    /// The panic contract is crate-private, so `tests/vulkan_backend_test.rs`
+    /// — a separate crate — has no other way to reach it. Delegates rather
+    /// than duplicating, so the behaviour asserted is the behaviour shipped.
+    #[ cfg( all( feature = "test_internals", feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+    #[ doc( hidden ) ]
+    #[ must_use ]
+    pub fn expect_vulkan_for_test( &self ) -> &DeviceVulkan
     {
-      let ( device, _queue, _surface ) = Device::new_native( 4, 4 )
-      .expect( "no native wgpu adapter available" );
-      let _ = device.expect_vulkan();
+      self.expect_vulkan()
     }
   }
 
@@ -1953,8 +1945,8 @@ coincidental to the two backend families, not duplicated logic" ) ]
     /// `texture_rgba8_read`'s errors: [`Error::Unsupported`] if the
     /// surface's texture format is not `Rgba8Unorm`, or [`Error::Native`]
     /// if the GPU readback fails.
-    #[ cfg_attr( all( feature = "webgpu", feature = "webgl", target_arch = "wasm32" ), expect( clippy::match_same_arms, reason = "the WebGpu and WebGl arms are gated by independent features and cannot be merged into an or-pattern without breaking single-feature builds" ) ) ]
-    #[ cfg_attr( all( feature = "native", feature = "vulkan", not( target_arch = "wasm32" ) ), expect( clippy::match_same_arms, reason = "the NativeWindow and VulkanWindow arms are gated by independent features and cannot be merged into an or-pattern without breaking single-feature builds" ) ) ]
+    #[ cfg_attr( all( feature = "webgpu", feature = "webgl", target_arch = "wasm32" ), allow( clippy::match_same_arms, reason = "the WebGpu and WebGl arms are gated by independent features and cannot be merged into an or-pattern without breaking single-feature builds" ) ) ]
+    #[ cfg_attr( all( feature = "native", feature = "vulkan", not( target_arch = "wasm32" ) ), allow( clippy::match_same_arms, reason = "the NativeWindow and VulkanWindow arms are gated by independent features and cannot be merged into an or-pattern without breaking single-feature builds" ) ) ]
     pub fn pixels_read( &self, device : &Device, queue : &Queue ) -> Result< Vec< u8 >, Error >
     {
       match self

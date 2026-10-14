@@ -2,7 +2,7 @@
 //! CPU-side data packing, no GPU device needed. `spot_push`'s tests additionally cover the
 //! cone-angle invariant its own doc comment states but didn't use to enforce ( see BUG-255 ).
 #![ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-#![ expect( clippy::float_cmp, reason = "assertions check exact pass-through of position/color into the raw buffer; point_push does no arithmetic on them, so epsilon comparison would weaken the test" ) ]
+#![ allow( clippy::float_cmp, reason = "assertions check exact pass-through of position/color into the raw buffer; point_push does no arithmetic on them, so epsilon comparison would weaken the test" ) ]
 
 use renderer::webgpu::{ Lights, MAX_POINT_LIGHTS };
 

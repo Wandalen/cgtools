@@ -13,6 +13,7 @@ Integration tests for `primitive_generation`, exercising the crate's public API 
 | path_to_points_test.rs | `path_to_points` flattening and closed-path handling |
 | primitive_data_test.rs | `primitives_parent_graph_validate` acyclic parent-graph check |
 | solid_test.rs | Procedural solid-mesh generators (box, cylinder, torus, icosphere) |
+| spline_test.rs | `point_at_progress` / `tangent_at_progress` Catmull-Rom path evaluation |
 | ufo_font_scale_test.rs | `text::ufo::glyph_rescale_factor` zero-height-guard scaling |
 | ufo_glif_point_type_test.rs | `.glif` XML point-type parsing |
 | ufo_text_advance_test.rs | `text_to_countour_mesh` two-pass glyph-advance layout |

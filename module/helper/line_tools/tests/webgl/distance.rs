@@ -1,5 +1,5 @@
 
-#![ expect( clippy::float_cmp, reason = "assertions check deterministic cumulative-distance arithmetic against exact literal expected values" ) ]
+#![ allow( clippy::float_cmp, reason = "assertions check deterministic cumulative-distance arithmetic against exact literal expected values" ) ]
 
 use line_tools::d3;
 
@@ -1080,7 +1080,7 @@ fn test_distances_update_zero_points()
 
   line.distances_update();
 
-  assert!( line.distances_get().is_empty() );
+  assert_eq!( line.distances_get(), [] );
   assert_eq!( 0.0, line.total_distance_get() );
 }
 

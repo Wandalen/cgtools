@@ -44,6 +44,10 @@ scene-model = [
   "enabled",
   "dep:serde",
 ]
+# Exposes crate-private state to `tests/`, which is a separate crate and so cannot
+# reach it otherwise. Off by default: nothing a dependent builds changes, and every
+# item behind it is `#[ doc( hidden ) ]` and suffixed `_for_test`.
+test_internals = []
 
 [dependencies]
 nohash-hasher = { workspace = true, optional = true }

@@ -202,6 +202,38 @@ fn multiplication_example() {
 | `mat2x2::reflect_x()` | X-axis reflection | `mat2x2::reflect_x()` |
 | `mat2x2::shear([shx, shy])` | Shearing | `mat2x2::shear([1.0, 0.5])` |
 
+### Pinned Transcendentals — Moved
+
+Bit-reproducible transcendentals used to live here as `ndarray_cg::pinned`. They
+are now the [`deterministic_math`](../deterministic_math/readme.md) crate.
+
+The move was made because reproducible arithmetic is wanted by simulation code —
+lockstep networking, deterministic replay, orbital integration — that has no use
+for linear algebra, and reaching it should not cost a matrix library. The new
+crate has **zero dependencies**, which was the entire point of extracting it.
+
+Nothing was lost in the move, and the surface grew: 19 functions became 28, with
+`exp2`, `log2`, `log10`, `log`, `acosh`, `atanh`, `hypot`, `powi` and `mul_add`
+added, and seven accuracy defects repaired along the way — `ln_1p` was wrong by
+up to 32 768 ulp near zero, `asin` by 22 268.
+
+<!-- `ignore`: this shows the other crate's API, and `ndarray_cg` deliberately
+     does not depend on it, so the block cannot compile as a doctest here. -->
+```rust,ignore
+use deterministic_math::sin_cos;
+
+fn deterministic_rotation( angle : f64 ) -> ( f64, f64 )
+{
+  // `sin_cos( a )`, never `a.sin_cos()` — the second reaches the platform's
+  // libm, and that is the whole difference the crate is for.
+  sin_cos( angle )
+}
+```
+
+`ndarray_cg` itself does not depend on it. Vector and matrix algebra is built
+from `+`, `-` and `*`, which IEEE-754 already pins, so this crate's own
+arithmetic was never at risk and needs no replacement.
+
 ### Advanced Features
 
 ```rust

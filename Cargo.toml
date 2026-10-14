@@ -59,6 +59,7 @@ members = [
   "module/helper/scene_script",
 
   # Math modules
+  "module/math/deterministic_math",
   "module/math/mdmath_core",
   "module/math/ndarray_cg",
 

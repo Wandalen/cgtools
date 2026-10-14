@@ -16,7 +16,7 @@ use tiles_tools::coordinates::square::{ Coordinate as SquareCoord, EightConnecte
 use tiles_tools::coordinates::hexagonal::{ Coordinate as HexCoord, Axial, Pointy };
 use std::collections::HashSet;
 
-#[ expect( clippy::float_cmp, reason = "the light level read back is the exact literal just stored; no arithmetic in between" ) ]
+#[ allow( clippy::float_cmp, reason = "the light level read back is the exact literal just stored; no arithmetic in between" ) ]
 #[ test ]
 fn test_visibility_map_basic()
 {
