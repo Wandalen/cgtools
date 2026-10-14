@@ -97,7 +97,7 @@ quick-xml = { workspace = true, optional = true }
 openusd = { workspace = true, optional = true }
 openusd-schemas = { workspace = true, optional = true }
 wasm-bindgen-futures = { workspace = true, optional = true }
-# The meshopt decoder is imported from a JS module ( `src/webgl/loaders/meshopt_decoder.mjs` ).
+# The meshopt decoder is imported from a JS module ( `src/webgl/loaders/meshopt_decoder.js` ).
 wasm-bindgen = { workspace = true, optional = true }
 
 [dependencies.web-sys]

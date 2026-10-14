@@ -24,10 +24,12 @@ baseline (`../invariant/002`), shaded by the main shader pair in
 multisampled `RGBA16F` attachments (`../invariant/003`):
 
 1. **Opaque pass** — depth-tested draw of opaque meshes into the main color
-   (+ emission) targets.
+   (+ emission) targets. Occluders (`Material::is_occluder`, depth only, colour
+   mask off) draw first, so their depth hides the geometry behind them; the
+   rest is grouped by emission and then by program to limit state changes.
 2. **Transparent pass** — blending-alpha materials draw into the weighted
    accumulation + revealage targets (weighted-blended OIT,
-   `../invariant/001`); no CPU-side sorting exists anywhere in the frame.
+   `../invariant/001`); nothing in the frame is depth-sorted.
 3. **Resolve + composite** — `resolve( gl, use_emission, has_transparent )`
    resolves multisampled targets to textures and composites the transparent
    result over the opaque image.
@@ -57,6 +59,7 @@ HAL once one exists.
 | File | Relationship |
 |------|--------------|
 | [../pitfall/001_requires_ext_color_buffer_float.md](../pitfall/001_requires_ext_color_buffer_float.md) | Environment requirement every consumer of this pipeline inherits |
+| [../pitfall/002_gltf_images_upload_after_load.md](../pitfall/002_gltf_images_upload_after_load.md) | Loaded material textures reach the GPU after `load` returns |
 
 ### Sources
 

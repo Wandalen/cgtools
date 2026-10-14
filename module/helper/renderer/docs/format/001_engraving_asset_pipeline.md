@@ -1,6 +1,13 @@
-# 3D Asset Pipeline Guide: Preparing Models for Dynamic Text Engraving (glTF / WebGL 2)
+# Format: Engraving Asset Pipeline
 
-This document outlines the technical requirements for mesh geometry, UV mapping structures, and export settings when creating 3D models (rings, bracelets, pendants, cups) intended for integration with the dynamic WebGL text engraving subsystem (`src/webgl/engraving/`, shader block `USE_ENGRAVING` in `../shaders/main.frag`).
+This document outlines the technical requirements for mesh geometry, UV mapping structures, and export settings when creating 3D models (rings, bracelets, pendants, cups) intended for integration with the dynamic WebGL text engraving subsystem ([feature 004](../feature/004_text_engraving.md): `src/webgl/engraving/`, shader block `USE_ENGRAVING` in `src/webgl/shaders/main.frag`), and the `engraving_config.json` that accompanies each model.
+
+### Scope
+
+- **Purpose**: The artist-facing contract for engravable glTF assets and their `engraving_config.json`.
+- **Responsibility**: State what the mesh, its two UV channels, the export and the config must look like for the engraving runtime to place text correctly.
+- **In Scope**: Engraving-zone topology, `TEXCOORD_0` / `TEXCOORD_1` layout, physical aspect ratio, `engraving_config.json` fields, Blender glTF export settings.
+- **Out of Scope**: How the runtime rasterizes and shades the text (see [004_text_engraving.md](../feature/004_text_engraving.md)); the full field list with ranges and defaults is the JSON Schema itself, [`engraving_config.schema.json`](../../src/webgl/engraving/engraving_config.schema.json).
 
 ---
 
@@ -75,13 +82,15 @@ $$\text{Aspect Ratio} = \frac{\text{Strip Length } (L)}{\text{Strip Height } (H)
    * *For Partial Mesh Strips:* $L = \text{Length of 1 horizontal edge} \times \text{Number of segment quads in the strip}$.
 
 > **Example:** Circumference length $L = 62.8\text{ mm}$, height $H = 2.0\text{ mm}$.
-> $\text{Aspect Ratio} = 62.8 / 2.0 = 31.4$. The developer will initialize an offscreen Canvas at $4096 \times 128\text{ px}$.
+> $\text{Aspect Ratio} = 62.8 / 2.0 = 31.4$. At the default `textureHeight` of 256 the canvas and texture would be $8038 \times 256\text{ px}$, wider than the 4096 px `MAX_TEXTURE_SIZE` many mobile GPUs report, and `EngravingSession::build` rejects a texture the GPU can't hold. Set `"textureHeight": 128` for this strip, giving $4019 \times 128\text{ px}$.
+>
+> Keep $\text{textureHeight} \times \text{aspectRatio}$ at or below 4096 for long strips.
 
 ---
 
 ## 5. Metadata Transfer (`engraving_config.json`)
 
-Accompany each exported `.glb` model with an `engraving_config.json` parameter file (or include it in the task description), validated against [`engraving_config.schema.json`](engraving_config.schema.json). `engraving_config.json`'s top-level `nodes` is an **array** — a piece of jewelry with several independent engraving zones (a ring band's inner surface, a pendant tag, each link of a charm bracelet, ...) gets one array entry per zone, each with its own `nodeName`, `aspectRatio`, physical strip height, and so on. There is no shared/inherited state between entries: every node is resolved and sized completely independently (`EngravingSession::build` walks `nodes` and applies each one to its own mesh node), so a ring band's `stripHeightMm: 2.5` and a much smaller charm's `stripHeightMm: 1.2` coexist correctly in the same file. `nodeName`, `uvChannel`, `aspectRatio`, `maxCharacters`, `defaultFont` and `allowedFonts` are **required** on every entry — the whole config fails to load if any entry is missing them:
+Accompany each exported `.glb` model with an `engraving_config.json` parameter file (or include it in the task description), validated against [`engraving_config.schema.json`](../../src/webgl/engraving/engraving_config.schema.json). `engraving_config.json`'s top-level `nodes` is an **array** — a piece of jewelry with several independent engraving zones (a ring band's inner surface, a pendant tag, each link of a charm bracelet, ...) gets one array entry per zone, each with its own `nodeName`, `aspectRatio`, physical strip height, and so on. There is no shared/inherited state between entries: every node is resolved and sized completely independently (`EngravingSession::build` walks `nodes` and applies each one to its own mesh node), so a ring band's `stripHeightMm: 2.5` and a much smaller charm's `stripHeightMm: 1.2` coexist correctly in the same file. `nodeName`, `uvChannel`, `aspectRatio`, `maxCharacters`, `defaultFont` and `allowedFonts` are **required** on every entry — the whole config fails to load if any entry is missing them:
 
 ```json
 {
@@ -100,7 +109,7 @@ Accompany each exported `.glb` model with an `engraving_config.json` parameter f
 * `maxCharacters`: Upper bound on text length; enforced before rasterizing.
 * `defaultFont` / `allowedFonts`: CSS font-family whitelist for this node's engraving text. There is no `defaultText` field — initial text is set at runtime by the calling application (`EngravingSession::set_text`), not baked into this config.
 
-Optional fields (`textureHeight`, `padding`, `engravingStrength`, `engravingRoughness`, `engravingDarkening`) all have sane defaults — see [`engraving_config.schema.json`](engraving_config.schema.json) for the full list, defaults and validation ranges, and [`engraving_config.example.json`](engraving_config.example.json) for a complete three-node example on one piece of jewelry: a full-circle ring band (`HYBRID` sizing), a bracelet charm link (`PHYSICAL` sizing, a much smaller and differently-shaped strip), and a pendant tag (no sizing fields at all, demonstrating the `RELATIVE` auto-fit fallback).
+Optional fields (`textureHeight`, `padding`, `engravingStrength`, `engravingRoughness`, `engravingDarkening`) all have sane defaults — see [`engraving_config.schema.json`](../../src/webgl/engraving/engraving_config.schema.json) for the full list, defaults and validation ranges, and [`engraving_config.example.json`](../../src/webgl/engraving/engraving_config.example.json) for a complete three-node example on one piece of jewelry: a full-circle ring band (`HYBRID` sizing), a bracelet charm link (`PHYSICAL` sizing, a much smaller and differently-shaped strip), and a pendant tag (no sizing fields at all, demonstrating the `RELATIVE` auto-fit fallback).
 
 ### 5.1. Physical Text Sizing (Optional)
 
@@ -111,7 +120,7 @@ By default (no fields below set) engraving text auto-fits: it grows to the large
 * `minFontSizeMm` (optional): the smallest the engine may shrink text to before it refuses further overflow instead of continuing to shrink.
 * `sizingMode` (optional): `"HYBRID"` (shrink toward `minFontSizeMm` on overflow — the default once the two fields above are both set), `"PHYSICAL"` (never shrink; overflowing text is rejected outright), or `"RELATIVE"` (the auto-fit default; set explicitly together with `fontSizeRatio` to pin text to a fixed fraction of the strip height instead of auto-fitting).
 
-These are set per node, so a multi-zone piece isn't forced to use one strip height everywhere. In [`engraving_config.example.json`](engraving_config.example.json): `RingBand_Inner` is a worked `HYBRID` example (a 2.5mm-tall strip targeting 1.5mm letters, shrinking no further than 0.8mm), `Charm_Bracelet_Link` is a much smaller, unrelated `PHYSICAL` strip (1.2mm tall, 0.8mm letters, no shrinking) on the same piece, and `PendantTag_Back` opts out of physical sizing entirely.
+These are set per node, so a multi-zone piece isn't forced to use one strip height everywhere. In [`engraving_config.example.json`](../../src/webgl/engraving/engraving_config.example.json): `RingBand_Inner` is a worked `HYBRID` example (a 2.5mm-tall strip targeting 1.5mm letters, shrinking no further than 0.8mm), `Charm_Bracelet_Link` is a much smaller, unrelated `PHYSICAL` strip (1.2mm tall, 0.8mm letters, no shrinking) on the same piece, and `PendantTag_Back` opts out of physical sizing entirely.
 
 ---
 

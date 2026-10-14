@@ -10,11 +10,11 @@ The cylinder asset (`assets/gltf/cylinder.glb`) ships two UV sets: `TEXCOORD_0` 
 
 **[How to run](../how_to_run.md)**
 
-Preparing your own model (mesh topology, dual UV channels, export settings, `engraving_config.json` fields) for this pipeline: see the [artist guide](../../../module/helper/renderer/src/webgl/engraving/artist_guide.md).
+Preparing your own model (mesh topology, dual UV channels, export settings, `engraving_config.json` fields) for this pipeline: see the [engraving asset pipeline](../../../module/helper/renderer/docs/format/001_engraving_asset_pipeline.md).
 
 **References:**
 
-* [Normal Mapping Without Precomputed Tangents] - the derivative-based normal perturbation technique used by the engraving shader block
+* [Normal Mapping Without Precomputed Tangents] - the derivative-based tangent frame the engraving relief falls back to when the mesh has no vertex tangents
 * [CSS Font Loading Module] - the `document.fonts.load()` API used to await web fonts before rasterizing
 
 [Normal Mapping Without Precomputed Tangents]: http://www.thetenthplanet.de/archives/1180

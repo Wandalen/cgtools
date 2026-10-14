@@ -187,15 +187,7 @@ mod private
       packed_array
     }
 
-    let get_target_array = | acc : gltf::Accessor< '_ > |
-    {
-      gltf::mesh::util::ReadPositionDisplacements::new
-      (
-        acc,
-        | buffer | buffers.get( buffer.index() ).map( std::vec::Vec::as_slice )
-      )
-      .map( std::iter::Iterator::collect::< Vec< _ > > )
-    };
+    let get_target_array = | acc : gltf::Accessor< '_ > | accessor_vec3_read( acc, buffers );
 
     let skin_vertices_count = primitives_vertices_count.iter().sum::< usize >();
     let ( positions, normals, tangents ) =
@@ -477,6 +469,45 @@ mod private
     }
   }
 
+  /// Largest meshopt fallback buffer [`load`] allocates. A fallback holds no data of its
+  /// own, so its size is only the `byteLength` the JSON declares : without a limit a few
+  /// bytes of JSON could commit gigabytes, and copying such a buffer into wasm memory for
+  /// skins or animations would abort the module. Decoded web geometry is far below this.
+  const FALLBACK_BUFFER_MAX : usize = 1 << 30;
+
+  /// Allocates the zeroed buffer a meshopt fallback's views decode into.
+  ///
+  /// # Errors
+  ///
+  /// Returns `WebglError::Other` when the declared length exceeds [`FALLBACK_BUFFER_MAX`]
+  /// or the browser refuses the allocation. `Uint8Array::new_with_length` would throw that
+  /// `RangeError` straight through the wasm frames, so the array is built through
+  /// `Reflect.construct`, which hands the exception back as a value.
+  fn fallback_buffer_allocate( gltf_buffer : &gltf::Buffer< '_ > ) -> Result< gl::js_sys::Uint8Array, gl::WebglError >
+  {
+    use gl::js_sys::{ Array, Reflect, Uint8Array };
+
+    let length = gltf_buffer.length();
+    let Some( length ) = u32::try_from( length ).ok().filter( | _ | length <= FALLBACK_BUFFER_MAX ) else
+    {
+      gl::browser::error!
+      (
+        "glTF meshopt fallback buffer {} declares {length} bytes, more than the {FALLBACK_BUFFER_MAX} this loader allocates",
+        gltf_buffer.index()
+      );
+      return Err( gl::WebglError::Other( "glTF meshopt fallback buffer is too large" ) );
+    };
+
+    let constructor = Uint8Array::new_with_length( 0 ).constructor();
+    Reflect::construct( &constructor, &Array::of1( &length.into() ) )
+    .map( JsCast::unchecked_into )
+    .map_err( | e |
+    {
+      gl::browser::error!( "glTF meshopt fallback buffer {}: allocation failed: {e:?}", gltf_buffer.index() );
+      gl::WebglError::Other( "glTF meshopt fallback buffer allocation failed" )
+    } )
+  }
+
   /// Collects the raw byte payload of every glTF buffer, indexed like the
   /// document's `buffers` : the embedded GLB binary chunk, each URI-addressed
   /// buffer fetched relative to `folder_path`, and a zeroed placeholder for each
@@ -496,9 +527,7 @@ mod private
     {
       if crate::webgl::loaders::meshopt::buffer_is_fallback( &gltf_buffer )
       {
-        let length = u32::try_from( gltf_buffer.length() )
-        .map_err( | _ | gl::WebglError::Other( "glTF buffer is larger than 4 GiB" ) )?;
-        buffers.push( gl::js_sys::Uint8Array::new_with_length( length ) );
+        buffers.push( fallback_buffer_allocate( &gltf_buffer )? );
         continue;
       }
 
@@ -506,10 +535,17 @@ mod private
       {
         gltf::buffer::Source::Bin =>
         {
-          // Only the first buffer may omit its uri : it is the GLB binary chunk.
+          // GLB stores its binary chunk as `buffers[ 0 ]`, the only buffer allowed to omit
+          // its uri. Handing the chunk to a later uri-less buffer would hide a malformed file
+          // behind misplaced data.
+          if gltf_buffer.index() != 0
+          {
+            gl::browser::error!( "glTF buffer {} has no uri; only buffer 0 may omit it", gltf_buffer.index() );
+            return Err( gl::WebglError::Other( "glTF buffer has no data" ) );
+          }
           let blob = blob.take().ok_or_else( ||
           {
-            gl::browser::error!( "glTF buffer {} has no uri and no GLB binary chunk", gltf_buffer.index() );
+            gl::browser::error!( "glTF buffer 0 has no uri and the file has no GLB binary chunk" );
             gl::WebglError::Other( "glTF buffer has no data" )
           } )?;
           gl::debug!( "The gltf binary payload is present: {}", blob.len() );
@@ -1036,26 +1072,70 @@ mod private
   )
   -> gltf::mesh::BoundingBox
   {
-    use gltf::accessor::DataType;
-
     if !normalized
     {
       return bounds;
     }
+    let scale = | v : f32 | component_dequantize( v, data_type, normalized );
+    gltf::mesh::BoundingBox
+    {
+      min : bounds.min.map( scale ),
+      max : bounds.max.map( scale ),
+    }
+  }
+
+  /// Maps one raw accessor component to the value WebGL would hand the shader : a
+  /// normalized integer becomes -1..1 or 0..1, anything else is used as is.
+  fn component_dequantize( v : f32, data_type : gltf::accessor::DataType, normalized : bool ) -> f32
+  {
+    use gltf::accessor::DataType;
+
+    if !normalized
+    {
+      return v;
+    }
     // Per the glTF spec's normalization equations : signed types clamp at -1.
-    let scale = | v : f32 | match data_type
+    match data_type
     {
       DataType::I8 => ( v / 127.0 ).max( -1.0 ),
       DataType::U8 => v / 255.0,
       DataType::I16 => ( v / 32767.0 ).max( -1.0 ),
       DataType::U16 => v / 65535.0,
       DataType::U32 | DataType::F32 => v,
-    };
-    gltf::mesh::BoundingBox
-    {
-      min : bounds.min.map( scale ),
-      max : bounds.max.map( scale ),
     }
+  }
+
+  /// Reads a `VEC3` accessor as floats, whatever its component type. `KHR_mesh_quantization`
+  /// lets morph target `POSITION` / `NORMAL` / `TANGENT` be `i8` or `i16`, normalized or not,
+  /// but the `gltf` crate's `ReadPositionDisplacements` and its siblings always read `f32`
+  /// without checking the type. Reading by the declared type keeps the view's `byteStride`
+  /// and sparse substitution, which `gltf::accessor::Iter` already handles.
+  ///
+  /// `None` when the accessor is not `VEC3` or its data is missing from `buffers`.
+  fn accessor_vec3_read( acc : gltf::Accessor< '_ >, buffers : &[ Vec< u8 > ] ) -> Option< Vec< [ f32; 3 ] > >
+  {
+    use gltf::accessor::{ DataType, Dimensions, Iter };
+
+    if acc.dimensions() != Dimensions::Vec3
+    {
+      return None;
+    }
+    let data_type = acc.data_type();
+    let normalized = acc.normalized();
+    let get = | buffer : gltf::Buffer< '_ > | buffers.get( buffer.index() ).map( Vec::as_slice );
+    let scale = | v : [ f32; 3 ] | v.map( | c | component_dequantize( c, data_type, normalized ) );
+
+    let values = match data_type
+    {
+      DataType::F32 => Iter::< [ f32; 3 ] >::new( acc, get )?.collect(),
+      DataType::I8 => Iter::< [ i8; 3 ] >::new( acc, get )?.map( | v | scale( v.map( f32::from ) ) ).collect(),
+      DataType::U8 => Iter::< [ u8; 3 ] >::new( acc, get )?.map( | v | scale( v.map( f32::from ) ) ).collect(),
+      DataType::I16 => Iter::< [ i16; 3 ] >::new( acc, get )?.map( | v | scale( v.map( f32::from ) ) ).collect(),
+      DataType::U16 => Iter::< [ u16; 3 ] >::new( acc, get )?.map( | v | scale( v.map( f32::from ) ) ).collect(),
+      #[ allow( clippy::cast_precision_loss, reason = "glTF allows no `u32` displacements, so values past 2^24 losing precision does not matter" ) ]
+      DataType::U32 => Iter::< [ u32; 3 ] >::new( acc, get )?.map( | v | v.map( | c | c as f32 ) ).collect(),
+    };
+    Some( values )
   }
 
   /// Describes one vertex attribute over the uploaded GPU buffers from its

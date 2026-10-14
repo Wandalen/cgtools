@@ -15,8 +15,9 @@ A comprehensive 3D rendering system built specifically for WebAssembly and WebGL
 ### 🏗️ **Scene Management**
 - **glTF 2.0 Support** - Industry-standard 3D asset loading
 - **Hierarchical Scenes** - Node-based scene graph with transformations
-- **KHR Extensions** - Support for material extensions and advanced features
+- **glTF Extensions** - Material extensions, plus meshopt-compressed and quantized geometry
 - **Asset Streaming** - Efficient loading of 3D models and textures
+- **GPU Object Picking** - Id-buffer picking of scene nodes (`webgl::picking`), with a per-material highlight multiplier for hover / selection feedback
 
 ### 📷 **Camera System**
 - **Perspective & Orthographic** - Multiple projection modes
@@ -30,7 +31,7 @@ A comprehensive 3D rendering system built specifically for WebAssembly and WebGL
 - **Clearcoat and Anisotropy** - A dielectric coat layer with its own normal and roughness (KHR_materials_clearcoat) and anisotropic specular highlights (KHR_materials_anisotropy)
 - **Texture Streaming** - Efficient texture memory management
 - **Configurable Rendering Properties** - Per-material control of face culling, depth testing, and winding order
-- **Dynamic Text Engraving** - Node-scoped, runtime-editable engraved text (relief normal, groove roughness/darkening) on `PbrMaterial`; see `src/webgl/engraving/`
+- **Dynamic Text Engraving** - Node-scoped, runtime-editable engraved text (relief normal, groove roughness/darkening) on `PbrMaterial`; see [docs/feature/004_text_engraving.md](docs/feature/004_text_engraving.md)
 
 
 ## 📦 Installation
@@ -163,6 +164,15 @@ fn render_frame
 
 See `examples/minwebgl/postprocessing` for the full interactive version of this pipeline.
 
+### AR / Transparent Canvas
+
+To composite the canvas over other content, such as a camera photo or video behind it:
+
+- Call `to_srgb.alpha_forward_set( &gl, true )?`. The canvas then keeps the scene's coverage alpha instead of being opaque. The output is premultiplied, which matches the WebGL default `premultipliedAlpha: true` canvas.
+- Clear to colour 0: `renderer.clear_color_set( F32x3::from_array( [ 0.0, 0.0, 0.0 ] ) )`. With any other clear colour, silhouette edges carry it blended in.
+- Every pass between the renderer and `ToSrgbPass` must pass alpha through. ACES tone mapping and `ColorGradingPass` do.
+- For real-world objects that hide part of the model (a finger through a ring), give an invisible stand-in mesh a material whose `is_occluder()` returns `true` and whose `color_write_mask()` is all `false`. The opaque pass draws occluders first, so their depth hides the geometry behind them and the photo shows through.
+
 ## 📖 API Reference
 
 ### Core Components
@@ -179,7 +189,7 @@ See `examples/minwebgl/postprocessing` for the full interactive version of this 
 | Pass | Description | Use Case |
 |------|-------------|----------|
 | `ToneMappingPass<ToneMappingAces>` | ACES tone mapping | HDR to LDR conversion |
-| `ToSrgbPass` | Gamma correction | Final color space conversion |
+| `ToSrgbPass` | Linear to sRGB encoding; opaque by default, optional premultiplied alpha output (`alpha_forward_set`) | Final color space conversion, AR over a photo |
 | Custom passes | User-defined effects | Bloom, blur, color grading |
 
 ### Asset Loading
@@ -205,6 +215,22 @@ async fn load_assets
 }
 # fn main() { let _ = load_assets; }
 ```
+
+#### Compressed glTF
+
+The loader reads meshopt-compressed ( [EXT_meshopt_compression], [KHR_meshopt_compression] )
+and quantized ( [KHR_mesh_quantization] ) assets, such as gltfpack or glTF-Transform output.
+Compressed buffer views are decoded with meshoptimizer's own decoder, vendored as
+`src/webgl/loaders/meshopt_decoder.js`, which wasm-bindgen imports as a JS snippet. That has
+two consequences for the page that hosts the wasm module :
+
+- **Ship `pkg/snippets/`.** The generated glue imports the decoder from
+  `snippets/renderer-<hash>/src/webgl/loaders/meshopt_decoder.js`, so the `snippets/` folder
+  has to be served next to the glue file. `wasm-pack` and `trunk` output already include it; a
+  custom pipeline that copies only the `.js` and `.wasm` files breaks the module at import.
+- **Allow `wasm-unsafe-eval`.** The decoder carries its own small wasm module and compiles it
+  with `WebAssembly.instantiate`. A page with a Content Security Policy needs
+  `'wasm-unsafe-eval'` in `script-src`, the same permission the crate's own wasm needs.
 
 ### Features
 
@@ -260,17 +286,7 @@ OpenPBR Surface is the ASWF-standard über-shader (see the [OpenPBR spec]); it h
 Correspondences marked "approximate" share a lobe's *meaning* but not always its exact physical parametrization (e.g. glTF volume `thicknessFactor`/`attenuationDistance` vs OpenPBR `transmission_depth`; `sheenColorFactor` vs `fuzz_color`) — see the `OpenPbrParams` field docs and the [OpenPBR spec]'s parameter tables for the authoritative defaults. Presence semantics: a field is `Some` only while its extension is present, defaulted to the extension's schema default when the key is omitted. The staged roadmap, blocker list, and test/reference-model plan live in [`docs/openpbr_adoption_plan.md`](docs/openpbr_adoption_plan.md).
 
 ### Dynamic Text Engraving
-`src/webgl/engraving/` maps glTF node names to an engraving zone (a dedicated UV channel, aspect ratio, character limit and font whitelist — see `engraving_config.schema.json`), and wires user-supplied text all the way to the GPU:
-
-1. `EngravingConfig::from_json` parses `engraving_config.json`.
-2. `EngravingSession::build` resolves each configured node against a loaded `Scene`, allocates one offscreen canvas + one GPU mask texture per node, and turns on `PbrMaterial`'s `USE_ENGRAVING` shader path.
-3. `EngravingSession::set_text` (async — it awaits `document.fonts.load()`) rasterizes white-on-black text once per mip level (re-drawn at each level's own resolution, not box-filtered down from level 0 — a binary text mask aliases badly under a naive `generateMipmap`, and that aliasing feeds straight into the shader's derivative-based relief normal) and uploads the whole chain via `texSubImage2D` per level — no reallocation or shader recompilation, so it's cheap to call on every keystroke.
-
-Font sizing per node follows one of three `SizingMode`s (`EngravingNodeConfig::resolved_sizing_mode`): `PHYSICAL` and `HYBRID` derive a target size in canvas px from `defaultFontSizeMm / stripHeightMm` (HYBRID shrinks toward `minFontSizeMm` on overflow instead of rejecting it outright), `RELATIVE` either uses a fixed `fontSizeRatio` of canvas height or auto-fits the largest size that fits the padded bounds. A node with none of the physical fields set resolves to `RELATIVE` automatically, so `sizingMode` is opt-in, not required.
-
-`main.frag`'s `USE_ENGRAVING` block bounds-checks the mask UV against `[0, 1]`, perturbs the normal from a UV-space surface gradient (explicit-LOD `textureLod` central differences along the mask's U/V axes, projected onto the tangent frame — a first-order bump-mapping approximation of a beveled groove), and pushes roughness/albedo towards a matte, slightly darkened look inside the mask — without touching the base metal's hue. Sampling the gradient at an explicit LOD (rather than differentiating a filtered `texture()` fetch via `dFdx`/`dFdy`) keeps it well-behaved at any distance or viewing angle, so no separate fade-out stage is needed.
-
-See `src/webgl/engraving/artist_guide.md` for the 3D-artist-facing asset prep guide (mesh/UV requirements, export settings, `engraving_config.json` fields) covering the Blender -> glTF side of this pipeline.
+`webgl::engraving` engraves runtime-editable text into glTF mesh nodes listed in an `engraving_config.json`: `EngravingConfig::from_json` parses the config, `EngravingSession::build` binds it to a loaded `Scene` (each configured node gets its own copy of its `PbrMaterial`s), and the async `EngravingSession::set_text` rasterizes text in a whitelisted font and uploads it to the node's mask texture. See [docs/feature/004_text_engraving.md](docs/feature/004_text_engraving.md) for the design and [docs/format/001_engraving_asset_pipeline.md](docs/format/001_engraving_asset_pipeline.md) for preparing assets and writing the config.
 
 ### Performance Optimization
 - **Shader program caching** - Materials with identical shader source share a single compiled GPU program
@@ -311,7 +327,7 @@ feature hubs for the PBR core, image-based lighting, and shadow mapping.
 - [Normals and the Inverse Transpose, Part 2: Dual Spaces]
 - [Normal Mapping Without Precomputed Tangents]
 
-#### KHR Extensions
+#### glTF Extensions
 - [KHR_materials_specular]
 - [KHR_materials_clearcoat]
 - [KHR_materials_anisotropy]
@@ -324,6 +340,9 @@ feature hubs for the PBR core, image-based lighting, and shadow mapping.
 - [KHR_materials_dispersion]
 - [KHR_materials_diffuse_transmission]
 - [OpenPBR spec]
+- [EXT_meshopt_compression]
+- [KHR_meshopt_compression]
+- [KHR_mesh_quantization]
 
 [Real Shading in Unreal Engine 4]: https://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
 [Background: Physics and Math of Shading]: https://blog.selfshadow.com/publications/s2013-shading-course/hoffman/s2013_pbs_physics_math_notes.pdf
@@ -354,5 +373,8 @@ feature hubs for the PBR core, image-based lighting, and shadow mapping.
 [KHR_materials_dispersion]:  https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_dispersion/README.md
 [KHR_materials_diffuse_transmission]:  https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_diffuse_transmission/README.md
 [OpenPBR spec]: https://academysoftwarefoundation.github.io/OpenPBR/
+[EXT_meshopt_compression]:  https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Vendor/EXT_meshopt_compression/README.md
+[KHR_meshopt_compression]:  https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_meshopt_compression/README.md
+[KHR_mesh_quantization]:  https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_mesh_quantization/README.md
 [Vulkan-glTF-PBR]: https://github.com/SaschaWillems/Vulkan-glTF-PBR/blob/master/data/shaders/genbrdflut.frag
 [Image Based Lighting with Multiple Scattering]: https://bruop.github.io/ibl/

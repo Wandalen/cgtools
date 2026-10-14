@@ -193,7 +193,8 @@ vec3 adjust_saturation( vec3 color, float saturation_param )
 
 void main()
 {
-  vec3 color = texture( sourceTexture, vUv ).rgb;
+  vec4 src = texture( sourceTexture, vUv );
+  vec3 color = src.rgb;
 
   color = apply_white_balance( color, temperature, tint );
   color = apply_tonal_adjustments( color, exposure, shadows, highlights );
@@ -201,5 +202,7 @@ void main()
   color = adjust_saturation( color, saturation );
   color = adjust_vibrance( color, vibrance );
 
-  frag_color = vec4( clamp( color, 0.0, 1.0 ), 1.0 );
+  // Alpha passes through, so a `ToSrgbPass` with alpha forwarding still sees the
+  // scene's coverage. The final opaque `ToSrgbPass` writes 1.0 regardless.
+  frag_color = vec4( clamp( color, 0.0, 1.0 ), src.a );
 }

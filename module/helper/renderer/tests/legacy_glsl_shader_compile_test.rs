@@ -251,6 +251,17 @@ mod tests
     glsl_validate( &gl_init(), "post_processing/to_srgb.frag", GL::FRAGMENT_SHADER, include_str!( "../src/webgl/shaders/post_processing/to_srgb.frag" ) );
   }
 
+  /// The `FORWARD_ALPHA` variant ( `ToSrgbPass::alpha_forward_set` ), with the define
+  /// inserted after `#version` the way the pass inserts it.
+  #[ wasm_bindgen_test( async ) ]
+  async fn post_processing_to_srgb_forward_alpha_frag_compiles()
+  {
+    let source = include_str!( "../src/webgl/shaders/post_processing/to_srgb.frag" )
+    .replacen( "precision highp float;", "#define FORWARD_ALPHA\nprecision highp float;", 1 );
+    assert!( source.contains( "#define FORWARD_ALPHA" ), "the define must be inserted" );
+    glsl_validate( &gl_init(), "post_processing/to_srgb.frag ( FORWARD_ALPHA )", GL::FRAGMENT_SHADER, &source );
+  }
+
   /// `NUM_MIPS` is a `#define` preamble, not a constant this file declares —
   /// production ( `post_processing/unreal_bloom.rs`, `UnrealBloomPass::new`
   /// ) always injects `#define NUM_MIPS 5` ( its own `const MIPS : usize =

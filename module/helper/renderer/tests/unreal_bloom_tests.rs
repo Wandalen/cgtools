@@ -93,6 +93,28 @@ mod tests
     );
   }
 
+  /// Each mip halves the previous one, so a canvas dimension under `2^MIPS` texels ( 32 ) would
+  /// reach a zero-sized mip: `texStorage2D` rejects it with `INVALID_VALUE` and every blur pass
+  /// into it fails. The mip size is floored at one texel, so a small, non-power-of-two canvas
+  /// must construct and render without a GL error.
+  #[ wasm_bindgen_test( async ) ]
+  async fn small_canvas_mips_floor_at_one_texel()
+  {
+    let gl = gl_init();
+    let ( width, height ) = ( 20, 6 );
+
+    let pass = UnrealBloomPass::new( &gl, width, height, gl::RGBA16F )
+    .expect( "UnrealBloomPass construction should succeed on a small canvas" );
+    assert_eq!( gl.get_error(), GL::NO_ERROR, "construction raised a GL error" );
+
+    let mut swap = SwapFramebuffer::new( &gl, width, height );
+    swap.bind( &gl );
+    swap.input_set( Some( texture_make( &gl, width as i32, height as i32 ) ) );
+    pass.render( &gl, swap.input_get(), swap.output_get() )
+    .expect( "UnrealBloomPass::render should succeed on a small canvas" );
+    assert_eq!( gl.get_error(), GL::NO_ERROR, "render raised a GL error" );
+  }
+
   /// Rendering once with the default bloom parameters, then again after mutating both public
   /// setters ( `bloom_radius_set`, `bloom_strength_set` ), must succeed both times -- exercises
   /// the per-frame uniform re-upload path, not only the values set at construction, mirroring

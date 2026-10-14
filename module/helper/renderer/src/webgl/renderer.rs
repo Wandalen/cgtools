@@ -45,7 +45,7 @@ mod private
   /// ( node, primitive, primitive index, program UUID ).
   type TransparentNodeEntry = ( Rc< RefCell< Node > >, Rc< RefCell< Primitive > >, usize, uuid::Uuid );
   /// An opaque-pass draw-queue entry :
-  /// ( node, primitive, primitive index, program UUID, has emission ).
+  /// ( node, primitive, primitive index, program UUID, has emission, is occluder ).
   type OpaqueNodeEntry = ( Rc< RefCell< Node > >, Rc< RefCell< Primitive > >, usize, uuid::Uuid, bool, bool );
 
   /// Manages the rendering process, including program management, IBL setup, and drawing objects in the scene.
@@ -67,7 +67,7 @@ mod private
     /// Transmissive primitives ( OpenPBR §3.3 ), drawn in a dedicated pass that
     /// samples the transmission target captured right after the opaque pass.
     transmission_nodes : Vec< TransparentNodeEntry >,
-    /// (node, primitive, primitive_index, program_uuid, has_emission)
+    /// (node, primitive, primitive_index, program_uuid, has_emission, is_occluder)
     opaque_nodes : Vec< OpaqueNodeEntry >,
 
     /// Holds the precomputed textures used for Image-Based Lighting.
@@ -102,6 +102,11 @@ mod private
     /// survives `resize()`; released only through `Texture`'s own ownership (an
     /// owning texture is deleted once its last clone, this one included, drops).
     skybox : Option< Texture >,
+    /// Whether the resolved transparent accumulation texture may hold anything but
+    /// revealage 1 : it starts zeroed, and a transparent frame leaves its coverage
+    /// behind. The next frame without transparent primitives resets it, so that
+    /// `transparent_coverage_texture` never reports a previous frame's glass.
+    transparent_coverage_dirty : bool,
   }
 
   impl Renderer
@@ -166,6 +171,7 @@ mod private
           clear_color : F32x3::splat( 0.0 ),
           skybox_shader,
           skybox : None,
+          transparent_coverage_dirty : true,
         }
       )
     }
@@ -213,6 +219,7 @@ mod private
       self.swap_buffer = None;
 
       self.framebuffer_ctx = FramebufferContext::new( gl, width, height, samples );
+      self.transparent_coverage_dirty = true;
       if self.use_emission
       {
         self.bloom_effect = Some( UnrealBloomPass::new( gl, width, height, gl::RGBA16F )? );
@@ -336,6 +343,19 @@ mod private
     pub fn main_texture( &self ) -> Option< gl::web_sys::WebGlTexture >
     {
       self.framebuffer_ctx.main_texture.clone()
+    }
+
+    /// The texture that marks which pixels of the last `render` hold transparent coverage,
+    /// for `ToneMappingPass::transparent_coverage_texture_set`.
+    ///
+    /// It is the WBOIT accumulation target: its alpha is the revealage, the product of
+    /// `1 - alpha` over the transparent layers, so exactly 1 where none covers the pixel,
+    /// and 1 everywhere after a frame without transparent primitives. The handle stays the
+    /// same from frame to frame; `resize` replaces it.
+    #[ must_use ]
+    pub fn transparent_coverage_texture( &self ) -> Option< gl::web_sys::WebGlTexture >
+    {
+      self.framebuffer_ctx.transparent_accumulate_texture.clone()
     }
 
     /// Draw equirectangular skybox
@@ -728,7 +748,7 @@ mod private
       let mut current_emission = false;
       gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
 
-      for ( node_rc, primitive_rc, prim_idx, program_id, has_em, _is_occ ) in &self.opaque_nodes
+      for ( node_rc, primitive_rc, prim_idx, program_id, has_em, _ ) in &self.opaque_nodes
       {
         let need_emission = self.use_emission && *has_em;
         if need_emission != current_emission
@@ -796,6 +816,10 @@ mod private
       }
 
       gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
+      // The colour mask is per-material state. An occluder drawn last (one with nothing
+      // else in the queue) would leave it off for the skybox, the post-processing passes
+      // and next frame's clear.
+      gl.color_mask( true, true, true, true );
 
       // A sourceless skybox would bind no texture, and the shader would write the
       // unbound sampler's black at alpha 1 over the whole background.
@@ -1003,6 +1027,7 @@ mod private
         primitive.draw( gl );
       }
 
+      gl.color_mask( true, true, true, true );
       gl.disable( gl::CULL_FACE );
       gl.depth_mask( true );
 
@@ -1019,6 +1044,11 @@ mod private
       let has_transparent = !self.transparent_nodes.is_empty();
       self.framebuffer_ctx.resolve( gl, self.use_emission, has_transparent );
       self.framebuffer_ctx.multisample_unbind( gl );
+      if !has_transparent && self.transparent_coverage_dirty
+      {
+        self.framebuffer_ctx.transparent_coverage_reset( gl );
+      }
+      self.transparent_coverage_dirty = has_transparent;
 
       if self.use_emission
       {
