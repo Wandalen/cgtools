@@ -2,10 +2,15 @@
 name = "tilemap_renderer"
 version = "0.2.0"
 edition = "2024"
+rust-version = "1.88"
 authors = ["cgtools contributors"]
 license = "MIT"
 description = "Agnostic 2D rendering engine with backend adapter support"
+keywords = ["tilemap", "2d", "rendering", "gamedev", "graphics"]
+categories = ["rendering", "graphics", "game-development"]
 repository = "https://github.com/Wandalen/cgtools"
+homepage = "https://github.com/Wandalen/cgtools/tree/master/module/helper/tilemap_renderer"
+documentation = "https://docs.rs/tilemap_renderer"
 include = [
     "src/**/*",
     "tests/**/*",

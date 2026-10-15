@@ -2,9 +2,15 @@
 name = "behaviour_tree"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.88"
+authors = ["Kostiantyn Mysnyk <wandalen@obox.systems>"]
 license = "MIT"
 description = "Behavior tree implementation for hierarchical AI decision-making in games"
+keywords = ["behavior-tree", "ai", "gamedev", "decision-making"]
+categories = ["game-development", "algorithms"]
 repository = "https://github.com/Wandalen/cgtools"
+homepage = "https://github.com/Wandalen/cgtools/tree/master/module/helper/behaviour_tree"
+documentation = "https://docs.rs/behaviour_tree"
 include = [
     "src/**/*",
     "tests/**/*",
