@@ -936,7 +936,7 @@ mod private
   /// # Errors
   ///
   /// Returns `WebglError` if a KTX2 image cannot be fetched or decoded.
-  #[ cfg_attr( not( feature = "ktx2" ), allow( clippy::unused_async ) ) ] // Awaits only on the KTX2 path.
+  #[ cfg_attr( not( feature = "ktx2" ), allow( clippy::unused_async, reason = "awaits only on the KTX2 path" ) ) ]
   async fn images_upload
   (
     document : &gl::web_sys::Document,
@@ -944,7 +944,7 @@ mod private
     gltf_file : &gltf::Gltf,
     folder_path : &str,
     buffers : &[ gl::js_sys::Uint8Array ],
-    #[ cfg_attr( not( feature = "ktx2" ), allow( unused_variables ) ) ]
+    #[ cfg_attr( not( feature = "ktx2" ), allow( unused_variables, reason = "read only by the ktx2 feature" ) ) ]
     bin_buffers : &[ Vec< u8 > ]
   )
   -> Result< Rc< RefCell< Vec< gl::web_sys::WebGlTexture > > >, gl::WebglError >
