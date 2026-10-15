@@ -15,6 +15,8 @@ For a `RenderSpec` R and any `SceneSnapshot` loaded against it: every id referen
 - Every `TintRef`, `AnimationRef`, `EffectRef` → a declared `Tint.id` / `Animation.id` / `Effect.id`.
 - Every `objects[].id`, `assets[].id`, `animations[].id`, `effects[].id`, `tints[].id` is unique within its own collection (no two `Asset`s share an id, independent of whether two `Object`s might).
 - Every `NeighborBitmask.connects_with` / `EdgeConnectedBitmask.connects_with` entry is a declared object id or the reserved id `"void"` (see `format/003`).
+- Every `VertexCorners.corner_source` (when set) names the `global_layer` of at least one declared object (see `format/005`).
+- Every `VertexCorners` layer with `orient_to_grid: true` declares solid `( X, X, X )` patterns for at most one id — the self id its orientation counts corners against (see `format/005`).
 - Every `PipelineLayer.id` is unique and non-empty; every `Object.global_layer` and `ObjectLayer.pipeline_layer` references a declared `PipelineLayer.id` (see `format/001`, `format/007`).
 - For every object: `default_state` is a key present in `states` (see `format/001`); the reserved id `"void"` is never itself declared as an object id.
 - Scene-side references (`tiles[].objects`, `entities[].object`, `edges[].object`, `multihex_instances[].object`, `free_instances[].object`, `viewport_instances[].object`) resolve to a declared object id (see `format/008`).
@@ -34,6 +36,8 @@ Two independent mechanisms together enforce nearly every rule in the Invariant S
 |----------|------|
 | ✅ | Pipeline-layer reference resolution — both `Object.global_layer` and `ObjectLayer.pipeline_layer` overrides. |
 | ✅ | Asset reference resolution — recursive walk over `Static`/`Variant`/`NeighborCondition`/`VertexCorners`/`NeighborBitmask` (`ByMapping` recursively, `ByAtlas` directly)/`EdgeConnectedBitmask`/`ViewportTiled`, stopping at `Animation`/`External` leaves, plus every `AnimationTiming` frame asset. |
+| ✅ | `VertexCorners.corner_source` resolution — when set, names the `global_layer` of at least one declared object (`UnresolvedRef { kind: "corner_source layer", .. }`); otherwise every corner of that layer would silently resolve to `VOID_ID`. |
+| ✅ | One self id per `orient_to_grid` layer — a `VertexCorners` layer with `orient_to_grid: true` declares solid `( X, X, X )` patterns for at most one id (`ConflictingOrientSelfIds`); orientation counts corners against the first one, so a second solid id's edge and corner tiles would silently take parity frames. |
 | ✅ | `default_state` existence in `states`. |
 | ✅ | Reserved id `"void"` not used as a declared object id. |
 | ✅ | Id uniqueness within `assets` / `tints` / `animations` / `effects` / `objects` (each its own collection). |
@@ -41,7 +45,9 @@ Two independent mechanisms together enforce nearly every rule in the Invariant S
 | ✅ | `NeighborBitmask.connects_with` / `EdgeConnectedBitmask.connects_with` entry resolution (declared object id or reserved id `"void"`). |
 | ✅ | Composite-in-composite nesting rejection (`IllegalSourceNesting`). |
 | ✅ | Tiling whitelist — `pipeline.hex.tiling` restricted to `HexFlatTop`/`HexPointyTop`; `Square4`/`Square8` rejected (`UnsupportedTiling`). |
-| ❌ | Anchor↔source compatibility. `AnchorSourceMismatch` is declared in `src/error.rs` but never constructed — `validate.rs` carries an explicit `// TODO SPEC §16` comment explaining the gap is deliberate, not an oversight: `format/003` and `format/005` disagree with each other and with the actual compile-time dispatch on what the rule even is (see `pitfall/001` for the full breakdown), so implementing it against the literal docs would flag `tests/scene_model_compile_test.rs`'s intentionally-passing `vertex_corners_three_way_blend` as invalid. This is the sole rule in this table without a checkmark. |
+| ✅ | Tint mode — every declared `Tint.mode` is `Multiply` (`UnsupportedTintMode`), the only mode the compiler folds into `Sprite.tint`; compile keeps `CompileError::UnsupportedTintMode` as a backstop for specs built without `load()`. |
+| ✅ | Unsupported layer behaviour — `LayerBehaviour.tint = Masked` rejected (`UnsupportedBehaviour`) because compilation does not implement it yet; compile keeps `CompileError::UnsupportedBehaviour` as a backstop for specs built without `load()`. |
+| ❌ | Anchor↔source compatibility. `AnchorSourceMismatch` is declared in `src/error.rs` but never constructed — `validate.rs` carries an explicit `// TODO SPEC §16` comment explaining the gap is deliberate, not an oversight: `format/003` and `format/005` disagree with each other and with the actual compile-time dispatch on what the rule even is (see `pitfall/001` for the full breakdown), so implementing it against the literal docs would flag `tests/vertex_corners_compile_test.rs`'s intentionally-passing `vertex_corners_three_way_blend` as invalid. This is the sole rule in this table without a checkmark. |
 
 `impl Validate for SceneSnapshot` enforces two Scene-internal rules:
 
