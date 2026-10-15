@@ -324,6 +324,24 @@ mod private
     fn recompile_flag_clear( &self ) {}
   }
 
+  /// The vertex and fragment sources the renderer compiles for `material`: the `#version 300 es`
+  /// header, each stage's own defines, `USE_IBL` in the fragment stage only when `use_ibl`, then
+  /// the stage's source.
+  #[ must_use ]
+  pub fn shader_sources( material : &dyn Material, use_ibl : bool ) -> ( String, String )
+  {
+    let ibl_define = if use_ibl { "#define USE_IBL\n" } else { "" };
+    let vs = format!( "#version 300 es\n{}\n{}", material.vertex_defines_str(), material.vertex_shader() );
+    let fs = format!
+    (
+      "#version 300 es\n{}\n{}\n{}",
+      material.fragment_defines_str(),
+      ibl_define,
+      material.fragment_shader()
+    );
+    ( vs, fs )
+  }
+
 }
 
 // visibility
@@ -343,4 +361,17 @@ crate::mod_interface!
     MaterialUploadContext,
     Material
   };
+}
+
+pub( crate ) use private::shader_sources;
+
+/// The internals `tests/` reaches, exposed only under `test_internals`.
+///
+/// Not part of the surface: with the feature off, the default and what every dependent gets,
+/// this module does not exist.
+#[ cfg( feature = "test_internals" ) ]
+#[ doc( hidden ) ]
+pub mod internal
+{
+  pub use super::private::shader_sources;
 }

@@ -27,6 +27,7 @@ A comprehensive 3D rendering system built specifically for WebAssembly and WebGL
 - **Metallic-Roughness Workflow** - Standard PBR material model
 - **Normal Mapping** - Detailed surface rendering without additional geometry
 - **Specular Extensions** - Advanced material properties via KHR_materials_specular
+- **Clearcoat and Anisotropy** - A dielectric coat layer with its own normal and roughness (KHR_materials_clearcoat) and anisotropic specular highlights (KHR_materials_anisotropy)
 - **Texture Streaming** - Efficient texture memory management
 - **Configurable Rendering Properties** - Per-material control of face culling, depth testing, and winding order
 
@@ -227,7 +228,7 @@ renderer = { workspace = true, features = ["webgl", "full"] }
 ## 🔧 Advanced Features
 
 ### Custom Materials
-The renderer supports the KHR_materials_specular extension for advanced material properties beyond the standard metallic-roughness workflow.
+The renderer supports the KHR_materials_specular, KHR_materials_clearcoat and KHR_materials_anisotropy extensions for advanced material properties beyond the standard metallic-roughness workflow.
 
 When implementing the `Material` trait for custom materials:
 - **`bind()`** must call `gl.active_texture(gl::TEXTURE0 + unit)` before each texture bind — this is the only method that should touch texture state.
@@ -276,6 +277,8 @@ feature hubs for the PBR core, image-based lighting, and shadow mapping.
 
 #### KHR Extensions
 - [KHR_materials_specular]
+- [KHR_materials_clearcoat]
+- [KHR_materials_anisotropy]
 
 [Real Shading in Unreal Engine 4]: https://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
 [Background: Physics and Math of Shading]: https://blog.selfshadow.com/publications/s2013-shading-course/hoffman/s2013_pbs_physics_math_notes.pdf
@@ -295,5 +298,7 @@ feature hubs for the PBR core, image-based lighting, and shadow mapping.
 [Normal Mapping Without Precomputed Tangents]: http://www.thetenthplanet.de/archives/1180
 
 [KHR_materials_specular]:  https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_specular/README.md
+[KHR_materials_clearcoat]:  https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_clearcoat/README.md
+[KHR_materials_anisotropy]:  https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_anisotropy/README.md
 [Vulkan-glTF-PBR]: https://github.com/SaschaWillems/Vulkan-glTF-PBR/blob/master/data/shaders/genbrdflut.frag
 [Image Based Lighting with Multiple Scattering]: https://bruop.github.io/ibl/

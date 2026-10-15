@@ -53,7 +53,8 @@ native = [ "dep:minwebgpu", "dep:bytemuck", "dep:gpu_hal", "gpu_hal/native" ]
 animation = [ "dep:animation", "dep:clone_dyn_types" ]
 # Exposes crate-private state to `tests/`, which is a separate crate and so cannot
 # reach it otherwise. Off by default: nothing a dependent builds changes, and every
-# item behind it is `#[ doc( hidden ) ]` and suffixed `_for_test`.
+# item behind it is `#[ doc( hidden ) ]`, either suffixed `_for_test` or inside a
+# hidden `internal` module.
 test_internals = []
 
 [dependencies]
