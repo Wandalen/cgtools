@@ -227,9 +227,11 @@ mod private
       self.count.checked_mul( self.byte_stride )
     }
 
-    /// Checks that the compressed bytes lie inside their buffer and that the decoded
-    /// data fits the view they decode into. `buffer_lengths` holds every loaded buffer's
-    /// length, by index.
+    /// Checks that the compressed bytes lie inside their buffer, that the decoded
+    /// data fits the view they decode into, and that the two do not overlap: the
+    /// decoder writes the view while it reads the compressed bytes, so a shared range
+    /// would decode from data it has already overwritten. `buffer_lengths` holds every
+    /// loaded buffer's length, by index.
     ///
     /// # Errors
     ///
@@ -258,11 +260,25 @@ mod private
         return Err( format!( "view range {view_offset}+{view_length} exceeds buffer {view_buffer} ( {target_length} bytes )" ) );
       }
 
-      match self.decoded_length()
+      let decoded = match self.decoded_length()
       {
-        Some( decoded ) if decoded <= view_length => Ok( () ),
-        _ => Err( format!( "{} x {} decoded bytes do not fit the view's {view_length}", self.count, self.byte_stride ) ),
+        Some( decoded ) if decoded <= view_length => decoded,
+        _ => return Err( format!( "{} x {} decoded bytes do not fit the view's {view_length}", self.count, self.byte_stride ) ),
+      };
+
+      // Both ends were bounded by a buffer length above, so neither sum overflows.
+      let overlaps = self.buffer == view_buffer
+      && self.byte_offset < view_offset + decoded
+      && view_offset < self.byte_offset + self.byte_length;
+      if overlaps
+      {
+        return Err( format!
+        (
+          "compressed range {}+{} overlaps the decoded range {view_offset}+{decoded} in buffer {view_buffer}",
+          self.byte_offset, self.byte_length
+        ) );
       }
+      Ok( () )
     }
   }
 

@@ -184,6 +184,33 @@ fn checks_ranges_against_the_loaded_buffers()
   assert!( MeshoptView { count : usize::MAX, ..spec }.ranges_check( &lengths, 1, 24, 16 ).is_err(), "overflow" );
 }
 
+/// The decoder writes the view while reading the compressed bytes, so the two may share a
+/// buffer only if their ranges are disjoint; touching ends are fine.
+#[ test ]
+fn rejects_a_decode_target_overlapping_its_source()
+{
+  // 12 compressed bytes at 0..12 of buffer 0, decoding 16 bytes.
+  let spec = MeshoptView
+  {
+    buffer : 0,
+    byte_offset : 0,
+    byte_length : 12,
+    byte_stride : 4,
+    count : 4,
+    mode : MeshoptMode::Attributes,
+    filter : MeshoptFilter::None,
+  };
+  let lengths = [ 64 ];
+
+  assert!( spec.ranges_check( &lengths, 0, 12, 16 ).is_ok(), "the view starts where the compressed bytes end" );
+  assert!( spec.ranges_check( &lengths, 0, 32, 16 ).is_ok(), "disjoint ranges in one buffer" );
+  assert!( spec.ranges_check( &lengths, 0, 8, 16 ).is_err(), "the view starts inside the compressed bytes" );
+  assert!( spec.ranges_check( &lengths, 0, 0, 16 ).is_err(), "the view starts where the compressed bytes start" );
+  let after = MeshoptView { byte_offset : 20, ..spec.clone() };
+  assert!( after.ranges_check( &lengths, 0, 8, 16 ).is_err(), "the decoded bytes run into compressed bytes after them" );
+  assert!( after.ranges_check( &lengths, 0, 4, 16 ).is_ok(), "the decoded bytes end where the compressed bytes start" );
+}
+
 #[ test ]
 fn meshopt_and_quantization_pass_validation()
 {
