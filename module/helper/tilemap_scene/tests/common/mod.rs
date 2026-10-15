@@ -11,6 +11,9 @@
 //! own — it only compiles into the test crates that explicitly `mod`
 //! it in.
 
+#[ allow( dead_code, reason = "tests/common is recompiled per integration-test binary; only the *_compile_test.rs files use these fixtures, so they read as dead in the other binaries — expect would be unfulfilled there" ) ]
+pub mod compile;
+
 use rustc_hash::FxHashMap as HashMap;
 use tilemap_renderer::commands::
 {

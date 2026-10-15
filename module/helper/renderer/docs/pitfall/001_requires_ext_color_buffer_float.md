@@ -17,7 +17,7 @@ devices, only in the field.
 Core WebGL2 can *sample* float textures but cannot *render into* them:
 `RGBA16F` becomes color-renderable only when the `EXT_color_buffer_float`
 extension is enabled on the context. This crate allocates `RGBA16F`
-color attachments throughout (`src/webgl/renderer.rs`) and prefilters
+color attachments throughout (`src/webgl/renderer/framebuffer_context.rs`) and prefilters
 environment maps into float targets (`src/webgl/loaders/pmrem.rs`), yet it
 never calls `get_extension` itself — activation is left entirely to the
 caller, and nothing in the API signature reveals that.
@@ -65,7 +65,7 @@ fail with a clear message — do not proceed to renderer construction.
 |------|--------------|
 | `readme.md` | Quick-start shows the required caller-side `get_extension` call |
 | `src/webgl/loaders/pmrem.rs` | Documents the not-color-renderable failure when the extension is absent |
-| `src/webgl/renderer.rs` | The `RGBA16F` attachments that impose the requirement |
+| `src/webgl/renderer/framebuffer_context.rs` | The `RGBA16F` attachments that impose the requirement |
 
 ### Tests
 

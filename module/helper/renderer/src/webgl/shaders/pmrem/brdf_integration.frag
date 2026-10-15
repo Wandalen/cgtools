@@ -1,5 +1,13 @@
 #version 300 es
 precision highp float;
+// Fix(android-silhouette-dots): `precision highp float` says nothing about integers, and
+// the fragment-stage default is `mediump int`, which Mali runs as 16-bit. There
+// radicalInverseVdC's `bits << 16u | bits >> 16u` is 0 for every sample, so all 1024
+// Hammersley points collapse onto H = N. The integrated LUT then goes to ~0 at grazing
+// N.V with any real roughness, and polished metal renders black along its silhouette.
+// Desktop and Apple GPUs run mediump int at 32 bits, so the fault never shows there.
+// Pitfall: any shader doing 32-bit integer bit-twiddling must declare highp int itself.
+precision highp int;
 
 in vec2 vUv;
 out vec4 fragColor;
@@ -75,7 +83,11 @@ void main()
 
     float NdotL = max( L.z, 0.0 );
     float NdotH = max( H.z, 0.0 );
-    float VdotH = max( dot( V, H ), 0.0 );
+    // Clamped above too: V and H are unit vectors, but dot() can round to 1.0000001 when
+    // H ~ V (N.V near 1, low roughness). pow( 1.0 - VdotH, 5.0 ) below would then take a
+    // negative base, which is undefined and NaN on Mali — and one NaN sample poisons the
+    // whole accumulated texel. Only reachable once the Hammersley sequence works.
+    float VdotH = clamp( dot( V, H ), 0.0, 1.0 );
 
     if( NdotL > 0.0 )
     {

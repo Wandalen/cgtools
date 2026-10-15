@@ -1,6 +1,6 @@
 //! Space station: procedural core/ring/spokes/docking-modules/beacon,
 //! ported from
-//! `examples/threejs/falling_frontier/src/world/spaceStation.js`.
+//! the three.js original's `src/world/spaceStation.js`.
 //! Static placement only (M4 scope) - the JS `spinStations` idle rotation
 //! is cosmetic polish, not tracked here.
 
@@ -38,7 +38,7 @@ impl Station
   }
 
   /// `pick_id` is shared by every part below - the station is one
-  /// selectable object, not one per module (see `picking.rs`).
+  /// selectable object, not one per module (see the `gpu_picking` crate).
   pub fn new( gl : &gl::GL, pick_id : i32 ) -> Self
   {
     let position = [ STATION_POSITION[ 0 ], STATION_POSITION[ 2 ] ];

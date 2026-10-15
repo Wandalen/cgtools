@@ -17,6 +17,7 @@ A comprehensive 3D rendering system built specifically for WebAssembly and WebGL
 - **Hierarchical Scenes** - Node-based scene graph with transformations
 - **KHR Extensions** - Support for material extensions and advanced features
 - **Asset Streaming** - Efficient loading of 3D models and textures
+- **GPU Object Picking** - Id-buffer picking of scene nodes (`webgl::picking`), with a per-material highlight multiplier for hover / selection feedback
 
 ### 📷 **Camera System**
 - **Perspective & Orthographic** - Multiple projection modes
@@ -27,8 +28,10 @@ A comprehensive 3D rendering system built specifically for WebAssembly and WebGL
 - **Metallic-Roughness Workflow** - Standard PBR material model
 - **Normal Mapping** - Detailed surface rendering without additional geometry
 - **Specular Extensions** - Advanced material properties via KHR_materials_specular
+- **Clearcoat and Anisotropy** - A dielectric coat layer with its own normal and roughness (KHR_materials_clearcoat) and anisotropic specular highlights (KHR_materials_anisotropy)
 - **Texture Streaming** - Efficient texture memory management
 - **Configurable Rendering Properties** - Per-material control of face culling, depth testing, and winding order
+- **Dynamic Text Engraving** - Node-scoped, runtime-editable engraved text (relief normal, groove roughness/darkening) on `PbrMaterial`; see [docs/feature/004_text_engraving.md](docs/feature/004_text_engraving.md)
 
 
 ## 📦 Installation
@@ -227,13 +230,17 @@ renderer = { workspace = true, features = ["webgl", "full"] }
 ## 🔧 Advanced Features
 
 ### Custom Materials
-The renderer supports the KHR_materials_specular extension for advanced material properties beyond the standard metallic-roughness workflow.
+The renderer supports the KHR_materials_specular, KHR_materials_clearcoat and KHR_materials_anisotropy extensions for advanced material properties beyond the standard metallic-roughness workflow.
 
 When implementing the `Material` trait for custom materials:
 - **`bind()`** must call `gl.active_texture(gl::TEXTURE0 + unit)` before each texture bind — this is the only method that should touch texture state.
 - **`configure()`** sets up texture sampler uniform locations once at program creation time.
 - **`upload_on_state_change()`** uploads uniform values; use `needs_update()` / `set_needs_update(false)` with `Cell<bool>` to avoid redundant uploads.
 - IBL textures occupy units starting from `ibl_base_texture_unit()` (3 consecutive units). Custom materials should avoid those units.
+- **`as_any()` / `as_any_mut()`** let calling code downcast a `Box<dyn Material>` back to its concrete type — used by the engraving system to reach `PbrMaterial`-specific setters after resolving a node by name.
+
+### Dynamic Text Engraving
+`webgl::engraving` engraves runtime-editable text into glTF mesh nodes listed in an `engraving_config.json`: `EngravingConfig::from_json` parses the config, `EngravingSession::build` binds it to a loaded `Scene` (each configured node gets its own copy of its `PbrMaterial`s), and the async `EngravingSession::set_text` rasterizes text in a whitelisted font and uploads it to the node's mask texture. See [docs/feature/004_text_engraving.md](docs/feature/004_text_engraving.md) for the design and [docs/format/001_engraving_asset_pipeline.md](docs/format/001_engraving_asset_pipeline.md) for preparing assets and writing the config.
 
 ### Performance Optimization
 - **Shader program caching** - Materials with identical shader source share a single compiled GPU program
@@ -276,6 +283,8 @@ feature hubs for the PBR core, image-based lighting, and shadow mapping.
 
 #### KHR Extensions
 - [KHR_materials_specular]
+- [KHR_materials_clearcoat]
+- [KHR_materials_anisotropy]
 
 [Real Shading in Unreal Engine 4]: https://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
 [Background: Physics and Math of Shading]: https://blog.selfshadow.com/publications/s2013-shading-course/hoffman/s2013_pbs_physics_math_notes.pdf
@@ -295,5 +304,7 @@ feature hubs for the PBR core, image-based lighting, and shadow mapping.
 [Normal Mapping Without Precomputed Tangents]: http://www.thetenthplanet.de/archives/1180
 
 [KHR_materials_specular]:  https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_specular/README.md
+[KHR_materials_clearcoat]:  https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_clearcoat/README.md
+[KHR_materials_anisotropy]:  https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_anisotropy/README.md
 [Vulkan-glTF-PBR]: https://github.com/SaschaWillems/Vulkan-glTF-PBR/blob/master/data/shaders/genbrdflut.frag
 [Image Based Lighting with Multiple Scattering]: https://bruop.github.io/ibl/

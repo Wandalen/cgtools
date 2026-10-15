@@ -20,7 +20,7 @@ animation tracks (`src/webgl/{node,scene,mesh}.rs`, animation under
 baseline (`../invariant/002`), shaded by the main shader pair in
 `src/webgl/material/pbr.rs`.
 
-**Frame shape.** All targets are allocated by `src/webgl/renderer.rs` as
+**Frame shape.** All targets are allocated by `src/webgl/renderer/framebuffer_context.rs` as
 multisampled `RGBA16F` attachments (`../invariant/003`):
 
 1. **Opaque pass** — depth-tested draw of opaque meshes into the main color
@@ -50,22 +50,27 @@ HAL once one exists.
 | [../invariant/001_depth_buffer_visibility_with_oit.md](../invariant/001_depth_buffer_visibility_with_oit.md) | Visibility contract realized by passes 1–3 |
 | [../invariant/002_pbr_metallic_roughness_baseline.md](../invariant/002_pbr_metallic_roughness_baseline.md) | Material contract realized by the scene side |
 | [../invariant/003_hdr_internal_tone_mapped_output.md](../invariant/003_hdr_internal_tone_mapped_output.md) | Range contract realized by the target topology and pass 5 |
+| [../invariant/004_gpu_resource_ownership.md](../invariant/004_gpu_resource_ownership.md) | Ownership contract for the scene graph's geometries, textures and skins |
 
 ### Pitfalls
 
 | File | Relationship |
 |------|--------------|
 | [../pitfall/001_requires_ext_color_buffer_float.md](../pitfall/001_requires_ext_color_buffer_float.md) | Environment requirement every consumer of this pipeline inherits |
+| [../pitfall/002_gltf_images_upload_after_load.md](../pitfall/002_gltf_images_upload_after_load.md) | Loaded material textures reach the GPU after `load` returns |
 
 ### Sources
 
 | File | Relationship |
 |------|--------------|
 | `src/webgl/loaders/gltf.rs` | Content import onto the scene graph |
+| `src/webgl/loaders/gltf_extensions.rs` | Required-extension validation, reading the clearcoat / anisotropy extension JSON, and applying those layers to imported materials |
 | `src/webgl/material/pbr.rs` | Main shader pair and material upload |
+| `src/webgl/material/pbr/accessors.rs` | `PbrMaterial` property getters and setters |
 | `src/webgl/node.rs` | Scene-graph node and transform hierarchy |
 | `src/webgl/post_processing/` | Composable HDR post passes |
-| `src/webgl/renderer.rs` | Target allocation, pass sequence, resolve/composite |
+| `src/webgl/renderer.rs` | Pass sequence, composite |
+| `src/webgl/renderer/framebuffer_context.rs` | Target allocation, multisample resolve |
 
 ### Tests
 
