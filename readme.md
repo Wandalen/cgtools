@@ -39,14 +39,25 @@ git clone --depth 1 https://github.com/Wandalen/cgtools
 git clone --filter=blob:none https://github.com/Wandalen/cgtools
 ```
 
-If you only need the libraries (working under `module/`, not running the
-browser demos), combine a blobless partial clone with a sparse checkout so
-`examples/` is never materialized on disk:
+If you only want to read the library sources under `module/`, combine a
+blobless partial clone with a sparse checkout so `examples/` is never
+materialized on disk:
 
 ```bash
 git clone --filter=blob:none --sparse https://github.com/Wandalen/cgtools
 cd cgtools
-git sparse-checkout set module        # add 'examples' later if you need the demos
+git sparse-checkout set module
+```
+
+This tree is for reading only; cargo cannot build or test anything in it. The
+root `Cargo.toml` lists the example crates as workspace members, and cargo
+loads every member before it runs any command, so each command fails with
+"failed to load manifest for workspace member" while `examples/` is missing.
+The cargo config in `.cargo/`, which passes `--cfg web_sys_unstable_apis` to
+every build, is left out as well. To build or test, widen the checkout:
+
+```bash
+git sparse-checkout add examples .cargo   # or: git sparse-checkout disable
 ```
 
 Note: these reduce what *you* download/check out; they do not change the size
