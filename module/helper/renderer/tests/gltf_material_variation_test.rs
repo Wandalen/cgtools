@@ -77,6 +77,8 @@ impl Material for TestMaterial
     Ok( () )
   }
   fn bind( &self, _gl : &gl::WebGl2RenderingContext ) {}
+  fn as_any( &self ) -> &dyn std::any::Any { self }
+  fn as_any_mut( &mut self ) -> &mut dyn std::any::Any { self }
   fn dyn_clone( &self ) -> Box< dyn Material >
   {
     Box::new( TestMaterial { id : self.id, vertex_defines_str : self.vertex_defines_str.clone() } )

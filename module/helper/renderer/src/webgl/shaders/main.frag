@@ -148,6 +148,16 @@ uniform vec4 baseColorFactor; // Default: [1, 1, 1, 1]
     uniform sampler2D anisotropyTexture;
   #endif
 #endif
+#ifdef USE_ENGRAVING
+  // vEngravingUv
+  uniform sampler2D engravingTexture;
+  // Bevel / normal-perturbation intensity at letter edges.
+  uniform float engravingStrength;
+  // Target roughness inside the carved groove (matte laser-etched finish).
+  uniform float engravingRoughness;
+  // How much the groove darkens the base albedo / specular color (0 = no change).
+  uniform float engravingDarkening;
+#endif
 #ifdef USE_MR_TEXTURE
   // Roughness is sampled from the G channel
   // Metalness is sampled from the B channel
@@ -887,6 +897,92 @@ void main()
     //material.roughness = adjustRoughnessNormalMap( material.roughness, normalSample );
     normalSample.xy *= vec2( normalScale );
     normal = normalize( TBN * normalSample );
+  #endif
+
+  // Engraving: a laser-etched text mask sampled from a dedicated UV channel (vEngravingUv,
+  // typically TEXCOORD_1), separate from the base material's UVs. Three things happen here:
+  //
+  //  1. Bounds check — vEngravingUv is expected to only be meaningful inside [0, 1]; outside
+  //     that range (e.g. the rest of the mesh sharing the same UV set with degenerate/unused
+  //     coordinates there) the mask is forced to 0 so nothing bleeds in from CLAMP_TO_EDGE
+  //     sampling at the strip's border.
+  //
+  //  2. Relief LOD estimate — `engravingLod` approximates which mip level a filtered lookup at
+  //     vEngravingUv would resolve to, from the screen-space footprint of the UV itself
+  //     (texels-per-pixel, isotropic/worst-axis, same rule hardware trilinear filtering uses).
+  //     This only looks at how fast the UV moves across the screen, never at the mask value's
+  //     own derivative, so the estimate stays stable even right at a glyph edge; step 3 uses it
+  //     to pick both the explicit LOD and the UV offset for its central-difference samples.
+  //
+  //  3. Relief via a surface gradient (Mikkelsen), sampled explicitly in UV space —
+  //     engravingTexture is a binary-ish mask (0 outside glyphs, 1 inside, antialiased in
+  //     between). Treating it as a height field h(u, v), the bevel at a stroke edge perturbs the
+  //     normal by the standard first-order bump-mapping approximation (Blinn 1978):
+  //
+  //       N' = normalize( N - engravingStrength * ( dh/du * T + dh/dv * B ) )
+  //
+  //     — for a surface *raised* along +N by h (bas-relief/emboss). A laser-engraved groove is
+  //     the opposite: it's carved *into* the metal, i.e. displaced along -N by h, so entering a
+  //     glyph (mask 0 -> 1) must tilt the normal inward toward the channel instead of outward
+  //     away from it. Flipping the sign of the whole perturbation term (+ instead of -) accounts
+  //     for that -h displacement and is what actually reads as a carved/concave groove rather
+  //     than a raised/convex bump — see step 3's code below.
+  //
+  //     dh/du and dh/dv are central differences of `textureLod` samples taken along the U and V
+  //     axes, at the explicit LOD from step 2, not dFdx/dFdy of the mask. Screen-space
+  //     derivatives measure change per screen pixel, and screen X/Y line up with U/V only when
+  //     the strip faces the camera with no in-plane rotation; projected onto T = dP/du and
+  //     B = dP/dv they would mix U and V in the wrong proportions and rotate the bevel away from
+  //     the groove wall as the camera turns. Differentiating a filtered fetch across a 2x2
+  //     fragment quad also picks up each fragment's slightly different mip/bilinear sample,
+  //     which reads as sparkling specular at low roughness. UV-space samples at one fixed LOD
+  //     give every fragment the same texels and compose with T and B at any view angle.
+  //     The difference is not divided by the UV step (no literal dh/du = Δh / (2Δu)), so the
+  //     gradient stays O(1) and bounded at any LOD or distance instead of growing as the step
+  //     shrinks at grazing angles, and one engravingStrength reads the same at every distance.
+  //
+  //  4. PBR response — inside the groove (mask towards 1) roughness is pushed towards
+  //     engravingRoughness (a matte, laser-scattered finish) and the albedo / specular color is
+  //     darkened by engravingDarkening, approximating the micro-occlusion of a recessed groove
+  //     without desaturating the metal's own hue (both diffuseColor and f0 are scaled by the
+  //     same factor, so hue/chroma survive, only brightness drops).
+  #ifdef USE_ENGRAVING
+    bool engravingInBounds = all( greaterThanEqual( vEngravingUv, vec2( 0.0 ) ) ) && all( lessThanEqual( vEngravingUv, vec2( 1.0 ) ) );
+    float engravingMask = engravingInBounds ? texture( engravingTexture, vEngravingUv ).r : 0.0;
+
+    ivec2 engravingTexDims = textureSize( engravingTexture, 0 );
+    vec2 engravingInvTexelSize = 1.0 / vec2( engravingTexDims );
+    vec2 engravingUvDx = dFdx( vEngravingUv ) * vec2( engravingTexDims );
+    vec2 engravingUvDy = dFdy( vEngravingUv ) * vec2( engravingTexDims );
+    float engravingTexelsPerPixel = max( length( engravingUvDx ), length( engravingUvDy ) );
+    float engravingLod = log2( max( engravingTexelsPerPixel, 1.0 ) );
+
+    // Clamp before exp2: engravingLod is only bounded below (max(..,1.0) inside the log2), so at
+    // a near-grazing/sliver footprint it can grow large enough that exp2() overflows to inf and
+    // poisons the sample offsets with NaN. Past the texture's own top mip there is nothing left
+    // to resolve anyway, so clamping to it costs nothing.
+    float engravingMaxLod = log2( float( max( engravingTexDims.x, engravingTexDims.y ) ) );
+    float engravingSampleLod = clamp( engravingLod, 0.0, engravingMaxLod );
+
+    // One texel *at the resolved LOD* in each axis — matches the support size of the sample
+    // being differentiated, avoiding both sub-texel noise (step too small) and over-blurring
+    // (step too large).
+    vec2 engravingStep = max( engravingInvTexelSize * exp2( engravingSampleLod ), engravingInvTexelSize );
+    float engravingHR = textureLod( engravingTexture, vEngravingUv + vec2( engravingStep.x, 0.0 ), engravingSampleLod ).r;
+    float engravingHL = textureLod( engravingTexture, vEngravingUv - vec2( engravingStep.x, 0.0 ), engravingSampleLod ).r;
+    float engravingHU = textureLod( engravingTexture, vEngravingUv + vec2( 0.0, engravingStep.y ), engravingSampleLod ).r;
+    float engravingHD = textureLod( engravingTexture, vEngravingUv - vec2( 0.0, engravingStep.y ), engravingSampleLod ).r;
+    vec2 engravingGrad = vec2( engravingHR - engravingHL, engravingHU - engravingHD );
+
+    // '+' (not '-'): the mask is carved *into* the surface (height -h along N, not +h), so the
+    // sign of the standard bump-mapping perturbation is flipped to match — see step 3 above.
+    normal = normalize( normal + engravingStrength * ( engravingGrad.x * TBN[ 0 ] + engravingGrad.y * TBN[ 1 ] ) );
+
+    material.roughness = mix( material.roughness, engravingRoughness, engravingMask );
+
+    float engravingAo = 1.0 - engravingDarkening * engravingMask;
+    material.diffuseColor *= engravingAo;
+    material.f0 *= engravingAo;
   #endif
 
   material.roughness = gsaaRoughness( normal, material.roughness );

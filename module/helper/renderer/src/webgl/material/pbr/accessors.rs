@@ -222,6 +222,22 @@ mod private
       self.anisotropy_texture.as_ref()
     }
 
+    /// Sets the engraving mask texture. `Some` is what enables the `USE_ENGRAVING` shader
+    /// define and everything gated behind it (bevel/normal perturbation, groove roughness and
+    /// darkening): there is no separate "engraving factor" toggle, since a mask-less engraving
+    /// pass has nothing to render.
+    pub fn engraving_texture_set( &mut self, value : Option< TextureInfo > )
+    {
+      self.engraving_texture = value;
+      self.defines_update();
+    }
+
+    /// Returns the engraving mask texture.
+    pub fn engraving_texture( &self ) -> Option< &TextureInfo >
+    {
+      self.engraving_texture.as_ref()
+    }
+
     /// Sets the alpha mode.
     pub fn alpha_mode_set( &mut self, value : AlphaMode )
     {

@@ -30,6 +30,7 @@ A comprehensive 3D rendering system built specifically for WebAssembly and WebGL
 - **Clearcoat and Anisotropy** - A dielectric coat layer with its own normal and roughness (KHR_materials_clearcoat) and anisotropic specular highlights (KHR_materials_anisotropy)
 - **Texture Streaming** - Efficient texture memory management
 - **Configurable Rendering Properties** - Per-material control of face culling, depth testing, and winding order
+- **Dynamic Text Engraving** - Node-scoped, runtime-editable engraved text (relief normal, groove roughness/darkening) on `PbrMaterial`; see [docs/feature/004_text_engraving.md](docs/feature/004_text_engraving.md)
 
 
 ## 📦 Installation
@@ -235,6 +236,10 @@ When implementing the `Material` trait for custom materials:
 - **`configure()`** sets up texture sampler uniform locations once at program creation time.
 - **`upload_on_state_change()`** uploads uniform values; use `needs_update()` / `set_needs_update(false)` with `Cell<bool>` to avoid redundant uploads.
 - IBL textures occupy units starting from `ibl_base_texture_unit()` (3 consecutive units). Custom materials should avoid those units.
+- **`as_any()` / `as_any_mut()`** let calling code downcast a `Box<dyn Material>` back to its concrete type — used by the engraving system to reach `PbrMaterial`-specific setters after resolving a node by name.
+
+### Dynamic Text Engraving
+`webgl::engraving` engraves runtime-editable text into glTF mesh nodes listed in an `engraving_config.json`: `EngravingConfig::from_json` parses the config, `EngravingSession::build` binds it to a loaded `Scene` (each configured node gets its own copy of its `PbrMaterial`s), and the async `EngravingSession::set_text` rasterizes text in a whitelisted font and uploads it to the node's mask texture. See [docs/feature/004_text_engraving.md](docs/feature/004_text_engraving.md) for the design and [docs/format/001_engraving_asset_pipeline.md](docs/format/001_engraving_asset_pipeline.md) for preparing assets and writing the config.
 
 ### Performance Optimization
 - **Shader program caching** - Materials with identical shader source share a single compiled GPU program

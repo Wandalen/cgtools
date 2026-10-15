@@ -50,12 +50,14 @@ mod private
   pub const PBR_CLEARCOAT_NORMAL_UNIT : u32 = 10;
   /// Texture unit of `PbrMaterial`'s `anisotropyTexture` sampler.
   pub const PBR_ANISOTROPY_UNIT : u32 = 11;
+  /// Texture unit of `PbrMaterial`'s `engravingTexture` sampler.
+  pub const PBR_ENGRAVING_UNIT : u32 = 12;
   /// A `PbrMaterial` texture getter, as stored in [`PBR_TEXTURE_UNITS`].
   pub type PbrTextureGet = fn( &PbrMaterial ) -> Option< &TextureInfo >;
   /// Every `PbrMaterial` sampler uniform with its texture unit and the texture bound to it, in
   /// unit order. `configure()` assigns the units and `bind()` binds the textures from this one
   /// table, so a sampler, its unit and its texture can't be paired differently in two places.
-  pub const PBR_TEXTURE_UNITS : [ ( &str, u32, PbrTextureGet ); 12 ] =
+  pub const PBR_TEXTURE_UNITS : [ ( &str, u32, PbrTextureGet ); 13 ] =
   [
     ( "metallicRoughnessTexture", PBR_METALLIC_ROUGHNESS_UNIT, PbrMaterial::metallic_roughness_texture ),
     ( "baseColorTexture", PBR_BASE_COLOR_UNIT, PbrMaterial::base_color_texture ),
@@ -69,6 +71,7 @@ mod private
     ( "clearcoatRoughnessTexture", PBR_CLEARCOAT_ROUGHNESS_UNIT, PbrMaterial::clearcoat_roughness_texture ),
     ( "clearcoatNormalTexture", PBR_CLEARCOAT_NORMAL_UNIT, PbrMaterial::clearcoat_normal_texture ),
     ( "anisotropyTexture", PBR_ANISOTROPY_UNIT, PbrMaterial::anisotropy_texture ),
+    ( "engravingTexture", PBR_ENGRAVING_UNIT, PbrMaterial::engraving_texture ),
   ];
   /// First of the IBL units (irradiance, prefiltered environment, BRDF LUT): the unit after the
   /// last skinning / morph slot.
@@ -121,6 +124,7 @@ mod private
     "clearcoatRoughnessTexture",
     "clearcoatNormalTexture",
     "anisotropyTexture",
+    "engravingTexture",
     //// IBL uniform locations
     "irradianceTexture",
     "prefilterEnvMap",
@@ -141,6 +145,9 @@ mod private
     "clearcoatNormalScale",
     "anisotropyStrength",
     "anisotropyRotation",
+    "engravingStrength",
+    "engravingRoughness",
+    "engravingDarkening",
     // Luminosity
     "alphaCutoff",
     "exposure"
@@ -208,6 +215,18 @@ mod private
     pub anisotropy_rotation : f32,
     /// Optional texture providing the anisotropy direction (RG) and strength (B). (KHR_materials_anisotropy extension)
     pub( super ) anisotropy_texture : Option< TextureInfo >,
+
+    /// Optional engraving mask texture: white text on a black background in the R channel,
+    /// sampled at `vUv_{uv_position}` and bounds-checked against `[0, 1]` in the shader. This is
+    /// the sole gate for the `USE_ENGRAVING` define — see [`Self::engraving_texture_set`].
+    pub( super ) engraving_texture : Option< TextureInfo >,
+    /// Intensity of the relief normal perturbation at letter edges (bevel depth).
+    pub engraving_strength : f32,
+    /// Target roughness inside the carved groove, simulating a matte laser-etched finish.
+    pub engraving_roughness : f32,
+    /// Fraction by which the base albedo / specular color (f0) is darkened inside the groove,
+    /// simulating micro-occlusion without altering the underlying metal hue.
+    pub engraving_darkening : f32,
     /// Alpha cutoff value for mask mode. Fragments with alpha below this value are discarded.
     pub alpha_cutoff : f32,
     /// The alpha blending mode for the material. Defaults to `Opaque`.
@@ -310,6 +329,11 @@ mod private
       let anisotropy_rotation = 0.0;
       let anisotropy_texture = None;
 
+      let engraving_texture = None;
+      let engraving_strength = 1.0;
+      let engraving_roughness = 0.7;
+      let engraving_darkening = 0.35;
+
       let alpha_mode = AlphaMode::default();
       let alpha_cutoff = 0.5;
       let double_sided = false;
@@ -355,6 +379,10 @@ mod private
         anisotropy_strength,
         anisotropy_rotation,
         anisotropy_texture,
+        engraving_texture,
+        engraving_strength,
+        engraving_roughness,
+        engraving_darkening,
         vertex_defines,
         fragment_defines,
         need_use_ibl,
@@ -492,9 +520,18 @@ mod private
       // KHR_materials_clearcoat / KHR_materials_anisotropy
       let layer_extensions_need_tbn = self.layer_extension_defines_push( &mut defines );
 
+      // Engraving. Unlike the KHR_materials_* extensions, it has no "factor" uniform: the mask
+      // texture's presence is the only thing that turns it on. Its relief perturbs the normal
+      // along the tangent frame, so it needs `USE_TBN` too.
+      let use_engraving = self.engraving_texture.is_some();
+      if let Some( info ) = &self.engraving_texture
+      {
+        texture_define_push( &mut defines, "USE_ENGRAVING", "vEngravingUv", info );
+      }
+
       // Shared tangent/bitangent/normal matrix, needed by normal mapping, clearcoat normal
-      // mapping and anisotropy alike.
-      let use_tbn = use_normal_texture || layer_extensions_need_tbn;
+      // mapping, anisotropy and engraving alike.
+      let use_tbn = use_normal_texture || layer_extensions_need_tbn || use_engraving;
       if use_tbn
       {
         defines.push_str( "#define USE_TBN\n" );
@@ -698,6 +735,10 @@ mod private
       upload( "clearcoatNormalScale", self.clearcoat_normal_scale )?;
       upload( "anisotropyStrength", self.anisotropy_strength.unwrap_or( 0.0 ) )?;
       upload( "anisotropyRotation", self.anisotropy_rotation )?;
+      // Engraving parameters, uploaded whatever the mask for the same reason as the factors.
+      upload( "engravingStrength", self.engraving_strength )?;
+      upload( "engravingRoughness", self.engraving_roughness )?;
+      upload( "engravingDarkening", self.engraving_darkening )?;
 
       Ok( () )
     }
@@ -775,6 +816,16 @@ mod private
       self.emissive_texture.is_some()
       || self.emissive_factor.as_slice() != [ 0.0, 0.0, 0.0 ]
     }
+
+    fn as_any( &self ) -> &dyn std::any::Any
+    {
+      self
+    }
+
+    fn as_any_mut( &mut self ) -> &mut dyn std::any::Any
+    {
+      self
+    }
   }
 
   impl Clone for PbrMaterial
@@ -814,6 +865,10 @@ mod private
         anisotropy_strength : self.anisotropy_strength,
         anisotropy_rotation : self.anisotropy_rotation,
         anisotropy_texture : self.anisotropy_texture.clone(),
+        engraving_texture : self.engraving_texture.clone(),
+        engraving_strength : self.engraving_strength,
+        engraving_roughness : self.engraving_roughness,
+        engraving_darkening : self.engraving_darkening,
         vertex_defines : self.vertex_defines.clone(),
         fragment_defines : self.fragment_defines.clone(),
         need_use_ibl : self.need_use_ibl,
