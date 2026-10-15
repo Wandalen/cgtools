@@ -458,8 +458,9 @@ mod private
     pub mipmap : MipmapMode,
     /// Wrap mode recorded at creation time; kept for parity with future re-applies.
     pub wrap : WrapMode,
-    /// Premultiplied-alpha flag recorded at creation time; read at draw time to
-    /// pick the premultiplied vs straight "over" blend in `blend_apply`.
+    /// Premultiplied-alpha flag recorded at creation time. Every draw path reads
+    /// it to pick the premultiplied vs straight "over" blend in `blend_apply`
+    /// and uploads the same value as the shaders' `u_premultiplied` uniform.
     pub premultiplied : bool,
   }
 
@@ -850,27 +851,35 @@ mod private
   /// modes: a premultiplied texture already carries `rgb·a`, so its source factor
   /// is `ONE` (premultiplied "over"); a straight texture uses `SRC_ALPHA`. Without
   /// this, a premultiplied texture drawn under `SRC_ALPHA` would be scaled by alpha
-  /// twice (`a²`), darkening every antialiased edge.
+  /// twice (`a²`), darkening every antialiased edge. The `ONE` factor is only
+  /// correct because the fragment shaders keep the output premultiplied: under
+  /// `u_premultiplied`, `shaders/tint.glsl` returns the colour and alpha the
+  /// straight twin would write, clamped the same way, with the colour multiplied
+  /// by that alpha. A layer / instance alpha below 1 then fades colour and
+  /// coverage together, and a tint outside 0..1 saturates as it does straight.
   pub fn blend_apply( gl : &gl::GL, blend : &BlendMode, premultiplied : bool )
   {
     // For premultiplied sources the colour is pre-scaled by alpha, so the "src·a"
-    // factor becomes plain `ONE`. Affects the alpha-weighted modes (Normal, Add).
+    // factor becomes plain `ONE`. Affects the alpha-weighted modes: Normal, Add
+    // and the Overlay fallback.
     let src_a = if premultiplied { gl::ONE } else { gl::SRC_ALPHA };
     match blend
     {
-      // Color: src + dst. Alpha: standard over.
+      // Color: src*src_a + dst (straight) or src + dst (premultiplied). Alpha: standard over.
       BlendMode::Add => gl.blend_func_separate( src_a, gl::ONE, gl::ONE, gl::ONE_MINUS_SRC_ALPHA ),
       // `DST_COLOR` is the defining source factor for Multiply (src.rgb*dst.rgb)
       // and is independent of `premultiplied`: the flag only swaps the
       // alpha-compositing source factor (ONE vs SRC_ALPHA), which Multiply does
       // not use. Approximation: diverges from Photoshop Multiply for *straight*
       // sources when src_alpha < 1 — the DST_COLOR factor multiplies dst by raw
-      // src.rgb (not src.rgb*src_a), so partially transparent straight sources
-      // darken the destination more than the reference formula prescribes. Exact
+      // src.rgb (not src.rgb*src_a), so the result is dst*(src + 1 - a) against
+      // the reference dst*(src*a + 1 - a): partially transparent straight sources
+      // darken the destination less than the reference, by dst*src*(1 - a), and
+      // brighten it wherever src > a. Exact
       // when src_alpha = 1, or for premultiplied sources at any alpha (there
       // src.rgb already carries rgb*a, so dst*(rgb*a + 1 - a) is the reference).
-      // qqq(FBO): replace with Photoshop-accurate formula for straight sources —
-      // see BlendMode::Multiply doc.
+      // An FBO / custom-shader pass would be needed for the Photoshop-accurate
+      // formula — see the BlendMode::Multiply doc.
       // Color: src*dst + dst*(1-src_a). Alpha: standard over.
       BlendMode::Multiply => gl.blend_func_separate( gl::DST_COLOR, gl::ONE_MINUS_SRC_ALPHA, gl::ONE, gl::ONE_MINUS_SRC_ALPHA ),
       // Same class of approximation as Multiply: the ONE / ONE_MINUS_SRC_COLOR
@@ -914,6 +923,26 @@ mod private
       Topology::LineList => gl::LINES,
       Topology::LineStrip => gl::LINE_STRIP,
     }
+  }
+
+  /// Multiply two column-major 3×3 matrices, returning `a * b` (apply `b` first,
+  /// then `a`). Element `(row i, col j)` lives at index `j * 3 + i`. Used to fold
+  /// the per-frame camera view matrix into each draw's parent transform.
+  #[ inline ]
+  #[ must_use ]
+  pub fn mat3_mul( a : &[ f32; 9 ], b : &[ f32; 9 ] ) -> [ f32; 9 ]
+  {
+    let mut r = [ 0.0_f32; 9 ];
+    for j in 0..3
+    {
+      for i in 0..3
+      {
+        r[ j * 3 + i ] = a[ i ] * b[ j * 3 ]
+          + a[ 3 + i ] * b[ j * 3 + 1 ]
+          + a[ 6 + i ] * b[ j * 3 + 2 ];
+      }
+    }
+    r
   }
 }
 
@@ -1003,4 +1032,5 @@ mod_interface::mod_interface!
   own use texture_filter_apply;
   own use texture_wrap_apply;
   own use topology_to_gl;
+  own use mat3_mul;
 }

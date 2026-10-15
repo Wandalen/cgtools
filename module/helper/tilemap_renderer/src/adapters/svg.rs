@@ -1808,6 +1808,7 @@ mod private
         effects : true,
         blend_modes : true,
         text_on_path : true,
+        premultiplied_images : false,
         max_texture_size : 0,
         supported_blend_modes : &[
           BlendMode::Normal,

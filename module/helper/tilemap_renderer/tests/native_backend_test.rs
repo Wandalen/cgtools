@@ -82,13 +82,17 @@ fn centered_sprite_render( backend : &mut NativeBackend, size : f32 ) -> Bitmap
 }
 
 /// T01 -- construct at 64x64, load a solid-color sprite, submit, and read
-/// back a `Bitmap` whose dimensions match the configured viewport.
+/// back a `Bitmap` whose dimensions match the configured viewport. Also pins
+/// `premultiplied_images` to `false`, as every other adapter's capability test
+/// pins its value: native writes a premultiplied image's texels unblended, so
+/// claiming the flag would promise a composite it doesn't do.
 #[ test ]
 fn construct_load_submit_output_returns_matching_dimensions()
 {
   let mut backend = NativeBackend::new( RenderConfig { width : 64, height : 64, ..Default::default() } )
   .expect( "NativeBackend::new failed -- needs a Vulkan ICD (a software one such as lavapipe suffices)" );
 
+  assert!( !backend.capabilities().premultiplied_images );
   let bitmap = centered_sprite_render( &mut backend, 64.0 );
 
   assert_eq!( bitmap.width, 64 );

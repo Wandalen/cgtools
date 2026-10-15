@@ -6,6 +6,8 @@ in vec4 v_tint;
 
 uniform sampler2D u_texture;
 
+#include "tint.glsl"
+
 out vec4 frag_color;
 
 // Two variants are compiled from this one source (see `SpriteRenderer::new`):
@@ -37,5 +39,5 @@ void main()
 #ifdef USE_ALPHA_CLIP
   if ( tex.a < u_alpha_clip ) { discard; }
 #endif
-  frag_color = tex * v_tint;
+  frag_color = tinted( tex, v_tint );
 }
