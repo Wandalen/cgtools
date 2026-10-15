@@ -1,7 +1,7 @@
 //! Asteroid belt: procedural low-poly "rock" geometry + rendering, pulled
 //! forward from M4 just far enough to give M3's view-zone ribbon something
 //! to wrap around. Positions/radii ported from `ASTEROID_SPECS` in
-//! `examples/threejs/falling_frontier/src/world/asteroidBelt.js`.
+//! the three.js original's `src/world/asteroidBelt.js`.
 //!
 //! Simplification vs. the JS reference: JS deforms a `DodecahedronGeometry`
 //! (12 faces, three.js `detail=1` subdivision); this jitters
@@ -30,7 +30,7 @@ const ASTEROID_Y : f32 = 12.0;
 const BLOCK_PADDING : f32 = 1.3;
 
 // Ambient asteroid body color, matches `COLORS.asteroid` (0x3d4a54) in
-// `examples/threejs/falling_frontier/src/config/colors.js`.
+// the three.js original's `src/config/colors.js`.
 const ASTEROID_COLOR : [ f32; 3 ] = [ 0.2392, 0.2902, 0.3294 ];
 
 struct AsteroidSpec
@@ -88,7 +88,7 @@ pub struct Asteroids
 impl Asteroids
 {
   /// `id_base` is the first pick id this belt may hand out - asteroid `i`
-  /// gets `id_base + i` (see `picking.rs`); the caller reserves
+  /// gets `id_base + i` (see the `gpu_picking` crate); the caller reserves
   /// `ASTEROID_COUNT` contiguous ids starting there.
   pub fn new( gl : &gl::GL, id_base : i32 ) -> Self
   {
