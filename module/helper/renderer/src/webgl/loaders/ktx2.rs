@@ -326,6 +326,18 @@ mod private
           "1D texture ( height 0 ); only 2D images are supported".to_string()
         ) );
       }
+      if header.pixel_width > MAX_DIMENSION || header.pixel_height > MAX_DIMENSION
+      {
+        return Err( Ktx2Error::UnsupportedShape
+        (
+          format!
+          (
+            "{}x{} texture; the largest supported width or height is {MAX_DIMENSION}",
+            header.pixel_width,
+            header.pixel_height
+          )
+        ) );
+      }
 
       // The DFD is the only place the payload encoding is recorded: for a Basis Universal file the
       // header's `format` is deliberately VK_FORMAT_UNDEFINED, because the real format is not
@@ -427,6 +439,30 @@ mod private
   /// Bytes in one UASTC block. UASTC is a 4x4, 128-bit encoding, always.
   const UASTC_BLOCK_BYTES : usize = 16;
 
+  /// The largest width or height, in texels, that [ `Ktx2Image::parse` ] accepts.
+  ///
+  /// The header's dimensions come from the file, and they size every buffer the decode allocates
+  /// ( the transcoded level, and `width * height * 4` bytes for the RGBA fallback ). Without a
+  /// limit, a tiny file could declare a texture of billions of texels. 16384 is the largest
+  /// `MAX_TEXTURE_SIZE` WebGL implementations report, so no device could sample anything bigger
+  /// anyway (review #1 SECURITY).
+  pub const MAX_DIMENSION : u32 = 16384;
+
+  /// Bytes `width` x `height` texels take in UASTC: one 16-byte block per 4x4 tile, edge tiles
+  /// included. `None` when that does not fit in `usize`.
+  fn uastc_level_bytes( width : u32, height : u32 ) -> Option< usize >
+  {
+    let blocks_x = usize::try_from( width.div_ceil( 4 ) ).ok()?;
+    let blocks_y = usize::try_from( height.div_ceil( 4 ) ).ok()?;
+    blocks_x.checked_mul( blocks_y )?.checked_mul( UASTC_BLOCK_BYTES )
+  }
+
+  /// The error for dimensions whose byte size does not fit in `usize`.
+  fn too_large( width : u32, height : u32 ) -> Ktx2Error
+  {
+    Ktx2Error::UnsupportedShape( format!( "{width}x{height} texture is too large to decode" ) )
+  }
+
   /// Undoes Zstandard supercompression, producing at most `expected + 1` bytes.
   ///
   /// The level's dimensions already say how many bytes it must inflate to, so reading stops one
@@ -479,13 +515,14 @@ mod private
     use gl::texture::compressed::Format;
 
     let blocks_x = ( width.div_ceil( 4 ) ) as usize;
-    let blocks_y = ( height.div_ceil( 4 ) ) as usize;
 
     // The level's dimensions, not the file's own length field, are the authority: this is exactly
     // the arithmetic `compressedTexImage2D` will apply, so checking it here turns a bare
     // `INVALID_VALUE` at upload into an error that says which level and by how much. It is
-    // computed before inflating so that it can also cap how much `inflate` may produce.
-    let expected = blocks_x * blocks_y * UASTC_BLOCK_BYTES;
+    // computed before inflating so that it can also cap how much `inflate` may produce. The
+    // arithmetic is checked because this function is public and takes raw dimensions: a wrapped
+    // size could otherwise happen to equal a short payload's length and pass the check.
+    let expected = uastc_level_bytes( width, height ).ok_or_else( || too_large( width, height ) )?;
 
     // Borrowed when there is nothing to undo -- an uncompressed level needs no copy.
     let uastc : Cow< '_, [ u8 ] > = match wrapping
@@ -539,9 +576,11 @@ mod private
     height : u32,
   ) -> Result< Vec< u8 >, Ktx2Error >
   {
+    let image_bytes = ( width as usize ).checked_mul( height as usize ).and_then( | texels | texels.checked_mul( 4 ) )
+    .ok_or_else( || too_large( width, height ) )?;
     let width = width as usize;
     let height = height as usize;
-    let mut image = vec![ 0_u8; width * height * 4 ];
+    let mut image = vec![ 0_u8; image_bytes ];
 
     for ( index, block ) in uastc.chunks_exact( UASTC_BLOCK_BYTES ).enumerate()
     {
@@ -769,6 +808,7 @@ crate::mod_interface!
     Info,
     Ktx2Error,
     Ktx2Image,
+    MAX_DIMENSION,
     Payload,
     SupercompressionScheme,
     Wrapping,

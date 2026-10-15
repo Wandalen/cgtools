@@ -100,7 +100,7 @@ fn empty_input_is_rejected_without_panicking()
 
 use minwebgl as gl;
 use gl::texture::compressed::Format;
-use renderer::webgl::loaders::ktx2::{ Wrapping, decode_level };
+use renderer::webgl::loaders::ktx2::{ MAX_DIMENSION, Wrapping, decode_level };
 
 /// The 65x33 UASTC + Zstandard fixture, encoded with KTX-Software's `ktx create --encode uastc`.
 const FIXTURE : &[ u8 ] = include_bytes!( "fixtures/uastc-65x33.ktx2" );
@@ -184,6 +184,52 @@ fn a_zero_width_file_is_refused()
 
   let error = Ktx2Image::parse( &bytes ).expect_err( "a 0-width file must not parse" );
   assert!( matches!( error, Ktx2Error::Malformed( _ ) ), "unexpected error for a 0-width file : {error:?}" );
+}
+
+/// A file wider or taller than `MAX_DIMENSION` texels is refused at parse, before its declared
+/// size can drive any allocation; a file exactly at the limit still parses (review #1 SECURITY).
+#[ test ]
+fn a_texture_larger_than_the_dimension_limit_is_refused()
+{
+  // Byte offsets of `pixelWidth` / `pixelHeight` in the KTX2 header. See the KTX2 spec, section 3.1.
+  const PIXEL_WIDTH  : usize = 20;
+  const PIXEL_HEIGHT : usize = 24;
+
+  let patched = | offset : usize, value : u32 | -> Vec< u8 >
+  {
+    let mut bytes = FIXTURE.to_vec();
+    bytes[ offset..offset + 4 ].copy_from_slice( &value.to_le_bytes() );
+    bytes
+  };
+
+  for ( label, offset ) in [ ( "width", PIXEL_WIDTH ), ( "height", PIXEL_HEIGHT ) ]
+  {
+    let error = Ktx2Image::parse( &patched( offset, MAX_DIMENSION + 1 ) )
+    .expect_err( &format!( "a {label} past the limit must not parse" ) );
+    assert!( matches!( error, Ktx2Error::UnsupportedShape( _ ) ), "{label} : {error:?}" );
+
+    assert!
+    (
+      Ktx2Image::parse( &patched( offset, MAX_DIMENSION ) ).is_ok(),
+      "a {label} exactly at the limit must still parse"
+    );
+  }
+}
+
+/// `decode_level` is public and takes raw dimensions, so its size arithmetic must not overflow.
+/// For `u32::MAX` x `u32::MAX` the block count times 16 bytes exceeds even a 64-bit `usize`; that
+/// must come back as an error, not a panic or a wrapped size that a short payload could match.
+#[ test ]
+fn decode_level_reports_dimensions_whose_size_overflows()
+{
+  let tiny = vec![ 0_u8; 16 ];
+
+  for format in [ Format::Bc7, Format::Rgba8 ]
+  {
+    let error = decode_level( &tiny, Wrapping::None, format, u32::MAX, u32::MAX )
+    .expect_err( "an impossible size must not decode" );
+    assert!( matches!( error, Ktx2Error::UnsupportedShape( _ ) ), "{format:?} : {error:?}" );
+  }
 }
 
 /// Mip dimensions halve and clamp at 1 -- and for 65x33 they are never block-aligned.
