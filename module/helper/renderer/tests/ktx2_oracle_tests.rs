@@ -15,9 +15,11 @@
 //! These are native tests: parsing a `.glb` and transcoding UASTC to RGBA need no GPU. Only the
 //! upload to the GPU does, and that belongs in the browser test suite.
 //!
-//! **Assets:** both live under `assets/gltf/`. `gambeson.glb` (the PNG twin) is committed;
-//! `gambeson-uastc.glb` is the gltf-transform output and must be committed for this test to run in
-//! CI. If either is absent the test fails loudly rather than skipping silently.
+//! **Assets:** both live under `assets/gltf/`, which is not in git. Like every large binary in this
+//! repository they are tracked by DVC and fetched with `dvc pull assets/gltf` ( see the root
+//! readme's Assets section ). `gambeson.glb` (the PNG twin) is in the DVC dataset;
+//! `gambeson-uastc.glb` is the gltf-transform output and must be added to it too for this test to
+//! run in CI. If either is absent the test fails loudly rather than skipping silently.
 
 #![ cfg( feature = "ktx2" ) ]
 
@@ -27,9 +29,9 @@ use minwebgl as gl;
 use gl::texture::compressed::Format;
 use renderer::webgl::loaders::ktx2::{ Ktx2Image, decode_level };
 
-/// The gltf-transform UASTC output. Untracked by default -- commit it to run this in CI.
+/// The gltf-transform UASTC output. A DVC asset; it has to be in the dataset for CI to run this.
 const UASTC_GLB : &str = concat!( env!( "CARGO_MANIFEST_DIR" ), "/../../../assets/gltf/gambeson-uastc.glb" );
-/// The original PNG-textured model -- the ground-truth oracle. Committed.
+/// The original PNG-textured model -- the ground-truth oracle. A DVC asset.
 const PNG_GLB : &str = concat!( env!( "CARGO_MANIFEST_DIR" ), "/../../../assets/gltf/gambeson.glb" );
 
 /// A material's texture role. Pairing is done on *this*, not on any index.
@@ -49,7 +51,7 @@ fn load_glb( path : &str ) -> ( gltf::Gltf, Vec< u8 > )
 {
   let bytes = std::fs::read( path ).unwrap_or_else
   (
-    | e | panic!( "cannot read `{path}` ( is `gambeson-uastc.glb` committed? ) : {e}" )
+    | e | panic!( "cannot read `{path}` ( run `dvc pull assets/gltf`; both .glb files must be in the DVC dataset ) : {e}" )
   );
   let gltf = gltf::Gltf::from_slice( &bytes ).unwrap_or_else( | e | panic!( "parse `{path}` : {e}" ) );
   let blob = gltf.blob.clone().expect( "a .glb must carry a BIN chunk" );
