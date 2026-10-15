@@ -37,7 +37,7 @@ A layer whose `sprite_source` is a composite source (`NeighborCondition`, `Verte
 
 1. Sampled sprite pixels (the raw texture read).
 2. Layer behaviour tint (`TintBehaviour::Flat`, see `format/006`; `::Masked` is declared but currently rejected at load and compile).
-3. Layer-level `effects` producing color modulations (see `format/004`). Only `AlphaPulse` and `FadeGate` are applied, and only on `VertexCorners` layers, as a whole-tint multiplier at projection time; every other effect, and effects on other layer types, are passed through without being read (`roadmap.md`, polish item 2).
+3. Layer-level `effects` producing color modulations (see `format/004`). Only `AlphaPulse` and `FadeGate` are applied, and only on `VertexCorners` layers, as a multiplier on the tint alpha at projection time; every other effect, and effects on other layer types, are passed through without being read (`roadmap.md`, polish item 2).
 4. The bucket's own `PipelineLayer.tint_mask`, if set (see `format/007`). *Not applied yet* — the reference is checked at load, but no compile pass reads it, so a set `tint_mask` has no visible effect (`roadmap.md`, polish item 14).
 5. `RenderPipeline.global_tint` (see `format/007`), applied last, uniformly across every draw call in the frame regardless of which bucket or object it came from.
 

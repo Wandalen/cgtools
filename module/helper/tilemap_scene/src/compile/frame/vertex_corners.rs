@@ -533,30 +533,27 @@ pub( crate ) fn project_vertex_sprite
   // content changes — e.g. the attack overlay fading in from 0 the instant a
   // unit is selected; otherwise it free-runs off the global clock.
   //
-  // The pulse fades the WHOLE tint — RGB *and* alpha by the same factor — not
-  // the alpha alone: the sprite shaders sample premultiplied atlases
-  // (`frag = tex * tint`), where a valid colour keeps `rgb ≤ a`. Scaling only
-  // alpha would leave RGB over-bright as coverage drops, so the edge haloes
-  // lighter than the fill (obvious on a neutral tint like the grey selection,
-  // hidden under a saturated one like the red attack overlay). Scaling all four
-  // channels is exactly a premultiplied fade toward transparent, so `min: 0,
-  // max: 1` breathes cleanly from invisible to the layer's own alpha and back.
+  // The pulse scales the tint's alpha only. The fragment shaders keep the
+  // output premultiplied themselves (`shaders/tint.glsl`): with a premultiplied
+  // atlas they scale the colour by the tint alpha, and a straight one is blended
+  // with `SRC_ALPHA`. Scaling the colour here as well would fade it by `k²`
+  // against the coverage's `k`, so the sprite would darken as it fades.
   if let Some( ( min, max, freq, restart_on_spawn ) ) = rv.alpha_pulse
   {
     let t = if restart_on_spawn { ( ctx.time_seconds - rv.pulse_anchor ).max( 0.0 ) } else { ctx.time_seconds };
     let wave = 0.5 - 0.5 * ( core::f32::consts::TAU * freq * t ).cos();
     let k = min + ( max - min ) * wave;
-    tint = [ tint[ 0 ] * k, tint[ 1 ] * k, tint[ 2 ] * k, tint[ 3 ] * k ];
+    tint[ 3 ] *= k;
   }
 
-  // Fade gate: same whole-tint-multiplier treatment as the pulse above, but
+  // Fade gate: the same alpha-only multiplier as the pulse above, but
   // the factor is [`Scene::fade_value`]( crate::Scene::fade_value )'s live eased progress instead of an
   // oscillating wave — read fresh every frame since it isn't a function of
   // `ctx.time_seconds` alone (it's advanced by `Scene::tick`).
   if let Some( effect_id ) = &rv.fade_gate
   {
     let k = ctx.scene.fade_value( effect_id );
-    tint = [ tint[ 0 ] * k, tint[ 1 ] * k, tint[ 2 ] * k, tint[ 3 ] * k ];
+    tint[ 3 ] *= k;
   }
   (
     rv.world.0, rv.world.1,

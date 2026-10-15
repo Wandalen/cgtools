@@ -172,7 +172,7 @@ game use-case demands one.
    `AlphaPulse` is plumbed for `VertexCorners` layers: `resolve_alpha_pulse`
    folds the effect's `(min, max, frequency, restart_on_spawn)` into the
    revision-cached vertex resolve, and the per-frame project tier evaluates a
-   raised-cosine wave scaling the whole premultiplied tint. `restart_on_spawn`
+   raised-cosine wave scaling the tint alpha (the shaders premultiply). `restart_on_spawn`
    phases the wave off `pulse_anchor` (the clock captured when the bucket's
    content was resolved) so it restarts from `min` when the layer's own content
    changes, instead of free-running off the global clock. The anchor is carried

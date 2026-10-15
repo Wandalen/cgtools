@@ -218,7 +218,7 @@ fn fade_gate_first_hide_invalidates_idle_replay()
   assert!( !hidden.is_empty(), "lone hex must still emit corner sprites" );
   for s in &hidden
   {
-    assert!( s.tint.iter().all( | c | c.abs() < 1e-5 ), "the re-walked frame must be fully transparent, got {:?}", s.tint );
+    assert!( s.tint[ 3 ].abs() < 1e-5, "the re-walked frame must be fully transparent, got {:?}", s.tint );
   }
 }
 
@@ -300,7 +300,7 @@ fn vertex_corners_fade_gate_eases_toward_target()
   assert!( !hidden.is_empty(), "lone hex must still emit corner sprites — geometry, not visibility, drives presence" );
   for s in &hidden
   {
-    assert!( s.tint.iter().all( | c | c.abs() < 1e-5 ), "target=false with no prior state must snap to fully transparent, got {:?}", s.tint );
+    assert!( s.tint[ 3 ].abs() < 1e-5, "target=false with no prior state must snap to fully transparent, got {:?}", s.tint );
   }
 
   // Flip the target on — this time a genuine ease, not a snap, since the gate
@@ -310,7 +310,7 @@ fn vertex_corners_fade_gate_eases_toward_target()
   let just_flipped = sprite_commands( &just_flipped_cmds );
   for s in &just_flipped
   {
-    assert!( s.tint.iter().all( | c | c.abs() < 1e-5 ), "immediately after flipping the target, value hasn't advanced yet: {:?}", s.tint );
+    assert!( s.tint[ 3 ].abs() < 1e-5, "immediately after flipping the target, value hasn't advanced yet: {:?}", s.tint );
   }
 
   // Half the fade duration (50ms of a 100ms sweep) → value ≈ 0.5.
@@ -320,6 +320,9 @@ fn vertex_corners_fade_gate_eases_toward_target()
   for s in &mid
   {
     assert!( ( s.tint[ 3 ] - 0.5 ).abs() < 0.05, "halfway through a 100ms fade-in, alpha should be ≈0.5, got {}", s.tint[ 3 ] );
+    // The shaders premultiply by the tint alpha themselves, so the fade must leave
+    // the colour alone; scaling it too would darken the sprite by k² as it fades.
+    assert_eq!( &s.tint[ ..3 ], &[ 1.0, 1.0, 1.0 ], "the fade scales the alpha only, got {:?}", s.tint );
   }
 
   // Well past the full duration → holds at fully visible (identity tint),
