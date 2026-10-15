@@ -52,11 +52,32 @@ mod gl_scene
   /// An axis-aligned NDC rectangle at depth `z`, as a non-indexed two-triangle geometry.
   fn rect( gl : &GL, [ x0, y0, x1, y1 ] : [ f32; 4 ], z : f32 ) -> Rc< RefCell< Geometry > >
   {
-    let positions : [ f32; 18 ] =
-    [
-      x0, y0, z,  x1, y0, z,  x1, y1, z,
-      x0, y0, z,  x1, y1, z,  x0, y1, z,
-    ];
+    triangles
+    (
+      gl,
+      [
+        x0, y0, z,  x1, y0, z,  x1, y1, z,
+        x0, y0, z,  x1, y1, z,  x0, y1, z,
+      ]
+    )
+  }
+
+  /// [`rect`] with the opposite winding, so it faces away from the camera.
+  fn rect_clockwise( gl : &GL, [ x0, y0, x1, y1 ] : [ f32; 4 ], z : f32 ) -> Rc< RefCell< Geometry > >
+  {
+    triangles
+    (
+      gl,
+      [
+        x0, y0, z,  x1, y1, z,  x1, y0, z,
+        x0, y0, z,  x0, y1, z,  x1, y1, z,
+      ]
+    )
+  }
+
+  /// Two non-indexed triangles from their vertex positions.
+  fn triangles( gl : &GL, positions : [ f32; 18 ] ) -> Rc< RefCell< Geometry > >
+  {
     let buffer = gl.create_buffer().unwrap();
     gl::buffer::upload( gl, &buffer, positions.as_slice(), GL::STATIC_DRAW );
 
@@ -191,6 +212,30 @@ mod gl_scene
     assert_eq!( buffer.read( 40, 48 ), None, "where `world * viewProjection` would put it" );
     assert_eq!( buffer.read( 48, 48 ), None, "where the node transform alone would put it" );
     assert_eq!( buffer.read( 24, 32 ), None, "where the view-projection alone would put it" );
+  }
+
+  /// A surface visible on screen must be pickable whatever its winding or the caller's
+  /// cull settings. The caller culls every triangle, so the back-facing square can only
+  /// reach the id buffer if the pass itself disables `CULL_FACE`.
+  #[ wasm_bindgen_test::wasm_bindgen_test ]
+  fn render_picks_faces_the_caller_would_cull()
+  {
+    let gl = gl_init();
+    let mut scene = Scene::new();
+    scene.add( mesh_node( &gl, "front", rect_clockwise( &gl, [ -0.5, -0.5, 0.5, 0.5 ], 0.0 ) ) );
+    scene.world_matrix_update();
+
+    let picker = ScenePicker::new( &gl ).unwrap();
+    let mut buffer = IdBuffer::new( &gl ).unwrap();
+    buffer.size_set( SIZE, SIZE ).unwrap();
+
+    gl.enable( GL::CULL_FACE );
+    gl.cull_face( GL::FRONT_AND_BACK );
+    picker.render( &buffer, &scene, gl::math::mat4x4::identity(), id_for ).unwrap();
+
+    assert_eq!( buffer.read( 32, 32 ), Some( 2 ), "the back-facing square is picked despite the caller's culling" );
+    assert_eq!( buffer.read( 4, 4 ), None, "outside the square" );
+    assert!( gl.is_enabled( GL::CULL_FACE ), "the caller's cull face is restored" );
   }
 
   #[ wasm_bindgen_test::wasm_bindgen_test ]

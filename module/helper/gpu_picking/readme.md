@@ -11,6 +11,11 @@ Callers implement the [`Pickable`] trait for whatever their own "one drawable
 part" type already is (own VAO, index count, world transform, pick id); this
 crate never needs to know anything else about it.
 
+Picking objects of a `renderer` `Scene` (anything loaded through its glTF
+loader) goes through `renderer::webgl::picking::ScenePicker` instead: it draws
+the scene's own primitives, so it handles every index type and non-indexed
+geometry. This crate is for apps that draw their own VAOs without a `Scene`.
+
 ## Responsibility Table
 
 | File | Responsibility |
