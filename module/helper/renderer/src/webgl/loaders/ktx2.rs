@@ -227,7 +227,8 @@ mod private
   #[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
   pub struct Info
   {
-    /// Width of mip level 0, in texels. Always non-zero.
+    /// Width of mip level 0, in texels. Always non-zero: the `ktx2` reader itself refuses a 0
+    /// width ( `ParseError::ZeroWidth` ), which [ `Ktx2Image::parse` ] reports as `Malformed`.
     pub width : u32,
     /// Height of mip level 0, in texels. Always non-zero -- a 1D texture is rejected at parse.
     pub height : u32,

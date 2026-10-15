@@ -166,6 +166,26 @@ fn a_non_2d_container_shape_is_refused()
   }
 }
 
+/// A file whose width is 0 is refused, so `Info::width` really is never 0.
+///
+/// `parse` has no width check of its own because the `ktx2` reader underneath already refuses the
+/// file ( `ParseError::ZeroWidth` ). This test pins that guarantee: if a future `ktx2` release
+/// dropped it, `level_size` would clamp the 0 to 1 and upload a wrong 1-texel-wide texture with no
+/// error, and this test is what would say so (review #1 CORRECTNESS).
+#[ test ]
+fn a_zero_width_file_is_refused()
+{
+  // Byte offset of `pixelWidth` in the KTX2 header, right after the 12-byte identifier and the
+  // two `u32` fields `vkFormat` and `typeSize`. See the KTX2 spec, section 3.1.
+  const PIXEL_WIDTH : usize = 20;
+
+  let mut bytes = FIXTURE.to_vec();
+  bytes[ PIXEL_WIDTH..PIXEL_WIDTH + 4 ].copy_from_slice( &0_u32.to_le_bytes() );
+
+  let error = Ktx2Image::parse( &bytes ).expect_err( "a 0-width file must not parse" );
+  assert!( matches!( error, Ktx2Error::Malformed( _ ) ), "unexpected error for a 0-width file : {error:?}" );
+}
+
 /// Mip dimensions halve and clamp at 1 -- and for 65x33 they are never block-aligned.
 #[ test ]
 fn mip_dimensions_halve_and_clamp()
