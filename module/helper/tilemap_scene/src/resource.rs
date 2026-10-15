@@ -236,7 +236,13 @@ mod private
     pub color : String,
     /// Strength `0.0..=1.0`: `0.0` = identity (no tint), `1.0` = full replacement.
     pub strength : f32,
-    /// Blend mode when composing. Defaults to [`BlendMode::Multiply`].
+    /// Blend mode when composing. Defaults to [`BlendMode::Multiply`], which
+    /// is also the only mode implemented: tints fold into the multiplicative
+    /// `Sprite.tint`, so validation rejects any other value
+    /// (`ValidationError::UnsupportedTintMode`) instead of silently
+    /// multiplying, and compilation does too
+    /// (`CompileError::UnsupportedTintMode`) for a spec built without
+    /// `RenderSpec::load`.
     #[ serde( default = "default_blend_mode" ) ]
     pub mode : BlendMode,
   }

@@ -43,8 +43,9 @@ mod private
     /// Sort mode applied to draw calls gathered in this bucket.
     #[ serde( default ) ]
     pub sort : SortMode,
-    /// Optional per-bucket tint mask applied between per-object tints and
-    /// the global tint. See SPEC §12.1 step 4.
+    /// Optional per-bucket tint mask, to be applied between per-object tints
+    /// and the global tint. See SPEC §12.1 step 4. Checked at load but not
+    /// applied by compilation yet (`roadmap.md`, polish item 14).
     #[ serde( default ) ]
     pub tint_mask : Option< TintRef >,
   }

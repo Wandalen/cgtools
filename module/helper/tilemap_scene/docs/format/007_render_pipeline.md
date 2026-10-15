@@ -15,7 +15,7 @@ A scene declares exactly one `RenderPipeline`: a bottom-to-top ordered list of n
 
 `RenderPipeline`: `hex: HexConfig`, `layers: Vec<PipelineLayer>`, `global_tint: Option<TintRef>`, `viewport_size: Option<(u32, u32)>` (derived from the window when absent), `clear_color: Option<[f32; 4]>` (linear RGBA; `None` = transparent).
 
-`PipelineLayer`: `id: String`, `sort: SortMode` (default `None`), `tint_mask: Option<TintRef>`.
+`PipelineLayer`: `id: String`, `sort: SortMode` (default `None`), `tint_mask: Option<TintRef>`. `tint_mask` is checked at load (it must name a declared tint) but is not applied by compilation yet — see `algorithm/002`'s tint composition order, stage 4.
 
 `SortMode` (8 variants):
 
