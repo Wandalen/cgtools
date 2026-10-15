@@ -11,7 +11,7 @@
 
 ### Design
 
-The implementation is split across two files to stay under the workspace's per-file size budget: `adapters/webgl.rs` holds `WebGlBackend`, the sprite/mesh renderers, and the async image loader; `adapters/webgl/webgl_helpers.rs` (a `mod_interface::layer` submodule) holds self-contained helpers — the GPU-side array type, instance-data layouts, GPU resource handles, VAO setup, the async `Loadable` mechanism, and GL enum-mapping helpers.
+The implementation is split across three files to stay under the workspace's per-file size budget: `adapters/webgl.rs` holds `WebGlBackend`, the sprite/mesh renderers, and the async image loader; `adapters/webgl/webgl_helpers.rs` (a `mod_interface::layer` submodule) holds self-contained helpers — the GPU-side array type, instance-data layouts, GPU resource handles, VAO setup, the async `Loadable` mechanism, and GL enum-mapping helpers; `adapters/webgl/render_target.rs` (another layer) holds `RenderTargetId` and its slot table.
 
 Instanced sprite and mesh batches are backed by `ArrayBuffer<T>`, a growable array over one `ARRAY_BUFFER` whose mutations (`push`, `set`, swap-remove) are staged on the CPU in a `StagedVec<T>` and uploaded on `flush()` — one `bufferSubData` over the changed element range, or one `bufferData` reallocation (at least double the old capacity and 1.5× the new length) plus a full upload when the contents outgrow the buffer. `UnbindBatch` is the flush point, so a recording of N instance writes costs one GL upload instead of N bind/upload/unbind triples; draws use the flushed length (`gpu_len`), never unflushed elements. The buffer object never changes, so VAO bindings stay valid across growth. (The earlier immediate-upload design needed a GPU scratch buffer for swap-remove — see [pitfall/001](../pitfall/001_arraybuffer_swap_remove_buffer_binding_violation.md); staging on the CPU removed that path.) Per-instance GPU data is fixed-layout (`SpriteInstanceData` 72 bytes, `MeshInstanceData` 56 bytes, both including a per-instance tint and depth), and the byte offsets the VAO attribute setup reads from those structs are hardcoded rather than computed — see [pitfall/002](../pitfall/002_gpu_instance_struct_field_reorder_desync.md) for exactly what is and isn't guarded against a future field change. VAO attribute bindings are configured once at batch create/unbind time and simply bound (not reconfigured) at each draw call.
 
@@ -54,6 +54,7 @@ Given the number of unimplemented command families and the `Overlay` blend-mode 
 |------|--------------|
 | `src/adapters/webgl.rs` | `WebGlBackend`, sprite/mesh renderers, async image loader, command dispatch |
 | `src/adapters/webgl/webgl_helpers.rs` | `ArrayBuffer<T>`, instance-data layouts, GPU resource handles, VAO setup, GL mapping helpers |
+| `src/adapters/webgl/render_target.rs` | `RenderTargetId` and the generation-checked slot table behind the offscreen cache surfaces |
 | `src/adapters/shaders/sprite.vert`, `sprite.frag` | Single-sprite shader pair |
 | `src/adapters/shaders/sprite_batch.vert`, `sprite_batch.frag` | Instanced sprite-batch shader pair |
 | `src/adapters/shaders/mesh.vert`, `mesh.frag` | Single-mesh shader pair |
@@ -64,6 +65,6 @@ Given the number of unimplemented command families and the `Overlay` blend-mode 
 | File | Relationship |
 |------|--------------|
 | `src/adapters/webgl/webgl_helpers.rs` (`staged_vec_tests`) | Inline tests of the GL-free `StagedVec` bookkeeping behind `ArrayBuffer`: one range per batch of writes, realloc growth policy, merged set/swap-remove ranges, no upload for tail removes |
-| `src/adapters/webgl.rs` (`target_slots_tests`) | Inline tests of the GL-free slot table behind `RenderTargetId`: a handle kept across `reset_render_targets` is rejected even after its slot is reused |
+| `src/adapters/webgl/render_target.rs` (`target_slots_tests`) | Inline tests of the GL-free slot table behind `RenderTargetId`: a handle kept across `reset_render_targets` is rejected even after its slot is reused |
 | `tests/webgl_backend_test.rs` | Compile-and-construct-level coverage: `declared_capabilities`'s honest-subset pin (`meshes`/`sprites`/`batches` true, everything else false, exact 4-entry `supported_blend_modes`) and an anti-hardcoding pin (two different `max_texture_size` inputs produce two different, input-matching outputs). No `WebGl2RenderingContext`/`web_sys` call — a live-context `wasm-bindgen-test` harness still does not exist in this crate |
 | `tests/manual/readme.md` | Real-browser (`browsee`) pixel verification beyond compile-and-construct-level — confirms `WebGlBackend::new` + `assets_load` + `submit` + `output` paints a correctly-centered `rgb 255 0 0` sprite on a `rgb 0 0 255` clear through a live WebGL2 context (Firefox) |
