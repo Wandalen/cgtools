@@ -1,5 +1,5 @@
 //! Cosmic dust particle field scattered through the scene volume, ported
-//! from `examples/threejs/falling_frontier/src/world/starfield.js`. Own
+//! from the three.js original's `src/world/starfield.js`. Own
 //! tiny unlit point-sprite program (not `hull.rs`'s flat-shaded one - points
 //! have no meaningful surface normal).
 
