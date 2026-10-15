@@ -86,13 +86,16 @@ mod private
       /// grid only ever appears in six discrete 60°-orientations, so each
       /// junction shape is baked once per orientation and `{rot}` selects the
       /// matching one (`transform.rotation` always stays `0`). `{rot}` ranges
-      /// over `0..2` for a fully-symmetric tile — all three corners are this
-      /// layer's own object id (a solid interior) or none are (degenerate void),
-      /// so only ▲/▽ parity differs — and `0..6` otherwise (a mix of present and
-      /// absent corners: an edge with 2 present or a corner with 1). Symmetry is
-      /// decided by counting corners equal to the self id, not by lexical
-      /// equality of the three ids. This keeps seams deterministic (no per-angle
-      /// resampling) and needs no rotation-pivot support in the backend.
+      /// over `0..2` for a fully-symmetric tile — all three corners are
+      /// present (a solid interior) or none are (degenerate void), so only ▲/▽
+      /// parity differs — and `0..6` otherwise (a mix of present and absent
+      /// corners: an edge with 2 present or a corner with 1). A corner is
+      /// present when it equals the layer's self id, the id of its solid
+      /// `( X, X, X )` pattern ([`TriBlendPattern::self_id`]; at most one per
+      /// layer, see `validate()`), so a foreign id counts as absent like void;
+      /// a layer without a solid pattern counts every non-void corner as
+      /// present. This keeps seams deterministic (no per-angle resampling) and
+      /// needs no rotation-pivot support in the backend.
       ///
       /// When `false` (the default), the legacy behaviour: `{rot}` selects one
       /// of three pre-baked 120°-rotations keyed to the canonical sort.
@@ -116,11 +119,13 @@ mod private
       /// The offset moves only the emitted sprite; corner resolution and the
       /// orient-to-grid frame pick use the true (un-shifted) triangle geometry.
       ///
-      /// The offset is applied **before** the sprite's position becomes the
-      /// depth-sort key, so an offset tile sorts at its shifted position, not the
-      /// triangle centroid. For a downward-nudged shadow this is usually what you
-      /// want (it sinks in `YAsc`/`YDesc` order); be aware that mixing offset and
-      /// non-offset layers in one sorted bucket can reorder their occlusion.
+      /// The offset does **not** move the depth-sort key: like every other pass,
+      /// a sorted bucket orders the sprite by its anchor — here the un-shifted
+      /// triangle centroid — so an offset copy sorts together with the plain
+      /// tile of the same triangle, the two ordered by `z_in_object`. To draw a
+      /// shadow / wall copy beneath the whole main terrain (its shifted sprite
+      /// overlaps neighbouring triangles, which `z_in_object` does not order
+      /// against), put it on an earlier `pipeline_layer`.
       #[ serde( default ) ]
       offset : Option< ( f32, f32 ) >,
     },
@@ -268,6 +273,25 @@ mod private
     /// Optional animation that plays on the matched vertex.
     #[ serde( default ) ]
     pub animation : Option< AnimationRef >,
+  }
+
+  impl TriBlendPattern
+  {
+    /// The object id this pattern draws as a solid interior, i.e. `X` when
+    /// `corners` is `( X, X, X )` with `X` not the `"*"` wildcard; `None` for
+    /// every other pattern.
+    ///
+    /// `orient_to_grid` relies on it twice and both sites must agree: frame
+    /// allocation reserves the 2-frame parity set only for such a pattern,
+    /// and the vertex pass takes the layer's first such id as the "present"
+    /// id that `dual_orientation_index` counts corners against.
+    #[ inline ]
+    #[ must_use ]
+    pub fn self_id( &self ) -> Option< &str >
+    {
+      let ( a, b, c ) = &self.corners;
+      ( a == b && b == c && a != "*" ).then_some( a.as_str() )
+    }
   }
 
   /// How a [`SpriteSource::ViewportTiled`] lays its inner content across the viewport.

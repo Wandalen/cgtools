@@ -15,7 +15,7 @@ A scene declares exactly one `RenderPipeline`: a bottom-to-top ordered list of n
 
 `RenderPipeline`: `hex: HexConfig`, `layers: Vec<PipelineLayer>`, `global_tint: Option<TintRef>`, `viewport_size: Option<(u32, u32)>` (derived from the window when absent), `clear_color: Option<[f32; 4]>` (linear RGBA; `None` = transparent).
 
-`PipelineLayer`: `id: String`, `sort: SortMode` (default `None`), `tint_mask: Option<TintRef>`, `alpha_clip: f32` (default `0.0` = off), `occlude_overlap: bool` (default `false`), `opaque: bool` (default `false`). The last three are described under Coverage and Depth Controls below.
+`PipelineLayer`: `id: String`, `sort: SortMode` (default `None`), `tint_mask: Option<TintRef>`, `alpha_clip: f32` (default `0.0` = off), `occlude_overlap: bool` (default `false`), `opaque: bool` (default `false`). `tint_mask` is checked at load (it must name a declared tint) but is not applied by compilation yet — see `algorithm/002`'s tint composition order, stage 4. The last three are described under Coverage and Depth Controls below.
 
 `SortMode` (8 variants):
 

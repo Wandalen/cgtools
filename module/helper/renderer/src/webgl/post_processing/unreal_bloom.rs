@@ -50,6 +50,18 @@ mod private
     "bloomTintColors"
   );
 
+  /// Next mip dimension: half of `size`, never below one texel.
+  // Fix: a canvas dimension under `2^MIPS` texels used to halve to 0,
+  // so `texStorage2D` rejected the mip and every blur pass drew into an incomplete framebuffer
+  // (GL_INVALID_VALUE / GL_INVALID_FRAMEBUFFER_OPERATION on each frame).
+  // Root cause: plain `/ 2` on the mip chain has no floor.
+  // Pitfall: allocation, shader `inv_size` and the render viewport each walk the chain —
+  // they must all use this one function or they drift apart.
+  fn mip_halve( size : u32 ) -> u32
+  {
+    ( size / 2 ).max( 1 )
+  }
+
   /// Implements an Unreal Bloom post-processing effect from here:
   /// <https://github.com/mrdoob/three.js/blob/master/examples/jsm/postprocessing/UnrealBloomPass.js>
   ///
@@ -129,7 +141,7 @@ mod private
       // Start with half resolution for the first mip.
       // Generate textures for blur passes at different mipmap levels.
       // The blur process will typically involve two passes: horizontal then vertical.
-      let mut size = [ width / 2, height / 2 ];
+      let mut size = [ mip_halve( width ), mip_halve( height ) ];
 
       for _ in 0..MIPS
       {
@@ -144,14 +156,14 @@ mod private
         vertical_targets.push( vertical );
 
         // Halve the size for the next mip level.
-        size[ 0 ] /= 2;
-        size[ 1 ] /= 2;
+        size[ 0 ] = mip_halve( size[ 0 ] );
+        size[ 1 ] = mip_halve( size[ 1 ] );
       }
 
       // Load Gaussian fragment shader source.
       let fs_shader = include_str!( "../shaders/filters/gaussian.frag" );
 
-      let mut size = [ width / 2, height / 2 ];
+      let mut size = [ mip_halve( width ), mip_halve( height ) ];
       //let mut size = [ width, height ];
       let mut blur_materials = Vec::new();
 
@@ -174,8 +186,8 @@ mod private
         blur_materials.push( blur_material );
 
         // Update size for the next mip.
-        size[ 0 ] /= 2;
-        size[ 1 ] /= 2;
+        size[ 0 ] = mip_halve( size[ 0 ] );
+        size[ 1 ] = mip_halve( size[ 1 ] );
       }
 
       // --- Setup Composite Material ---
@@ -357,7 +369,7 @@ mod private
       // --- Multi-Pass Gaussian Blur ---
       // Iterate through mip levels to apply horizontal and vertical Gaussian blur.
       let mut blur_input = input_texture.as_ref();
-      let mut size = [ self.width / 2, self.height / 2 ];
+      let mut size = [ mip_halve( self.width ), mip_halve( self.height ) ];
       for i in 0..MIPS
       {
         gl.viewport( 0, 0, size[ 0 ] as i32, size[ 1 ] as i32 );
@@ -398,8 +410,8 @@ mod private
 
         blur_input = self.vertical_targets[ i ].as_ref();
         // Update size for the next mip.
-        size[ 0 ] /= 2;
-        size[ 1 ] /= 2;
+        size[ 0 ] = mip_halve( size[ 0 ] );
+        size[ 1 ] = mip_halve( size[ 1 ] );
       }
 
       // --- Bloom Composite Pass ---

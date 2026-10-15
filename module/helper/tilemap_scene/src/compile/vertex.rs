@@ -113,7 +113,8 @@ mod private
   /// 0 of the canonical form (for legacy `{rot}` sprite substitution).
   ///
   /// The `orient_to_grid` path does not use `rotation`; it derives a discrete
-  /// orientation from triangle geometry (see `resolve_vertex_pass_all`).
+  /// orientation from triangle geometry (see `dual_orientation_index` in
+  /// `compile/orient.rs`, called from `resolve_vertex_pass_all`).
   #[ must_use ]
   pub fn canonicalize( raw : &[ String; 3 ] ) -> ( [ String; 3 ], u8 )
   {

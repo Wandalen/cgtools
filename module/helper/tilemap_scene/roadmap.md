@@ -159,10 +159,14 @@ below): §8, §10, §11, §12, §13, §14.
 These are small-to-medium-size and independent. Implement when a real
 game use-case demands one.
 
-1. ~~**`TintBehaviour::Flat` for `VertexCorners`.**~~ *Shipped.* `resolve_vertex_pass_all`
-   now respects `LayerBehaviour.tint = Flat(TintRef)` per object layer — the flat
-   tint multiplies the global tint so per-player region overlays can be coloured
-   independently. Still open: `Masked` + `TeamColor` resolution against
+1. ~~**`TintBehaviour::Flat` for `VertexCorners`.**~~ *Shipped.* `TintBehaviour::Flat`
+   is implemented for **all** layer types via the shared `FrameTints::sprite_tint` helper
+   (instance, edge, viewport, free, and `VertexCorners` passes), not only
+   the `VertexCorners` pass — the flat tint multiplies the global tint so per-player
+   region overlays can be coloured independently. `TintBehaviour::Masked` is
+   explicitly rejected — at load with `ValidationError::UnsupportedBehaviour`,
+   and at compile with `CompileError::UnsupportedBehaviour` as a backstop.
+   Still open: **`TintBehaviour::Masked` + `TeamColor` resolution** against
    `Scene.players[i].color` for team-coloured units.
 2. **`Effects` (`VertexDisplace` / `AlphaPulse` / `ColorShift` / `FadeGate`).**
    `AlphaPulse` is plumbed for `VertexCorners` layers: `resolve_alpha_pulse`
@@ -232,7 +236,7 @@ game use-case demands one.
    `_square_tiling` / `_conflicting_tile_source` /
    `_owner_out_of_range`), plus one positive-path test
    (`validate_accepts_tint_effect_connects_with`) covering the
-   tint/effect/connects_with resolution paths `validates_minimal_spec`
+   tint/effect/connects_with resolution paths `validate_minimal_spec_reports_only_masked_tint`
    doesn't exercise.
 4. ~~**`External` sprite source runtime plumbing.**~~ *Shipped.*
    `Scene::set_external_sprite( handle, slot, SpriteRef )` populates
@@ -282,9 +286,16 @@ game use-case demands one.
     `BlendMode::default()`.
 13. ~~**🐛 LayerBehaviour.alpha not propagated in compile/frame.rs.**~~ *Fixed.*
     All 7 emit sites now apply `layer.behaviour.alpha` to the sprite's tint alpha
-    channel via the `tinted()` helper. Also fixed: `LayerBehaviour::default()` now
+    channel (now via `FrameTints::sprite_tint` in `compile/tint.rs`). Also fixed: `LayerBehaviour::default()` now
     returns `alpha: 1.0` (was `0.0` via `f32::default()`, inconsistent with the
     serde default).
+14. **`PipelineLayer.tint_mask`.** Declared and reference-checked at load
+    (`validate.rs`, `pipeline_tint_checks`), but no compile pass reads it: a
+    bucket's `tint_mask` changes nothing on screen. Stage 4 of the tint
+    composition order in `docs/algorithm/002` is therefore not applied yet.
+    Implementing it means folding the bucket's tint into `FrameTints::sprite_tint`
+    per bucket, between the layer tint and the global tint (all four channels
+    multiply, so the order only matters once a non-`Multiply` mode exists).
 
 ## Deferred from Step 4 — `Renderer` follow-ups
 

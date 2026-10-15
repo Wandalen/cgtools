@@ -35,6 +35,8 @@ mod private
     tile_max_priority,
     VOID_ID,
   };
+  use crate::compile::orient::dual_orientation_index;
+  use crate::compile::tint::FrameTints;
   use crate::compile::vertex::
   {
     canonicalize_strs,
@@ -43,15 +45,15 @@ mod private
     TriangleContext,
   };
   use crate::hash::coord_hash;
-  use crate::layer::{ LayerBehaviour, ObjectLayer, TintBehaviour };
+  use crate::layer::{ LayerBehaviour, ObjectLayer };
   use crate::object::Object;
   use crate::pipeline::{ SortMode, TilingStrategy };
-  use crate::resource::{ EffectKind, EffectRef, SpriteRef, TintRef };
+  use crate::resource::{ EffectKind, EffectRef, SpriteRef };
   use crate::compile::viewport::{ tiled_positions, viewport_transform };
   use crate::instance::{ Instance, Placement };
   use crate::scene::Scene;
   use crate::snapshot::{ EdgeInstance, EdgePosition, Tile };
-  use crate::source::{ NeighborBitmaskSource, SpriteSource, VariantSelection, ViewportTiling };
+  use crate::source::{ NeighborBitmaskSource, SpriteSource, TriBlendPattern, VariantSelection, ViewportTiling };
   use crate::spec::RenderSpec;
   use tilemap_renderer::types::{ asset, BlendMode, ResourceId, Transform };
   use rustc_hash::FxHashMap as HashMap;
@@ -78,9 +80,9 @@ mod private
     /// Scene-level seed folded to `u32` for `coord_hash`. Consumed by
     /// `VariantSelection::Random`.
     scene_seed : u32,
-    /// Resolved global tint multiplier — `[1,1,1,1]` when `pipeline.global_tint`
-    /// is `None`. Multiplied into every emitted `Sprite.tint`.
-    global_tint : [ f32; 4 ],
+    /// Global tint and declared tints resolved once for this frame; the only
+    /// source of an emitted `Sprite.tint` (see [`FrameTints::sprite_tint`]).
+    tints : FrameTints< 'a >,
   }
 
   /// Build a **world-space** [`Transform`] at `( wx, wy )` with unit scale and no
@@ -98,13 +100,6 @@ mod private
       skew : [ 0.0, 0.0 ],
       depth : 0.0,
     }
-  }
-
-  /// Multiply the alpha channel of a tint by a per-layer alpha factor.
-  #[ inline ]
-  fn tinted( [ r, g, b, a ] : [ f32; 4 ], alpha : f32 ) -> [ f32; 4 ]
-  {
-    [ r, g, b, a * alpha ]
   }
 
   /// Shift the world-space scene-anchor point so the sprite's anchor pixel
@@ -193,103 +188,6 @@ mod private
     let mut ordered : Vec< &ObjectLayer > = stack.iter().collect();
     ordered.sort_by_key( | layer | layer.z_in_object );
     ordered
-  }
-
-  /// Discrete dual-grid orientation index for a triangle, in `orient_to_grid`
-  /// mode. The regular hex grid's dual triangles occur in six 60°-orientations,
-  /// each pre-baked as its own frame; this picks which one to draw.
-  ///
-  /// We align the *distinguishing* corner to its baked reference axis, then round
-  /// the residual to the nearest 60° step. The baker lays the sorted corner slots
-  /// at 60°/180°/300° (slot k at 60°+120°·k) and bakes orientation `o` by rotating
-  /// the shape; crucially the export's PNG save flips vertically, so the baker's
-  /// CCW `u_rot` reads as CLOCKWISE in world. A frame's reference corner therefore
-  /// points at `base − 60°·o` in world space, index `round((base − bearing)/60°)`:
-  ///   • corner tile (1 present)          → align the lone PRESENT corner,  base 60°,  6 frames
-  ///   • edge tile   (2 present, 1 absent) → align the single ABSENT corner, base 300°, 6 frames
-  ///   • full tile   (3 present)           → base 60°, 2 frames (▲/▽ parity only)
-  ///
-  /// "Present" means *this object's own id* (`self_id`, taken from its `(X,X,X)`
-  /// full pattern), NOT a lexicographic property of the canonical triple. That
-  /// distinction matters once a triangle holds two DIFFERENT non-void ids — e.g.
-  /// two adjacent players' regions: for `region_1`'s edge tile the corners are
-  /// `(region_1, region_1, region_0)`, and `"region_0" < "region_1"` sorts the
-  /// foreign id FIRST, so the old canonical-order test misread the edge as a
-  /// corner and pointed the petals at the neighbour's centre. Counting matches of
-  /// `self_id` instead is exactly what the matched pattern meant by self vs.
-  /// wildcard, so terrain (`self_id = "hexagon"`, absent = `"void"`) is unchanged
-  /// while cross-region boundaries orient correctly. When `self_id` is `None`
-  /// (object has no `(X,X,X)` pattern) we fall back to the canonical-order rule.
-  ///
-  /// NOTE: still assumes at most two distinct ids per triangle drive one object's
-  /// shape (present vs. not-present). A genuine three-id chiral junction's ▲/▽
-  /// mirror pair is out of scope (would need a parity-keyed reflected frame).
-  fn dual_orientation_index
-  (
-    raw : &[ &str; 3 ],
-    canonical : &[ &str; 3 ],
-    self_id : Option< &str >,
-    corner_px : &[ ( f32, f32 ); 3 ],
-    wx : f32,
-    wy : f32,
-    tiling : TilingStrategy,
-  ) -> u8
-  {
-    use core::f32::consts::{ FRAC_PI_3, FRAC_PI_6 };
-    // The six dual-triangle corner bearings sit at multiples of 60° for a
-    // flat-top grid but are rotated 30° on a pointy-top grid (the hex itself is
-    // rotated 30°). Without compensating, every pointy bearing lands exactly on
-    // a `round()` half-step boundary, so adjacent orientations collapse onto the
-    // same index and a lone hex yields fewer than six distinct frames. Rotate
-    // the orientation reference by the same 30° so the residuals are integral
-    // again. (The absolute base — which frame is orientation 0 — is calibrated
-    // visually per atlas; this only restores the 60° step alignment.)
-    let base_offset = match tiling
-    {
-      TilingStrategy::HexPointyTop => FRAC_PI_6,
-      _ => 0.0,
-    };
-    let ( base, period, dist_idx ) = if let Some( sid ) = self_id
-    {
-      // Classify by how many corners are THIS object's own id ("present").
-      let present = [ raw[ 0 ] == sid, raw[ 1 ] == sid, raw[ 2 ] == sid ];
-      match present.iter().filter( | p | **p ).count()
-      {
-        // edge: the lone NOT-present corner is the distinguishing (void) one.
-        2 =>
-        {
-          let idx = present.iter().position( | p | !*p ).unwrap_or( 0 );
-          ( FRAC_PI_3 * 5.0, 6_i32, idx )
-        }
-        // corner: the lone PRESENT corner is the distinguishing one.
-        1 =>
-        {
-          let idx = present.iter().position( | p | *p ).unwrap_or( 0 );
-          ( FRAC_PI_3, 6, idx )
-        }
-        // full (3) — or the degenerate 0 — are 3-fold symmetric: parity only.
-        _ => ( FRAC_PI_3, 2, 0 ),
-      }
-    }
-    else
-    {
-      // Legacy fallback: derive the distinguishing corner from canonical order
-      // (valid when the absent id sorts after the present id, e.g. literal void).
-      let ( unique, base, period ) =
-        if canonical[ 0 ] == canonical[ 2 ]      { ( None,                  FRAC_PI_3,       2_i32 ) }
-        else if canonical[ 0 ] == canonical[ 1 ] { ( Some( &canonical[ 2 ] ), FRAC_PI_3 * 5.0, 6 ) }
-        else                                     { ( Some( &canonical[ 0 ] ), FRAC_PI_3,       6 ) };
-      let dist_idx = unique
-        .and_then( | v | raw.iter().position( | c | c == v ) )
-        .unwrap_or( 0 );
-      ( base, period, dist_idx )
-    };
-    let ( cx, cy ) = corner_px[ dist_idx ];
-    let bearing = ( cy - wy ).atan2( cx - wx );
-    // `base − bearing` (not `bearing − base`): the baked frames advance
-    // clockwise in world because the atlas export flips the PNG vertically.
-    let steps = ( ( base + base_offset - bearing ) / FRAC_PI_3 ).round() as i32;
-    steps.rem_euclid( period ) as u8
   }
 
   /// **Resolve tier** of the dual-grid vertex pass — the expensive,
@@ -477,14 +375,12 @@ mod private
     // orientation counts corners matching it to tell present from void, so a
     // neighbouring object's id (e.g. an adjacent player's region) reads as
     // void instead of being mistaken for the distinguishing corner.
-    let self_id = patterns.iter().find_map( | p |
-      ( p.corners.0 == p.corners.1 && p.corners.1 == p.corners.2 && p.corners.0 != "*" )
-        .then_some( p.corners.0.as_str() ) );
+    let self_id = patterns.iter().find_map( TriBlendPattern::self_id );
 
     // Optional static world offset — shifts only the drawn sprite (a tinted,
     // nudged copy for a 2.5D wall / drop-shadow), not the corner/orientation
     // geometry resolved below.
-    let ( ox, oy ) = offset.unwrap_or( ( 0.0, 0.0 ) );
+    let offset = offset.unwrap_or( ( 0.0, 0.0 ) );
 
     // Tint, pulse and fade gate, resolved on the layer's first match — a layer
     // that draws nothing raises no tint error.
@@ -506,7 +402,7 @@ mod private
       // `transform.rotation` stays 0 — no runtime sprite rotation.
       let rot_index = if *orient_to_grid
       {
-        dual_orientation_index( &raw, &canonical, self_id, &corner_px, wx, wy, ctx.tiling )
+        dual_orientation_index( &raw, self_id, &corner_px, wx, wy, ctx.tiling )
       }
       else
       {
@@ -539,7 +435,8 @@ mod private
 
       hits.push( ( ti, layer_pos, ResolvedVertexSprite
       {
-        world : ( wx + ox, wy + oy ),
+        world : ( wx, wy ),
+        offset,
         sprite : sprite_id,
         base_tint,
         alpha : layer.behaviour.alpha,
@@ -582,19 +479,9 @@ mod private
   /// implemented and errors.
   fn layer_statics( ctx : &FrameContext< '_ >, object : &Object, layer : &ObjectLayer ) -> Result< LayerStatics, CompileError >
   {
-    let base_tint = match &layer.behaviour.tint
-    {
-      TintBehaviour::None => [ 1.0, 1.0, 1.0, 1.0 ],
-      TintBehaviour::Flat( tref ) => resolve_tint_ref( ctx.spec, tref )?,
-      TintBehaviour::Masked { .. } => return Err( CompileError::UnsupportedBehaviour
-      {
-        object : object.id.clone(),
-        behaviour : "Masked tint (not implemented — use Flat or remove the tint behaviour)",
-      }),
-    };
     Ok
     ((
-      base_tint,
+      ctx.tints.layer_multiplier( object, &layer.behaviour )?,
       resolve_alpha_pulse( ctx.spec, &layer.behaviour.effects ),
       resolve_fade_gate( ctx.spec, &layer.behaviour.effects ).map( Arc::from ),
     ))
@@ -675,17 +562,10 @@ mod private
     ctx : &FrameContext< '_ >,
   ) -> ( f32, f32, Sprite )
   {
-    let ( sx, sy ) = pivot_apply( rv.world.0, rv.world.1, rv.pivot, rv.sprite, ctx.compiled );
+    let ( sx, sy ) = pivot_apply( rv.world.0 + rv.offset.0, rv.world.1 + rv.offset.1, rv.pivot, rv.sprite, ctx.compiled );
     let transform = make_transform( sx, sy );
-    let layer_tint =
-    [
-      ctx.global_tint[ 0 ] * rv.base_tint[ 0 ],
-      ctx.global_tint[ 1 ] * rv.base_tint[ 1 ],
-      ctx.global_tint[ 2 ] * rv.base_tint[ 2 ],
-      ctx.global_tint[ 3 ] * rv.base_tint[ 3 ],
-    ];
     // Base tint with the layer's static alpha.
-    let mut tint = tinted( layer_tint, rv.alpha );
+    let mut tint = ctx.tints.layer_tint_compose( rv.base_tint, rv.alpha );
 
     // Per-frame alpha pulse (see `ResolvedVertexSprite::alpha_pulse`): a raised-
     // cosine wave in `[0, 1]`, at `min` when its phase `t = 0`, easing to `max`
@@ -947,33 +827,6 @@ mod private
     Ok( variants.len() - 1 )
   }
 
-  /// Parse a `"#rrggbb"` or `"#rrggbbaa"` colour string into linear-ish
-  /// `[f32; 4]`. Returns `None` on malformed input — caller decides whether
-  /// to error or fall back.
-  fn hex_rgba_parse( s : &str ) -> Option< [ f32; 4 ] >
-  {
-    let s = s.strip_prefix( '#' )?;
-    let hex_byte = | i : usize | u8::from_str_radix( s.get( i..i + 2 )?, 16 ).ok();
-    match s.len()
-    {
-      6 => Some(
-      [
-        f32::from( hex_byte( 0 )? ) / 255.0,
-        f32::from( hex_byte( 2 )? ) / 255.0,
-        f32::from( hex_byte( 4 )? ) / 255.0,
-        1.0,
-      ]),
-      8 => Some(
-      [
-        f32::from( hex_byte( 0 )? ) / 255.0,
-        f32::from( hex_byte( 2 )? ) / 255.0,
-        f32::from( hex_byte( 4 )? ) / 255.0,
-        f32::from( hex_byte( 6 )? ) / 255.0,
-      ]),
-      _ => None,
-    }
-  }
-
   fn source_name( s : &SpriteSource ) -> &'static str
   {
     match s
@@ -1070,7 +923,12 @@ mod private
   #[ derive( Clone ) ]
   pub struct ResolvedVertexSprite
   {
+    /// The triangle centroid in world space — the depth-sort key.
     world : ( f32, f32 ),
+    /// The layer's static `offset`, added to `world` only where the sprite is
+    /// drawn: like every other pass, a bucket sorts by the anchor, not by the
+    /// shifted drawn position.
+    offset : ( f32, f32 ),
     sprite : ResourceId< asset::Sprite >,
     base_tint : [ f32; 4 ],
     alpha : f32,
@@ -1392,7 +1250,6 @@ mod private
     let edge_lookup = build_edge_lookup( &synthetic_edges, spec.pipeline.hex.tiling );
     let seed = scene.seed();
     let scene_seed = ( seed as u32 ) ^ ( ( seed >> 32 ) as u32 );
-    let global_tint = resolve_scene_global_tint( spec, scene )?;
     let ctx = FrameContext
     {
       spec,
@@ -1406,7 +1263,7 @@ mod private
       grid_stride : spec.pipeline.hex.grid_stride,
       viewport_size,
       scene_seed,
-      global_tint,
+      tints : FrameTints::new( spec, scene )?,
     };
 
     // Vertex pass — resolve the camera/clock-independent structural half once,
@@ -1600,44 +1457,6 @@ mod private
     None
   }
 
-  /// Resolve a named [`TintRef`] to a strength-blended multiplier `[r,g,b,a]`.
-  ///
-  /// `strength` interpolates the parsed colour towards identity `[1,1,1,1]`, so
-  /// the result is ready to multiply straight into a `Sprite.tint`.
-  fn resolve_tint_ref( spec : &RenderSpec, tint_ref : &TintRef ) -> Result< [ f32; 4 ], CompileError >
-  {
-    let id = &tint_ref.0;
-    let tint = spec.tints.iter().find( | t | &t.id == id )
-      .ok_or_else( || CompileError::UnresolvedRef
-      {
-        kind : "tint",
-        id : id.clone(),
-        context : "tint reference".into(),
-      })?;
-    let [ r, g, b, a ] = hex_rgba_parse( &tint.color ).ok_or_else( || CompileError::UnresolvedRef
-    {
-      kind : "tint color",
-      id : tint.color.clone(),
-      context : format!( "tint {:?}", tint.id ),
-    })?;
-    let s = tint.strength.clamp( 0.0, 1.0 );
-    Ok(
-    [
-      1.0 + s * ( r - 1.0 ),
-      1.0 + s * ( g - 1.0 ),
-      1.0 + s * ( b - 1.0 ),
-      1.0 + s * ( a - 1.0 ),
-    ])
-  }
-
-  /// Resolve the effective global tint, honouring `Scene`'s runtime override.
-  fn resolve_scene_global_tint( spec : &RenderSpec, scene : &Scene ) -> Result< [ f32; 4 ], CompileError >
-  {
-    let tint_ref = scene.global_tint().cloned().or_else( || spec.pipeline.global_tint.clone() );
-    let Some( tint_ref ) = tint_ref else { return Ok( [ 1.0, 1.0, 1.0, 1.0 ] ); };
-    resolve_tint_ref( spec, &tint_ref )
-  }
-
   /// Apply a bucket's sort mode to the draw list.
   fn sort_mode_apply( draws : &mut [ ( f32, f32, Sprite ) ], sort : SortMode )
   {
@@ -1708,7 +1527,7 @@ mod private
           {
             transform,
             sprite : sprite_id,
-            tint : final_tint( layer_base_tint( ctx, object, &layer.behaviour )?, layer.behaviour.alpha, inst.tint ),
+            tint : ctx.tints.sprite_tint( object, &layer.behaviour, inst.tint )?,
             blend : layer.behaviour.blend,
             clip : None,
           },
@@ -1742,7 +1561,7 @@ mod private
         {
           transform,
           sprite : sprite_id,
-          tint : final_tint( layer_base_tint( ctx, object, &layer.behaviour )?, layer.behaviour.alpha, inst.tint ),
+          tint : ctx.tints.sprite_tint( object, &layer.behaviour, inst.tint )?,
           blend : layer.behaviour.blend,
           clip : None,
         },
@@ -1861,71 +1680,13 @@ mod private
         {
           transform,
           sprite : sprite_id,
-          tint : final_tint( layer_base_tint( ctx, object, behaviour )?, behaviour.alpha, inst.tint ),
+          tint : ctx.tints.sprite_tint( object, behaviour, inst.tint )?,
           blend : behaviour.blend,
           clip : None,
         },
       ));
     }
     Ok( out )
-  }
-
-  /// Resolve a layer's [`TintBehaviour`] into the base RGBA multiplier fed to
-  /// [`final_tint`].
-  ///
-  /// - `None` → the global tint unchanged.
-  /// - `Flat(ref)` → global tint multiplied by the named tint, so each layer
-  ///   (e.g. a per-player region overlay) can be coloured independently.
-  /// - `Masked` → rejected with [`CompileError::UnsupportedBehaviour`]; it is
-  ///   not yet implemented and must not silently degrade to the global tint.
-  fn layer_base_tint
-  (
-    ctx : &FrameContext< '_ >,
-    object : &Object,
-    behaviour : &LayerBehaviour,
-  ) -> Result< [ f32; 4 ], CompileError >
-  {
-    match &behaviour.tint
-    {
-      TintBehaviour::None => Ok( ctx.global_tint ),
-      TintBehaviour::Flat( tref ) =>
-      {
-        let c = resolve_tint_ref( ctx.spec, tref )?;
-        Ok(
-        [
-          ctx.global_tint[ 0 ] * c[ 0 ],
-          ctx.global_tint[ 1 ] * c[ 1 ],
-          ctx.global_tint[ 2 ] * c[ 2 ],
-          ctx.global_tint[ 3 ] * c[ 3 ],
-        ])
-      }
-      TintBehaviour::Masked { .. } => Err( CompileError::UnsupportedBehaviour
-      {
-        object : object.id.clone(),
-        behaviour : "Masked tint (not implemented — use Flat or remove the tint behaviour)",
-      }),
-    }
-  }
-
-  /// Compose the per-sprite tint as
-  /// `base * layer_alpha (alpha-channel only) * instance_tint`, where `base`
-  /// is the layer's resolved tint from [`layer_base_tint`].
-  #[ inline ]
-  fn final_tint( base : [ f32; 4 ], layer_alpha : f32, inst : Option< [ f32; 4 ] > ) -> [ f32; 4 ]
-  {
-    let [ gr, gg, gb, ga ] = base;
-    let composed = [ gr, gg, gb, ga * layer_alpha ];
-    match inst
-    {
-      None => composed,
-      Some( [ ir, ig, ib, ia ] ) =>
-      [
-        composed[ 0 ] * ir,
-        composed[ 1 ] * ig,
-        composed[ 2 ] * ib,
-        composed[ 3 ] * ia,
-      ],
-    }
   }
 
   /// Emit sprites for every Scene edge handle whose owning Object routes
@@ -2013,7 +1774,7 @@ mod private
           {
             transform,
             sprite : sprite_id,
-            tint : final_tint( layer_base_tint( ctx, object, &layer.behaviour )?, layer.behaviour.alpha, inst.tint ),
+            tint : ctx.tints.sprite_tint( object, &layer.behaviour, inst.tint )?,
             blend : layer.behaviour.blend,
             clip : None,
           },
@@ -2070,7 +1831,7 @@ mod private
             {
               transform,
               sprite : sprite_id,
-              tint : final_tint( layer_base_tint( ctx, object, &layer.behaviour )?, layer.behaviour.alpha, inst.tint ),
+              tint : ctx.tints.sprite_tint( object, &layer.behaviour, inst.tint )?,
               blend : layer.behaviour.blend,
               clip : None,
             },
@@ -2102,7 +1863,7 @@ mod private
           {
             transform,
             sprite : sprite_id,
-            tint : final_tint( layer_base_tint( ctx, object, &layer.behaviour )?, layer.behaviour.alpha, inst.tint ),
+            tint : ctx.tints.sprite_tint( object, &layer.behaviour, inst.tint )?,
             blend : layer.behaviour.blend,
             clip : None,
           },
@@ -2198,7 +1959,7 @@ mod private
             {
               transform,
               sprite : sprite_id,
-              tint : final_tint( layer_base_tint( ctx, object, &layer.behaviour )?, layer.behaviour.alpha, inst.tint ),
+              tint : ctx.tints.sprite_tint( object, &layer.behaviour, inst.tint )?,
               blend : layer.behaviour.blend,
               clip : None,
             }));
@@ -2219,7 +1980,7 @@ mod private
           {
             transform,
             sprite : sprite_id,
-            tint : final_tint( layer_base_tint( ctx, object, &layer.behaviour )?, layer.behaviour.alpha, inst.tint ),
+            tint : ctx.tints.sprite_tint( object, &layer.behaviour, inst.tint )?,
             blend : layer.behaviour.blend,
             clip : None,
           }));

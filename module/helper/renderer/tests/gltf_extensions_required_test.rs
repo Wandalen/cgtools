@@ -1,5 +1,5 @@
 //! Verifies the glTF loader's required-extension gate
-//! ( `renderer::webgl::loaders::gltf::required_extensions_check` ) -- the pure,
+//! ( `renderer::webgl::loaders::gltf_extensions::required_extensions_check` ) -- the pure,
 //! off-GPU check that enforces glTF 2.0's "Specifying Extensions" rule: a
 //! conformant client MUST refuse to load an asset whose `extensionsRequired`
 //! names an extension it doesn't support, rather than silently proceeding and
@@ -19,9 +19,9 @@
 //! crate -- an apparent upstream gap, not something this loader controls ).
 //! Using `from_slice_without_validation` isolates this loader's own
 //! `required_extensions_check` from that separate, unrelated upstream gate, so
-//! these tests exercise exactly the logic added to `gltf.rs`.
+//! these tests exercise exactly this loader's own checks in `gltf_extensions.rs`.
 
-use renderer::webgl::loaders::gltf::required_extensions_check;
+use renderer::webgl::loaders::gltf_extensions::{ document_validate, required_extensions_check };
 
 const UNSUPPORTED_REQUIRED_FIXTURE : &str = r#"
 {
@@ -109,4 +109,86 @@ fn accepts_asset_with_no_required_extensions()
     required_extensions_check( &gltf ).is_ok(),
     "the typical case -- no extensionsRequired at all -- must not be rejected"
   );
+}
+
+const MATERIAL_LAYER_EXTENSIONS_REQUIRED_FIXTURE : &str = r#"
+{
+  "asset": { "version": "2.0" },
+  "extensionsUsed": [ "KHR_materials_clearcoat", "KHR_materials_anisotropy" ],
+  "extensionsRequired": [ "KHR_materials_clearcoat", "KHR_materials_anisotropy" ],
+  "materials": [
+    {
+      "extensions": {
+        "KHR_materials_clearcoat": { "clearcoatFactor": 1.0 },
+        "KHR_materials_anisotropy": { "anisotropyStrength": 0.5 }
+      }
+    }
+  ]
+}
+"#;
+
+/// `material_layer_extensions_apply` reads both extensions' JSON by hand, so an asset that
+/// requires them must pass this loader's own gate.
+#[ test ]
+fn accepts_required_clearcoat_and_anisotropy()
+{
+  let gltf = gltf::Gltf::from_slice_without_validation( MATERIAL_LAYER_EXTENSIONS_REQUIRED_FIXTURE.as_bytes() )
+  .expect( "fixture is well-formed JSON" );
+
+  assert!( required_extensions_check( &gltf ).is_ok(), "clearcoat / anisotropy are implemented -- must not be rejected" );
+}
+
+/// `gltf::Gltf::from_slice` rejects this valid asset: gltf-json's own extensionsRequired rule
+/// only knows the extensions it has typed support for. `load` therefore parses without that
+/// validation and runs `document_validate`, which must accept the asset.
+#[ test ]
+fn document_validate_ignores_upstream_required_extension_list()
+{
+  assert!
+  (
+    gltf::Gltf::from_slice( MATERIAL_LAYER_EXTENSIONS_REQUIRED_FIXTURE.as_bytes() ).is_err(),
+    "precondition: upstream validation rejects hand-read required extensions"
+  );
+  let gltf = gltf::Gltf::from_slice_without_validation( MATERIAL_LAYER_EXTENSIONS_REQUIRED_FIXTURE.as_bytes() )
+  .expect( "fixture is well-formed JSON" );
+
+  assert!( document_validate( &gltf ).is_ok(), "only the upstream extensionsRequired rule may be skipped" );
+}
+
+const DRACO_REQUIRED_FIXTURE : &str = r#"
+{
+  "asset": { "version": "2.0" },
+  "extensionsRequired": [ "KHR_draco_mesh_compression" ],
+  "extensionsUsed": [ "KHR_draco_mesh_compression" ]
+}
+"#;
+
+/// `document_validate` skips gltf-json's own extensionsRequired rule, so it must apply this
+/// loader's rule itself: a caller that validates with it alone must not accept an asset
+/// requiring an extension the loader can't decode.
+#[ test ]
+fn document_validate_alone_rejects_unsupported_required_extension()
+{
+  let gltf = gltf::Gltf::from_slice_without_validation( DRACO_REQUIRED_FIXTURE.as_bytes() )
+  .expect( "fixture is well-formed JSON" );
+
+  assert!( document_validate( &gltf ).is_err(), "KHR_draco_mesh_compression is not supported" );
+}
+
+const DANGLING_NODE_FIXTURE : &str = r#"
+{
+  "asset": { "version": "2.0" },
+  "scenes": [ { "nodes": [ 3 ] } ]
+}
+"#;
+
+/// Skipping the upstream extension rule must not skip the rest of gltf-json's validation:
+/// a scene naming a node that doesn't exist is still an error.
+#[ test ]
+fn document_validate_still_reports_structural_errors()
+{
+  let gltf = gltf::Gltf::from_slice_without_validation( DANGLING_NODE_FIXTURE.as_bytes() )
+  .expect( "fixture is well-formed JSON" );
+
+  assert!( document_validate( &gltf ).is_err(), "an out-of-range node index must fail validation" );
 }
