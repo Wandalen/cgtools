@@ -67,10 +67,14 @@ mod private
       self.alpha_forward
     }
 
-    fn program( gl : &gl::WebGl2RenderingContext, alpha_forward : bool ) -> Result< EmptyShader, gl::WebglError >
+    /// The fragment shader source the pass compiles: `to_srgb.frag`, with
+    /// `#define FORWARD_ALPHA` inserted after its `#version` line when
+    /// `alpha_forward` is set ( see [`Self::alpha_forward_set`] ).
+    #[ must_use ]
+    pub fn fragment_source( alpha_forward : bool ) -> String
     {
       let fs_shader = include_str!( "../shaders/post_processing/to_srgb.frag" );
-      let fs_shader = if alpha_forward
+      if alpha_forward
       {
         // Defines must follow the `#version` line.
         fs_shader.replacen( "precision highp float;", "#define FORWARD_ALPHA\nprecision highp float;", 1 )
@@ -78,8 +82,12 @@ mod private
       else
       {
         fs_shader.to_string()
-      };
-      let program = gl::ProgramFromSources::new( VS_TRIANGLE, &fs_shader ).compile_and_link( gl )?;
+      }
+    }
+
+    fn program( gl : &gl::WebGl2RenderingContext, alpha_forward : bool ) -> Result< EmptyShader, gl::WebglError >
+    {
+      let program = gl::ProgramFromSources::new( VS_TRIANGLE, &Self::fragment_source( alpha_forward ) ).compile_and_link( gl )?;
       Ok( EmptyShader::new( gl, &program ) )
     }
 

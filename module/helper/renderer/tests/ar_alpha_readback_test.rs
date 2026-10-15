@@ -1,7 +1,8 @@
 //! Pixel readback of the two pieces an AR overlay is built from: `ToSrgbPass` with alpha
 //! forwarding, whose output must be valid premultiplied alpha for the canvas, and a depth-only
 //! `Material::is_occluder` material drawn by the real `Renderer::render`, which must leave the
-//! background showing where it stands in front of opaque geometry.
+//! background showing where it stands in front of opaque geometry. `ColorGradingPass`, which
+//! sits between them in an AR chain, must pass the coverage alpha through.
 
 #[ cfg( target_arch = "wasm32" ) ]
 #[ cfg( test ) ]
@@ -14,7 +15,7 @@ mod tests
   use gl::{ GL, JsCast };
   use renderer::webgl::
   {
-    post_processing::{ Pass, ToSrgbPass },
+    post_processing::{ ColorGradingPass, Pass, ToSrgbPass },
     material::PbrMaterial,
     AttributeInfo,
     Camera,
@@ -124,6 +125,59 @@ mod tests
     let pixel = to_srgb_pixel( &gl, &pass, [ 0.25, 0.25, 0.25, 0.25 ] );
     assert_eq!( pixel[ 3 ], 255, "opaque output, got {pixel:?}" );
     assert_near( pixel[ 0 ], 137, "srgb( 0.25 )" );
+  }
+
+  // --- ColorGradingPass ---
+
+  /// Runs `pass` on a 1x1 `RGBA16F` input holding `rgba`, into a 1x1 `RGBA8` texture, and
+  /// returns that texel.
+  fn color_grading_pixel( gl : &GL, pass : &ColorGradingPass, rgba : [ f32; 4 ] ) -> [ u8; 4 ]
+  {
+    let texture = | format : u32, kind : u32, data : Option< &gl::js_sys::Object > |
+    {
+      let texture = gl.create_texture().expect( "create_texture succeeds" );
+      gl.bind_texture( gl::TEXTURE_2D, Some( &texture ) );
+      gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_array_buffer_view
+      (
+        gl::TEXTURE_2D, 0, format as i32, 1, 1, 0, gl::RGBA, kind, data
+      ).expect( "tex_image_2d succeeds" );
+      gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::NEAREST as i32 );
+      gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as i32 );
+      texture
+    };
+    let input = texture( gl::RGBA16F, gl::FLOAT, Some( &gl::js_sys::Float32Array::from( rgba.as_slice() ) ) );
+    let output = texture( gl::RGBA8, gl::UNSIGNED_BYTE, None );
+
+    let framebuffer = gl.create_framebuffer().expect( "create_framebuffer succeeds" );
+    gl.bind_framebuffer( gl::FRAMEBUFFER, Some( &framebuffer ) );
+    gl.viewport( 0, 0, 1, 1 );
+    pass.render( gl, Some( input.clone() ), Some( output.clone() ) ).expect( "ColorGradingPass renders" );
+    assert_eq!( gl.get_error(), gl::NO_ERROR, "the pass raises no GL error" );
+
+    gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, Some( &output ), 0 );
+    let mut pixel = [ 0_u8; 4 ];
+    gl.read_pixels_with_opt_u8_array( 0, 0, 1, 1, gl::RGBA, gl::UNSIGNED_BYTE, Some( &mut pixel ) )
+    .expect( "read_pixels succeeds" );
+    gl.bind_framebuffer( gl::FRAMEBUFFER, None );
+    gl.delete_framebuffer( Some( &framebuffer ) );
+    gl.delete_texture( Some( &input ) );
+    gl.delete_texture( Some( &output ) );
+    pixel
+  }
+
+  /// The pass sits between tone mapping and `ToSrgbPass` in an AR chain, so it must pass the
+  /// coverage alpha through: an alpha of 1 here would make the whole canvas opaque again.
+  #[ wasm_bindgen_test ]
+  fn color_grading_forwards_alpha()
+  {
+    let gl = gl_init();
+    let pass = ColorGradingPass::new( &gl ).expect( "ColorGradingPass compiles" );
+
+    for alpha in [ 0.0_f32, 0.25, 0.5, 1.0 ]
+    {
+      let pixel = color_grading_pixel( &gl, &pass, [ 0.2 * alpha, 0.2 * alpha, 0.2 * alpha, alpha ] );
+      assert_near( pixel[ 3 ], ( alpha * 255.0 ).round() as u8, &format!( "alpha {alpha}" ) );
+    }
   }
 
   // --- Occluders in Renderer::render ---
