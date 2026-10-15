@@ -516,6 +516,20 @@ mod private
     gltf_texture.source().map( | image | image.index() )
   }
 
+  /// The `length` bytes of `buffer` starting at `offset`, or `None` if that range is not inside it.
+  ///
+  /// Both numbers come straight from the glTF JSON ( a buffer view's `byteOffset` and
+  /// `byteLength` ), so they are untrusted. The end is computed with `checked_add`: on wasm32
+  /// `usize` is 32 bits, and two large values could overflow the sum, which panics in a debug build
+  /// and wraps to a small end in a release build. Either way an overflowing view is refused the same
+  /// way as one that runs past the buffer (review #1 CORRECTNESS).
+  #[ cfg( feature = "ktx2" ) ]
+  fn view_bytes( buffer : &[ u8 ], offset : usize, length : usize ) -> Option< &[ u8 ] >
+  {
+    let end = offset.checked_add( length )?;
+    buffer.get( offset..end )
+  }
+
   /// The raw bytes of an image if it is KTX2, or `None` if it is any other format.
   ///
   /// KTX2 is the one image format a browser cannot decode through an `<img>` element, so it has to
@@ -540,11 +554,7 @@ mod private
         let buffer = bin_buffers.get( view.buffer().index() )
         .ok_or( gl::WebglError::Other( "glTF KTX2 image points at a buffer that does not exist" ) )?;
 
-        let start = view.offset();
-        let end = start + view.length();
-
-        // A malformed view could name a range outside its buffer. Slicing would panic; say so.
-        let bytes = buffer.get( start..end )
+        let bytes = view_bytes( buffer, view.offset(), view.length() )
         .ok_or( gl::WebglError::Other( "glTF KTX2 image view lies outside its buffer" ) )?;
 
         Ok( Some( bytes.to_vec() ) )
@@ -618,6 +628,37 @@ mod private
         Some( 0 ),
         "the image index must be recovered from the extension"
       );
+    }
+
+    /// A view inside its buffer yields exactly its bytes.
+    #[ cfg( feature = "ktx2" ) ]
+    #[ test ]
+    fn view_bytes_returns_the_view_inside_its_buffer()
+    {
+      let buffer = [ 0_u8, 1, 2, 3, 4, 5 ];
+      assert_eq!( super::view_bytes( &buffer, 2, 3 ), Some( &buffer[ 2..5 ] ) );
+      assert_eq!( super::view_bytes( &buffer, 0, 6 ), Some( &buffer[ .. ] ) );
+    }
+
+    /// A view that runs past the end of its buffer is refused, not sliced.
+    #[ cfg( feature = "ktx2" ) ]
+    #[ test ]
+    fn view_bytes_refuses_a_view_past_the_buffer_end()
+    {
+      let buffer = [ 0_u8; 6 ];
+      assert_eq!( super::view_bytes( &buffer, 4, 3 ), None );
+      assert_eq!( super::view_bytes( &buffer, 7, 0 ), None );
+    }
+
+    /// A view whose `offset + length` overflows `usize` is refused instead of panicking or wrapping
+    /// around to a small end.
+    #[ cfg( feature = "ktx2" ) ]
+    #[ test ]
+    fn view_bytes_refuses_an_overflowing_view()
+    {
+      let buffer = [ 0_u8; 6 ];
+      assert_eq!( super::view_bytes( &buffer, usize::MAX, 2 ), None );
+      assert_eq!( super::view_bytes( &buffer, 2, usize::MAX ), None );
     }
 
     /// An ordinary texture still resolves through its own `source`, extension or no extension.
