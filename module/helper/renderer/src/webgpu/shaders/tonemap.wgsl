@@ -6,6 +6,12 @@
 // display-referred passes between them, so one draw does both. The vertex
 // stage is the `big_triangle.vert` trick: one oversized triangle from
 // `vertex_index`, no vertex buffers.
+//
+// Only the alpha-0 and alpha-1 paths of `aces.frag` are ported. Its
+// reconstruction of partially covered pixels ( MSAA silhouettes, from their
+// background neighbours ) is not: this slice renders single-sampled and has no
+// transparent pass, so every pixel's alpha is 0 or 1, where the `mix` below is
+// exact. Port it together with MSAA or transparency.
 
 @group( 0 ) @binding( 0 ) var source_texture : texture_2d< f32 >;
 
