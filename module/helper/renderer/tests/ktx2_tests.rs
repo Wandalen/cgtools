@@ -339,6 +339,25 @@ fn truncated_level_is_reported_as_a_size_mismatch()
   assert!( error.to_string().contains( "corrupt or truncated" ) );
 }
 
+/// A Zstandard level that inflates to far more than its dimensions allow is cut off one byte past
+/// the expected size, so a small hostile file cannot force a huge allocation.
+///
+/// 1 MiB of zeros compresses to a few dozen bytes. Declared as an 8x8 level, it may inflate to at
+/// most 64 bytes. Reading stops at 65, which is just enough for the size check to see the stream is
+/// too long and report it (review #1 SECURITY).
+#[ test ]
+fn an_over_long_zstd_level_is_cut_off_before_it_is_fully_inflated()
+{
+  let zeros = vec![ 0_u8; 1 << 20 ];
+  let bomb = ruzstd::encoding::compress_to_vec( zeros.as_slice(), ruzstd::encoding::CompressionLevel::Fastest );
+  assert!( bomb.len() < 1024, "the fixture must be small on disk : {} bytes", bomb.len() );
+
+  let error = decode_level( &bomb, Wrapping::Zstandard, Format::Bc7, 8, 8 )
+  .expect_err( "an over-long level must not decode" );
+
+  assert_eq!( error, Ktx2Error::LevelSizeMismatch { expected : 64, actual : 65 } );
+}
+
 /// Corrupt Zstandard data fails as a supercompression error, distinctly from a size mismatch.
 #[ test ]
 fn corrupt_zstd_is_reported_as_a_supercompression_failure()

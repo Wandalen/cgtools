@@ -427,16 +427,22 @@ mod private
   /// Bytes in one UASTC block. UASTC is a 4x4, 128-bit encoding, always.
   const UASTC_BLOCK_BYTES : usize = 16;
 
-  /// Undoes Zstandard supercompression.
-  fn inflate( data : &[ u8 ] ) -> Result< Vec< u8 >, Ktx2Error >
+  /// Undoes Zstandard supercompression, producing at most `expected + 1` bytes.
+  ///
+  /// The level's dimensions already say how many bytes it must inflate to, so reading stops one
+  /// byte past that. Without the cap a few hundred bytes of hostile, highly compressible data could
+  /// inflate to gigabytes before any size check ran. The one extra byte is what lets the caller's
+  /// size check still tell an over-long stream from an exact one (review #1 SECURITY).
+  fn inflate( data : &[ u8 ], expected : usize ) -> Result< Vec< u8 >, Ktx2Error >
   {
     use std::io::Read as _;
 
-    let mut decoder = ruzstd::decoding::StreamingDecoder::new( data )
+    let decoder = ruzstd::decoding::StreamingDecoder::new( data )
     .map_err( | e | Ktx2Error::Supercompression( format!( "{e:?}" ) ) )?;
 
+    let limit = u64::try_from( expected ).unwrap_or( u64::MAX ).saturating_add( 1 );
     let mut out = Vec::new();
-    decoder.read_to_end( &mut out )
+    decoder.take( limit ).read_to_end( &mut out )
     .map_err( | e | Ktx2Error::Supercompression( format!( "{e:?}" ) ) )?;
 
     Ok( out )
@@ -472,20 +478,22 @@ mod private
   {
     use gl::texture::compressed::Format;
 
-    // Borrowed when there is nothing to undo -- an uncompressed level needs no copy.
-    let uastc : Cow< '_, [ u8 ] > = match wrapping
-    {
-      Wrapping::None => Cow::Borrowed( data ),
-      Wrapping::Zstandard => Cow::Owned( inflate( data )? ),
-    };
-
     let blocks_x = ( width.div_ceil( 4 ) ) as usize;
     let blocks_y = ( height.div_ceil( 4 ) ) as usize;
 
     // The level's dimensions, not the file's own length field, are the authority: this is exactly
     // the arithmetic `compressedTexImage2D` will apply, so checking it here turns a bare
-    // `INVALID_VALUE` at upload into an error that says which level and by how much.
+    // `INVALID_VALUE` at upload into an error that says which level and by how much. It is
+    // computed before inflating so that it can also cap how much `inflate` may produce.
     let expected = blocks_x * blocks_y * UASTC_BLOCK_BYTES;
+
+    // Borrowed when there is nothing to undo -- an uncompressed level needs no copy.
+    let uastc : Cow< '_, [ u8 ] > = match wrapping
+    {
+      Wrapping::None => Cow::Borrowed( data ),
+      Wrapping::Zstandard => Cow::Owned( inflate( data, expected )? ),
+    };
+
     if uastc.len() != expected
     {
       return Err( Ktx2Error::LevelSizeMismatch { expected, actual : uastc.len() } );
