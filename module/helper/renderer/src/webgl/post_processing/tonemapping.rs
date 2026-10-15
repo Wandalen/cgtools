@@ -40,7 +40,8 @@ mod private
     /// coverage : pass `Renderer::transparent_coverage_texture()` here once after the
     /// renderer is created and again after every `Renderer::resize`, which replaces the
     /// texture. The handle stays valid between those; the renderer keeps its contents
-    /// current every frame.
+    /// current every frame. Forgetting the call after a resize fails silently — see
+    /// `docs/pitfall/003_transparent_coverage_after_resize.md`.
     ///
     /// With the texture, the pass tone maps a partially covered pixel with the background
     /// it lets through, estimated from neighbouring background pixels, which removes the

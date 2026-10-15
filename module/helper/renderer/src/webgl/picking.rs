@@ -10,6 +10,11 @@
 //! indices, this draws the scene's own [`Primitive`]s through `Geometry::draw`, so it
 //! handles every index type and non-indexed geometry the glTF loader can produce.
 //!
+//! Which one to use: picking objects of a renderer [`Scene`] — anything loaded through
+//! this crate's glTF loader — goes through `ScenePicker`. `gpu_picking` stays for
+//! applications that draw their own VAOs without a `Scene`, such as the falling_frontier
+//! demo.
+//!
 //! The pass is meant to be rendered on demand — e.g. once when the displayed image
 //! stops changing — and then read from many times: reading is a one-pixel
 //! `readPixels`, rendering is a full scene draw.
@@ -332,55 +337,69 @@ mod private
 
       let result = ( || -> Result< (), WebglError >
       {
-        // Clears and draws only go through the draw binding, so the caller's read
-        // binding is left alone rather than overwritten by a `FRAMEBUFFER` bind.
-        gl.bind_framebuffer( GL::DRAW_FRAMEBUFFER, buffer.framebuffer.as_ref() );
-        #[ allow( clippy::cast_possible_wrap, reason = "size_set already rejected dimensions above i32::MAX" ) ]
-        gl.viewport( 0, 0, buffer.width as i32, buffer.height as i32 );
-
-        gl.enable( GL::DEPTH_TEST );
-        gl.depth_func( GL::LESS );
-        gl.depth_mask( true );
-        gl.color_mask( true, true, true, true );
-        // Picking must not depend on winding or material cull settings: a double-sided
-        // or inward-facing surface that is visible on screen has to be pickable too.
-        gl.disable( GL::CULL_FACE );
-        gl.disable( GL::BLEND );
-        gl.disable( GL::SCISSOR_TEST );
-
-        gl.clear_bufferuiv_with_u32_array( GL::COLOR, 0, &[ u32::from( PICK_ID_NONE ); 4 ] );
-        gl.clear_bufferfv_with_f32_array( GL::DEPTH, 0, &[ 1.0 ] );
-
+        Self::target_prepare( gl, buffer );
         gl.use_program( Some( &self.program ) );
         gl::uniform::matrix_upload( gl, self.view_projection_location.clone(), view_projection.to_array().as_slice(), true )?;
-
-        scene.traverse
-        (
-          &mut | node |
-          {
-            let node = node.borrow();
-            if !node.is_visible() { return Ok( () ); }
-            let Object3D::Mesh( mesh ) = &node.object else { return Ok( () ); };
-
-            let id = id_of( &node );
-            gl::uniform::matrix_upload( gl, self.world_matrix_location.clone(), node.world_matrix_get().to_array().as_slice(), true )?;
-            gl.uniform1ui( self.pick_id_location.as_ref(), u32::from( id ) );
-
-            for primitive in &mesh.borrow().primitives
-            {
-              let primitive = primitive.borrow();
-              let geometry = primitive.geometry.borrow();
-              geometry.bind( gl );
-              geometry.draw( gl );
-            }
-
-            Ok( () )
-          }
-        )
+        self.scene_draw( scene, &mut id_of )
       } )();
 
       saved.restore( gl );
       result
+    }
+
+    /// Binds `buffer` for drawing, sets the fixed state the pass needs and clears it to
+    /// [`PICK_ID_NONE`] at the far plane.
+    fn target_prepare( gl : &GL, buffer : &IdBuffer )
+    {
+      // Clears and draws only go through the draw binding, so the caller's read
+      // binding is left alone rather than overwritten by a `FRAMEBUFFER` bind.
+      gl.bind_framebuffer( GL::DRAW_FRAMEBUFFER, buffer.framebuffer.as_ref() );
+      #[ allow( clippy::cast_possible_wrap, reason = "size_set already rejected dimensions above i32::MAX" ) ]
+      gl.viewport( 0, 0, buffer.width as i32, buffer.height as i32 );
+
+      gl.enable( GL::DEPTH_TEST );
+      gl.depth_func( GL::LESS );
+      gl.depth_mask( true );
+      gl.color_mask( true, true, true, true );
+      // Picking must not depend on winding or material cull settings: a double-sided
+      // or inward-facing surface that is visible on screen has to be pickable too.
+      gl.disable( GL::CULL_FACE );
+      gl.disable( GL::BLEND );
+      gl.disable( GL::SCISSOR_TEST );
+
+      gl.clear_bufferuiv_with_u32_array( GL::COLOR, 0, &[ u32::from( PICK_ID_NONE ); 4 ] );
+      gl.clear_bufferfv_with_f32_array( GL::DEPTH, 0, &[ 1.0 ] );
+    }
+
+    /// Draws every visible mesh node with its id, the id program already in use.
+    fn scene_draw< F >( &self, scene : &Scene, id_of : &mut F ) -> Result< (), WebglError >
+    where
+      F : FnMut( &Node ) -> PickId,
+    {
+      let gl = &self.gl;
+      scene.traverse
+      (
+        &mut | node |
+        {
+          let node = node.borrow();
+          if !node.is_visible() { return Ok( () ); }
+          let Object3D::Mesh( mesh ) = &node.object else { return Ok( () ); };
+
+          let id = id_of( &node );
+          gl::uniform::matrix_upload( gl, self.world_matrix_location.clone(), node.world_matrix_get().to_array().as_slice(), true )?;
+          gl.uniform1ui( self.pick_id_location.as_ref(), u32::from( id ) );
+
+          for primitive in &mesh.borrow().primitives
+          {
+            let primitive = primitive.borrow();
+            let geometry = primitive.geometry.borrow();
+            geometry.bind( gl );
+            geometry.draw( gl );
+          }
+
+          Ok( () )
+        }
+      )
     }
   }
 
