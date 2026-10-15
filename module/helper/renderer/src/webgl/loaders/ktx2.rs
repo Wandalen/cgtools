@@ -503,6 +503,11 @@ mod private
   ///
   /// Fails if Zstandard decompression fails, if the level is not the size its dimensions imply, or
   /// if a UASTC block is malformed.
+  ///
+  /// # Panics
+  ///
+  /// No input reaches a panic. The only `expect` inside turns each `chunks_exact` chunk into a
+  /// fixed-size block, which cannot fail; it is there to fail loudly if a refactor ever broke that.
   pub fn decode_level
   (
     data : &[ u8 ],
@@ -553,8 +558,10 @@ mod private
     let mut out = Vec::with_capacity( expected );
     for block in uastc.chunks_exact( UASTC_BLOCK_BYTES )
     {
-      // `chunks_exact` guarantees the length, so this cannot fail.
-      let block : [ u8; UASTC_BLOCK_BYTES ] = block.try_into().unwrap_or( [ 0; UASTC_BLOCK_BYTES ] );
+      // `chunks_exact` guarantees the length, so this cannot fail. `expect` rather than a zeroed
+      // fallback block: if a refactor ever broke that, a panic names the bug, while a zero block
+      // would quietly decode to a wrong pixel (review #1 QUALITY).
+      let block : [ u8; UASTC_BLOCK_BYTES ] = block.try_into().expect( "chunks_exact yields UASTC_BLOCK_BYTES-long chunks" );
       let transcoded = transcode( block ).map_err( Ktx2Error::Transcode )?;
       out.extend_from_slice( &transcoded );
     }
@@ -584,7 +591,8 @@ mod private
 
     for ( index, block ) in uastc.chunks_exact( UASTC_BLOCK_BYTES ).enumerate()
     {
-      let block : [ u8; UASTC_BLOCK_BYTES ] = block.try_into().unwrap_or( [ 0; UASTC_BLOCK_BYTES ] );
+      // Cannot fail, for the same reason as in `decode_level`.
+      let block : [ u8; UASTC_BLOCK_BYTES ] = block.try_into().expect( "chunks_exact yields UASTC_BLOCK_BYTES-long chunks" );
       let texels = uastc_tools::unpack_uastc_block_to_rgba( block ).map_err( Ktx2Error::Transcode )?;
 
       let origin_x = ( index % blocks_x ) * 4;
