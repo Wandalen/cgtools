@@ -54,7 +54,8 @@ mod private
     /// Static alpha multiplier `0.0..=1.0`. SPEC §6.5.
     #[ serde( default = "default_alpha" ) ]
     pub alpha : f32,
-    /// Shader effects applied after sampling / tinting. SPEC §6.3.
+    /// Shader effects applied after sampling / tinting. SPEC §6.3. Checked
+    /// at load but not applied by compilation yet (`roadmap.md`, polish item 2).
     #[ serde( default ) ]
     pub effects : Vec< EffectRef >,
     /// Parallax factor — Viewport anchor only. `0.0` = pinned to screen,
@@ -103,6 +104,13 @@ mod private
     /// The mask is sampled per render call using the inner [`SpriteSource`];
     /// if the mask is an [`SpriteSource::Animation`] with the same frame count
     /// as the body layer, the two stay synchronised automatically (SPEC §7.3).
+    ///
+    /// **Not implemented yet.** The variant parses, but
+    /// [`crate::validate::Validate::validate`] rejects it with
+    /// `ValidationError::UnsupportedBehaviour` and frame compilation with
+    /// `CompileError::UnsupportedBehaviour`, rather than silently drawing the
+    /// layer untinted. Tracked in `roadmap.md` ("`TintBehaviour::Masked` +
+    /// `TeamColor` resolution").
     Masked
     {
       /// Sprite source sampled as the mask.
