@@ -69,6 +69,9 @@ mod pass;
 /// IBL loader texture-parameter / mip-range wiring tests
 mod ibl;
 
+/// `ScenePicker` / `IdBuffer` id-buffer picking tests
+mod picking;
+
 // Live-context lifecycle suites for `Geometry` and `Texture`: wasm32-only, since
 // they need a `WebGl2RenderingContext`, but every handle they check is public, so
 // unlike the suites below they don't need `test_internals`. The exception is the

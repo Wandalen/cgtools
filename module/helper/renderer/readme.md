@@ -17,6 +17,7 @@ A comprehensive 3D rendering system built specifically for WebAssembly and WebGL
 - **Hierarchical Scenes** - Node-based scene graph with transformations
 - **KHR Extensions** - Support for material extensions and advanced features
 - **Asset Streaming** - Efficient loading of 3D models and textures
+- **GPU Object Picking** - Id-buffer picking of scene nodes (`webgl::picking`), with a per-material highlight multiplier for hover / selection feedback
 
 ### 📷 **Camera System**
 - **Perspective & Orthographic** - Multiple projection modes

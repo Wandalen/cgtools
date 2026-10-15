@@ -148,6 +148,9 @@ mod private
     "engravingStrength",
     "engravingRoughness",
     "engravingDarkening",
+    // Interactive highlight (hover / selection feedback)
+    "highlightColor",
+    "highlightStrength",
     // Luminosity
     "alphaCutoff",
     "exposure"
@@ -227,6 +230,16 @@ mod private
     /// Fraction by which the base albedo / specular color (f0) is darkened inside the groove,
     /// simulating micro-occlusion without altering the underlying metal hue.
     pub engraving_darkening : f32,
+
+    /// Multiplier the lit colour is blended toward while highlighted — e.g. hover or
+    /// selection feedback after object picking. Components above `1.0` brighten. Only the
+    /// lit colour is affected, never the emission (bloom) output.
+    pub highlight_color : gl::F32x3,
+    /// Blend weight toward [`PbrMaterial::highlight_color`]: `0.0` (the default) leaves the
+    /// material untouched, `1.0` applies the full multiplier. Call `needs_update_set( true )`
+    /// after changing either highlight field.
+    pub highlight_strength : f32,
+
     /// Alpha cutoff value for mask mode. Fragments with alpha below this value are discarded.
     pub alpha_cutoff : f32,
     /// The alpha blending mode for the material. Defaults to `Opaque`.
@@ -333,6 +346,8 @@ mod private
       let engraving_strength = 1.0;
       let engraving_roughness = 0.7;
       let engraving_darkening = 0.35;
+      let highlight_color = gl::F32x3::splat( 1.0 );
+      let highlight_strength = 0.0;
 
       let alpha_mode = AlphaMode::default();
       let alpha_cutoff = 0.5;
@@ -383,6 +398,8 @@ mod private
         engraving_strength,
         engraving_roughness,
         engraving_darkening,
+        highlight_color,
+        highlight_strength,
         vertex_defines,
         fragment_defines,
         need_use_ibl,
@@ -739,6 +756,8 @@ mod private
       upload( "engravingStrength", self.engraving_strength )?;
       upload( "engravingRoughness", self.engraving_roughness )?;
       upload( "engravingDarkening", self.engraving_darkening )?;
+      upload_array( "highlightColor", self.highlight_color.as_slice() )?;
+      upload( "highlightStrength", self.highlight_strength )?;
 
       Ok( () )
     }
@@ -869,6 +888,8 @@ mod private
         engraving_strength : self.engraving_strength,
         engraving_roughness : self.engraving_roughness,
         engraving_darkening : self.engraving_darkening,
+        highlight_color : self.highlight_color,
+        highlight_strength : self.highlight_strength,
         vertex_defines : self.vertex_defines.clone(),
         fragment_defines : self.fragment_defines.clone(),
         need_use_ibl : self.need_use_ibl,
