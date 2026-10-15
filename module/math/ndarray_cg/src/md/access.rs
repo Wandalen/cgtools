@@ -1,6 +1,6 @@
 mod private
 {
-  use crate::*;
+  use crate::{Collection, Indexable};
 
   /// Provides immutable access to the underlying data of a collection as a flat slice.
   pub trait RawSlice : Collection
@@ -25,7 +25,7 @@ mod private
     ///
     /// # Returns
     /// - The modified collection with the new scalar data.
-    fn raw_set_slice( &mut self, scalars : &[ Self::Scalar ] );
+    fn raw_slice_set( &mut self, scalars : &[ Self::Scalar ] );
 
     /// Sets the underlying data from an array of scalars.
     ///
@@ -34,9 +34,12 @@ mod private
     ///
     /// # Returns
     /// - The modified collection with the new scalar data.
+    #[ must_use ]
     fn raw_set< const N : usize >( self, scalars : [ Self::Scalar; N ] ) -> Self;
 
     /// The same as `from_major_row`.
+    #[ must_use ]
+    #[ inline ]
     fn set< const N : usize >( self, scalars : [ Self::Scalar; N ] ) -> Self
     where Self : Sized
     {
@@ -57,6 +60,7 @@ mod private
     /// then internally it will be placed in memory like this:
     /// For Row major matrix: `[ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 ]`
     /// For Column major matrix: `[ 1.0, 4.0, 2.0, 5.0, 3.0, 6.0 ]`
+    #[ must_use ]
     fn with_row_major( self, scalars : &[ Self::Scalar ] ) -> Self;
 
     /// Sets the underlying data from an array of scalars, assuming the input to be in column major order.
@@ -73,6 +77,7 @@ mod private
     /// then internally it will be placed in memory like this:
     /// For Row major matrix: `[ 1.0, 3.0, 5.0, 2.0, 4.0, 6.0 ]`
     /// For Column major matrix: `[ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 ]`
+    #[ must_use ]
     fn with_column_major( self, scalars : &[ Self::Scalar ] ) -> Self;
   }
 
@@ -201,13 +206,17 @@ mod private
   pub trait ScalarRef : Collection + Indexable
   {
 
+    // Fix(BUG-288): doc claimed "A mutable reference" for a `&self`-receiver method returning
+    // `&Self::Scalar`. Root cause: copy-pasted from the adjacent `ScalarMut::scalar_mut` doc
+    // without updating "mutable" to match this trait's own immutable contract.
+    // Pitfall: a caller trusting the doc could wrongly assume `scalar_ref` grants write access.
     /// Get a reference to a scalar at a specified index.
     ///
     /// # Parameters
     /// - `index`: The index of the scalar to access.
     ///
     /// # Returns
-    /// - A mutable reference to the scalar at the specified index.
+    /// - A reference to the scalar at the specified index.
     fn scalar_ref( &self, index : < Self as Indexable >::Index ) -> &Self::Scalar;
 
   }

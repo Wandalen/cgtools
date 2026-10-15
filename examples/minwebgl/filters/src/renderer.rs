@@ -1,5 +1,10 @@
-use crate::*;
-use filters::*;
+use crate::
+{
+  filters,
+  framebuffer,
+  wasm_bindgen,
+};
+use filters::{ FilterRenderer, Filter };
 use framebuffer::Framebuffer;
 use minwebgl as gl;
 use gl::GL;
@@ -45,25 +50,88 @@ impl Renderer
     }
   }
 
-  pub fn set_image_texture( &mut self, image_texture : Option< WebGlTexture > )
+  // Fix(BUG-463): delete the outgoing texture before overwriting the handle,
+  // unless `original_texture` still aliases the exact same GL object ( true
+  // right after upload, where both fields are cloned from the same fresh
+  // texture -- see `main.rs`'s `image_handler_create` ).
+  // Root cause: replacing `self.image_texture`/`self.original_texture` only
+  // drops the Rust-side JS handle wrapper -- it never tells the GL driver to
+  // free the underlying GPU texture, which requires an explicit
+  // `gl.delete_texture` call. Every image upload, drag-drop, Apply click, and
+  // Revert replaced these fields without ever issuing that call, leaking a
+  // texture every time.
+  // Pitfall: `image_texture`/`original_texture` can alias the same underlying
+  // GL object ( immediately after upload, or after `original_texture_restore` )
+  // -- deleting unconditionally on every replace would delete a texture the
+  // *sibling* field still needs, corrupting whatever renders from it next.
+  // Always check the sibling field before deleting; never delete blindly.
+  //
+  // Fix(BUG-503): also skip the delete when `image_texture` ( the incoming
+  // replacement ) is the exact same handle as `old` ( the outgoing one ) --
+  // a self-assignment through this setter, which the aliasing guard above
+  // does not cover since it only ever compares against `original_texture`.
+  // Root cause: `previous_texture_restore` always calls this setter with a
+  // clone of whatever `previous_texture_save` cloned out of `image_texture`
+  // earlier -- and nothing between those two calls ever mutates
+  // `image_texture` ( every `Filter::draw` takes `&impl FilterRenderer`, an
+  // immutable borrow with no setter access, so a filter preview can only draw
+  // to the canvas/framebuffer, never replace this field ). So `old` and the
+  // incoming `image_texture` are the *same* handle on every real Cancel, and
+  // without this check the pre-existing guard alone deletes that shared
+  // handle the instant `original_texture` no longer aliases it too ( i.e.
+  // any time at least one "Apply" has already baked a new base texture in
+  // this session ) -- leaving `self.image_texture` pointing at a texture
+  // `gl.delete_texture` just freed.
+  // Pitfall: an aliasing guard that only special-cases one *other* field
+  // (`original_texture`) can still miss the simplest aliasing case of all --
+  // the incoming value aliasing the very value it's replacing. Always check
+  // self-assignment first, before reasoning about any other field.
+  pub fn image_texture_set( &mut self, image_texture : Option< WebGlTexture > )
   {
+    if let Some( old ) = self.image_texture.take()
+    {
+      let aliases_original = self.original_texture.as_ref() == Some( &old );
+      let is_self_assign = image_texture.as_ref() == Some( &old );
+      if !aliases_original && !is_self_assign
+      {
+        self.gl.delete_texture( Some( &old ) );
+      }
+    }
     self.image_texture = image_texture;
   }
 
-  pub fn set_original_texture( &mut self, original_texture : Option< WebGlTexture > )
+  // Fix(BUG-463): see `image_texture_set` -- same leak, same aliasing guard, mirrored.
+  // Fix(BUG-503): see `image_texture_set` -- same self-assignment guard, mirrored
+  // defensively ( no currently-reachable call site drives `original_texture_set`
+  // into the self-assignment case the way `previous_texture_restore` drives
+  // `image_texture_set`, but this function is documented as mirroring the other
+  // one field-for-field, so its guard completeness is kept in lockstep too ).
+  pub fn original_texture_set( &mut self, original_texture : Option< WebGlTexture > )
   {
+    if let Some( old ) = self.original_texture.take()
+    {
+      let aliases_image = self.image_texture.as_ref() == Some( &old );
+      let is_self_assign = original_texture.as_ref() == Some( &old );
+      if !aliases_image && !is_self_assign
+      {
+        self.gl.delete_texture( Some( &old ) );
+      }
+    }
     self.original_texture = original_texture;
   }
 
-  pub fn restore_original_texture( &mut self )
+  pub fn original_texture_restore( &mut self )
   {
-    if let Some( original ) = &self.original_texture
+    // Fix(BUG-463): route through `image_texture_set` instead of assigning
+    // `self.image_texture` directly, so the outgoing texture ( e.g. an applied
+    // filter result ) is properly deleted instead of silently leaked.
+    if let Some( original ) = self.original_texture.clone()
     {
-      self.image_texture = Some( original.clone() );
+      self.image_texture_set( Some( original ) );
     }
   }
 
-  pub fn save_previous_texture( &mut self )
+  pub fn previous_texture_save( &mut self )
   {
     self.previous_texture = self.image_texture.clone();
     // Save current canvas dimensions so they can be restored on cancel
@@ -76,11 +144,17 @@ impl Renderer
     }
   }
 
-  pub fn restore_previous_texture( &mut self )
+  pub fn previous_texture_restore( &mut self )
   {
+    // Fix(BUG-463): route through `image_texture_set` -- see `original_texture_restore`.
+    // Fix(BUG-503): `previous` is always the same handle `image_texture` already
+    // holds at this point ( nothing between the matching `previous_texture_save`
+    // call and this one ever mutates `image_texture` -- see `image_texture_set`'s
+    // own Fix(BUG-503) note ), so this call depends on that setter's
+    // self-assignment guard to avoid deleting the handle it's restoring to.
     if let Some( previous ) = self.previous_texture.take()
     {
-      self.image_texture = Some( previous );
+      self.image_texture_set( Some( previous ) );
     }
     // Restore canvas dimensions
     if let Some( ( w, h ) ) = self.previous_canvas_size.take()
@@ -96,18 +170,18 @@ impl Renderer
     }
   }
 
-  pub fn clear_previous_state( &mut self )
+  pub fn previous_state_clear( &mut self )
   {
     self.previous_texture = None;
     self.previous_canvas_size = None;
   }
 
-  pub fn update_framebuffer_size( &mut self, width : i32, height : i32 )
+  pub fn framebuffer_size_update( &mut self, width : i32, height : i32 )
   {
     self.framebuffer = Framebuffer::new( &self.gl, width, height ).expect( "Can't create framebuffer" );
   }
 
-  pub fn apply_filter( &mut self, filter : &impl Filter )
+  pub fn filter_apply( &mut self, filter : &impl Filter )
   {
     if self.image_texture.is_none()
     {
@@ -118,7 +192,7 @@ impl Renderer
     if self.current_filter_source != filter_source
     {
       // Recompile program
-      self.program = Some( Self::create_program( &self.gl, &filter_source ) );
+      self.program = Some( Self::program_create( &self.gl, &filter_source ) );
       self.current_filter_source = filter_source;
     }
 
@@ -134,16 +208,16 @@ impl Renderer
         let h = canvas.height() as i32;
         if w != self.framebuffer.width() || h != self.framebuffer.height()
         {
-          self.update_framebuffer_size( w, h );
+          self.framebuffer_size_update( w, h );
         }
       }
     }
   }
 
-  fn create_program( gl : &GL, filter_source : &str ) -> WebGlProgram
+  fn program_create( gl : &GL, filter_source : &str ) -> WebGlProgram
   {
     gl::ProgramFromSources::new( Self::VERTEX_SOURCE, filter_source )
-    .compile_and_link( &gl )
+    .compile_and_link( gl )
     .expect( "Unable to compile program" )
   }
 }

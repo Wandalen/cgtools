@@ -1,0 +1,22 @@
+name: examples-gallery-check
+
+# Every PR into master: fails fast if examples/index.html or index.md drifted from
+# action/gallery's source of truth (action/run's discovery + each example's own
+# readme.md). Cheap (no Rust/trunk/DVC), pure bash+awk. The deploy that publishes the
+# gallery runs from pages.yml, on master only.
+
+"on":
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  gallery-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check examples/index.html + index.md are up to date
+        run: action/gallery verify::1

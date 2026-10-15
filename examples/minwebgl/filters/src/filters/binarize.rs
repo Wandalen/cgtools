@@ -1,4 +1,10 @@
-use super::*;
+use super::
+{
+  Filter,
+  FilterRenderer,
+  gl,
+  default_render_pass,
+};
 use serde::{ Serialize, Deserialize };
 
 #[ derive( Debug, Serialize, Deserialize ) ]
@@ -33,7 +39,7 @@ impl Filter for Binarize
   {
     let gl = renderer.gl();
     let threshold_location = gl.get_uniform_location( renderer.get_program(), "u_threshold" );
-    gl.use_program( Some( &renderer.get_program() ) );
+    gl.use_program( Some( renderer.get_program() ) );
     gl::uniform::upload( gl, threshold_location, &self.threshold ).unwrap();
     default_render_pass( renderer );
   }

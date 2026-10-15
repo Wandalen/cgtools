@@ -6,12 +6,12 @@ use web_sys::Blob;
 extern "C"
 {
   #[ wasm_bindgen( js_name = "removeBg" ) ]
-  pub async fn remove_bg_wrapper( blob : Blob ) -> JsValue;
+  pub async fn bg_wrapper_remove( blob : Blob ) -> JsValue;
 }
 
-pub async fn process_image( blob : Blob ) -> Option< Blob >
+pub async fn image_process( blob : Blob ) -> Option< Blob >
 {
-  let blob = remove_bg_wrapper( blob ).await;
+  let blob = bg_wrapper_remove( blob ).await;
 
   if blob.is_null()
   {

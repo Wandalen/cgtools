@@ -56,7 +56,11 @@ void main()
     uv2 = inPointB.z;
   }
 
-  vec2 tangent = normalize( normalize( p2 - p1 ) + normalize( p1 - p0 ) );
+  vec2 dirIn = normalize( p1 - p0 );
+  vec2 dirOut = normalize( p2 - p1 );
+  vec2 tangentSum = dirOut + dirIn;
+  // Fix(BUG-158): see join_miter.vert's tangent computation for root cause/pitfall.
+  vec2 tangent = dot( tangentSum, tangentSum ) > 1e-12 ? normalize( tangentSum ) : dirIn;
   vec2 normal = vec2( -tangent.y, tangent.x );
 
   vec2 p01 = p1 - p0;

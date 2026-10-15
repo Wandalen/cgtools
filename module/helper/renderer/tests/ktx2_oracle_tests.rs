@@ -63,7 +63,7 @@ fn effective_source( texture : &gltf::Texture< '_ > ) -> Option< usize >
   if let Some( index ) = texture
   .extension_value( "KHR_texture_basisu" )
   .and_then( | extension | extension.get( "source" ) )
-  .and_then( | source | source.as_u64() )
+  .and_then( gltf::json::Value::as_u64 )
   {
     return Some( index as usize );
   }
@@ -169,6 +169,8 @@ fn psnr( a : &[ u8 ], b : &[ u8 ] ) -> f64
 #[ test ]
 fn transcoded_uastc_matches_the_png_twin_per_material_slot()
 {
+  const FLOOR_DB : f64 = 30.0;
+
   let ( uastc_gltf, uastc_blob ) = load_glb( UASTC_GLB );
   let ( png_gltf, png_blob ) = load_glb( PNG_GLB );
 
@@ -182,8 +184,6 @@ fn transcoded_uastc_matches_the_png_twin_per_material_slot()
     png.keys().collect::< BTreeSet< _ > >(),
     "the two assets must expose the same set of material slots"
   );
-
-  const FLOOR_DB : f64 = 30.0;
 
   for ( slot, ( uastc_w, uastc_h, uastc_rgba ) ) in &uastc
   {

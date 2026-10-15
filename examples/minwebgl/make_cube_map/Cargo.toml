@@ -10,9 +10,10 @@ authors = [
 [dependencies]
 
 minwebgl = { workspace = true, features = [ "future", "math" ] }
+mingl = { workspace = true }
+bytemuck = { workspace = true }
 gltf = { version = "1.4.1", features = [ "import" ] }
-image = "0.25.6"
-# qqq : for Yevhen : rid of this crate
+image = "0.25.10"
 
 [dependencies.web-sys]
 workspace = true
@@ -20,3 +21,9 @@ features = [
   'WebGlTexture',
   'WebGlFramebuffer'
 ]
+
+[package.metadata.action]
+tags = ["runtime:browser", "api:webgl"]
+
+[lints]
+workspace = true

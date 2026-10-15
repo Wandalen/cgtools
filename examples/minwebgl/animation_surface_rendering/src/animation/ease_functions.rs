@@ -1,4 +1,4 @@
-#[ allow( unused ) ]
+#[ expect( dead_code, reason = "easings.net cubic-bezier palette kept deliberately complete; this demo wires only EASE_IN_OUT_BACK — the rest are unused by design, not accidental leftovers" ) ]
 mod private
 {
   use crate::model::animated;

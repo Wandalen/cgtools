@@ -2,7 +2,7 @@
 mod private
 {
   use web_sys::gpu_color_write;
-  use crate::*;
+  use crate::{ web_sys, GpuTextureFormat, BlendState, Into };
 
   /// A builder for creating a `web_sys::GpuColorTargetState`.
   #[ derive( Clone ) ]
@@ -32,6 +32,7 @@ mod private
 
   impl From< ColorTargetState > for web_sys::GpuColorTargetState 
   {
+    #[ inline ]
     fn from( value: ColorTargetState ) -> Self 
     {
       let state = web_sys::GpuColorTargetState::new( value.format );
@@ -41,9 +42,20 @@ mod private
     }    
   }
 
+  impl Default for ColorTargetState
+  {
+    #[ inline ]
+    fn default() -> Self
+    {
+      Self::new()
+    }
+  }
+
   impl ColorTargetState
   {
     /// Creates a new `ColorTargetState` builder with default values.
+    #[ inline ]
+    #[ must_use ]
     pub fn new() -> Self
     {
       let blend = None;
@@ -59,6 +71,8 @@ mod private
     }
 
     /// Sets the color target's texture format.
+    #[ inline ]
+    #[ must_use ]
     pub fn format( mut self, format : GpuTextureFormat ) -> Self
     {
       self.format = format;
@@ -66,6 +80,8 @@ mod private
     }
 
     /// Sets the blend state configuration.
+    #[ inline ]
+    #[ must_use ]
     pub fn blend( mut self, blend : BlendState ) -> Self
     {
       self.blend = Some( blend );
@@ -73,6 +89,8 @@ mod private
     }
 
     /// Sets the write mask to allow writing to all color channels.
+    #[ inline ]
+    #[ must_use ]
     pub fn write_all( mut self ) -> Self
     {
       self.write_mask = Some( gpu_color_write::ALL );
@@ -80,35 +98,43 @@ mod private
     }
 
     /// Enables writing to the red channel.
+    #[ inline ]
+    #[ must_use ]
     pub fn write_r( mut self ) -> Self
     {
-      self.write_mask = add_mask( self.write_mask, gpu_color_write::RED );
+      self.write_mask = mask_add( self.write_mask, gpu_color_write::RED );
       self
     }
 
     /// Enables writing to the green channel.
+    #[ inline ]
+    #[ must_use ]
     pub fn write_g( mut self ) -> Self
     {
-      self.write_mask = add_mask( self.write_mask, gpu_color_write::GREEN );
+      self.write_mask = mask_add( self.write_mask, gpu_color_write::GREEN );
       self
     }
 
     /// Enables writing to the blue channel.
+    #[ inline ]
+    #[ must_use ]
     pub fn write_b( mut self ) -> Self
     {
-      self.write_mask = add_mask( self.write_mask, gpu_color_write::BLUE );
+      self.write_mask = mask_add( self.write_mask, gpu_color_write::BLUE );
       self
     }
 
     /// Enables writing to the alpha channel.
+    #[ inline ]
+    #[ must_use ]
     pub fn write_a( mut self ) -> Self
     {
-      self.write_mask = add_mask( self.write_mask, gpu_color_write::ALPHA );
+      self.write_mask = mask_add( self.write_mask, gpu_color_write::ALPHA );
       self
     }
   }
 
-  fn add_mask( mask : Option< u32 >, value : u32 ) -> Option< u32 >
+  fn mask_add( mask : Option< u32 >, value : u32 ) -> Option< u32 >
   {
     if mask.is_some() 
     {

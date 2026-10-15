@@ -8,7 +8,7 @@ This example shows efficient hex grid generation, coordinate systems, and render
 
 ![image](./showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 

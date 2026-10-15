@@ -1,5 +1,3 @@
-#![ allow( clippy::let_and_return ) ]
-#![ allow( clippy::needless_borrow ) ]
 
 use std::
 {
@@ -44,27 +42,30 @@ impl GLMesh
       }
       _ =>
       {
-        let mtl = GLMaterial::new_simple( gl )?;
-        mtl
+        
+        GLMaterial::new_simple( gl )?
       }
     };
 
-    let position_buffer =  gl::buffer::create( &gl )?;
-    let normal_buffer = gl::buffer::create( &gl )?;
-    let uv_buffer = gl::buffer::create( &gl )?;
+    let position_buffer =  gl::buffer::create( gl )?;
+    let normal_buffer = gl::buffer::create( gl )?;
+    let uv_buffer = gl::buffer::create( gl )?;
 
-    gl::buffer::upload( &gl, &position_buffer, &model.mesh.positions, GL::STATIC_DRAW );
-    gl::buffer::upload( &gl, &normal_buffer, &model.mesh.normals, GL::STATIC_DRAW );
-    gl::buffer::upload( &gl, &uv_buffer, &model.mesh.texcoords, GL::STATIC_DRAW );
+    gl::buffer::upload( gl, &position_buffer, &model.mesh.positions, GL::STATIC_DRAW );
+    gl::buffer::upload( gl, &normal_buffer, &model.mesh.normals, GL::STATIC_DRAW );
+    gl::buffer::upload( gl, &uv_buffer, &model.mesh.texcoords, GL::STATIC_DRAW );
 
-    let vao = gl::vao::create( &gl )?;
+    let vao = gl::vao::create( gl )?;
     gl.bind_vertex_array( Some( &vao ) );
-    gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 0 ).attribute_pointer( &gl, 0, &position_buffer )?;
-    gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 0 ).attribute_pointer( &gl, 1, &normal_buffer )?;
-    gl::BufferDescriptor::new::< [ f32; 2 ] >().stride( 2 ).offset( 0 ).attribute_pointer( &gl, 2, &uv_buffer )?;
+    let position_attr = mingl::VertexAttribute::new( 0, mingl::VectorDataType::new( mingl::DataType::F32, 3, 1 ), 0 );
+    let normal_attr = mingl::VertexAttribute::new( 1, mingl::VectorDataType::new( mingl::DataType::F32, 3, 1 ), 0 );
+    let uv_attr = mingl::VertexAttribute::new( 2, mingl::VectorDataType::new( mingl::DataType::F32, 2, 1 ), 0 );
+    gl::BufferDescriptor::from_vector( position_attr.vector ).stride( 3 ).offset( position_attr.offset ).attribute_pointer( gl, position_attr.location, &position_buffer )?;
+    gl::BufferDescriptor::from_vector( normal_attr.vector ).stride( 3 ).offset( normal_attr.offset ).attribute_pointer( gl, normal_attr.location, &normal_buffer )?;
+    gl::BufferDescriptor::from_vector( uv_attr.vector ).stride( 2 ).offset( uv_attr.offset ).attribute_pointer( gl, uv_attr.location, &uv_buffer )?;
 
-    let index_buffer = gl::buffer::create( &gl )?;
-    gl::index::upload( &gl, &index_buffer, &model.mesh.indices, GL::STATIC_DRAW );
+    let index_buffer = gl::buffer::create( gl )?;
+    gl::index::upload( gl, &index_buffer, &model.mesh.indices, GL::STATIC_DRAW );
 
     let indices_amount = model.mesh.indices.len() as i32;
 
@@ -78,13 +79,13 @@ impl GLMesh
     Ok( mesh_gl )
   }
 
-  pub fn set_perpsective( &self, gl : &GL, perspective_matrix : &gl::math::F32x4x4 )
+  pub fn perpsective_set( &self, gl : &GL, perspective_matrix : &gl::math::F32x4x4 )
   {
     gl.use_program( Some( &self.material.program ) );
 
     gl::uniform::matrix_upload
     (
-      &gl,
+      gl,
       gl.get_uniform_location( &self.material.program, "projectionMatrix" ),
       perspective_matrix.to_array().as_slice(),
       true
@@ -103,14 +104,14 @@ impl GLMesh
 
     gl::uniform::upload
     (
-      &gl,
+      gl,
       gl.get_uniform_location( &self.material.program, "cameraPosition" ),
       &camera_position[ .. ]
     ).unwrap();
 
     gl::uniform::matrix_upload
     (
-      &gl,
+      gl,
       gl.get_uniform_location( &self.material.program, "viewMatrix" ),
       &view_matrix[ .. ],
       true
@@ -144,7 +145,7 @@ impl GLMesh
           if let Some( texture ) = textures.get( name )
           {
             gl.active_texture( gl::TEXTURE0 + i as u32 );
-            gl.bind_texture( gl::TEXTURE_2D, Some( &texture ) );
+            gl.bind_texture( gl::TEXTURE_2D, Some( texture ) );
           }
         }
       }

@@ -28,7 +28,9 @@ pub trait Neighbors : Sized
   fn neighbors( &self ) -> Vec< Self >;
 }
 
+/// A coordinate system's dual mapping — converts a coordinate to the coordinates of the corresponding cell(s) in its dual grid.
 pub trait ToDual< T >
 {
+  /// Returns the dual-grid coordinate(s) corresponding to this coordinate.
   fn dual( &self ) -> Vec< T >;
 }

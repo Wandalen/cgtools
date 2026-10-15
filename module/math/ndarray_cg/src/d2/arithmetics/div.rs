@@ -1,4 +1,4 @@
-use crate::*;
+use crate::{MatNum, Indexable, Ix2, ScalarMut, nd, Div, Mat, mat, DivAssign};
 
 /// Divide matrix by a scalar.
 ///
@@ -6,7 +6,8 @@ use crate::*;
 /// For integer element types this panics if `a` is zero, in both debug and
 /// release mode, via Rust's built-in division-by-zero check. For float element
 /// types division by zero is not a panic — it yields `INFINITY` or `NAN`.
-pub fn div_scalar< E, R >( r : &mut R, a : E )
+#[ inline ]
+pub fn scalar_div< E, R >( r : &mut R, a : E )
 where
   E : MatNum,
   R : Indexable< Index = Ix2 > + ScalarMut< Scalar = E >
@@ -37,7 +38,7 @@ where
   #[ inline ]
   fn div( mut self, rhs : E ) -> Self::Output
   {
-    div_scalar( &mut self, rhs );
+    scalar_div( &mut self, rhs );
     self
   }
 }
@@ -54,6 +55,6 @@ where
   /// mode. For float `E`, division by zero yields `INFINITY` or `NAN` instead.
   #[ inline ]
   fn div_assign( &mut self, rhs : E ) {
-    div_scalar( self, rhs );
+    scalar_div( self, rhs );
   }
 }

@@ -1,10 +1,10 @@
 mod private
 {
   /// The vertex shader for the line rendering.
-  pub const MAIN_VERTEX_SHADER : &'static str = include_str!( "./d3/shaders/main.vert" );
+  pub const MAIN_VERTEX_SHADER : &str = include_str!( "./d3/shaders/main.vert" );
 
   /// The fragment shader for the line rendering.
-  pub const MAIN_FRAGMENT_SHADER : &'static str = include_str!( "./d3/shaders/main.frag" );
+  pub const MAIN_FRAGMENT_SHADER : &str = include_str!( "./d3/shaders/main.frag" );
 }
 
 crate::mod_interface!

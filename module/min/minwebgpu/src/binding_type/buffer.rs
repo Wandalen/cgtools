@@ -1,7 +1,7 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
+  use crate::{ GpuBufferBindingType, web_sys };
 
   /// Represents the layout of a single buffer binding within a WebGPU bind group.
   #[ derive( Default, Clone ) ]
@@ -26,19 +26,25 @@ mod private
   impl BufferBindingLayout 
   {
     /// Creates a new `BufferBindingLayout` with default values.
+    #[ inline ]
+    #[ must_use ]
     pub fn new() -> Self
     {
       Self::default()
     }
 
     /// Sets the type of the buffer from the provided type
-    pub fn set_type( mut self, b_type : GpuBufferBindingType ) -> Self
+    #[ inline ]
+    #[ must_use ]
+    pub fn type_set( mut self, b_type : GpuBufferBindingType ) -> Self
     {
       self.b_type = Some( b_type );
       self
     }
 
     /// Sets the type of the buffer to `Uniform`
+    #[ inline ]
+    #[ must_use ]
     pub fn uniform( mut self ) -> Self
     {
       self.b_type = Some( GpuBufferBindingType::Uniform );
@@ -46,6 +52,8 @@ mod private
     }
 
     /// Sets the type of the buffer to `Storage`
+    #[ inline ]
+    #[ must_use ]
     pub fn storage( mut self ) -> Self
     {
       self.b_type = Some( GpuBufferBindingType::Storage );
@@ -53,6 +61,8 @@ mod private
     }
 
     /// Sets the type of the buffer to `ReadOnlyStorage`
+    #[ inline ]
+    #[ must_use ]
     pub fn storage_readonly( mut self ) -> Self
     {
       self.b_type = Some( GpuBufferBindingType::ReadOnlyStorage );
@@ -60,6 +70,8 @@ mod private
     }
 
     /// Sets the property `has_dynamic_offset` of the buffer to `true`
+    #[ inline ]
+    #[ must_use ]
     pub fn dynamic_offset( mut self ) -> Self
     {
       self.has_dynamic_offset = Some( true );
@@ -67,6 +79,8 @@ mod private
     }
 
     /// Sets the property `min_binding_size` of the buffer to specified value
+    #[ inline ]
+    #[ must_use ]
     pub fn min_binding_size( mut self, size : f64 ) -> Self
     {
       self.min_binding_size = Some( size );
@@ -76,13 +90,14 @@ mod private
 
   impl From< BufferBindingLayout > for web_sys::GpuBufferBindingLayout
   {
+    #[ inline ]
     fn from( value: BufferBindingLayout ) -> Self 
     {
       let layout = web_sys::GpuBufferBindingLayout::new();
 
       if let Some( v ) = value.b_type { layout.set_type( v ); }
       if let Some( v ) = value.has_dynamic_offset { layout.set_has_dynamic_offset( v ); }
-      if let Some( v ) = value.min_binding_size { layout.set_min_binding_size( v ); }
+      if let Some( v ) = value.min_binding_size { layout.set_min_binding_size_f64( v ); }
 
       layout
     }

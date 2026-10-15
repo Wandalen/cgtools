@@ -1,4 +1,8 @@
 #version 300 es
+// NOTE : a near-identical sibling of this JFA shader lives at
+// examples/minwebgl/outline/resources/shaders/jfa_step.frag ( naming differs : vUv here vs v_tex_coord there ).
+// The duplication is intentional : that example is a self-contained minwebgl walkthrough of the JFA
+// technique, while this copy is the production post-processing integration. Mirror JFA-core bug fixes.
 // High precision is recommended for coordinate/distance calculations.
 precision highp float;
 // Interpolated texture coordinate from the vertex shader for the current pixel.

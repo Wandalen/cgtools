@@ -252,6 +252,8 @@ fn each_target_format_produces_distinct_bytes()
 #[ test ]
 fn rgba_fallback_reconstructs_the_source_image()
 {
+  const TOLERANCE : i32 = 40;
+
   let image = Ktx2Image::parse( FIXTURE ).unwrap();
   let wrapping = image.check_supported().unwrap();
   let level0 = image.levels().next().unwrap().data.to_vec();
@@ -281,8 +283,6 @@ fn rgba_fallback_reconstructs_the_source_image()
   // Sample across the image, including the last column and row -- which live in the *partial* edge
   // blocks, and so are precisely where a de-blocking bug would show.
   let probes = [ ( 0, 0 ), ( 1, 1 ), ( 32, 16 ), ( 60, 30 ), ( 64, 0 ), ( 0, 32 ), ( 64, 32 ) ];
-
-  const TOLERANCE : i32 = 40;
 
   for ( x, y ) in probes
   {

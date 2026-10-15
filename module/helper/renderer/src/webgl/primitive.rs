@@ -17,11 +17,19 @@ mod private
 
   impl Clone for Primitive
   {
+    /// Shares `geometry` (the same `Rc`, so the same VAO) instead of copying it.
+    /// `Geometry` is not `Clone`: it deletes its VAO on drop, so two copies of one
+    /// VAO handle would each delete it. Every caller of `Node::tree_clone` /
+    /// `Mesh::clone` / `Primitive::clone` wants another placement of the same
+    /// subtree, not an independently mutable GPU copy, so sharing is the intended
+    /// semantics. `material` is still cloned per placement: a material owns no GL
+    /// handle directly (its textures are already shared through `TextureInfo`'s
+    /// `Rc`), and per-placement material state keeps its previous behaviour.
     fn clone( &self ) -> Self
     {
       Self
       {
-        geometry : Rc::new( RefCell::new( self.geometry.borrow().clone() ) ) ,
+        geometry : self.geometry.clone(),
         material : Rc::new( RefCell::new( self.material.borrow().dyn_clone() ) )
       }
     }
@@ -33,6 +41,10 @@ mod private
     ///
     /// * `gl`: The `WebGl2RenderingContext` to use for uploading.
     /// * `locations`: A hash map of uniform locations in the shader program.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if the material or geometry upload fails.
     pub fn upload
     (
       &self,
@@ -64,11 +76,13 @@ mod private
     }
 
     /// Returns the center point of the primitive's geometry.
+    #[ must_use ]
     pub fn center( &self ) -> gl::F32x3
     {
       self.geometry.borrow().center()
     }
     /// Returns the bounding box of the geometry.
+    #[ must_use ]
     pub fn bounding_box( &self ) -> BoundingBox
     {
       self.geometry.borrow().bounding_box()

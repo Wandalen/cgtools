@@ -16,21 +16,24 @@ pub struct Pixel
 impl Pixel
 {
   /// Creates a new `Pixel` from x and y components.
+  #[ must_use ]
   pub fn new( x : f32, y : f32 ) -> Self
   {
     Self
     {
-      data : [ x.into(), y.into() ],
+      data : [ x, y ],
     }
   }
 
   /// Returns the x component of the pixel coordinate.
+  #[ must_use ]
   pub fn x( &self ) -> f32
   {
     self[ 0 ]
   }
 
   /// Returns the y component of the pixel coordinate.
+  #[ must_use ]
   pub fn y( &self ) -> f32
   {
     self[ 1 ]
@@ -105,12 +108,12 @@ where
   }
 }
 
-impl Into< ndarray_cg::F32x2 > for Pixel
+impl From< Pixel > for ndarray_cg::F32x2
 {
   /// Converts a `Pixel` into an `ndarray_cg::F32x2` vector.
-  fn into( self ) -> ndarray_cg::F32x2
+  fn from( val: Pixel ) -> Self
   {
-    self.data.into()
+    val.data.into()
   }
 }
 

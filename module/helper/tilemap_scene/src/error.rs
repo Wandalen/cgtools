@@ -4,9 +4,10 @@ mod private
 {
   use core::fmt;
   use error_tools::Error;
+  use tilemap_renderer::types::BlendMode;
 
   /// Error returned by [`crate::spec::RenderSpec::load`] /
-  /// [`crate::scene::Scene::load`] and their `from_ron_str`
+  /// [`crate::snapshot::SceneSnapshot::load`] and their `from_ron_str`
   /// counterparts.
   ///
   /// Wraps I/O, RON parsing, and post-parse validation failures under a single
@@ -111,11 +112,57 @@ mod private
     /// The spec requests a tiling strategy not supported by this implementation.
     ///
     /// Version 0.2.0 implements `HexFlatTop` and `HexPointyTop` only; the
-    /// `Square4` / `Square8` values are reserved. This variant is declared
-    /// for the future SPEC §16 tiling check but is not yet constructed —
-    /// square specs currently pass [`crate::load::load`] and fail at render
-    /// time with [`crate::compile::CompileError::UnsupportedAnchor`].
+    /// `Square4` / `Square8` values are reserved. Constructed by the SPEC
+    /// §16 tiling check in [`crate::validate`] — a square spec now fails
+    /// [`crate::spec::RenderSpec::load`] (which runs validation) with this
+    /// variant instead of reaching [`crate::compile::CompileError::UnsupportedAnchor`]
+    /// at render time. [`crate::spec::RenderSpec::from_ron_str`] does not
+    /// run validation, so it still parses square specs successfully.
     UnsupportedTiling( String ),
+    /// A layer declares a draw-time behaviour this implementation does not
+    /// support yet.
+    ///
+    /// Currently constructed only for `TintBehaviour::Masked`. Compilation
+    /// rejects it too ([`crate::compile::CompileError::UnsupportedBehaviour`]),
+    /// but only on the first frame that draws the layer; reporting it here
+    /// makes [`crate::spec::RenderSpec::load`] fail instead, the same way
+    /// [`Self::UnsupportedTiling`] handles reserved tiling strategies.
+    UnsupportedBehaviour
+    {
+      /// Owning object's id.
+      object : String,
+      /// Behaviour kind encountered (e.g. `"Masked tint"`).
+      behaviour : &'static str,
+    },
+    /// A declared tint uses a composition `mode` other than `Multiply`.
+    ///
+    /// Every tint consumer (`pipeline.global_tint`, the scene's runtime
+    /// global tint, `TintBehaviour::Flat`) folds the tint into the sprite's
+    /// multiplicative `Sprite.tint`, so only `Multiply` can be honoured; any
+    /// other mode would silently render as a multiply.
+    UnsupportedTintMode
+    {
+      /// Id of the offending tint.
+      tint : String,
+      /// The declared mode.
+      mode : BlendMode,
+    },
+    /// An `orient_to_grid` `VertexCorners` layer declares solid `( X, X, X )`
+    /// patterns for more than one id.
+    ///
+    /// Orientation counts a triangle's corners against one self id per layer
+    /// (the first solid pattern's id), so the edge and corner tiles of every
+    /// other solid id would be oriented as if none of their corners were
+    /// present.
+    ConflictingOrientSelfIds
+    {
+      /// Owning object's id.
+      object : String,
+      /// State whose layer declares the patterns.
+      state : String,
+      /// The distinct solid ids, in pattern order.
+      ids : Vec< String >,
+    },
     /// A sprite source is not valid for the declaring object's anchor type.
     ///
     /// For example, `NeighborBitmask` only works on `Hex` anchors;
@@ -143,6 +190,19 @@ mod private
       /// The reserved id that was illegally declared.
       id : String,
     },
+    /// A `SceneSnapshot` declared both `tiles` and the `(palette, map)`
+    /// shorthand; the two are mutually exclusive.
+    ///
+    /// `Scene::from_snapshot` silently prefers `tiles` and drops `map`
+    /// when both are populated (see `SceneSnapshot::palette_expand`), so
+    /// this rule exists to catch that silent-data-loss case at load time.
+    ConflictingTileSource
+    {
+      /// Number of explicit `tiles` entries present.
+      tiles_len : usize,
+      /// Number of `map` rows present.
+      map_rows : usize,
+    },
   }
 
   impl fmt::Display for ValidationError
@@ -159,11 +219,24 @@ mod private
           write!( f, "composite source {inner} cannot be nested inside {outer}" ),
         Self::UnsupportedTiling( name ) =>
           write!( f, "unsupported tiling strategy: {name}" ),
+        Self::UnsupportedBehaviour { object, behaviour } =>
+          write!( f, "object {object:?} uses {behaviour}, which is not implemented yet" ),
+        Self::UnsupportedTintMode { tint, mode } =>
+          write!( f, "tint {tint:?} declares mode {mode:?}; only Multiply is implemented" ),
+        Self::ConflictingOrientSelfIds { object, state, ids } =>
+          write!( f, "object {object:?} state {state:?}: orient_to_grid VertexCorners layer has solid patterns for several ids {ids:?}; only one is supported" ),
         Self::AnchorSourceMismatch { anchor, source_kind } =>
           write!( f, "sprite source {source_kind} is not valid for anchor {anchor}" ),
         Self::MissingDefaultState { object, state } =>
           write!( f, "object {object:?} declares default_state {state:?} but has no such entry" ),
         Self::ReservedId { id } => write!( f, "reserved id used in declaration: {id:?}" ),
+        Self::ConflictingTileSource { tiles_len, map_rows } =>
+          write!
+          (
+            f,
+            "snapshot declares both `tiles` ({tiles_len} entries) and `map` ({map_rows} rows); \
+             these are mutually exclusive",
+          ),
       }
     }
   }
@@ -188,6 +261,16 @@ mod private
       /// `"edge instance"`, `"entity"`, etc.).
       context : String,
     },
+    /// Snapshot's `initial_global_tint` names a tint id that is not
+    /// declared in the spec.
+    UnknownTint
+    {
+      /// The undeclared id.
+      id : String,
+      /// Where in the snapshot the reference appeared
+      /// (`"initial_global_tint"`).
+      context : String,
+    },
     /// An ASCII `map` row uses a character missing from `palette`.
     UnknownPaletteChar
     {
@@ -207,6 +290,8 @@ mod private
       {
         Self::UnknownObject { id, context } =>
           write!( f, "snapshot references object {id:?} in {context} but the spec does not declare it" ),
+        Self::UnknownTint { id, context } =>
+          write!( f, "snapshot references tint {id:?} in {context} but the spec does not declare it" ),
         Self::UnknownPaletteChar { ch, pos : ( q, r ) } =>
           write!( f, "ASCII map cell at (q={q}, r={r}) uses character {ch:?} which is not in the palette" ),
       }

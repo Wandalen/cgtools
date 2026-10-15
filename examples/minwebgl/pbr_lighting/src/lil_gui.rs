@@ -1,57 +1,46 @@
 use minwebgl as gl;
 use gl::wasm_bindgen::{ self, prelude::* };
 
+#[ allow( unsafe_code, reason = "wasm_bindgen emits unsafe extern imports for these JS bindings — as safe as any generated binding; expect would be unfulfilled on non-wasm targets where the macro expands the block differently" ) ]
 #[ wasm_bindgen( module = "/gui.js" ) ]
 extern "C"
 {
-  // The bindings below are safe as any other normal WASM bindings
-  // produced by `wasm_bindgen` crate,
-  // but the linter consider them unsafe for any reason,
-  // so in order to not be distracted by the linter,
-  // these bindings are attributed as `allow( unsafe_code )`
-
-  #[ allow( unsafe_code ) ]
   #[ wasm_bindgen( js_name = "newGui" ) ]
-  pub fn new_gui() -> JsValue;
+  pub fn gui_new() -> JsValue;
 
-  #[ allow( unsafe_code ) ]
   #[ wasm_bindgen( js_name = "addSliderController" ) ]
-  pub fn add_slider( gui : &JsValue, object : &JsValue, property : &str, min : f64, max : f64, step : f64 ) -> JsValue;
+  pub fn slider_add( gui : &JsValue, object : &JsValue, property : &str, min : f64, max : f64, step : f64 ) -> JsValue;
 
-  #[ allow( unsafe_code ) ]
   #[ wasm_bindgen( js_name = "addDropdownController" ) ]
-  pub fn add_dropdown( gui : &JsValue, object : &JsValue, property : &str, options : &JsValue ) -> JsValue;
+  pub fn dropdown_add( gui : &JsValue, object : &JsValue, property : &str, options : &JsValue ) -> JsValue;
 
-  #[ allow( unsafe_code ) ]
   #[ wasm_bindgen( js_name = "onFinishChange" ) ]
   pub fn on_finish_change( gui : &JsValue, callback : &Closure< dyn FnMut( JsValue ) > ) -> JsValue;
 
-  #[ allow( unsafe_code ) ]
   #[ wasm_bindgen( js_name = "onChange" ) ]
   pub fn on_change( gui : &JsValue, callback : &Closure< dyn FnMut( f32 ) > ) -> JsValue;
 
-  #[ allow( unsafe_code ) ]
-  #[ wasm_bindgen( js_name = "getTitle" ) ]
-  pub fn set_name( gui : &JsValue, value : &str ) -> JsValue;
+  // Fix(BUG-339): js_name was "getTitle", not exported by this crate's own gui.js (only
+  // set_name is). Root cause: lil_gui.rs copy-pasted from a sibling crate whose gui.js
+  // legitimately exports getTitle, without re-checking against this crate's own gui.js.
+  // Pitfall: wasm_bindgen accepts any js_name at compile time; the mismatch only surfaces
+  // as a runtime error when the binding is actually called from wasm.
+  #[ wasm_bindgen( js_name = "set_name" ) ]
+  pub fn name_set( gui : &JsValue, value : &str ) -> JsValue;
 
 
-  #[ allow( unsafe_code ) ]
   #[ wasm_bindgen( js_name = "hide" ) ]
   pub fn hide( gui : &JsValue ) -> JsValue;
 
-  #[ allow( unsafe_code ) ]
   #[ wasm_bindgen( js_name = "show" ) ]
   pub fn show( gui : &JsValue ) -> JsValue;
 
-  #[ allow( unsafe_code ) ]
   #[ wasm_bindgen( js_name = "addCheckboxController" ) ]
-  pub fn add_checkbox( gui : &JsValue, object : &JsValue, property : &str ) -> JsValue;
+  pub fn checkbox_add( gui : &JsValue, object : &JsValue, property : &str ) -> JsValue;
 
-  #[ allow( unsafe_code ) ]
   #[ wasm_bindgen( js_name = "addColorController" ) ]
-  pub fn add_color( gui : &JsValue, object : &JsValue, property : &str ) -> JsValue;
+  pub fn color_add( gui : &JsValue, object : &JsValue, property : &str ) -> JsValue;
 
-  #[ allow( unsafe_code ) ]
   #[ wasm_bindgen( js_name = "onBoolChange" ) ]
   pub fn on_bool_change( controller : &JsValue, callback : &Closure< dyn FnMut( bool ) > ) -> JsValue;
 }

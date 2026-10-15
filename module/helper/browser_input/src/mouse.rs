@@ -13,8 +13,9 @@ use strum::EnumCount;
 /// - 3: Fourth button (usually "Browser Back")
 /// - 4: Fifth button (usually "Browser Forward")
 ///
-/// See: https://developer.mozilla.org/en-US/docs/Web/API/MouseEvent/button
+/// See: <https://developer.mozilla.org/en-US/docs/Web/API/MouseEvent/button>
 #[ derive( Debug, Clone, Copy, PartialEq, Eq, Hash, EnumCount ) ]
+#[ non_exhaustive ]
 pub enum MouseButton
 {
   /// Left button (0)
@@ -34,6 +35,8 @@ pub enum MouseButton
 impl MouseButton
 {
   /// Convert a numeric button value to the corresponding MouseButton enum variant
+  #[ inline ]
+  #[ must_use ]
   pub const fn from_button( button : i16 ) -> Self
   {
     match button
@@ -47,13 +50,9 @@ impl MouseButton
     }
   }
 
-  /// Convert a string representation to the corresponding MouseButton enum variant
-  pub fn from_name( name : &str ) -> Self
-  {
-    MouseButton::from_str( name ).unwrap_or( MouseButton::Unknown )
-  }
-
   /// Get the numeric button value for this MouseButton
+  #[ inline ]
+  #[ must_use ]
   pub fn button_value( &self ) -> i16
   {
     match self
@@ -68,6 +67,8 @@ impl MouseButton
   }
 
   /// Get a user-friendly name for this MouseButton
+  #[ inline ]
+  #[ must_use ]
   pub const fn name( &self ) -> &'static str
   {
     match self
@@ -82,6 +83,8 @@ impl MouseButton
   }
 
   /// Get the technical name for this MouseButton
+  #[ inline ]
+  #[ must_use ]
   pub fn technical_name( &self ) -> &'static str
   {
     match self
@@ -96,24 +99,32 @@ impl MouseButton
   }
 
   /// Check if this is the main (usually left) button
+  #[ inline ]
+  #[ must_use ]
   pub const fn is_main( &self ) -> bool
   {
     matches!( self, MouseButton::Main )
   }
 
   /// Check if this is the secondary (usually right) button
+  #[ inline ]
+  #[ must_use ]
   pub const fn is_secondary( &self ) -> bool
   {
     matches!( self, MouseButton::Secondary )
   }
 
   /// Check if this is the auxiliary (usually middle/wheel) button
+  #[ inline ]
+  #[ must_use ]
   pub const fn is_auxiliary( &self ) -> bool
   {
     matches!( self, MouseButton::Auxiliary )
   }
 
   /// Check if this is a navigation button (Back/Forward)
+  #[ inline ]
+  #[ must_use ]
   pub const fn is_navigation( &self ) -> bool
   {
     matches!( self, MouseButton::Back | MouseButton::Forward )
@@ -124,6 +135,7 @@ impl FromStr for MouseButton
 {
   type Err = ();
 
+  #[ inline ]
   fn from_str( s : &str ) -> Result< Self, Self::Err >
   {
     match s.to_lowercase().as_str()
@@ -140,8 +152,19 @@ impl FromStr for MouseButton
 
 impl From< i16 > for MouseButton
 {
+  #[ inline ]
   fn from( value : i16 ) -> Self
   {
     MouseButton::from_button( value )
+  }
+}
+
+impl From< &str > for MouseButton
+{
+  /// Convert a string representation to the corresponding MouseButton enum variant
+  #[ inline ]
+  fn from( name : &str ) -> Self
+  {
+    MouseButton::from_str( name ).unwrap_or( MouseButton::Unknown )
   }
 }

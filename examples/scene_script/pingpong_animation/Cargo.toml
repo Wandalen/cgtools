@@ -1,0 +1,22 @@
+[package]
+name = "pingpong_animation"
+version = "0.1.0"
+edition = "2021"
+
+[lints]
+workspace = true
+
+[features]
+adapter-svg = ["dep:tilemap_renderer", "tilemap_renderer/adapter-svg"]
+adapter-webgl = ["dep:tilemap_renderer", "tilemap_renderer/adapter-webgl", "dep:minwebgl"]
+
+[dependencies]
+animation = { workspace = true }
+minwebgl = { workspace = true, optional = true }
+ndarray_cg = { workspace = true }
+rhai = { workspace = true }
+scene_script = { workspace = true }
+tilemap_renderer = { workspace = true, optional = true, default-features = false }
+
+[package.metadata.action]
+tags = ["runtime:native"]

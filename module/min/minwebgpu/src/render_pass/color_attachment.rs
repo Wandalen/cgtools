@@ -1,7 +1,7 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
+  use crate::{ web_sys, GpuLoadOp, GpuStoreOp, js_sys, IntoIterator };
 
   /// A builder for creating a `web_sys::GpuRenderPassColorAttachment`.
   #[ derive( Clone) ]
@@ -47,6 +47,8 @@ mod private
   impl< 'a > ColorAttachment< 'a > 
   {
     /// Creates a new `ColorAttachment` builder with a required texture view.
+    #[ inline ]
+    #[ must_use ]
     pub fn new( view : &'a web_sys::GpuTextureView ) -> Self
     {
       let load_op = GpuLoadOp::Clear;
@@ -67,6 +69,8 @@ mod private
     }
 
     /// Sets the load operation for the attachment.
+    #[ inline ]
+    #[ must_use ]
     pub fn load_op( mut self, op : GpuLoadOp ) -> Self
     {
       self.load_op = op;
@@ -74,6 +78,8 @@ mod private
     }
 
     /// Sets the store operation for the attachment.
+    #[ inline ]
+    #[ must_use ]
     pub fn store_op( mut self, op : GpuStoreOp ) -> Self
     {
       self.store_op = op;
@@ -81,6 +87,8 @@ mod private
     }
 
     /// Sets the clear color value.
+    #[ inline ]
+    #[ must_use ]
     pub fn clear_value( mut self, color : [ f32; 4 ] ) -> Self
     {
       self.clear_value = Some( color );
@@ -88,6 +96,8 @@ mod private
     }
 
     /// Sets the resolve target for the attachment.
+    #[ inline ]
+    #[ must_use ]
     pub fn resolve_target( mut self, view : &'a web_sys::GpuTextureView ) -> Self
     {
       self.resolve_target = Some( view );
@@ -95,6 +105,8 @@ mod private
     }
 
     /// Sets the depth slice or array layer to render to.
+    #[ inline ]
+    #[ must_use ]
     pub fn depth_slice( mut self, id : u32 ) -> Self
     {
       self.depth_slice = Some( id );
@@ -104,12 +116,17 @@ mod private
 
   impl From< ColorAttachment< '_ > > for web_sys::GpuRenderPassColorAttachment
   {
+    #[ inline ]
     fn from( value: ColorAttachment< '_ > ) -> Self 
     {
-      let a =  web_sys::GpuRenderPassColorAttachment::new( value.load_op, value.store_op, value.view);
+      let a = web_sys::GpuRenderPassColorAttachment::new_with_gpu_texture_view( value.load_op, value.store_op, value.view );
 
-      if let Some( v ) = value.clear_value { a.set_clear_value( &Vec::from( v ).into() ); }
-      if let Some( v ) = value.resolve_target { a.set_resolve_target( &v ); }
+      if let Some( v ) = value.clear_value
+      {
+        let clear_value : Vec< js_sys::Number > = v.into_iter().map( js_sys::Number::from ).collect();
+        a.set_clear_value( &clear_value );
+      }
+      if let Some( v ) = value.resolve_target { a.set_resolve_target_gpu_texture_view( v ); }
       if let Some( v ) = value.depth_slice { a.set_depth_slice( v ); }
 
       a

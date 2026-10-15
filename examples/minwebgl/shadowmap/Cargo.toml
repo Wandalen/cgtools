@@ -14,3 +14,6 @@ renderer.workspace = true
 
 [lints]
 workspace = true
+
+[package.metadata.action]
+tags = ["runtime:browser", "api:webgl"]

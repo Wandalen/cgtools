@@ -66,55 +66,6 @@ mod private
   }
 }
 
-#[ cfg( test ) ]
-mod tests
-{
-  use super::private::*;
-
-  // Reference facts we pin: flat-top origin maps to (0,0); positive r moves
-  // the point south in tiles_tools (Y-down), which becomes north-up in our
-  // Y-up world pixels → i.e. larger r produces MORE NEGATIVE world y.
-
-  #[ test ]
-  fn origin_maps_to_zero()
-  {
-    let ( x, y ) = hex_to_world_pixel_flat( 0, 0, ( 72, 64 ) );
-    assert!( x.abs() < 1e-5, "expected x ≈ 0, got {x}" );
-    assert!( y.abs() < 1e-5, "expected y ≈ 0, got {y}" );
-  }
-
-  #[ test ]
-  fn flat_top_y_flip_is_applied()
-  {
-    // Flat-top: stepping r by +1 in tiles_tools' Y-down frame means moving
-    // south on-screen (larger Y). After the compile-layer flip we expect
-    // negative world Y instead.
-    let ( _, y0 ) = hex_to_world_pixel_flat( 0, 0, ( 72, 64 ) );
-    let ( _, y1 ) = hex_to_world_pixel_flat( 0, 1, ( 72, 64 ) );
-    assert!( y1 < y0, "expected r=1 to produce smaller world y than r=0, got y0={y0} y1={y1}" );
-  }
-
-  #[ test ]
-  fn flat_top_x_scales_with_cell_width()
-  {
-    // q=1, r=0 should place the cell one full cell width to the right of origin.
-    let ( x, _ ) = hex_to_world_pixel_flat( 1, 0, ( 72, 64 ) );
-    // Tolerance is generous because sqrt(3) conversion is lossy — we just
-    // want to pin the sign and rough magnitude. The exact value is 72 px
-    // (full cell width) because of the compensating sx scale.
-    assert!( x > 0.0 && x < 120.0, "x out of expected range: {x}" );
-  }
-
-  #[ test ]
-  fn pointy_top_x_shifts_with_row()
-  {
-    // Pointy-top: moving r by +1 shifts x by half a cell width (zig-zag).
-    let ( x0, _ ) = hex_to_world_pixel_pointy( 0, 0, ( 64, 72 ) );
-    let ( x1, _ ) = hex_to_world_pixel_pointy( 0, 1, ( 64, 72 ) );
-    assert!( ( x1 - x0 ).abs() > 1.0, "expected row shift on pointy top, got x0={x0} x1={x1}" );
-  }
-}
-
 mod_interface::mod_interface!
 {
   exposed use hex_to_world_pixel_flat;

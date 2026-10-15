@@ -19,7 +19,7 @@ mod private
     ///
     /// # Returns
     /// - `Ix2`: The 2-dimensional index.
-    #[allow(clippy::wrong_self_convention)] // Conversion trait taking self by value is correct
+    #[ expect( clippy::wrong_self_convention, reason = "as_* here takes self by value because the trait is implemented for both by-value Copy tuples and reference slices where by-value is already the cheap/correct choice; renaming would be a public API break" ) ]
     fn as_ix2( self ) -> Ix2;
   }
 
@@ -33,7 +33,7 @@ mod private
     ///
     /// # Returns
     /// - `Ix3`: The 3-dimensional index.
-    #[allow(clippy::wrong_self_convention)] // Conversion trait taking self by value is correct
+    #[ expect( clippy::wrong_self_convention, reason = "same trait-signature constraint as as_ix2 above" ) ]
     fn as_ix3( self ) -> Ix3;
   }
 }

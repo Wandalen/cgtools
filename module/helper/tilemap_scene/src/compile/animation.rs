@@ -1,12 +1,11 @@
 // Time-calc casts (f32 → u32 / usize) are acceptable: time values are
 // non-negative by construction (clamped/rem_euclid upstream) and small
 // enough that integer range isn't a real risk.
-#![ allow( clippy::cast_sign_loss, clippy::cast_possible_truncation ) ]
 
 //! Time-based animation frame sampling.
 //!
-//! Given an [`Animation`] resource, the current global time, and the tile
-//! position (for `HashCoord` phase offsets), [`resolve_animation_frame`]
+//! Given an [`Animation`](crate::resource::Animation) resource, the current global time, and the tile
+//! position (for `HashCoord` phase offsets), [`animation_frame_resolve`]
 //! returns the concrete `( asset, frame )` pair to draw this instant.
 //!
 //! See SPEC §7. All timing is deterministic: the same `( animation, time,
@@ -15,7 +14,7 @@
 mod private
 {
   use crate::compile::error::CompileError;
-  use crate::hash::{ hash_coord, hash_str };
+  use crate::hash::{ coord_hash, str_hash };
   use crate::resource::
   {
     Animation,
@@ -47,7 +46,7 @@ mod private
   /// (degenerate declaration) or when a `FromSheet` variant addresses a
   /// non-existent index (caller is responsible for pre-allocating sprites
   /// in the asset-compile pass; here we just compute which sprite to pick).
-  pub fn resolve_animation_frame
+  pub fn animation_frame_resolve
   (
     anim : &Animation,
     time_seconds : f32,
@@ -81,7 +80,7 @@ mod private
             max : 0,
           });
         }
-        let idx = pick_frame_index( local_t, *fps, frames.len(), anim.mode );
+        let idx = frame_index_pick( local_t, *fps, frames.len(), anim.mode );
         Ok( frames[ idx ].clone() )
       },
       AnimationTiming::FromSheet { asset, start_frame, count, fps } =>
@@ -95,7 +94,7 @@ mod private
             max : 0,
           });
         }
-        let idx = pick_frame_index( local_t, *fps, *count as usize, anim.mode );
+        let idx = frame_index_pick( local_t, *fps, *count as usize, anim.mode );
         let frame_name = ( *start_frame + idx as u32 ).to_string();
         Ok( SpriteRef { asset : asset.clone(), frame : frame_name } )
       },
@@ -152,7 +151,7 @@ mod private
   }
 
   /// Compute `phase_offset` in seconds for a given tile position. Thin
-  /// wrapper retained for [`resolve_animation_frame`]; new callers use
+  /// wrapper retained for [`animation_frame_resolve`]; new callers use
   /// [`declared_phase_seconds`] directly.
   #[ inline ]
   fn phase_offset_seconds
@@ -171,7 +170,7 @@ mod private
   ///
   /// Mirrors the renderer's frame-resolution path so completion-event
   /// detection in `Scene::tick` agrees byte-for-byte with what
-  /// [`resolve_animation_frame`] would show on screen.
+  /// [`animation_frame_resolve`] would show on screen.
   #[ must_use ]
   pub fn declared_phase_seconds
   (
@@ -186,8 +185,8 @@ mod private
       PhaseOffset::Fixed( s ) => s,
       PhaseOffset::HashCoord =>
       {
-        let salt = hash_str( &anim.id );
-        let raw = hash_coord( pos.0, pos.1, salt );
+        let salt = str_hash( &anim.id );
+        let raw = coord_hash( pos.0, pos.1, salt );
         let unit = ( raw as f32 ) / ( u32::MAX as f32 );
         // Multiply by the animation's *natural* period so neighbouring tiles
         // spread across the whole cycle, not just a tiny fraction of it.
@@ -204,11 +203,11 @@ mod private
         // don't have a per-instance seed; fall back to 0.0 so the
         // animation rides the master clock there.
         let Some( seed ) = instance_seed else { return 0.0 };
-        // Mix the seed and the animation id through `hash_coord`'s
+        // Mix the seed and the animation id through `coord_hash`'s
         // avalanche so neighbouring seeds (1, 2, 3 ...) land on
         // well-separated phases — XOR alone leaves the upper bits
         // unchanged and collapses unit-magnitude differences.
-        let mixed = hash_coord( seed as i32, 0, hash_str( &anim.id ) );
+        let mixed = coord_hash( seed as i32, 0, str_hash( &anim.id ) );
         let unit = ( mixed as f32 ) / ( u32::MAX as f32 );
         let period = animation_duration_seconds( anim );
         unit * period
@@ -245,7 +244,7 @@ mod private
   }
 
   /// Pick a regular-timing frame index from local time.
-  fn pick_frame_index
+  fn frame_index_pick
   (
     local_t : f32,
     fps : f32,
@@ -273,189 +272,9 @@ mod private
   }
 }
 
-#[ cfg( test ) ]
-mod tests
-{
-  use super::private::*;
-  use crate::resource::
-  {
-    Animation,
-    AnimationMode,
-    AnimationTiming,
-    PhaseOffset,
-    SpriteRef,
-  };
-
-  fn regular( id : &str, frames : &[ &str ], fps : f32, mode : AnimationMode ) -> Animation
-  {
-    Animation
-    {
-      id : id.into(),
-      timing : AnimationTiming::Regular
-      {
-        frames : frames.iter().map( | f | SpriteRef { asset : "a".into(), frame : ( *f ).into() } ).collect(),
-        fps,
-      },
-      mode,
-      phase_offset : PhaseOffset::None,
-    }
-  }
-
-  #[ test ]
-  fn regular_loop_wraps()
-  {
-    let a = regular( "w", &[ "0", "1", "2" ], 10.0, AnimationMode::Loop );
-    let pick = | t | resolve_animation_frame( &a, t, 0.0, ( 0, 0 ), None ).unwrap().frame;
-    assert_eq!( pick( 0.0 ), "0" );
-    assert_eq!( pick( 0.1 ), "1" );
-    assert_eq!( pick( 0.25 ), "2" );
-    assert_eq!( pick( 0.35 ), "0", "should have wrapped back to frame 0" );
-  }
-
-  #[ test ]
-  fn one_shot_clamps()
-  {
-    let a = regular( "w", &[ "a", "b", "c" ], 10.0, AnimationMode::OneShot );
-    let pick = | t | resolve_animation_frame( &a, t, 0.0, ( 0, 0 ), None ).unwrap().frame;
-    assert_eq!( pick( 0.0 ), "a" );
-    assert_eq!( pick( 100.0 ), "c", "past end → stuck on last frame" );
-  }
-
-  #[ test ]
-  fn one_shot_origin_resets_local_time()
-  {
-    // OneShot rooted at a non-zero origin — the relative time is
-    // `time_seconds - oneshot_origin`, so a 0.05 s delta after the
-    // origin must pick the first frame, not the clamped last frame.
-    let a = regular( "w", &[ "a", "b", "c" ], 10.0, AnimationMode::OneShot );
-    let pick = | t, origin | resolve_animation_frame( &a, t, origin, ( 0, 0 ), None ).unwrap().frame;
-    assert_eq!( pick( 5.05, 5.0 ), "a", "0.05 s after origin → first frame" );
-    assert_eq!( pick( 5.15, 5.0 ), "b" );
-    assert_eq!( pick( 5.25, 5.0 ), "c" );
-    assert_eq!( pick( 99.0, 5.0 ), "c", "past origin + duration → clamped" );
-  }
-
-  #[ test ]
-  fn pingpong_reflects()
-  {
-    let a = regular( "w", &[ "a", "b", "c" ], 10.0, AnimationMode::PingPong );
-    let pick = | t | resolve_animation_frame( &a, t, 0.0, ( 0, 0 ), None ).unwrap().frame;
-    // Period = 2 * (3 - 1) = 4 ticks. Sequence: a b c b | a b c b | ...
-    assert_eq!( pick( 0.00 ), "a" );
-    assert_eq!( pick( 0.10 ), "b" );
-    assert_eq!( pick( 0.20 ), "c" );
-    assert_eq!( pick( 0.30 ), "b", "ping-ponged" );
-    assert_eq!( pick( 0.40 ), "a" );
-  }
-
-  #[ test ]
-  fn phase_offset_hashcoord_spreads_neighbours()
-  {
-    let mut a = regular( "w", &[ "0", "1", "2", "3" ], 4.0, AnimationMode::Loop );
-    a.phase_offset = PhaseOffset::HashCoord;
-    // Two neighbouring tiles, same global time — their local times should
-    // differ (practically always) and so can their frames.
-    let f_00 = resolve_animation_frame( &a, 0.0, 0.0, ( 0, 0 ), None ).unwrap().frame;
-    let f_10 = resolve_animation_frame( &a, 0.0, 0.0, ( 1, 0 ), None ).unwrap().frame;
-    // We can't assert inequality rigorously (hash could collide) but we can
-    // sample many coords and check that at least SOME produce different frames.
-    let samples : Vec< String > =
-      ( 0..16 ).map( | q | resolve_animation_frame( &a, 0.0, 0.0, ( q, 0 ), None ).unwrap().frame ).collect();
-    let unique_count = samples.iter().collect::< std::collections::HashSet< _ > >().len();
-    assert!
-    (
-      unique_count >= 2,
-      "phase-offset should spread neighbours across frames; samples: {samples:?} (first two {f_00} vs {f_10})",
-    );
-  }
-
-  #[ test ]
-  fn phase_offset_instance_spreads_seeds()
-  {
-    // `PhaseOffset::Instance` derives phase from the per-instance
-    // seed mixed with the animation id. Sampling 16 distinct seeds
-    // must produce at least two different frames — same shape as
-    // the HashCoord test, but the input dimension is the seed
-    // rather than the grid coord, so this works for placements
-    // with no hex coord.
-    let mut a = regular( "w", &[ "0", "1", "2", "3" ], 4.0, AnimationMode::Loop );
-    a.phase_offset = PhaseOffset::Instance;
-    let samples : Vec< String > = ( 0..16_u32 )
-      .map( | seed | resolve_animation_frame( &a, 0.0, 0.0, ( 0, 0 ), Some( seed ) ).unwrap().frame )
-      .collect();
-    let unique_count = samples.iter().collect::< std::collections::HashSet< _ > >().len();
-    assert!
-    (
-      unique_count >= 2,
-      "PhaseOffset::Instance should spread seeds across frames; samples: {samples:?}",
-    );
-  }
-
-  #[ test ]
-  fn phase_offset_instance_falls_back_when_seed_missing()
-  {
-    // Without an instance seed (`None`), `PhaseOffset::Instance`
-    // contributes 0.0 — the edge / vertex compile paths sit on the
-    // master clock instead.
-    let mut a = regular( "w", &[ "0", "1", "2" ], 10.0, AnimationMode::Loop );
-    a.phase_offset = PhaseOffset::Instance;
-    let frame = resolve_animation_frame( &a, 0.0, 0.0, ( 0, 0 ), None ).unwrap().frame;
-    assert_eq!( frame, "0", "no seed → no phase shift" );
-  }
-
-  #[ test ]
-  fn phase_offset_fixed_shifts_timeline()
-  {
-    let mut a = regular( "w", &[ "0", "1", "2" ], 10.0, AnimationMode::Loop );
-    a.phase_offset = PhaseOffset::Fixed( 0.1 );
-    // At global t=0, with phase=0.1s, we're 1 frame in.
-    let frame = resolve_animation_frame( &a, 0.0, 0.0, ( 0, 0 ), None ).unwrap().frame;
-    assert_eq!( frame, "1" );
-  }
-
-  #[ test ]
-  fn irregular_timing_honours_durations()
-  {
-    let a = Animation
-    {
-      id : "attack".into(),
-      timing : AnimationTiming::Irregular
-      {
-        frames : vec!
-        [
-          crate::resource::TimedFrame
-          {
-            sprite : SpriteRef { asset : "a".into(), frame : "wind_up".into() },
-            duration_ms : 100,
-          },
-          crate::resource::TimedFrame
-          {
-            sprite : SpriteRef { asset : "a".into(), frame : "impact".into() },
-            duration_ms : 300,    // held
-          },
-          crate::resource::TimedFrame
-          {
-            sprite : SpriteRef { asset : "a".into(), frame : "recover".into() },
-            duration_ms : 100,
-          },
-        ],
-      },
-      mode : AnimationMode::OneShot,
-      phase_offset : PhaseOffset::None,
-    };
-    let pick = | t | resolve_animation_frame( &a, t, 0.0, ( 0, 0 ), None ).unwrap().frame;
-    assert_eq!( pick( 0.0  ), "wind_up" );
-    assert_eq!( pick( 0.05 ), "wind_up" );
-    assert_eq!( pick( 0.15 ), "impact" );
-    assert_eq!( pick( 0.35 ), "impact", "still holding the accented frame" );
-    assert_eq!( pick( 0.45 ), "recover" );
-    assert_eq!( pick( 2.00 ), "recover", "OneShot clamps to last" );
-  }
-}
-
 mod_interface::mod_interface!
 {
-  exposed use resolve_animation_frame;
+  exposed use animation_frame_resolve;
   own use animation_duration_seconds;
   own use declared_phase_seconds;
 }

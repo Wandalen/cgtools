@@ -1,8 +1,6 @@
 mod private
 {
-  use crate::*;
-
-  // qqq : xxx : document please
+  use crate::{Vector, MatEl, Collection, ConstLength, ArrayRef, ArrayMut, VectorIter, VectorIteratorRef, VectorIterMut, VectorIterator, TryInto, IntoArray, Indexable, AbsDiffEq, RelativeEq, UlpsEq};
 
   impl< E, const N : usize > Vector< E, N >
   where
@@ -17,12 +15,14 @@ mod private
     }
 
     /// Return underlying array data
+    #[ inline ]
     pub fn to_array( &self ) -> [ E ; N ]
     {
       self.0
     }
 
     /// Creates vector from given raw array
+    #[ inline ]
     pub fn from_array( src : [ E ; N ] ) -> Self
     {
       Self( src )
@@ -32,14 +32,15 @@ mod private
     ///
     /// # Panics
     ///
-    /// Panics if `src` lenght does not match vector size
+    /// Panics if `src` length does not match vector size
+    #[ inline ]
     pub fn from_slice( src : &[ E ] ) -> Self
     {
       assert_eq!( src.len(), N );
       Self
       (
         < [ E; N ] as core::convert::TryFrom< &[ E ] > >::try_from( src )
-        .expect( &format!( "Slice length does not match array length : {} <> {}", src.len(), N ) )
+        .unwrap_or_else( | _ | panic!( "Slice length does not match array length : {} <> {}", src.len(), N ) )
       )
     }
 
@@ -124,6 +125,7 @@ mod private
   where
     E : MatEl,
   {
+    #[ inline ]
     fn vector_iter< 'a >( &'a self ) -> impl VectorIteratorRef< 'a, &'a E >
     where
       E : 'a,
@@ -136,6 +138,7 @@ mod private
   where
     E : MatEl,
   {
+    #[ inline ]
     fn vector_iter_mut< 'a >( &'a mut self ) -> impl VectorIterator< 'a, &'a mut E >
     where
       E : 'a,
@@ -144,17 +147,44 @@ mod private
     }
   }
 
+  /// Error returned when converting a slice into a `Vector` fails because the slice's length
+  /// does not match the vector's compile-time length.
+  // `#[ non_exhaustive ]` would break `tests/inc/vector_conversion_test.rs`, which constructs
+  // this via full struct-literal syntax (`VectorLengthMismatch { expected, actual }`) from the
+  // integration-test crate, external to this one.
+  #[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
+  pub struct VectorLengthMismatch
+  {
+    /// The vector's compile-time length ( `N` ).
+    pub expected : usize,
+    /// The actual length of the source slice.
+    pub actual : usize,
+  }
+
+  impl std::fmt::Display for VectorLengthMismatch
+  {
+    #[ inline ]
+    fn fmt( &self, f : &mut std::fmt::Formatter< '_ > ) -> std::fmt::Result
+    {
+      write!( f, "Slice length {} does not equal vector's length {}", self.actual, self.expected )
+    }
+  }
+
+  impl std::error::Error for VectorLengthMismatch
+  {
+  }
+
   impl< E, const N : usize > TryFrom< &[ E ] > for Vector< E, N >
   where
     E : MatEl,
   {
-    type Error = &'static str;
-    // qqq : xxx : use typed error
+    type Error = VectorLengthMismatch;
+    #[ inline ]
     fn try_from( value : &[ E ] ) -> Result< Self, Self::Error >
     {
       if value.len() != N
       {
-        return Err( "Slice length does not equal vector's length" );
+        return Err( VectorLengthMismatch { expected : N, actual : value.len() } );
       }
       Ok( Self( value.try_into().unwrap() ) )
     }
@@ -162,6 +192,7 @@ mod private
 
   impl< E : MatEl, const N : usize > From< [ E; N ] > for Vector< E, N >
   {
+    #[ inline ]
     fn from( value: [ E; N ] ) -> Self
     {
       Vector( value )
@@ -170,23 +201,13 @@ mod private
 
   impl< E : MatEl, const N : usize > From< Vector< E, N > > for [ E; N ]
   {
+    #[ inline ]
     fn from( value: Vector< E, N > ) -> Self
     {
       value.0
     }
   }
 
-  // impl< E, const N : usize > From< E > for Vector< E, N >
-  // where
-  //   E : MatEl
-  // {
-  //   fn from ( value: E ) -> Self
-  //   {
-  //     Self::from( [ value; N ] )
-  //   }
-  // }
-
-  // xxx : test cover
   /// A trait for types that can be converted into a `Vector`.
   ///
   /// This provides a common interface for various data structures
@@ -202,6 +223,7 @@ mod private
     ///
     /// This is a convenience method that allows conversion without consuming the original object,
     /// for types that implement `Clone`.
+    #[ inline ]
     fn as_vector( &self ) -> Vector< E, N >
     where
       Self : Clone,
@@ -215,20 +237,12 @@ mod private
     E : MatEl,
     T : IntoArray< E, N >,
   {
+    #[ inline ]
     fn into_vector( self ) -> Vector< E, N >
     {
       Vector::< E, N >( self.into_array() )
     }
   }
-
-  // // xxx : enable and test cover, maybe
-  // pub trait FromVector< Dst, E, const N : usize >
-  // where
-  //   E : MatEl,
-  //   // Self : Vector< E, N >,
-  // {
-  //   fn from_vector( self ) -> Dst;
-  // }
 
   /// A marker trait that groups together the essential immutable behaviors of a fixed-size vector.
   ///
@@ -271,11 +285,13 @@ mod private
   {
     type Epsilon = < [ E ] as AbsDiffEq< [ E ] > >::Epsilon;
 
+    #[ inline ]
     fn default_epsilon() -> Self::Epsilon
     {
       E::default_epsilon()
     }
 
+    #[ inline ]
     fn abs_diff_eq( &self, other: &Self, epsilon: Self::Epsilon ) -> bool
     {
       < [ E ] as AbsDiffEq< [ E ] > >::abs_diff_eq( &self.0, &other.0, epsilon )
@@ -287,11 +303,13 @@ mod private
     E : RelativeEq + MatEl,
     E::Epsilon : Copy,
   {
+    #[ inline ]
     fn default_max_relative() -> Self::Epsilon
     {
       E::default_max_relative()
     }
 
+    #[ inline ]
     fn relative_eq( &self, other: &Self, epsilon: Self::Epsilon, max_relative: Self::Epsilon ) -> bool
     {
       < [ E ] as RelativeEq< [ E ] > >::relative_eq( &self.0, &other.0, epsilon, max_relative )
@@ -303,11 +321,13 @@ mod private
     E : UlpsEq + MatEl,
     E::Epsilon : Copy,
   {
+    #[ inline ]
     fn default_max_ulps() -> u32
     {
       E::default_max_ulps()
     }
 
+    #[ inline ]
     fn ulps_eq( &self, other: &Self, epsilon: Self::Epsilon, max_ulps: u32 ) -> bool
     {
       < [ E ] as UlpsEq< [ E ] > >::ulps_eq( &self.0, &other.0, epsilon, max_ulps )
@@ -323,8 +343,7 @@ crate::mod_interface!
   {
 
     IntoVector,
-    // AsVector,
-    // FromVector,
+    VectorLengthMismatch,
 
     VectorSpace,
     VectorSpaceMut,

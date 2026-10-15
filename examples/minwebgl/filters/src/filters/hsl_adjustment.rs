@@ -1,4 +1,10 @@
-use super::*;
+use super::
+{
+  Filter,
+  FilterRenderer,
+  gl,
+  default_render_pass,
+};
 use serde::{ Serialize, Deserialize };
 
 #[ derive( Debug, Serialize, Deserialize ) ]
@@ -87,7 +93,15 @@ impl Filter for HSLAdjustment
     {
       vec4 pixel = texture( u_image, v_tex_coord );
       vec3 hsl = rgb2hsl( pixel.rgb );
-      hsl.x += u_hsl.x;
+      // Fix(BUG-325): was `hsl.x += u_hsl.x;` — hue2rgb's single-step ±1 wraparound assumes its
+      // phase-shifted (±1/3) input is at most 1 unit outside [0,1), which no longer held once an
+      // external shift of up to ±1.0 was added on top, under-wrapping the r/b channels at slider
+      // extremes.
+      // Root cause: hue2rgb correct only for a hue already normalized to [0,1); main() broke that
+      // precondition before calling hsl2rgb.
+      // Pitfall: a helper correct for its assumed input domain fails silently once a caller feeds
+      // it a value from a wider domain — check callers' actual value ranges, not just the helper.
+      hsl.x = mod( hsl.x + u_hsl.x, 1.0 );
       hsl.y = clamp( hsl.y + u_hsl.y, 0.0, 1.0 );
       hsl.z = clamp( hsl.z + u_hsl.z, 0.0, 1.0 );
       vec3 rgb = hsl2rgb( hsl );
@@ -100,7 +114,7 @@ impl Filter for HSLAdjustment
   {
     let gl = renderer.gl();
     let threshold_location = gl.get_uniform_location( renderer.get_program(), "u_hsl" );
-    gl.use_program( Some( &renderer.get_program() ) );
+    gl.use_program( Some( renderer.get_program() ) );
     let hsl = [ self.hue, self.saturation, self.lightness ];
     gl::uniform::upload( gl, threshold_location, hsl.as_slice() ).unwrap();
     default_render_pass( renderer );

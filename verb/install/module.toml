@@ -1,0 +1,8 @@
+[module]
+name        = "install"
+type        = "verb"
+entry       = "run"
+purpose     = "Install all workspace binaries (bin-target crates under module/)"
+requires    = []
+tags        = []
+inheritable = false

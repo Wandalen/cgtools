@@ -1,10 +1,4 @@
 
-#![ allow( dead_code ) ]
-#![ allow( clippy::large_enum_variant ) ]
-#![ allow( clippy::type_complexity ) ]
-#![ allow( clippy::cast_sign_loss ) ]
-#![ allow( clippy::used_underscore_binding ) ]
-#![ allow( clippy::default_trait_access ) ]
 
 mod private
 {
@@ -41,6 +35,9 @@ mod private
     Value::Fixed( value )
   }
 
+  /// A single keyframe : `( frame, [ in_tangent, out_tangent ], hold, value )`.
+  pub type Keyframe< T > = ( f64, [ Option< [ f64; 2 ] >; 2 ], bool, T );
+
   /// Creates an animated `Value` from a vector of keyframe data.
   ///
   /// Each tuple in the input vector represents a keyframe with its frame time,
@@ -55,10 +52,10 @@ mod private
   /// A `Value::Animated` containing the animated data.
   pub fn animated< T : interpoli::Tween >
   (
-    values : Vec< ( f64, [ Option< [ f64; 2 ] >; 2 ], bool, T ) >
+    values : Vec< Keyframe< T > >
   ) -> Value< T >
   {
-    let _values = values.iter()
+    let keyframe_values = values.iter()
     .map( | ( _, _, _, v ) | v )
     .cloned()
     .collect::< Vec< _ > >();
@@ -84,7 +81,7 @@ mod private
       interpoli::Animated
       {
         times,
-        values : _values
+        values : keyframe_values
       }
     )
   }
@@ -118,6 +115,7 @@ mod private
   /// Converts a `Transform` into an `interpoli::animated::Transform`.
   impl From< Transform > for interpoli::animated::Transform
   {
+    #[ inline ]
     fn from( val: Transform ) -> Self
     {
       let Transform
@@ -178,6 +176,7 @@ mod private
   /// Converts a `Repeater` into an `interpoli::animated::Repeater`.
   impl From< Repeater > for interpoli::animated::Repeater
   {
+    #[ inline ]
     fn from( val : Repeater ) -> Self
     {
       interpoli::animated::Repeater
@@ -195,7 +194,6 @@ mod private
   }
 
   /// Represents a color, which can be either fixed or animated.
-  #[ allow( dead_code ) ]
   #[ derive( Debug, Clone ) ]
   pub enum Color
   {
@@ -206,7 +204,6 @@ mod private
   }
 
   /// Represents a shape, which can be a stroke, color, geometry, spline, or repeater.
-  #[ allow( dead_code ) ]
   #[ derive( Debug, Clone ) ]
   pub enum Shape
   {
@@ -225,7 +222,7 @@ mod private
       is_closed : bool
     },
     /// A repeater that duplicates the previous shapes.
-    Repeater( interpoli::Repeater )
+    Repeater( Box< interpoli::Repeater > )
   }
 
   impl Shape
@@ -233,7 +230,7 @@ mod private
     /// Converts a vector of `Shape` enum variants into an `interpoli::Content` object.
     fn into_content( shapes : Vec< Shape > ) -> Content
     {
-      let mut _shapes = vec![];
+      let mut content_shapes = vec![];
 
       let mut stroke = None;
       let mut color = Color::Fixed( [ 0.0; 4 ] );
@@ -242,9 +239,9 @@ mod private
       {
         let shape : interpoli::Shape = match shape
         {
-          Shape::Stroke( _stroke ) =>
+          Shape::Stroke( new_stroke ) =>
           {
-            stroke = _stroke;
+            stroke = new_stroke;
 
             let brush = match color
             {
@@ -274,9 +271,9 @@ mod private
               }
             )
           },
-          Shape::Color( _color ) =>
+          Shape::Color( new_color ) =>
           {
-            color = _color;
+            color = new_color;
 
             let brush = match color
             {
@@ -334,13 +331,13 @@ mod private
               )
             )
           },
-          Shape::Repeater( repeater ) => interpoli::Shape::Repeater( repeater ),
+          Shape::Repeater( repeater ) => interpoli::Shape::Repeater( *repeater ),
         };
 
-        _shapes.push( shape );
+        content_shapes.push( shape );
       }
 
-      Content::Shape( _shapes )
+      Content::Shape( content_shapes )
     }
   }
 
@@ -369,6 +366,7 @@ mod private
   /// Converts a `Layer` into an `interpoli::Layer`.
   impl From< Layer > for interpoli::Layer
   {
+    #[ inline ]
     fn from( val : Layer ) -> Self
     {
       let parent = if val.parent == -1
@@ -422,6 +420,7 @@ mod private
   /// Converts a `Model` into an `interpoli::Composition`.
   impl From< Model > for Composition
   {
+    #[ inline ]
     fn from( val : Model ) -> Self
     {
       Composition
@@ -430,11 +429,11 @@ mod private
         frame_rate : 60.0,
         width : val.width,
         height : val.height,
-        assets : Default::default(),
         layers : val.layers.clone()
         .into_iter()
         .map( minwebgl::Into::into )
-        .collect::< Vec< interpoli::Layer > >()
+        .collect::< Vec< interpoli::Layer > >(),
+        ..Composition::default()
       }
     }
   }

@@ -8,7 +8,7 @@ Area lighting is essential for photorealistic rendering, providing natural-looki
 
 ![image](showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 

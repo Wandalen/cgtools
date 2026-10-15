@@ -1,4 +1,4 @@
-use crate::*;
+use crate::{MatEl, nd, Mat2, mat, RawSliceMut, MatNum, VectorIter};
 
 /// Produces a 2D rotation matrix for a given angle in radians.
 ///
@@ -29,6 +29,9 @@ where
 ///
 /// # Returns
 /// - `Mat<E, 2, 2>`: A 2x2 scaling matrix.
+///
+/// # Panics
+/// Panics if `scaling`'s iterator yields fewer than 2 elements.
 #[ inline ]
 pub fn scale< E, Scaling >( scaling : Scaling ) -> Mat2< E, mat::DescriptorOrderColumnMajor >
 where
@@ -53,6 +56,9 @@ where
 ///
 /// # Returns
 /// - `Mat<E, 2, 2>`: A 2x2 shearing matrix.
+///
+/// # Panics
+/// Panics if `shearing`'s iterator yields fewer than 2 elements.
 #[ inline ]
 pub fn shear< E, Shearing >( shearing : Shearing ) -> Mat2< E, mat::DescriptorOrderColumnMajor >
 where
@@ -75,6 +81,7 @@ where
 /// # Returns
 /// - `Mat<E, 2, 2>`: A 2x2 reflection matrix.
 #[ inline ]
+#[ must_use ]
 pub fn reflect_x< E >() -> Mat2< E, mat::DescriptorOrderColumnMajor >
 where
   E : MatEl + nd::NdFloat,
@@ -92,6 +99,7 @@ where
 /// # Returns
 /// - `Mat<E, 2, 2>`: A 2x2 reflection matrix.
 #[ inline ]
+#[ must_use ]
 pub fn reflect_y< E >() -> Mat2< E, mat::DescriptorOrderColumnMajor >
 where
   E : MatEl + nd::NdFloat,

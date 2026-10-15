@@ -403,6 +403,7 @@ mod private
     ///
     /// Decoding them is the caller's job, and needs [ `Info::supercompression` ] to know what, if
     /// anything, is wrapped around each one.
+    #[ must_use ]
     pub fn levels( &self ) -> impl ExactSizeIterator< Item = ::ktx2::Level< '_ > > + '_
     {
       self.reader.levels()

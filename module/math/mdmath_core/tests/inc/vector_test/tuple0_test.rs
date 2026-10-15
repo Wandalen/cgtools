@@ -25,8 +25,7 @@ fn test_vector_mut_tuple0()
     let vector_mut : &mut [ usize; 0 ] = tuple.vector_mut();
     assert_eq!( vector_mut, &mut [] as &mut [usize; 0] );
   }
-  #[ allow( clippy::unit_cmp ) ]
-  { assert_eq!( tuple, () ); }
+  assert_eq!( tuple, () );
 }
 
 #[ test ]
@@ -47,8 +46,7 @@ fn test_vector_iter_mut_tuple0()
     let mut iter = tuple.vector_iter_mut();
     assert_eq!( iter.next(), None );
   }
-  #[ allow( clippy::unit_cmp ) ]
-  { assert_eq!( tuple, () ); }
+  assert_eq!( tuple, () );
 }
 
 #[ test ]
@@ -69,6 +67,5 @@ fn test_vector_iter_mut_rev_tuple0()
     let mut iter = tuple.vector_iter_mut().rev();
     assert_eq!( iter.next(), None );
   }
-  #[ allow( clippy::unit_cmp ) ]
-  { assert_eq!( tuple, () ); }
+  assert_eq!( tuple, () );
 }

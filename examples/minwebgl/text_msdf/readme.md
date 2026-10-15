@@ -8,7 +8,7 @@ MSDF is the modern standard for GPU text rendering, offering superior quality to
 
 ![image](showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 

@@ -39,7 +39,11 @@ void main()
   vec2 pointB = ( u_world_matrix * vec3( inPointB.xy, 1.0 ) ).xy;
   vec2 pointC = ( u_world_matrix * vec3( inPointC.xy, 1.0 ) ).xy;
 
-  vec2 tangent = normalize( normalize( pointC - pointB ) + normalize( pointB - pointA ) );
+  vec2 dirIn = normalize( pointB - pointA );
+  vec2 dirOut = normalize( pointC - pointB );
+  vec2 tangentSum = dirOut + dirIn;
+  // Fix(BUG-158): see join_miter.vert's tangent computation for root cause/pitfall.
+  vec2 tangent = dot( tangentSum, tangentSum ) > 1e-12 ? normalize( tangentSum ) : dirIn;
   vec2 normal = vec2( -tangent.y, tangent.x );
 
   vec2 AB = pointB - pointA;

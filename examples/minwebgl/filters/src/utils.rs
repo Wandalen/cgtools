@@ -1,4 +1,3 @@
-#![ allow( clippy::expect_fun_call ) ]
 
 use web_sys::
 {
@@ -15,7 +14,7 @@ use wasm_bindgen::{ prelude::*, JsCast };
 use minwebgl as gl;
 
 /// Load image from a File object
-pub fn load_image_from_file( file : &File, on_load_callback : Box< dyn Fn( &HtmlImageElement ) > )
+pub fn image_from_file_load( file : &File, on_load_callback : Box< dyn Fn( &HtmlImageElement ) > )
 {
   use std::rc::Rc;
 
@@ -44,19 +43,19 @@ pub fn load_image_from_file( file : &File, on_load_callback : Box< dyn Fn( &Html
   file_reader.set_onload( Some( onload.as_ref().unchecked_ref() ) );
   onload.forget();
 
-  if let Err( e ) = file_reader.read_as_data_url( &file )
+  if let Err( e ) = file_reader.read_as_data_url( file )
   {
-    minwebgl::warn!( "Failed to read file: {:?}", e );
+    minwebgl::warn!( "Failed to read file: {e:?}" );
   }
 }
 
 /// Setup file upload button
-pub fn setup_file_upload< F >( button_id : &str, input_id : &str, on_file_selected : F )
+pub fn file_upload_setup< F >( button_id : &str, input_id : &str, on_file_selected : F )
 where
   F : Fn( File ) + 'static
 {
-  let upload_btn = get_element_by_id_unchecked::< web_sys::HtmlElement >( button_id );
-  let file_input = get_element_by_id_unchecked::< web_sys::HtmlInputElement >( input_id );
+  let upload_btn = element_by_id_unchecked_get::< web_sys::HtmlElement >( button_id );
+  let file_input = element_by_id_unchecked_get::< web_sys::HtmlInputElement >( input_id );
 
   // Button click triggers file input
   let file_input_clone = file_input.clone();
@@ -87,13 +86,13 @@ where
 }
 
 /// Setup drag and drop for images
-pub fn setup_drag_and_drop< F >( on_file_dropped : F )
+pub fn drag_and_drop_setup< F >( on_file_dropped : F )
 where
   F : Fn( File ) + 'static + Clone
 {
   let document = web_sys::window().unwrap().document().unwrap();
   let body = document.body().expect( "Should have a body" );
-  let overlay = get_element_by_id_unchecked::< web_sys::HtmlElement >( "drop-overlay" );
+  let overlay = element_by_id_unchecked_get::< web_sys::HtmlElement >( "drop-overlay" );
 
   // Prevent default drag behavior
   let prevent_default : Closure< dyn Fn( DragEvent ) > = Closure::new
@@ -168,11 +167,11 @@ where
 }
 
 /// Save canvas as PNG image
-pub fn save_canvas( canvas_id : &str, filename : &str )
+pub fn canvas_save( canvas_id : &str, filename : &str )
 {
   use web_sys::console;
 
-  let canvas = get_element_by_id_unchecked::< HtmlCanvasElement >( canvas_id );
+  let canvas = element_by_id_unchecked_get::< HtmlCanvasElement >( canvas_id );
   let filename_owned = filename.to_string();
 
   gl::info!( "Saving canvas: {}x{}", canvas.width(), canvas.height() );
@@ -207,7 +206,7 @@ pub fn canvas_to_texture( canvas_id : &str, gl : &minwebgl::GL ) -> Option< web_
   // use web_sys::console;
   use minwebgl::GL;
 
-  let canvas = get_element_by_id_unchecked::< HtmlCanvasElement >( canvas_id );
+  let canvas = element_by_id_unchecked_get::< HtmlCanvasElement >( canvas_id );
 
   // Ensure WebGL has finished rendering
   gl.flush();
@@ -253,7 +252,7 @@ pub fn canvas_to_texture( canvas_id : &str, gl : &minwebgl::GL ) -> Option< web_
 }
 
 /// Load image from a Blob object (for bg removal result)
-pub fn load_image_from_blob( blob : &Blob, on_load_callback : Box< dyn Fn( &HtmlImageElement ) > )
+pub fn image_from_blob_load( blob : &Blob, on_load_callback : Box< dyn Fn( &HtmlImageElement ) > )
 {
   use std::rc::Rc;
 
@@ -275,7 +274,7 @@ pub fn load_image_from_blob( blob : &Blob, on_load_callback : Box< dyn Fn( &Html
 }
 
 /// Show canvas and hide placeholder text
-pub fn show_canvas()
+pub fn canvas_show()
 {
   if let Some( canvas ) = web_sys::window()
     .and_then( | w | w.document() )
@@ -292,14 +291,14 @@ pub fn show_canvas()
   }
 }
 
-pub fn get_element_by_id_unchecked< T : JsCast >( id : &str ) -> T
+pub fn element_by_id_unchecked_get< T : JsCast >( id : &str ) -> T
 {
   let document = web_sys::window()
   .expect( "Should have a window" )
   .document()
   .expect( "Should have a document" );
   document.get_element_by_id( id )
-  .expect( &format!( "No element with id '{id}'" ) )
+  .unwrap_or_else( || panic!( "No element with id '{id}'" ) )
   .dyn_into::< T >()
-  .expect( &format!( "Element is not of type {}", std::any::type_name::< T >() ) )
+  .unwrap_or_else( |_| panic!( "Element is not of type {}", std::any::type_name::< T >() ) )
 }

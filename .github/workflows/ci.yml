@@ -1,0 +1,111 @@
+name: ci
+
+# One job: runs `verb/test` (the same full verification gate documented in root
+# readme.md's Testing section) on every push to master and every PR into it —
+# native suite (nextest + doctests + clippy), a wasm32 compile check across every
+# browser-kind example, and the real wasm_bindgen_test suites (browser-driven,
+# in the headless Chrome + chromedriver preinstalled on this runner image). Calls
+# verb/test directly rather than re-deriving its steps here, so "CI is green"
+# and "verb/test passes locally" can never silently drift apart.
+#
+# DVC assets are pulled (soft-fail, same reasoning as pages.yml's own asset
+# step) because two of renderer's wasm test files load DVC-tracked gltf
+# fixtures (assets/gltf/animated/{bug_bunny.glb,morph_targets/zophrac.glb}) —
+# without them those two tests fail on a missing file, not a real regression.
+
+"on":
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache cargo registry, git deps, and build dirs
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-ci-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-ci-
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@nextest
+
+      # The native GPU tests (gpu_hal, tilemap_renderer's native adapter,
+      # renderer) need a Vulkan driver, and this runner has no GPU. lavapipe,
+      # mesa's software Vulkan ICD, suffices — the same requirement
+      # gpu_hal's readme states for running them locally.
+      - name: Install a software Vulkan driver (lavapipe)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers libvulkan1
+
+      # shader_chunks_core's compile-fail snapshots are taken with the
+      # standard library's source, which rustc quotes from rust-src (see
+      # that crate's tests/compile_fail/readme.md).
+      - name: Install rust-src
+        run: rustup component add rust-src
+
+      # verb/test's last stage runs the wasm_bindgen_test suites through
+      # script/wasm_test_runner.sh, which execs wasm-bindgen-test-runner. The
+      # runner's version must equal the wasm-bindgen crate's, and Cargo.lock
+      # is not committed, so the version comes from the lockfile generated
+      # here, which verb/test then builds against.
+      - name: Resolve the wasm-bindgen version
+        id: wasm_bindgen
+        run: |
+          cargo generate-lockfile
+          echo "version=$( cargo pkgid wasm-bindgen | sed 's/.*@//' )" >> "$GITHUB_OUTPUT"
+
+      - name: Install wasm-bindgen-test-runner
+        uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen@${{ steps.wasm_bindgen.outputs.version }}
+
+      # The browser suites need WebGL2, and minwebgpu's WebGPU. On this GPU-less
+      # runner headless Firefox gets no WebGL2 context at all; headless Chrome
+      # does, through its SwiftShader software renderer, and can reach WebGPU
+      # through lavapipe's Vulkan. The runner picks the browser from
+      # CHROMEDRIVER (see .cargo/config.toml) and reads capabilities from a
+      # webdriver.json in its cwd, the workspace root. That file replaces the
+      # runner's own capabilities, so it repeats --headless. It is written
+      # here rather than committed, so local runs keep the driver defaults.
+      - name: Point the wasm test runner at headless Chrome
+        run: |
+          echo "CHROMEDRIVER=$CHROMEWEBDRIVER/chromedriver" >> "$GITHUB_ENV"
+          cat > webdriver.json <<'JSON'
+          { "goog:chromeOptions" : { "args" : [ "--headless=new", "--no-sandbox", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--enable-unsafe-webgpu", "--enable-features=Vulkan" ] } }
+          JSON
+
+      - name: Install dvc
+        run: pipx install dvc
+
+      - name: Cache pulled DVC assets
+        uses: actions/cache@v4
+        with:
+          path: .dvc/cache
+          key: ${{ runner.os }}-dvc-${{ hashFiles('assets/*.dvc') }}
+
+      # Soft-fails: see header comment. Only 2 of the ~6 wasm test files need
+      # any asset at all; a transient remote hiccup shouldn't red the whole gate.
+      - name: Pull assets (anonymous public read, ~312 MB, cached above)
+        continue-on-error: true
+        run: dvc pull
+
+      - name: verb/test — full verification gate
+        run: verb/test

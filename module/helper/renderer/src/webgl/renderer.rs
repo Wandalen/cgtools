@@ -1,10 +1,13 @@
+/// `FramebufferContext`: the multisample and resolved framebuffers `Renderer` draws into.
+mod framebuffer_context;
+
 mod private
 {
+  use super::framebuffer_context::FramebufferContext;
   use std::{ cell::RefCell, rc::Rc };
   use rustc_hash::{ FxHashMap, FxHashSet };
   use minwebgl as gl;
   use gl::{ GL, F32x3 };
-  use web_sys::WebGlTexture;
 
   use crate::webgl::
   {
@@ -33,408 +36,16 @@ mod private
     ShaderProgram,
     Scene,
     IBL,
-    Light
+    Light,
+    Texture
   };
 
-  /// Manages WebGL2 framebuffers and associated renderbuffers/textures for a rendering
-  /// context, specifically designed for multisampling and post-processing effects.
-  ///
-  /// This struct handles the setup and management of two primary framebuffers:
-  /// - A **multisample framebuffer** for rendering with anti-aliasing.
-  /// - A **resolved framebuffer** for storing the anti-aliased result as textures,
-  ///   ready for further post-processing or display.
-  ///
-  /// It supports two color attachments: a 'main' color buffer and an 'emission' color buffer,
-  /// allowing for separate rendering of different visual components.
-  pub struct FramebufferContext
-  {
-    /// The width of the textures attached to the resolved framebuffer.
-    pub texture_width : u32,
-    /// The height of the textures attached to the resolved framebuffer.
-    pub texture_height : u32,
-    /// The WebGL framebuffer used for multisampled rendering. This framebuffer
-    /// renders into `multisample_main_renderbuffer` and `multisample_emission_renderbuffer`.
-    pub multisample_framebuffer : Option< gl::web_sys::WebGlFramebuffer >,
-    /// The WebGL framebuffer used to store the resolved (non-multisampled)
-    /// textures. This is where the results of the multisample framebuffer
-    /// are blitted to, making them ready for sampling.
-    pub resolved_framebuffer : Option< gl::web_sys::WebGlFramebuffer >,
-    /// The renderbuffer used for depth and stencil testing in the multisample framebuffer.
-    #[ allow( dead_code ) ]
-    pub multisample_depth_renderbuffer : Option< gl::web_sys::WebGlRenderbuffer >,
-    /// The renderbuffer that receives the main color output during multisampled rendering.
-    pub multisample_main_renderbuffer : Option< gl::web_sys::WebGlRenderbuffer >,
-    /// The renderbuffer that receives the emission color output during multisampled rendering.
-    pub multisample_emission_renderbuffer : Option< gl::web_sys::WebGlRenderbuffer>,
-    /// The renderbuffer that accumulates color during blending pass.
-    pub multisample_transparent_accumulate_renderbuffer : Option< gl::web_sys::WebGlRenderbuffer>,
-     /// The renderbuffer that calculates total revealage during blending pass.
-    pub multisample_transparent_revealage_renderbuffer : Option< gl::web_sys::WebGlRenderbuffer>,
-    /// The 2D texture that receives the resolved main color output after multisample resolution.
-    /// This texture can be sampled in shaders.
-    pub main_texture : Option< gl::web_sys::WebGlTexture >,
-    /// The 2D texture that receives the resolved emission color output after multisample resolution.
-    /// This texture can be sampled in shaders.
-    pub emission_texture : Option< gl::web_sys::WebGlTexture >,
-    /// The 2D texture that accumulates color during blending pass.
-    pub transparent_accumulate_texture : Option< gl::web_sys::WebGlTexture >,
-    /// The 2D texture that calculates total revealage during blending pass.
-    pub transparent_revealage_texture : Option< gl::web_sys::WebGlTexture >,
-    #[ allow( dead_code ) ]
-    pub depth_renderbuffer : Option< gl::web_sys::WebGlRenderbuffer >,
-    /// Texture with equirectangular map
-    pub skybox_texture : Option< gl::web_sys::WebGlTexture >,
-  }
-
-  impl FramebufferContext
-  {
-    /// Creates a new `FramebufferContext` instance, initializing all necessary
-    /// WebGL2 framebuffers, renderbuffers, and textures.
-    ///
-    /// This constructor sets up:
-    /// - A multisampled framebuffer with a depth/stencil renderbuffer and two
-    ///   multisampled color renderbuffers (`RGBA16F` format).
-    /// - A resolved framebuffer with two 2D textures (`RGBA16F` format) to store
-    ///   the anti-aliased results.
-    ///
-    /// # Arguments
-    ///
-    /// * `gl` - A reference to the WebGl2RenderingContext.
-    /// * `width` - The desired width of the framebuffers and textures.
-    /// * `height` - The desired height of the framebuffers and textures.
-    /// * `samples` - The number of samples to use for multisample anti-aliasing (e.g., 4, 8).
-    ///
-    /// # Returns
-    ///
-    /// A new `FramebufferContext` instance.
-    pub fn new( gl : &gl::WebGl2RenderingContext, width : u32, height : u32, samples : i32 ) -> Self
-    {
-      // Create the core framebuffer objects.
-      let multisample_framebuffer = gl.create_framebuffer();
-      let resolved_framebuffer = gl.create_framebuffer();
-
-      // --- Setup Depth/Stencil Renderbuffer ---
-      // Create and bind a renderbuffer for depth and stencil information.
-      let multisample_depth_renderbuffer = gl.create_renderbuffer();
-      gl.bind_renderbuffer( gl::RENDERBUFFER, multisample_depth_renderbuffer.as_ref() );
-      // Allocate storage for the depth/stencil renderbuffer with multisampling.
-      gl.renderbuffer_storage_multisample
-      (
-        gl::RENDERBUFFER,
-        samples,
-        gl::DEPTH24_STENCIL8,
-        width as i32,
-        height as i32
-      );
-
-      // --- Setup Multisample Main Color Renderbuffer ---
-      // Create and bind a renderbuffer for the main color attachment,
-      // which will be multisampled.
-      let multisample_main_renderbuffer = gl.create_renderbuffer();
-      gl.bind_renderbuffer( gl::RENDERBUFFER, multisample_main_renderbuffer.as_ref() );
-      // Allocate storage for the main color renderbuffer with multisampling.
-      gl.renderbuffer_storage_multisample
-      (
-        gl::RENDERBUFFER,
-        samples,
-        gl::RGBA16F,
-        width as i32,
-        height as i32
-      );
-
-      // --- Setup Multisample Emission Color Renderbuffer ---
-      // Create and bind a renderbuffer for the emission color attachment,
-      // also multisampled.
-      let multisample_emission_renderbuffer = gl.create_renderbuffer();
-      gl.bind_renderbuffer( gl::RENDERBUFFER, multisample_emission_renderbuffer.as_ref() );
-      // Allocate storage for the emission color renderbuffer with multisampling.
-      gl.renderbuffer_storage_multisample
-      (
-        gl::RENDERBUFFER,
-        samples,
-        gl::RGBA16F,
-        width as i32,
-        height as i32
-      );
-
-      let multisample_transparent_accumulate_renderbuffer = gl.create_renderbuffer();
-      gl.bind_renderbuffer( gl::RENDERBUFFER, multisample_transparent_accumulate_renderbuffer.as_ref() );
-      // Allocate storage for the emission color renderbuffer with multisampling.
-      gl.renderbuffer_storage_multisample
-      (
-        gl::RENDERBUFFER,
-        samples,
-        gl::RGBA16F,
-        width as i32,
-        height as i32
-      );
-
-      let multisample_transparent_revealage_renderbuffer = gl.create_renderbuffer();
-      gl.bind_renderbuffer( gl::RENDERBUFFER, multisample_transparent_revealage_renderbuffer.as_ref() );
-      // Allocate storage for the emission color renderbuffer with multisampling.
-      gl.renderbuffer_storage_multisample
-      (
-        gl::RENDERBUFFER,
-        samples,
-        gl::R16F,
-        width as i32,
-        height as i32
-      );
-
-      gl.bind_renderbuffer( gl::RENDERBUFFER, None );
-
-      // --- Create Resolved Textures ---
-      // These textures will store the final, resolved (non-multisampled)
-      // color information after blitting.
-      let depth_renderbuffer = gl.create_renderbuffer();
-      let main_texture = gl.create_texture();
-      let emission_texture = gl.create_texture();
-      let transparent_accumulate_texture = gl.create_texture();
-      let transparent_revealage_texture = gl.create_texture();
-
-      gl.bind_renderbuffer( gl::RENDERBUFFER, depth_renderbuffer.as_ref() );
-      gl.renderbuffer_storage( gl::RENDERBUFFER, gl::DEPTH24_STENCIL8, width as i32, height as i32 );
-
-      // Configure the main texture.
-      gl.bind_texture( gl::TEXTURE_2D, main_texture.as_ref() );
-      gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::RGBA16F, width as i32, height  as i32 );
-      gl::texture::d2::filter_linear( gl );
-      gl::texture::d2::wrap_clamp( gl );
-
-      // Configure the emission texture.
-      gl.bind_texture( gl::TEXTURE_2D, emission_texture.as_ref() );
-      gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::RGBA16F, width  as i32, height  as i32 );
-      gl::texture::d2::filter_linear( gl );
-      gl::texture::d2::wrap_clamp( gl );
-
-      // Configure the transparent accumulate texture.
-      gl.bind_texture( gl::TEXTURE_2D, transparent_accumulate_texture.as_ref() );
-      gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::RGBA16F, width as i32, height  as i32 );
-      gl::texture::d2::filter_linear( gl );
-      gl::texture::d2::wrap_clamp( gl );
-
-      // Configure the transparent revealage texture.
-      gl.bind_texture( gl::TEXTURE_2D, transparent_revealage_texture.as_ref() );
-      gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::R16F, width  as i32, height  as i32 );
-      gl::texture::d2::filter_linear( gl );
-      gl::texture::d2::wrap_clamp( gl );
-
-
-      // --- Attach Renderbuffers to Multisample Framebuffer ---
-      // Bind the multisample framebuffer to configure its attachments.
-      gl.bind_framebuffer( gl::FRAMEBUFFER, multisample_framebuffer.as_ref() );
-      // Attach the depth/stencil renderbuffer.
-      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::DEPTH_STENCIL_ATTACHMENT, gl::RENDERBUFFER, multisample_depth_renderbuffer.as_ref() );
-      // Attach the main and emission color renderbuffers as color attachments.
-      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::RENDERBUFFER, multisample_main_renderbuffer.as_ref() );
-      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::RENDERBUFFER, multisample_emission_renderbuffer.as_ref() );
-      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT2, gl::RENDERBUFFER, multisample_transparent_accumulate_renderbuffer.as_ref() );
-      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT3, gl::RENDERBUFFER, multisample_transparent_revealage_renderbuffer.as_ref() );
-      // Specify which color attachments are active for drawing.
-      gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] );
-
-      // --- Attach Textures to Resolved Framebuffer ---
-      // Bind the resolved framebuffer to configure its attachments.
-      gl.bind_framebuffer( gl::FRAMEBUFFER, resolved_framebuffer.as_ref() );
-      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::DEPTH_STENCIL_ATTACHMENT, gl::RENDERBUFFER, depth_renderbuffer.as_ref() );
-      // Attach the main and emission textures as color attachments.
-      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, main_texture.as_ref(), 0 );
-      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::TEXTURE_2D, emission_texture.as_ref(), 0 );
-      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT2, gl::TEXTURE_2D, transparent_accumulate_texture.as_ref(), 0 );
-      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT3, gl::TEXTURE_2D, transparent_revealage_texture.as_ref(), 0 );
-      // Specify which color attachments are active for drawing (though for resolved,
-      // these will typically be written to via `blit_framebuffer`).
-      gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] );
-
-      // Unbind all resources to clean up the global WebGL state.
-      gl.bind_texture( gl::TEXTURE_2D, None );
-      gl.bind_renderbuffer( gl::RENDERBUFFER, None );
-      gl.bind_framebuffer( gl::FRAMEBUFFER, None );
-
-      let texture_width = width;
-      let texture_height = height;
-
-      Self
-      {
-        texture_height,
-        texture_width,
-        resolved_framebuffer,
-        multisample_framebuffer,
-        multisample_depth_renderbuffer,
-        multisample_emission_renderbuffer,
-        multisample_main_renderbuffer,
-        multisample_transparent_accumulate_renderbuffer,
-        multisample_transparent_revealage_renderbuffer,
-        depth_renderbuffer,
-        main_texture,
-        emission_texture,
-        transparent_accumulate_texture,
-        transparent_revealage_texture,
-        skybox_texture : None
-      }
-    }
-
-    /// Resolves the multisampled framebuffer into the non-multisampled textures
-    /// of the resolved framebuffer using `gl.blit_framebuffer`.
-    ///
-    /// This operation performs the anti-aliasing process, taking the averaged
-    /// color values from the multisample renderbuffers and writing them into
-    /// the corresponding textures.
-    ///
-    /// # Arguments
-    ///
-    /// * `gl` - A reference to the WebGl2RenderingContext.
-    pub fn resolve( &self, gl : &gl::WebGl2RenderingContext, use_emission : bool, has_transparent : bool )
-    {
-      self.bind_multisample( gl );
-      self.bind_resolved( gl );
-
-      gl.bind_framebuffer( gl::READ_FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
-      gl.bind_framebuffer( gl::DRAW_FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
-
-      gl.clear_bufferfi( gl::DEPTH_STENCIL, 0, 1.0, 0 );
-      gl.blit_framebuffer
-      (
-        0, 0, self.texture_width as i32, self.texture_height as i32,
-        0, 0, self.texture_width as i32, self.texture_height as i32,
-        gl::DEPTH_BUFFER_BIT | gl::STENCIL_BUFFER_BIT,
-        gl::NEAREST
-      );
-
-      gl.read_buffer( gl::COLOR_ATTACHMENT0 );
-      gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
-      gl.blit_framebuffer
-      (
-        0, 0, self.texture_width as i32, self.texture_height as i32,
-        0, 0, self.texture_width as i32, self.texture_height as i32,
-        gl::COLOR_BUFFER_BIT,
-        gl::LINEAR
-      );
-
-      if use_emission
-      {
-        gl.read_buffer( gl::COLOR_ATTACHMENT1 );
-        gl::drawbuffers::drawbuffers( gl, &[ 1 ] );
-        gl.blit_framebuffer
-        (
-          0, 0, self.texture_width as i32, self.texture_height as i32,
-          0, 0, self.texture_width as i32, self.texture_height as i32,
-          gl::COLOR_BUFFER_BIT,
-          gl::LINEAR
-        );
-      }
-
-      if has_transparent
-      {
-        gl.read_buffer( gl::COLOR_ATTACHMENT2 );
-        gl::drawbuffers::drawbuffers( gl, &[ 2 ] );
-        gl.blit_framebuffer
-        (
-          0, 0, self.texture_width as i32, self.texture_height as i32,
-          0, 0, self.texture_width as i32, self.texture_height as i32,
-          gl::COLOR_BUFFER_BIT, gl::LINEAR
-        );
-
-        gl.read_buffer( gl::COLOR_ATTACHMENT3 );
-        gl::drawbuffers::drawbuffers( gl, &[ 3 ] );
-        gl.blit_framebuffer
-        (
-          0, 0, self.texture_width as i32, self.texture_height as i32,
-          0, 0, self.texture_width as i32, self.texture_height as i32,
-          gl::COLOR_BUFFER_BIT, gl::LINEAR
-        );
-      }
-
-      gl.bind_framebuffer( gl::READ_FRAMEBUFFER, None );
-      gl.bind_framebuffer( gl::DRAW_FRAMEBUFFER, None );
-      self.unbind_multisample( gl );
-      self.unbind_resolved( gl );
-    }
-
-    /// Binds the `multisample_framebuffer` and attaches its renderbuffers.
-    ///
-    /// This function should be called before rendering operations that require
-    /// multisampling. It ensures that subsequent drawing commands write to
-    /// the multisampled color and depth renderbuffers.
-    ///
-    /// # Arguments
-    ///
-    /// * `gl` - A reference to the WebGl2RenderingContext.
-    pub fn bind_multisample( &self, gl : &gl::WebGl2RenderingContext )
-    {
-      gl.viewport( 0, 0, self.texture_width as i32, self.texture_height as i32 );
-      gl.bind_framebuffer( gl::FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
-    }
-
-    /// Binds the `resolved_framebuffer` and attaches its textures.
-    ///
-    /// This function should be called when you want to render directly into
-    /// the resolved textures (e.g., for post-processing that doesn't require
-    /// multisampling, or after a `resolve` operation).
-    ///
-    /// # Arguments
-    ///
-    /// * `gl` - A reference to the WebGl2RenderingContext.
-    pub fn bind_resolved( &self, gl : &gl::WebGl2RenderingContext )
-    {
-      gl.viewport( 0, 0, self.texture_width as i32, self.texture_height as i32 );
-      gl.bind_framebuffer( gl::FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
-    }
-
-    /// Unbinds the color renderbuffers from the `multisample_framebuffer`
-    /// and then unbinds the framebuffer itself.
-    ///
-    /// This function is useful for resetting the framebuffer state after
-    /// rendering to the multisample target, preventing accidental draws to it.
-    ///
-    /// # Arguments
-    ///
-    /// * `gl` - A reference to the WebGl2RenderingContext.
-    pub fn unbind_multisample( &self, gl : &gl::WebGl2RenderingContext )
-    {
-      // gl.bind_framebuffer( gl::FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
-      // gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::RENDERBUFFER, None );
-      // gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::RENDERBUFFER, None );
-      gl.bind_framebuffer( gl::FRAMEBUFFER, None );
-    }
-
-    /// Unbinds the color textures from the `resolved_framebuffer` and then
-    /// unbinds the framebuffer itself.
-    ///
-    /// This function is useful for resetting the framebuffer state after
-    /// operations that write to the resolved textures, allowing them to be
-    /// used as input textures in subsequent rendering passes.
-    ///
-    /// # Arguments
-    ///
-    /// * `gl` - A reference to the WebGl2RenderingContext.
-    pub fn unbind_resolved( &self, gl : &gl::WebGl2RenderingContext )
-    {
-      //  gl.bind_framebuffer( gl::FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
-      // gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, None, 0 );
-      // gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::TEXTURE_2D, None, 0 );
-      gl.bind_framebuffer( gl::FRAMEBUFFER, None );
-    }
-
-    /// Free [`FramebufferContext`] WebGL resources
-    pub fn free_gl_resources( &mut self, gl : &GL )
-    {
-      gl.delete_framebuffer( self.resolved_framebuffer.as_ref() );
-      gl.delete_framebuffer( self.multisample_framebuffer.as_ref() );
-      gl.delete_renderbuffer( self.multisample_depth_renderbuffer.as_ref() );
-      gl.delete_renderbuffer( self.multisample_emission_renderbuffer.as_ref() );
-      gl.delete_renderbuffer( self.multisample_main_renderbuffer.as_ref() );
-      gl.delete_renderbuffer( self.multisample_transparent_accumulate_renderbuffer.as_ref() );
-      gl.delete_renderbuffer( self.multisample_transparent_revealage_renderbuffer.as_ref() );
-      gl.delete_renderbuffer( self.depth_renderbuffer.as_ref() );
-      gl.delete_texture( self.main_texture.as_ref() );
-      gl.delete_texture( self.emission_texture.as_ref() );
-      gl.delete_texture( self.transparent_accumulate_texture.as_ref() );
-      gl.delete_texture( self.transparent_revealage_texture.as_ref() );
-      gl.delete_texture( self.skybox_texture.as_ref() );
-    }
-  }
-
+  /// A transparent-pass draw-queue entry :
+  /// ( node, primitive, primitive index, program UUID ).
+  type TransparentNodeEntry = ( Rc< RefCell< Node > >, Rc< RefCell< Primitive > >, usize, uuid::Uuid );
+  /// An opaque-pass draw-queue entry :
+  /// ( node, primitive, primitive index, program UUID, has emission ).
+  type OpaqueNodeEntry = ( Rc< RefCell< Node > >, Rc< RefCell< Primitive > >, usize, uuid::Uuid, bool );
 
   /// Manages the rendering process, including program management, IBL setup, and drawing objects in the scene.
   pub struct Renderer
@@ -444,12 +55,15 @@ mod private
     shader_source_registry : FxHashMap< ( std::any::TypeId, String ), uuid::Uuid >,
     /// Program UUID → compiled ShaderProgram
     compiled_programs : FxHashMap< uuid::Uuid, Box< dyn ShaderProgram > >,
-    /// Material UUID → program UUID
-    material_program_map : FxHashMap< uuid::Uuid, uuid::Uuid >,
+    /// Material UUID → ( program UUID, `use_ibl` the program was compiled with ).
+    /// The `bool` lets a cached mapping be invalidated when the renderer's IBL
+    /// availability changes after the material was first registered — see
+    /// `program_needs_recompile`.
+    material_program_map : FxHashMap< uuid::Uuid, ( uuid::Uuid, bool ) >,
     /// (node, primitive, primitive_index, program_uuid)
-    transparent_nodes : Vec< ( Rc< RefCell< Node > >, Rc< RefCell< Primitive > >, usize, uuid::Uuid ) >,
+    transparent_nodes : Vec< TransparentNodeEntry >,
     /// (node, primitive, primitive_index, program_uuid, has_emission)
-    opaque_nodes : Vec< ( Rc< RefCell< Node > >, Rc< RefCell< Primitive > >, usize, uuid::Uuid, bool ) >,
+    opaque_nodes : Vec< OpaqueNodeEntry >,
 
     /// Holds the precomputed textures used for Image-Based Lighting.
     ibl : Option< IBL >,
@@ -471,12 +85,29 @@ mod private
     /// Clear color
     clear_color : F32x3,
     /// Shader for drawing background
-    skybox_shader : SkyboxShader
+    skybox_shader : SkyboxShader,
+    /// Equirectangular background texture. Kept outside `framebuffer_ctx` so it
+    /// survives `resize()`; released only through `Texture`'s own ownership (an
+    /// owning texture is deleted once its last clone, this one included, drops).
+    skybox : Option< Texture >,
+    /// Whether the resolved transparent accumulation texture may hold anything but
+    /// revealage 1 : it starts zeroed, and a transparent frame leaves its coverage
+    /// behind. The next frame without transparent primitives resets it, so that
+    /// `transparent_coverage_texture` never reports a previous frame's glass.
+    transparent_coverage_dirty : bool,
   }
 
   impl Renderer
   {
     /// Creates a new `Renderer` instance with default settings.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if framebuffer setup or the composite/skybox program compilation fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the composite shader misses its `transparentA`/`transparentB` uniforms.
     pub fn new( gl : &gl::WebGl2RenderingContext, width : u32, height : u32, samples : i32 ) -> Result< Self, gl::WebglError >
     {
       let framebuffer_ctx = FramebufferContext::new( gl, width, height, samples );
@@ -485,7 +116,7 @@ mod private
       let mut blend_effect = BlendPass::new( gl )?;
       blend_effect.dst_factor = gl::ONE;
       blend_effect.src_factor = gl::ONE;
-      blend_effect.blend_texture = framebuffer_ctx.main_texture.clone();
+      blend_effect.blend_texture.clone_from( &framebuffer_ctx.main_texture );
       let exposure = 0.0;
 
       let composite_program = gl::ProgramFromSources::new( VS_TRIANGLE, include_str!( "shaders/composite.frag" ) ).compile_and_link( gl )?;
@@ -521,34 +152,61 @@ mod private
           exposure,
           composite_shader,
           clear_color : F32x3::splat( 0.0 ),
-          skybox_shader
+          skybox_shader,
+          skybox : None,
+          transparent_coverage_dirty : true,
         }
       )
     }
 
-    /// Resize [`Renderer`]
-    pub fn resize( &mut self, gl : &gl::GL, width : u32, height : u32, samples : i32 ) -> Result< (), gl::WebglError >
+    /// Frees the GL resources that `resize()` is about to recreate : the framebuffer
+    /// context and the optional bloom/swap post-processing passes. Factored out so
+    /// `resize()` and [`Renderer::gl_resources_free`] share one list of fields instead
+    /// of two copies that could silently drift apart as fields are added.
+    fn resizable_resources_free( &mut self, gl : &GL )
     {
-      self.framebuffer_ctx.free_gl_resources( gl );
+      self.framebuffer_ctx.gl_resources_free( gl );
       if let Some( ref mut bloom ) = self.bloom_effect
       {
-        bloom.free_gl_resources( gl );
+        bloom.gl_resources_free( gl );
       }
       if let Some( ref mut swap ) = self.swap_buffer
       {
-        swap.free_gl_resources( gl );
+        swap.gl_resources_free( gl );
       }
+    }
+
+    /// Resize [`Renderer`]
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if recreating the framebuffers at the new size fails.
+    pub fn resize( &mut self, gl : &gl::GL, width : u32, height : u32, samples : i32 ) -> Result< (), gl::WebglError >
+    {
+      self.resizable_resources_free( gl );
+
+      // Fix(BUG-435): `bloom_effect`/`swap_buffer` are cleared to `None` unconditionally,
+      // *before* the fallible `UnrealBloomPass::new(...)?` below runs, rather than only in
+      // the `else` ( `!use_emission` ) branch.
+      // Root cause: the previous code only assigned `self.bloom_effect`/`self.swap_buffer`
+      // fresh values inside the `if self.use_emission` / `else` branches. When
+      // `use_emission` was true and `UnrealBloomPass::new` returned `Err`, the `?` early-
+      // returned from `resize` *before* either assignment ran — but `resizable_resources_free`
+      // above had already deleted both structs' underlying GL textures/programs. `self`
+      // was left holding `Some( .. )` values whose handles were already GPU-deleted, which
+      // `render()`'s `composite()` step would then bind/draw with on the next frame.
+      // Pitfall: freeing a resource and clearing the handle that refers to it must happen
+      // atomically from the caller's point of view — never split across a fallible
+      // recreation step, or an error path can leave a dangling handle mistaken for a live one.
+      self.bloom_effect = None;
+      self.swap_buffer = None;
 
       self.framebuffer_ctx = FramebufferContext::new( gl, width, height, samples );
+      self.transparent_coverage_dirty = true;
       if self.use_emission
       {
         self.bloom_effect = Some( UnrealBloomPass::new( gl, width, height, gl::RGBA16F )? );
         self.swap_buffer = Some( SwapFramebuffer::new( gl, width, height ) );
-      }
-      else
-      {
-        self.bloom_effect = None;
-        self.swap_buffer = None;
       }
       Ok( () )
     }
@@ -556,13 +214,13 @@ mod private
     /// Sets the Image-Based Lighting (IBL) textures to be used for rendering.
     ///
     /// * `ibl`: The `IBL` struct containing the diffuse and specular environment maps and the BRDF integration texture.
-    pub fn set_ibl( &mut self, ibl : IBL )
+    pub fn ibl_set( &mut self, ibl : IBL )
     {
       self.ibl = Some( ibl );
     }
 
     /// Sets whether the renderer should use the emission texture for post-processing effects.
-    pub fn set_use_emission( &mut self, gl : &gl::WebGl2RenderingContext, use_emission : bool )
+    pub fn use_emission_set( &mut self, gl : &gl::WebGl2RenderingContext, use_emission : bool )
     {
       self.use_emission = use_emission;
       if use_emission && self.bloom_effect.is_none()
@@ -575,25 +233,37 @@ mod private
     }
 
     /// Sets clear color
-    pub fn set_clear_color( &mut self, color : F32x3 )
+    pub fn clear_color_set( &mut self, color : F32x3 )
     {
       self.clear_color = color;
     }
 
     /// Returns the current exposure value.
+    #[ must_use ]
     pub fn exposure( &self ) -> f32
     {
       self.exposure
     }
 
-    /// Sets the skybox cube map texture.
-    pub fn set_skybox( &mut self, texture : Option< WebGlTexture > )
+    /// Sets the skybox: an equirectangular map, bound and sampled as a 2D texture.
+    ///
+    /// The renderer keeps `texture` (a clone of a `Texture` shares its GPU owner),
+    /// so an owning texture such as [`Texture::load_from_path`]'s stays alive for as
+    /// long as it is the skybox, across `resize()`, and is released when it is
+    /// replaced, cleared with `None`, freed by [`Renderer::gl_resources_free`] or
+    /// dropped with the renderer, unless the caller still holds a clone. The renderer
+    /// never deletes the GPU texture itself; a non-owning view stays its creator's.
+    ///
+    /// The skybox is always bound to `TEXTURE_2D` and drawn with the GL texture's own
+    /// parameters: `texture`'s `target` and `sampler` are not applied. A `texture`
+    /// with no `source` draws no skybox, the same as `None`.
+    pub fn skybox_set( &mut self, texture : Option< Texture > )
     {
-      self.framebuffer_ctx.skybox_texture = texture;
+      self.skybox = texture;
     }
 
     /// Sets a new exposure value.
-    pub fn set_exposure( &mut self, exposure : f32 )
+    pub fn exposure_set( &mut self, exposure : f32 )
     {
       self.exposure = exposure;
     }
@@ -602,46 +272,64 @@ mod private
     ///
     /// This determines how far the light "bleeds" from bright areas. A larger radius
     /// results in a more expansive and softer glow.
-    pub fn set_bloom_radius( &mut self, radius : f32 )
+    pub fn bloom_radius_set( &mut self, radius : f32 )
     {
       if let Some( ref mut bloom ) = self.bloom_effect
       {
-        bloom.set_bloom_radius( radius );
+        bloom.bloom_radius_set( radius );
       }
     }
 
     /// Gets the radius of the bloom effect.
     pub fn bloom_radius( &self ) -> f32
     {
-      self.bloom_effect.as_ref().map_or( 0.5, | b | b.bloom_radius() )
+      self.bloom_effect.as_ref().map_or( 0.5, crate::webgl::post_processing::UnrealBloomPass::bloom_radius )
     }
 
     /// Sets the strength (intensity) of the bloom effect.
     ///
     /// This controls how bright or prominent the glow appears. A higher strength
     /// makes the bloom more visible.
-    pub fn set_bloom_strength( &mut self, strength : f32  )
+    pub fn bloom_strength_set( &mut self, strength : f32  )
     {
       if let Some( ref mut bloom ) = self.bloom_effect
       {
-        bloom.set_bloom_strength( strength );
+        bloom.bloom_strength_set( strength );
       }
     }
 
     /// Gets the strength (intensity) of the bloom effect.
     pub fn bloom_strength( &self ) -> f32
     {
-      self.bloom_effect.as_ref().map_or( 1.5, | b | b.bloom_strength() )
+      self.bloom_effect.as_ref().map_or( 1.5, crate::webgl::post_processing::UnrealBloomPass::bloom_strength )
     }
 
     /// Retrieves a clone of the main color texture from the internal framebuffer context.
+    #[ must_use ]
     pub fn main_texture( &self ) -> Option< gl::web_sys::WebGlTexture >
     {
       self.framebuffer_ctx.main_texture.clone()
     }
 
+    /// The texture that marks which pixels of the last `render` hold transparent coverage,
+    /// for `ToneMappingPass::transparent_coverage_texture_set`.
+    ///
+    /// It is the WBOIT accumulation target: its alpha is the revealage, the product of
+    /// `1 - alpha` over the transparent layers, so exactly 1 where none covers the pixel,
+    /// and 1 everywhere after a frame without transparent primitives. The handle stays the
+    /// same from frame to frame; `resize` replaces it.
+    #[ must_use ]
+    pub fn transparent_coverage_texture( &self ) -> Option< gl::web_sys::WebGlTexture >
+    {
+      self.framebuffer_ctx.transparent_accumulate_texture.clone()
+    }
+
     /// Draw equirectangular skybox
-    pub fn draw_skybox
+    ///
+    /// # Panics
+    ///
+    /// Panics if a skybox uniform is absent or a camera matrix is not invertible.
+    pub fn skybox_draw
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
@@ -657,10 +345,10 @@ mod private
       let inv_view_loc = locations.get( "invView" ).unwrap();
 
       gl.active_texture( gl::TEXTURE0 );
-      gl.bind_texture( gl::TEXTURE_2D, self.framebuffer_ctx.skybox_texture.as_ref() );
+      gl.bind_texture( gl::TEXTURE_2D, self.skybox.as_ref().and_then( | t | t.source.as_ref() ) );
       gl.uniform1i( equirect_map_loc.as_ref(), 0_i32 );
-      gl::uniform::matrix_upload( gl, inv_projection_loc.clone(), &camera.get_projection_matrix().inverse().unwrap().to_array(), true ).unwrap();
-      gl::uniform::matrix_upload( gl, inv_view_loc.clone(), &camera.get_view_matrix().inverse().unwrap().to_array(), true ).unwrap();
+      gl::uniform::matrix_upload( gl, inv_projection_loc.clone(), &camera.projection_matrix_get().inverse().unwrap().to_array(), true ).unwrap();
+      gl::uniform::matrix_upload( gl, inv_view_loc.clone(), &camera.view_matrix_get().inverse().unwrap().to_array(), true ).unwrap();
 
       gl.disable( gl::CULL_FACE );
       gl.enable( gl::DEPTH_TEST );
@@ -678,6 +366,15 @@ mod private
     /// * `gl`: The `WebGl2RenderingContext` to use for rendering.
     /// * `scene`: A mutable reference to the `Scene` to be rendered.
     /// * `camera`: A reference to the `Camera` defining the viewpoint.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if a pass, upload, or draw in the frame sequence fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a material requests IBL but the shader misses the IBL uniforms
+    /// ( see `Material::ibl_base_texture_unit` ).
     pub fn render
     (
       &mut self,
@@ -686,138 +383,13 @@ mod private
       camera : &Camera
     ) -> Result< (), gl::WebglError >
     {
-      scene.update_world_matrix();
+      scene.world_matrix_update();
 
       gl.disable( gl::BLEND );
 
-      // Collect nodes before clearing so we know which attachments are needed
-      self.transparent_nodes.clear();
-      self.opaque_nodes.clear();
-      let mut lights = FxHashMap::< LightType, Vec< Light > >::default();
-
-      let mut collect_nodes = | node : Rc< RefCell< Node > > | -> Result< (), gl::WebglError >
-      {
-        if !node.borrow().is_visible()
-        {
-          return Ok( () );
-        }
-
-        if let Object3D::Light( light ) = &node.borrow().object
-        {
-          let type_ : LightType = light.into();
-          lights.entry( type_ ).or_default().push( light.clone() );
-        }
-
-        let Object3D::Mesh( ref mesh ) = node.borrow().object else { return Ok( () ); };
-
-        let mesh = mesh.borrow();
-        for ( i, primitive_rc ) in mesh.primitives.iter().enumerate()
-        {
-          let primitive = primitive_rc.borrow();
-          let material = primitive.material.borrow();
-
-          let material_id = material.id();
-          let use_ibl = self.ibl.is_some() && material.ibl_base_texture_unit().is_some();
-
-          // If material's defines changed, drop the old mapping and clean up orphaned programs
-          if material.needs_recompile()
-          {
-            if let Some( old_prog_id ) = self.material_program_map.remove( &material_id )
-            {
-              // Check if any other material still references this program
-              let still_used = self.material_program_map.values().any( | id | *id == old_prog_id );
-              if !still_used
-              {
-                self.compiled_programs.remove( &old_prog_id );
-                self.shader_source_registry.retain( | _, id | *id != old_prog_id );
-              }
-            }
-          }
-
-          let program_uuid = if let Some( &prog_id ) = self.material_program_map.get( &material_id )
-          {
-            prog_id
-          }
-          else
-          {
-            // Build cache key from TypeId + defines (materials of the same concrete type
-            // with the same defines always produce identical shader source).
-            // ibl_define is included in the cache key because it changes the fragment shader,
-            // but intentionally omitted from the vertex shader — IBL is fragment-only.
-            let defines = material.defines_str();
-            let ibl_define = if use_ibl { "#define USE_IBL\n" } else { "" };
-            let full_defines = format!( "{}{}", defines, ibl_define );
-            let cache_key = ( ( **material ).type_id(), full_defines.clone() );
-
-            let prog_id = if let Some( &existing_id ) = self.shader_source_registry.get( &cache_key )
-            {
-              existing_id
-            }
-            else
-            {
-              // Fix: use per-stage defines rather than the combined defines_str() for both stages.
-              // Root cause: using defines_str() (which concatenates vertex + fragment defines) for both
-              //   shader stages caused fragment-only defines to appear in the vertex shader and vice versa.
-              // Pitfall: defines_str() remains correct as the cache key (it covers all variants) — only
-              //   the per-stage compilation calls must use the stage-specific accessors.
-              let vs_src = format!( "#version 300 es\n{}\n{}", material.vertex_defines_str(), material.vertex_shader() );
-              let fs_src = format!( "#version 300 es\n{}\n{}\n{}", material.fragment_defines_str(), ibl_define, material.fragment_shader() );
-              let program = gl::ProgramFromSources::new( &vs_src, &fs_src ).compile_and_link( gl )?;
-              let shader_program = material.make_shader_program( gl, &program );
-              let new_id = uuid::Uuid::new_v4();
-
-              // Configure texture unit assignments once
-              let node_ref = node.borrow();
-              shader_program.bind( gl );
-              let material_upload_context = MaterialUploadContext
-              {
-                node : &node_ref,
-                primitive_id : Some( i ),
-                locations : shader_program.locations()
-              };
-              material.configure( gl, &material_upload_context );
-
-              // Set IBL uniforms once
-              if let Some( ref ibl ) = self.ibl
-              {
-                if let Some( ibl_base_texture_unit ) = material.ibl_base_texture_unit()
-                {
-                  let locations = shader_program.locations();
-
-                  ibl.bind( gl, ibl_base_texture_unit );
-                  gl.uniform1i( locations.get( "irradianceTexture" ).expect( "IBL contract violated: material returned Some(ibl_base_texture_unit) but shader is missing 'irradianceTexture' uniform — see Material::ibl_base_texture_unit() docs in material/mod.rs" ).clone().as_ref(), ibl_base_texture_unit as i32 );
-                  gl.uniform1i( locations.get( "prefilterEnvMap" ).expect( "IBL contract violated: material returned Some(ibl_base_texture_unit) but shader is missing 'prefilterEnvMap' uniform — see Material::ibl_base_texture_unit() docs in material/mod.rs" ).clone().as_ref(), ibl_base_texture_unit as i32 + 1 );
-                  gl.uniform1i( locations.get( "integrateBRDF" ).expect( "IBL contract violated: material returned Some(ibl_base_texture_unit) but shader is missing 'integrateBRDF' uniform — see Material::ibl_base_texture_unit() docs in material/mod.rs" ).clone().as_ref(), ibl_base_texture_unit as i32 + 2 );
-                  if let Some( loc ) = locations.get( "u_max_lod" )
-                  {
-                    gl.uniform1f( loc.clone().as_ref(), ( ibl.num_mips.saturating_sub( 1 ) ) as f32 );
-                  }
-                }
-              }
-
-              self.shader_source_registry.insert( cache_key, new_id );
-              self.compiled_programs.insert( new_id, shader_program );
-              new_id
-            };
-
-            self.material_program_map.insert( material_id, prog_id );
-            material.clear_recompile_flag();
-            prog_id
-          };
-
-          // Separate transparent objects for later rendering.
-          match material.alpha_mode()
-          {
-            AlphaMode::Blend
-            => self.transparent_nodes.push( ( node.clone(), primitive_rc.clone(), i, program_uuid ) ),
-            _ => self.opaque_nodes.push( ( node.clone(), primitive_rc.clone(), i, program_uuid, material.has_emission() ) ),
-          }
-        }
-
-        Ok( () )
-      };
-
-      scene.traverse( &mut collect_nodes )?;
+      // Phase 1 : collect visible lights and primitives before clearing, so we know
+      // which attachments are needed.
+      let lights = self.nodes_collect( gl, scene )?;
 
       let has_transparent = !self.transparent_nodes.is_empty();
       let has_emissive = self.use_emission;
@@ -826,24 +398,9 @@ mod private
       // `drawbuffers` call below (multisample FBO) and re-selected per blit in `resolve`
       // (resolved FBO). Calling `enable/disable_emission_texture` here would only set
       // drawbuffers state that is immediately overwritten before any draw uses it.
-      self.framebuffer_ctx.bind_multisample( gl );
+      self.framebuffer_ctx.multisample_bind( gl );
 
-      if has_transparent && has_emissive
-      {
-        gl::drawbuffers::drawbuffers( gl, &[ 0, 1, 2, 3 ] );
-      }
-      else if has_transparent
-      {
-        gl::drawbuffers::drawbuffers( gl, &[ 0, 2, 3 ] );
-      }
-      else if has_emissive
-      {
-        gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] );
-      }
-      else
-      {
-        gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
-      }
+      gl::drawbuffers::drawbuffers( gl, frame_attachments( has_transparent, has_emissive ) );
 
       let [ r, g, b ] = self.clear_color.0;
       // Alpha = 0 marks background pixels; geometry overwrites it with 1. The tone
@@ -862,19 +419,186 @@ mod private
       gl.clear_stencil( 0 );
       gl.clear( gl::DEPTH_BUFFER_BIT | gl::STENCIL_BUFFER_BIT );
 
-      self.upload_per_program_uniforms( gl, camera, &lights )?;
-      self.draw_opaque( gl, camera )?;
+      self.per_program_uniforms_upload( gl, camera, &lights )?;
+      self.opaque_draw( gl, camera )?;
       if !self.transparent_nodes.is_empty()
       {
-        self.draw_transparent( gl )?;
+        self.transparent_draw( gl )?;
       }
       self.composite( gl )?;
 
       Ok( () )
     }
 
+    /// Phase 1: Collects visible lights and mesh primitives, resolving each primitive's
+    /// shader program and splitting the primitives into the opaque and transparent queues.
+    fn nodes_collect
+    (
+      &mut self,
+      gl : &gl::WebGl2RenderingContext,
+      scene : &mut Scene
+    ) -> Result< FxHashMap< LightType, Vec< Light > >, gl::WebglError >
+    {
+      self.transparent_nodes.clear();
+      self.opaque_nodes.clear();
+      let mut lights = FxHashMap::< LightType, Vec< Light > >::default();
+
+      let mut collect_nodes = | node : Rc< RefCell< Node > > | -> Result< (), gl::WebglError >
+      {
+        if !node.borrow().is_visible()
+        {
+          return Ok( () );
+        }
+
+        if let Object3D::Light( light ) = &node.borrow().object
+        {
+          let type_ : LightType = light.into();
+          lights.entry( type_ ).or_default().push( *light );
+        }
+
+        let Object3D::Mesh( ref mesh ) = node.borrow().object else { return Ok( () ); };
+
+        let mesh = mesh.borrow();
+        for ( i, primitive_rc ) in mesh.primitives.iter().enumerate()
+        {
+          self.primitive_register( gl, &node, i, primitive_rc )?;
+        }
+
+        Ok( () )
+      };
+
+      scene.traverse( &mut collect_nodes )?;
+
+      Ok( lights )
+    }
+
+    /// Registers one mesh primitive for this frame : resolves its shader program — compiling
+    /// and configuring it on first use — then queues the primitive for the opaque or
+    /// transparent pass.
+    fn primitive_register
+    (
+      &mut self,
+      gl : &gl::WebGl2RenderingContext,
+      node : &Rc< RefCell< Node > >,
+      primitive_index : usize,
+      primitive_rc : &Rc< RefCell< Primitive > >
+    ) -> Result< (), gl::WebglError >
+    {
+      let primitive = primitive_rc.borrow();
+      let material = primitive.material.borrow();
+
+      let material_id = material.id();
+      let use_ibl = self.ibl.is_some() && material.ibl_base_texture_unit().is_some();
+      let cached_use_ibl = self.material_program_map.get( &material_id ).map( | &( _, cached ) | cached );
+
+      // Fix(BUG-258): also invalidate the cached mapping when the program's baked-in IBL
+      // state no longer matches the freshly computed `use_ibl` — previously only
+      // `material.needs_recompile()` (a material-intrinsic "my own defines changed" flag)
+      // could trigger a recompile, so a material registered before `Renderer::ibl_set` was
+      // ever called ( or before it went from `Some` back to being replaced ) kept reusing its
+      // stale program forever, even after IBL availability changed.
+      // Root cause: `material_program_map` short-circuited on `material_id` alone once a
+      // mapping existed; `use_ibl` was only ever consulted on a cache miss, never compared
+      // against the IBL state the cached program was actually compiled with.
+      // Pitfall: any renderer-level (not material-level) input baked into a shader's defines
+      // must be part of the cache invalidation check, not just the material's own dirty flag.
+      if program_needs_recompile( material.needs_recompile(), cached_use_ibl, use_ibl )
+      {
+        if let Some( ( old_prog_id, _ ) ) = self.material_program_map.remove( &material_id )
+        {
+          // Check if any other material still references this program
+          let still_used = self.material_program_map.values().any( | &( id, _ ) | id == old_prog_id );
+          if !still_used
+          {
+            self.compiled_programs.remove( &old_prog_id );
+            self.shader_source_registry.retain( | _, id | *id != old_prog_id );
+          }
+        }
+      }
+
+      let program_uuid = if let Some( &( prog_id, _ ) ) = self.material_program_map.get( &material_id )
+      {
+        prog_id
+      }
+      else
+      {
+        // Build cache key from TypeId + defines (materials of the same concrete type
+        // with the same defines always produce identical shader source).
+        // ibl_define is included in the cache key because it changes the fragment shader,
+        // but intentionally omitted from the vertex shader — IBL is fragment-only.
+        let defines = material.defines_str();
+        let ibl_define = if use_ibl { "#define USE_IBL\n" } else { "" };
+        let full_defines = format!( "{defines}{ibl_define}" );
+        let cache_key = ( ( **material ).type_id(), full_defines.clone() );
+
+        let prog_id = if let Some( &existing_id ) = self.shader_source_registry.get( &cache_key )
+        {
+          existing_id
+        }
+        else
+        {
+          // Fix: use per-stage defines rather than the combined defines_str() for both stages.
+          // Root cause: using defines_str() (which concatenates vertex + fragment defines) for both
+          //   shader stages caused fragment-only defines to appear in the vertex shader and vice versa.
+          // Pitfall: defines_str() remains correct as the cache key (it covers all variants) — only
+          //   the per-stage compilation calls must use the stage-specific accessors.
+          let ( vs_src, fs_src ) = crate::webgl::material::shader_sources( &**material, use_ibl );
+          let program = gl::ProgramFromSources::new( &vs_src, &fs_src ).compile_and_link( gl )?;
+          let shader_program = material.shader_program_make( gl, &program );
+          let new_id = uuid::Uuid::new_v4();
+
+          // Configure texture unit assignments once
+          let node_ref = node.borrow();
+          shader_program.bind( gl );
+          let material_upload_context = MaterialUploadContext
+          {
+            node : &node_ref,
+            primitive_id : Some( primitive_index ),
+            locations : shader_program.locations()
+          };
+          material.configure( gl, &material_upload_context );
+
+          // Set IBL uniforms once
+          if let Some( ref ibl ) = self.ibl
+          {
+            if let Some( ibl_base_texture_unit ) = material.ibl_base_texture_unit()
+            {
+              let locations = shader_program.locations();
+
+              ibl.bind( gl, ibl_base_texture_unit );
+              gl.uniform1i( locations.get( "irradianceTexture" ).expect( "IBL contract violated: material returned Some(ibl_base_texture_unit) but shader is missing 'irradianceTexture' uniform — see Material::ibl_base_texture_unit() docs in material/mod.rs" ).clone().as_ref(), ibl_base_texture_unit as i32 );
+              gl.uniform1i( locations.get( "prefilterEnvMap" ).expect( "IBL contract violated: material returned Some(ibl_base_texture_unit) but shader is missing 'prefilterEnvMap' uniform — see Material::ibl_base_texture_unit() docs in material/mod.rs" ).clone().as_ref(), ibl_base_texture_unit as i32 + 1 );
+              gl.uniform1i( locations.get( "integrateBRDF" ).expect( "IBL contract violated: material returned Some(ibl_base_texture_unit) but shader is missing 'integrateBRDF' uniform — see Material::ibl_base_texture_unit() docs in material/mod.rs" ).clone().as_ref(), ibl_base_texture_unit as i32 + 2 );
+              if let Some( loc ) = locations.get( "u_max_lod" )
+              {
+                gl.uniform1f( loc.clone().as_ref(), ( ibl.num_mips.saturating_sub( 1 ) ) as f32 );
+              }
+            }
+          }
+
+          self.shader_source_registry.insert( cache_key, new_id );
+          self.compiled_programs.insert( new_id, shader_program );
+          new_id
+        };
+
+        self.material_program_map.insert( material_id, ( prog_id, use_ibl ) );
+        material.recompile_flag_clear();
+        prog_id
+      };
+
+      // Separate transparent objects for later rendering.
+      match material.alpha_mode()
+      {
+        AlphaMode::Blend
+        => self.transparent_nodes.push( ( node.clone(), primitive_rc.clone(), primitive_index, program_uuid ) ),
+        _ => self.opaque_nodes.push( ( node.clone(), primitive_rc.clone(), primitive_index, program_uuid, material.has_emission() ) ),
+      }
+
+      Ok( () )
+    }
+
     /// Phase 2: Uploads camera, lights, and exposure uniforms to each active program.
-    fn upload_per_program_uniforms
+    fn per_program_uniforms_upload
     (
       &mut self,
       gl : &GL,
@@ -883,11 +607,11 @@ mod private
     ) -> Result< (), gl::WebglError >
     {
       let mut active_program_ids : FxHashSet< uuid::Uuid > = FxHashSet::default();
-      for ( _, _, _, pid, _ ) in self.opaque_nodes.iter()
+      for ( _, _, _, pid, _ ) in &self.opaque_nodes
       {
         active_program_ids.insert( *pid );
       }
-      for ( _, _, _, pid ) in self.transparent_nodes.iter()
+      for ( _, _, _, pid ) in &self.transparent_nodes
       {
         active_program_ids.insert( *pid );
       }
@@ -898,7 +622,7 @@ mod private
         {
           program.bind( gl );
           camera.upload( gl, program.locations() );
-          bind_lights( gl, &mut **program, lights );
+          lights_bind( gl, &mut **program, lights );
           if let Some( exposure_loc ) = program.locations().get( "exposure" )
           {
             gl::uniform::upload( gl, exposure_loc.clone(), &self.exposure )?;
@@ -910,7 +634,7 @@ mod private
     }
 
     /// Phase 3a: Draws opaque primitives sorted by program, with per-material depth/face state.
-    fn draw_opaque
+    fn opaque_draw
     (
       &mut self,
       gl : &GL,
@@ -924,7 +648,7 @@ mod private
       let mut current_emission = false;
       gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
 
-      for ( node_rc, primitive_rc, prim_idx, program_id, has_em ) in self.opaque_nodes.iter()
+      for ( node_rc, primitive_rc, prim_idx, program_id, has_em ) in &self.opaque_nodes
       {
         let need_emission = self.use_emission && *has_em;
         if need_emission != current_emission
@@ -945,7 +669,7 @@ mod private
         let material = primitive.material.borrow();
         let Some( shader_program ) = self.compiled_programs.get( program_id ) else
         {
-          gl::warn!( "compiled_programs missing {:?} — skipping draw call", program_id );
+          gl::warn!( "compiled_programs missing {program_id:?} — skipping draw call" );
           continue;
         };
 
@@ -956,9 +680,9 @@ mod private
           last_material_id = None;
         }
 
-        enable_material_depth_properties( gl, &**material );
-        enable_material_face_properties( gl, &**material );
-        enable_material_color_mask( gl, &**material );
+        material_depth_properties_enable( gl, &**material );
+        material_face_properties_enable( gl, &**material );
+        material_color_mask_enable( gl, &**material );
 
         let material_upload_context = MaterialUploadContext
         {
@@ -970,7 +694,7 @@ mod private
         if material.needs_update() || last_material_id != Some( material.id() )
         {
           material.upload_on_state_change( gl, &material_upload_context )?;
-          material.set_needs_update( false );
+          material.needs_update_set( false );
         }
         material.upload( gl, &material_upload_context )?;
         material.bind( gl );
@@ -993,9 +717,11 @@ mod private
 
       gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
 
-      if self.framebuffer_ctx.skybox_texture.is_some()
+      // A sourceless skybox would bind no texture, and the shader would write the
+      // unbound sampler's black at alpha 1 over the whole background.
+      if self.skybox.as_ref().is_some_and( | t | t.source.is_some() )
       {
-        self.draw_skybox( gl, camera );
+        self.skybox_draw( gl, camera );
       }
 
       Ok( () )
@@ -1009,7 +735,7 @@ mod private
     ///
     /// Materials with custom `depth_func()` or `front_face()` are not supported
     /// in this pass — those properties are only applied in the opaque pass.
-    fn draw_transparent
+    fn transparent_draw
     (
       &mut self,
       gl : &GL
@@ -1035,14 +761,14 @@ mod private
 
       let mut current_program_id : Option< uuid::Uuid > = None;
       let mut last_material_id : Option< uuid::Uuid > = None;
-      for ( node_rc, primitive_rc, prim_idx, program_id ) in self.transparent_nodes.iter()
+      for ( node_rc, primitive_rc, prim_idx, program_id ) in &self.transparent_nodes
       {
         let node_ref = node_rc.borrow();
         let primitive = primitive_rc.borrow();
         let material = primitive.material.borrow();
         let Some( shader_program ) = self.compiled_programs.get( program_id ) else
         {
-          gl::warn!( "compiled_programs missing {:?} — skipping draw call", program_id );
+          gl::warn!( "compiled_programs missing {program_id:?} — skipping draw call" );
           continue;
         };
 
@@ -1053,7 +779,7 @@ mod private
           last_material_id = None;
         }
 
-        enable_material_color_mask( gl, &**material );
+        material_color_mask_enable( gl, &**material );
 
         let material_upload_context = MaterialUploadContext
         {
@@ -1065,7 +791,7 @@ mod private
         if material.needs_update() || last_material_id != Some( material.id() )
         {
           material.upload_on_state_change( gl, &material_upload_context )?;
-          material.set_needs_update( false );
+          material.needs_update_set( false );
         }
         material.upload( gl, &material_upload_context )?;
         material.bind( gl );
@@ -1102,7 +828,12 @@ mod private
     {
       let has_transparent = !self.transparent_nodes.is_empty();
       self.framebuffer_ctx.resolve( gl, self.use_emission, has_transparent );
-      self.framebuffer_ctx.unbind_multisample( gl );
+      self.framebuffer_ctx.multisample_unbind( gl );
+      if !has_transparent && self.transparent_coverage_dirty
+      {
+        self.framebuffer_ctx.transparent_coverage_reset( gl );
+      }
+      self.transparent_coverage_dirty = has_transparent;
 
       if self.use_emission
       {
@@ -1110,10 +841,10 @@ mod private
         {
           swap.reset();
           swap.bind( gl );
-          swap.set_input( self.framebuffer_ctx.emission_texture.clone() );
+          swap.input_set( self.framebuffer_ctx.emission_texture.clone() );
 
-          bloom.render( gl, swap.get_input(), swap.get_output() )?;
-          self.blend_effect.blend_texture = swap.get_output();
+          bloom.render( gl, swap.input_get(), swap.output_get() )?;
+          self.blend_effect.blend_texture = swap.output_get();
           self.blend_effect.render( gl, None, self.framebuffer_ctx.main_texture.clone() )?;
         }
       }
@@ -1149,10 +880,129 @@ mod private
 
       Ok( () )
     }
+
+    /// Frees every WebGL resource this `Renderer` owns : the framebuffer context, the
+    /// optional bloom/swap post-processing passes, the blend pass's shader program, every
+    /// dynamically-compiled material program, and the composite/skybox shader programs.
+    ///
+    /// Call this before dropping the `Renderer` ( or before discarding it in favor of a
+    /// fresh instance ) to avoid leaking GPU resources. `Renderer` does not implement
+    /// `Drop` itself : like [`FramebufferContext`] above, it never stores its own `GL`
+    /// context handle, taking `gl` as an explicit parameter on every method instead, so
+    /// there is no context to delete resources with inside an automatic `drop`.
+    ///
+    /// # Fix(BUG-434)
+    /// `Renderer` previously had no teardown API at all — dropping a `Renderer` silently
+    /// leaked the framebuffer context's textures/renderbuffers, the bloom/swap passes'
+    /// textures, every compiled material program, and the blend/composite/skybox programs,
+    /// since none of these were freed anywhere outside of `resize()`'s narrower cleanup
+    /// ( which only frees the three fields it is about to recreate — see
+    /// `resizable_resources_free` — never `blend_effect`, `compiled_programs`,
+    /// `composite_shader`, or `skybox_shader` ).
+    /// Root cause: no method covered the *complete* set of GPU resources `Renderer`
+    /// accumulates over its lifetime.
+    /// Pitfall: when adding a new field that owns a GPU resource ( a texture, a compiled
+    /// program, a nested pass ), it must be added here too — nothing enforces that
+    /// automatically since `Renderer` has no `Drop` backstop.
+    pub fn gl_resources_free( &mut self, gl : &GL )
+    {
+      self.resizable_resources_free( gl );
+      self.blend_effect.gl_resources_free( gl );
+      for program in self.compiled_programs.values()
+      {
+        gl.delete_program( Some( program.program() ) );
+      }
+      gl.delete_program( Some( self.composite_shader.program() ) );
+      gl.delete_program( Some( self.skybox_shader.program() ) );
+      // Releases the renderer's share of the skybox; `Texture` decides whether
+      // that deletes anything (see `skybox_set`).
+      self.skybox = None;
+    }
+  }
+
+  /// The two programs `gl_resources_free` deletes directly, plus whether the
+  /// resize-owned passes are currently populated — reachable from `tests/` under
+  /// `test_internals`.
+  ///
+  /// The programs come back as clones, since a teardown test has to hold them
+  /// across the free call to ask the context whether they are still live
+  /// afterwards. `bloom_effect`/`swap_buffer` are reported only as booleans: a
+  /// resize test asks whether they were repopulated, never what is inside them,
+  /// and handing out the passes themselves would let a caller keep one alive
+  /// past the resize that was supposed to replace it.
+  #[ cfg( feature = "test_internals" ) ]
+  impl Renderer
+  {
+    #[ doc( hidden ) ]
+    #[ must_use ]
+    pub fn composite_program_for_test( &self ) -> gl::web_sys::WebGlProgram
+    {
+      self.composite_shader.program().clone()
+    }
+
+    #[ doc( hidden ) ]
+    #[ must_use ]
+    pub fn skybox_program_for_test( &self ) -> gl::web_sys::WebGlProgram
+    {
+      self.skybox_shader.program().clone()
+    }
+
+    #[ doc( hidden ) ]
+    #[ must_use ]
+    pub fn has_bloom_effect_for_test( &self ) -> bool
+    {
+      self.bloom_effect.is_some()
+    }
+
+    #[ doc( hidden ) ]
+    #[ must_use ]
+    pub fn has_swap_buffer_for_test( &self ) -> bool
+    {
+      self.swap_buffer.is_some()
+    }
+  }
+
+  /// Selects the color attachment indices to enable via `drawbuffers` for a
+  /// frame, given which optional passes are active.
+  ///
+  /// Attachment `0` (main color) is always enabled. `1` (emission) is added
+  /// when `has_emissive`; `2`/`3` (transparent accumulate/revealage) are
+  /// added when `has_transparent`.
+  #[ must_use ]
+  pub fn frame_attachments( has_transparent : bool, has_emissive : bool ) -> &'static [ u32 ]
+  {
+    match ( has_transparent, has_emissive )
+    {
+      ( true, true ) => &[ 0, 1, 2, 3 ],
+      ( true, false ) => &[ 0, 2, 3 ],
+      ( false, true ) => &[ 0, 1 ],
+      ( false, false ) => &[ 0 ],
+    }
+  }
+
+  /// Decides whether a material's cached shader program must be dropped and
+  /// recompiled on its next registration.
+  ///
+  /// Two independent reasons force a recompile : the material's own defines changed
+  /// (`material_needs_recompile`), or the program in the cache was compiled against a
+  /// different Image-Based Lighting availability state than is currently in effect
+  /// (`cached_use_ibl` vs `current_use_ibl`). `cached_use_ibl` is `None` when there is no
+  /// cached program yet ( first-time registration ), in which case this always returns
+  /// `false` — there is nothing to invalidate, the material simply takes the normal
+  /// "compile a fresh program" path.
+  ///
+  /// # Fix(BUG-258)
+  /// Extracted so a `Renderer::ibl_set` call made after a material has already been
+  /// registered is honored on that material's next registration, instead of the material
+  /// silently keeping its stale ( IBL-less, or stale-IBL ) program forever.
+  #[ must_use ]
+  pub fn program_needs_recompile( material_needs_recompile : bool, cached_use_ibl : Option< bool >, current_use_ibl : bool ) -> bool
+  {
+    material_needs_recompile || cached_use_ibl.is_some_and( | cached | cached != current_use_ibl )
   }
 
   /// Configures face culling and front face order from material.
-  fn enable_material_face_properties( gl : &GL, material : &dyn crate::webgl::Material )
+  fn material_face_properties_enable( gl : &GL, material : &dyn crate::webgl::Material )
   {
     let cull_mode = material.cull_mode();
     let front_face = material.front_face() as u32;
@@ -1171,7 +1021,7 @@ mod private
   }
 
   /// Configures depth testing, function, and write mask from material.
-  fn enable_material_depth_properties( gl : &GL, material : &dyn crate::webgl::Material )
+  fn material_depth_properties_enable( gl : &GL, material : &dyn crate::webgl::Material )
   {
     let depth_func = material.depth_func() as u32;
     let depth_test = material.is_depth_test_enabled();
@@ -1192,7 +1042,7 @@ mod private
   }
 
   /// Sets RGBA color write mask from material.
-  fn enable_material_color_mask( gl : &GL, material : &dyn crate::webgl::Material )
+  fn material_color_mask_enable( gl : &GL, material : &dyn crate::webgl::Material )
   {
     let ( red, green, blue, alpha ) = material.color_write_mask();
 
@@ -1217,7 +1067,7 @@ mod private
     result
   }
 
-  fn bind_lights
+  fn lights_bind
   (
     gl : &GL,
     program : &mut dyn ShaderProgram,
@@ -1325,7 +1175,7 @@ mod private
             let _ = gl::uniform::upload( gl, inner_angle_loc, &light.inner_cone_angle );
             let _ = gl::uniform::upload( gl, outer_angle_loc, &light.outer_cone_angle );
 
-            let use_lightmap_int = light.use_light_map as i32;
+            let use_lightmap_int = i32::from(light.use_light_map);
             let _ = gl::uniform::upload( gl, use_lightmap_loc, &use_lightmap_int );
           }
         }
@@ -1338,6 +1188,8 @@ crate::mod_interface!
 {
   orphan use
   {
-    Renderer
+    Renderer,
+    frame_attachments,
+    program_needs_recompile
   };
 }

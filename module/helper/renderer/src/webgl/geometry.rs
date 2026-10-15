@@ -22,6 +22,10 @@ mod private
   {
     /// Configures the attribute pointer for this attribute, linking the buffer to the specified slot
     /// using the provided `WebGl2RenderingContext`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if configuring the attribute pointer fails.
     pub fn upload( &self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
     {
       self.descriptor.attribute_pointer( gl, self.slot, &self.buffer )?;
@@ -45,11 +49,28 @@ mod private
   }
 
   /// Represents a geometric object to be rendered.
-  #[ derive( Debug, Clone ) ]
+  ///
+  /// GPU ownership: a `Geometry` owns exactly one GPU object, the VAO it creates in
+  /// [`Geometry::new`], and deletes it on drop. Attribute and index buffers are only
+  /// *referenced*: they are handed in through [`Geometry::attribute_add`] /
+  /// [`Geometry::index_add`] and are routinely shared (the glTF loader gives every
+  /// primitive reading one bufferView the same buffer; an instancing buffer is often
+  /// attached to several geometries), so a `Geometry` never deletes them. Whoever
+  /// created a buffer is responsible for releasing it.
+  ///
+  /// Deliberately **not** `Clone`: a struct-clone would alias the raw `web_sys` VAO
+  /// handle (its `Clone` is a JS-reference copy, not a GPU duplication), and both
+  /// copies would delete it on drop. Share a `Geometry` through its
+  /// `Rc<RefCell<Geometry>>` instead (see `Primitive::clone`).
+  #[ derive( Debug ) ]
   pub struct Geometry
   {
+    /// The WebGL context, kept so `Drop` can release GPU resources.
+    gl : gl::GL,
     /// The WebGL Vertex Array Object that stores the state for attribute bindings.
-    pub vao : gl::WebGlVertexArrayObject,
+    /// Created by [`Geometry::new`] and deleted by `Drop`; private so it cannot be
+    /// reassigned to another geometry's VAO (which `Drop` would then delete).
+    vao : gl::WebGlVertexArrayObject,
     /// The primitive drawing mode (e.g., `gl::TRIANGLES`, `gl::LINES`).
     pub draw_mode : u32,
     /// The number of vertices in the geometry (used for non-indexed drawing).
@@ -63,6 +84,10 @@ mod private
   impl Geometry
   {
     /// Creates a new `Geometry` instance, initializing the VAO and other default values.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if VAO creation fails.
     pub fn new( gl : &gl::WebGl2RenderingContext ) -> Result< Self, gl::WebglError >
     {
       let vao = gl::vao::create( gl )?;
@@ -75,6 +100,7 @@ mod private
       (
         Self
         {
+          gl : gl.clone(),
           vao,
           draw_mode,
           vertex_count,
@@ -84,15 +110,22 @@ mod private
       )
     }
 
-    // Adds a new vertex attribute to the geometry.
+    /// Adds a new vertex attribute to the geometry.
     ///
     /// * `name`: The name of the attribute.
     /// * `info`: The `AttributeInfo` for the attribute.
-    /// * `as_define`: A boolean indicating whether to add a `#define USE_UPPERCASE_NAME` to the `defines` string.
     ///
     /// It binds the VAO, uploads the attribute, and stores the `AttributeInfo`.
-    /// It panics if an attribute with the same name already exists.
-    pub fn add_attribute< Name : Into< Box< str > > >
+    /// Returns `Err` if an attribute with the same name already exists.
+    ///
+    /// The geometry does not take ownership of `info.buffer`: it is never deleted
+    /// by this `Geometry`, so the same buffer may be attached to any number of
+    /// geometries, and the caller releases it once none of them draws from it.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if an attribute with the same name already exists or the upload fails.
+    pub fn attribute_add< Name : Into< Box< str > > >
     (
       &mut self,
       gl : &gl::WebGl2RenderingContext,
@@ -101,16 +134,19 @@ mod private
     ) -> Result< (), gl::WebglError >
     {
       let name = name.into();
-      if !self.attributes.contains_key( &name )
-      {
-        self.bind( gl );
-        info.upload( gl )?;
-        self.attributes.insert( name, info );
+      if self.attributes.contains_key( &name ) {
+        // Fix(task 013): was `panic!( "An attribute {} already exists", name )` — aborted the
+        // whole wasm module on a duplicate attribute name instead of returning `Err`.
+        // Root cause: the `Result` error branch was authored as a `panic!` afterthought
+        // instead of being routed through the `Result< (), WebglError >` this fn already returns.
+        // Pitfall: a fn declared `-> Result< _, _ >` must route EVERY failure branch through
+        // `Err`, even ones that read like "should never happen" — grep for stray `panic!`/
+        // `.unwrap()`/`.expect()` inside any fn whose own signature already promises `Result`.
+        return Err( gl::WebglError::Other( "An attribute with this name already exists" ) );
       }
-      else
-      {
-        panic!( "An attribute {} already exists", name );
-      }
+      self.bind( gl );
+      info.upload( gl )?;
+      self.attributes.insert( name, info );
 
       Ok( () )
     }
@@ -118,7 +154,16 @@ mod private
     /// Adds an index buffer to the geometry.
     ///
     /// It binds the VAO and the element array buffer, storing the information in the VAO.
-    pub fn add_index
+    ///
+    /// As with [`Geometry::attribute_add`], `info.buffer` stays owned by the caller
+    /// and is never deleted by this `Geometry`.
+    ///
+    /// # Errors
+    ///
+    /// Never returns `Err` today: binding the index buffer reports failures through the
+    /// context's `getError`, not as a value. The `Result` keeps the signature stable for a
+    /// fallible implementation.
+    pub fn index_add
     (
       &mut self,
       gl : &gl::WebGl2RenderingContext,
@@ -135,6 +180,12 @@ mod private
     ///
     /// It binds the VAO and then iterates through the attributes to upload them.
     /// If an index buffer exists, it binds it as well.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if an attribute's pointer can't be configured from its descriptor
+    /// (a data-type conversion). GL errors, such as binding a deleted buffer, are reported
+    /// through the context's `getError`, not here.
     pub fn upload( &self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
     {
       self.bind( gl );
@@ -155,17 +206,30 @@ mod private
     /// Returns the center point of the geometry's bounding box, assuming a "positions" attribute exists.
     ///
     /// It panics if the "positions" attribute is not found.
+    #[ must_use ]
     pub fn center( &self ) -> gl::F32x3
     {
       self.bounding_box().center()
     }
 
     /// Return the bounding box of the `positions` attribute
+    ///
+    /// # Panics
+    ///
+    /// Panics if the geometry has no `positions` attribute.
+    #[ must_use ]
     pub fn bounding_box( &self ) -> BoundingBox
     {
       self.attributes.get( "positions" )
       .expect( "Poisitions attribute not found on geometry")
       .bounding_box
+    }
+
+    /// The Vertex Array Object this geometry created and deletes on drop.
+    #[ must_use ]
+    pub fn vao( &self ) -> &gl::WebGlVertexArrayObject
+    {
+      &self.vao
     }
 
     /// Binds the geometry's Vertex Array Object.
@@ -190,7 +254,8 @@ mod private
     }
 
     /// Returns a reference to the `FxHashMap` containing the attribute information.
-    pub fn get_attributes( &self ) -> &FxHashMap< Box< str >, AttributeInfo >
+    #[ must_use ]
+    pub fn attributes_get( &self ) -> &FxHashMap< Box< str >, AttributeInfo >
     {
       &self.attributes
     }
@@ -221,6 +286,18 @@ mod private
           instance_count
         );
       }
+    }
+  }
+
+  /// Deletes the VAO this `Geometry` created. Attribute and index buffers are
+  /// left alone: they are borrowed and may still back other geometries (see the
+  /// struct docs). Since `Geometry` is not `Clone`, this fires once, when the
+  /// last `Rc<RefCell<Geometry>>` referencing it drops.
+  impl Drop for Geometry
+  {
+    fn drop( &mut self )
+    {
+      self.gl.delete_vertex_array( Some( &self.vao ) );
     }
   }
 

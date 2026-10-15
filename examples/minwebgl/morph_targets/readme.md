@@ -1,12 +1,14 @@
 # Morph targets
 
+**Keywords:** Morph Targets, Blend Shapes, Animation, Renderer, WebGL2
+
 This example demonstrates how to use a renderer crate for playing animations, update models morph targets. Example gives user posibility to choose animation and change its morph targets weights values using UI.
 
 Morph targets (also called blend shapes) are a technique used in 3D graphics and animation to smoothly transform a mesh from one shape into another.
 
-![image]( ./showcase.png )
+![image](./showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 

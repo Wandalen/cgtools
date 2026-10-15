@@ -24,6 +24,7 @@
 //! consuming shader does; a low-level binding cannot know it. Picking wrong is not subtle:
 //! uploading as sRGB to a shader that already linearises produces a double decode.
 
+#[ allow( clippy::wildcard_imports, reason = "crate-root prelude from mod_interface!; enumerating would break on every layer change" ) ]
 use crate::*;
 
 type GL = web_sys::WebGl2RenderingContext;

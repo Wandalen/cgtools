@@ -36,64 +36,73 @@ embroidery_tools = { workspace = true }
 ### Reading Embroidery Files
 
 ```rust
-use embroidery_tools::*;
+use embroidery_tools::format::pes;
+use embroidery_tools::stitch_instruction::Instruction;
 
-fn read_pattern() -> Result<(), Box<dyn std::error::Error>> {
-  // Read PES file
-  let pattern = pes::read_file("design.pes")?;
-  
+fn pattern_read() -> Result<(), Box<dyn std::error::Error>> {
+  // Read a PES file
+  let emb = pes::file_read("design.pes")?;
+
+  let (min_x, min_y, max_x, max_y) = emb.bounds();
   println!("Pattern info:");
-  println!("  Stitches: {}", pattern.stitch_count());
-  println!("  Colors: {}", pattern.color_count());
-  println!("  Size: {}x{} mm", pattern.width(), pattern.height());
-  
+  println!("  Stitches: {}", emb.stitches().len());
+  println!("  Threads: {}", emb.threads().len());
+  println!("  Bounds: ({min_x}, {min_y}) to ({max_x}, {max_y})");
+
   // Access stitch data
-  for stitch in pattern.stitches() {
-    match stitch.command {
-      StitchCommand::Normal => {
-        println!("Stitch at ({}, {})", stitch.x, stitch.y);
-      },
-      StitchCommand::Jump => {
-        println!("Jump to ({}, {})", stitch.x, stitch.y);
-      },
-      StitchCommand::ColorChange => {
-        println!("Color change at ({}, {})", stitch.x, stitch.y);
-      },
+  for stitch in emb.stitches() {
+    match stitch.instruction {
+      Instruction::Stitch => println!("Stitch at ({}, {})", stitch.x, stitch.y),
+      Instruction::Jump => println!("Jump to ({}, {})", stitch.x, stitch.y),
+      Instruction::ColorChange => println!("Color change at ({}, {})", stitch.x, stitch.y),
+      _ => {}
     }
   }
-  
+
   Ok(())
 }
 ```
 
+`embroidery_tools` uses the `mod_interface` layering convention: types are exported from their
+own submodule (`embroidery_file::EmbroideryFile`, `thread::{Color, Thread}`,
+`stitch_instruction::{Instruction, Stitch}`, `format::{pec, pes}`), never re-exported at the crate
+root — `use embroidery_tools::*;` resolves nothing usable. Import from the specific submodule.
+
 ### Writing Embroidery Files
 
 ```rust
-use embroidery_tools::*;
+use std::fs::File;
+use std::io::BufWriter;
+use embroidery_tools::embroidery_file::EmbroideryFile;
+use embroidery_tools::thread::{Color, Thread};
+use embroidery_tools::format::{pec, pes};
+use embroidery_tools::format::pes::PESVersion;
 
-fn create_pattern() -> Result<(), Box<dyn std::error::Error>> {
-  // Create new pattern
-  let mut pattern = EmbroideryPattern::new();
-  
-  // Add color palette
-  pattern.add_color(Color::rgb(255, 0, 0));   // Red
-  pattern.add_color(Color::rgb(0, 255, 0));   // Green  
-  pattern.add_color(Color::rgb(0, 0, 255));   // Blue
-  
-  // Add stitches
-  pattern.add_stitch(Stitch::normal(0, 0));
-  pattern.add_stitch(Stitch::normal(100, 0));
-  pattern.add_stitch(Stitch::normal(100, 100));
-  pattern.add_stitch(Stitch::color_change(100, 100));
-  pattern.add_stitch(Stitch::normal(0, 100));
-  pattern.add_stitch(Stitch::normal(0, 0));
-  
-  // Write to PES format
-  pes::write_file(&pattern, "output.pes", PesVersion::V6)?;
-  
-  // Write to PEC format
-  pec::write_file(&pattern, "output.pec")?;
-  
+fn pattern_create() -> Result<(), Box<dyn std::error::Error>> {
+  // Build a new pattern
+  let mut emb = EmbroideryFile::new();
+
+  // Register the thread palette
+  emb.thread_add(Thread { color: Color { r: 255, g: 0, b: 0 }, ..Default::default() }); // Red
+  emb.thread_add(Thread { color: Color { r: 0, g: 255, b: 0 }, ..Default::default() }); // Green
+
+  // Add stitches — coordinates passed to these helpers are relative to the previous point
+  emb.stitch(0, 0);
+  emb.stitch(100, 0);
+  emb.stitch(0, 100);
+  emb.color_change(0, 0);
+  emb.stitch(-100, 0);
+  emb.trim();
+  emb.end();
+
+  // There is no path-based `write_file()` convenience — writers take any `Write + Seek`,
+  // so open the destination yourself.
+  let mut pes_out = BufWriter::new(File::create("output.pes")?);
+  pes::write(&mut emb, &mut pes_out, PESVersion::V6)?;
+
+  let mut pec_out = BufWriter::new(File::create("output.pec")?);
+  pec::write(&mut emb, &mut pec_out)?;
+
   Ok(())
 }
 ```
@@ -109,27 +118,30 @@ fn create_pattern() -> Result<(), Box<dyn std::error::Error>> {
 
 ### Core Types
 
-| Type | Description | Use Case |
-|------|-------------|----------|
-| `EmbroideryPattern` | Complete pattern data | Pattern manipulation and storage |
-| `Stitch` | Individual stitch point | Building stitch sequences |
-| `Color` | Thread color information | Color palette management |
-| `StitchCommand` | Stitch type/instruction | Machine command interpretation |
+| Type | Module | Description | Use Case |
+|------|--------|-------------|----------|
+| `EmbroideryFile` | `embroidery_file` | Complete pattern: stitches, threads, metadata | Building and inspecting patterns |
+| `Stitch` | `stitch_instruction` | One instruction plus its `(x, y)` coordinates | Building stitch sequences |
+| `Instruction` | `stitch_instruction` | Stitch/Jump/Trim/ColorChange/etc. kind (`#[non_exhaustive]`) | Interpreting or emitting machine commands |
+| `Thread` | `thread` | One palette entry — color plus catalog metadata | Building the thread palette |
+| `Color` | `thread` | Plain `{ r, g, b }` triple | Thread color values |
 
 ### Pattern Operations
 
 ```rust
-// Pattern analysis
-let bounds = pattern.bounds();
-let stitch_count = pattern.stitch_count();
-let color_count = pattern.color_count();
+// Pattern inspection
+let (min_x, min_y, max_x, max_y) = emb.bounds();
+let stitch_count = emb.stitches().len();
+let thread_count = emb.threads().len();
 
-// Pattern modification
-pattern.scale(2.0);                    // Scale by factor
-pattern.translate(50, 25);             // Move pattern
-pattern.rotate(std::f32::consts::PI);  // Rotate pattern
-pattern.optimize();                    // Remove redundant stitches
+// Pattern normalization — fixes instruction encoding before writing or after reading
+emb.color_count_fix();                      // ensure enough threads for every color change
+emb.stop_interpolate_as_duplicate_color();  // encode Stop as a duplicated color change
+emb.duplicate_color_interpolate_as_stop();  // decode a duplicated color change back to Stop
 ```
+
+There is currently no geometric transform API (scale/translate/rotate) — see Current Limitations
+below.
 
 ## 🎯 Use Cases
 
@@ -158,17 +170,19 @@ pattern.optimize();                    // Remove redundant stitches
 - **PES Format** - Versions 1 and 6 support
 - **Basic Pattern Operations** - Create, read, modify patterns
 - **Color Management** - Handle thread colors and palettes
+- **Stitch Encoding Normalization** - `color_count_fix()`, `stop_interpolate_as_duplicate_color()`,
+  `duplicate_color_interpolate_as_stop()` (called explicitly, not automatic)
 
 ### 🚧 Planned Features
-- **Pattern Normalization** - Automatic format compatibility fixes
+- **Geometric Transforms** - Scale, translate, rotate a pattern
 - **Additional Formats** - DST, JEF, EXP, and other formats
 - **Advanced Editing** - Cut, copy, paste, merge operations
 - **Optimization Algorithms** - Minimize jumps and thread changes
 - **Preview Generation** - Render patterns for display
 
 ### ⚠️ Current Limitations
-- Pattern editing capabilities are basic
-- Some stitch instructions may need normalization before writing
+- No geometric transform API (scale/translate/rotate) yet
+- Stitch-encoding normalization must be called explicitly, not applied automatically
 - Limited to PES and PEC formats currently
 - No built-in pattern optimization algorithms
 
@@ -187,14 +201,18 @@ The library handles the binary formats according to official specifications:
 
 ### Thread Color Handling
 ```rust
-// RGB color specification
-let red = Color::rgb(255, 0, 0);
+use embroidery_tools::thread::{Color, Thread};
 
-// Palette-based colors
-let thread = Color::palette_index(5);
+// Colors are plain RGB triples — no constructor methods
+let red = Color { r: 255, g: 0, b: 0 };
 
-// Named thread colors (if supported by format)
-let rayon = Color::thread("Madeira Rayon 1147");
+// Threads pair a color with catalog metadata
+let rayon = Thread {
+  color: red,
+  description: "Madeira Rayon 1147".into(),
+  catalog_number: "1147".into(),
+  ..Default::default()
+};
 ```
 
 ## 🛠️ Integration Examples
@@ -202,32 +220,34 @@ let rayon = Color::thread("Madeira Rayon 1147");
 ### With Image Processing
 ```rust
 // Convert vector graphics to embroidery
-use embroidery_tools::*;
+use embroidery_tools::embroidery_file::EmbroideryFile;
 
-fn vectorize_to_embroidery(svg_path: &str) -> Result<EmbroideryPattern, Box<dyn std::error::Error>> {
+fn vectorize_to_embroidery(_svg_path: &str) -> Result<EmbroideryFile, Box<dyn std::error::Error>> {
   // Parse SVG and convert to stitch pattern
-  let mut pattern = EmbroideryPattern::new();
-  
+  let mut emb = EmbroideryFile::new();
+
   // Add stitches following vector paths
   // (Implementation would depend on vector processing library)
-  
-  Ok(pattern)
+
+  Ok(emb)
 }
 ```
 
 ### Batch Processing
 ```rust
 // Convert multiple files
-use embroidery_tools::*;
-use std::fs;
+use embroidery_tools::format::{pec, pes};
+use std::fs::{self, File};
+use std::io::BufWriter;
 
-fn convert_directory(input_dir: &str, output_dir: &str) -> Result<(), Box<dyn std::error::Error>> {
+fn directory_convert(input_dir: &str, output_dir: &str) -> Result<(), Box<dyn std::error::Error>> {
   for entry in fs::read_dir(input_dir)? {
     let path = entry?.path();
     if path.extension() == Some("pes".as_ref()) {
-      let pattern = pes::read_file(&path)?;
-      let output_path = format!("{}/{}.pec", output_dir, path.file_stem().unwrap().to_str().unwrap());
-      pec::write_file(&pattern, &output_path)?;
+      let mut emb = pes::file_read(&path)?;
+      let stem = path.file_stem().unwrap().to_str().unwrap();
+      let mut out = BufWriter::new(File::create(format!("{output_dir}/{stem}.pec"))?);
+      pec::write(&mut emb, &mut out)?;
     }
   }
   Ok(())
