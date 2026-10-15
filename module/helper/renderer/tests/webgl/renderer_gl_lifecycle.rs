@@ -1,0 +1,282 @@
+//! `Renderer::gl_resources_free`, the buffers `Renderer::resize` replaces, and
+//! the skybox `Texture` the renderer keeps (`Renderer::skybox_set`).
+//!
+//! wasm32-only: every assertion asks a real `WebGl2RenderingContext` whether a
+//! GL object still exists, which a native `cargo nextest` run cannot answer —
+//! constructing the subject at all needs a live context. The headless-browser
+//! runner in `.cargo/config.toml` is what executes these.
+//!
+//! Freeing a GPU resource is invisible from the Rust side: a handle wrapper is
+//! a JS-object reference, so letting it go out of scope reclaims nothing. Only
+//! asking the context — `gl.is_texture`, `gl.is_framebuffer` — distinguishes a
+//! resource that was released from one that merely stopped being referenced,
+//! which is why these tests hold handle clones across the drop.
+
+use minwebgl as gl;
+use gl::GL;
+use ::renderer::webgl::{ Camera, Renderer, Sampler, Scene, Texture };
+
+/// Unlike most `gl_init()` helpers in this crate, `Renderer::new` unconditionally builds
+/// its `FramebufferContext` with `RGBA16F`/`R16F` multisample color attachments regardless
+/// of scene contents, so `EXT_color_buffer_float` is mandatory here -- mirrors
+/// `webgl_renderer_pass_cycle_test.rs`'s own `gl_init`.
+fn gl_init() -> GL
+{
+  gl::browser::setup( gl::browser::Config::default() );
+  let options = gl::context::ContextOptions::default();
+  let canvas = gl::canvas::make().unwrap();
+  let gl = gl::context::from_canvas_with( &canvas, options ).unwrap();
+  gl.get_extension( "EXT_color_buffer_float" )
+    .expect( "get_extension call should not throw" )
+    .expect( "EXT_color_buffer_float must be available in the test environment" );
+  gl
+}
+
+/// ## Root Cause
+/// `Renderer` had no teardown API at all covering its full resource set -- dropping a
+/// `Renderer` silently leaked every compiled material program plus the blend/composite/
+/// skybox shader programs, since `resize()`'s narrower cleanup only frees the three fields
+/// it is about to recreate ( `framebuffer_ctx`, `bloom_effect`, `swap_buffer` ).
+///
+/// ## Why Not Caught
+/// `webgl_renderer_pass_cycle_test.rs` exercises `render()` end-to-end but never
+/// constructed-then-freed a `Renderer` to check for leaked shader programs.
+///
+/// ## Fix Applied
+/// Added `pub fn gl_resources_free`, deleting `compiled_programs`, `composite_shader`, and
+/// `skybox_shader` ( plus delegating to `resizable_resources_free` and
+/// `blend_effect.gl_resources_free` -- each independently covered by its own reproducer,
+/// see `blend.rs`'s inline test for `blend_effect`'s program ).
+///
+/// ## Prevention
+/// This test captures `composite_shader`/`skybox_shader`'s program handles ( both are
+/// unconditionally created in `new`, so no scene/material setup is needed to populate them
+/// ) before calling `gl_resources_free`, then asserts both are deleted afterward.
+///
+/// ## Pitfall
+/// `resize()`'s pre-existing cleanup ( now factored into `resizable_resources_free` ) reads
+/// as a complete teardown path at a glance -- it silently only ever covered the three
+/// fields `resize()` itself recreates, never the fields that live for the `Renderer`'s
+/// entire lifetime ( compiled programs, composite/skybox shaders, blend effect ).
+// test_kind: bug_reproducer(BUG-434)
+#[ wasm_bindgen_test::wasm_bindgen_test ]
+fn renderer_gl_resources_free_deletes_composite_and_skybox_programs()
+{
+  let gl = gl_init();
+  let mut renderer = Renderer::new( &gl, 64, 64, 4 )
+  .expect( "Renderer::new should succeed on a valid context" );
+
+  let composite_program = renderer.composite_program_for_test();
+  let skybox_program = renderer.skybox_program_for_test();
+  assert!( gl.is_program( Some( &composite_program ) ) );
+  assert!( gl.is_program( Some( &skybox_program ) ) );
+
+  renderer.gl_resources_free( &gl );
+
+  // Test pitfall (not a production bug): `Renderer::new` leaves `composite_shader` bound
+  // as the current program ( its `bind(gl)` call is the last one `new` makes ). Per the
+  // WebGL/OpenGL ES spec, deleting the *currently bound* program only flags it for
+  // deletion -- the browser defers actually invalidating it (and flipping `isProgram` to
+  // false) until it stops being current. `gl_resources_free` already issued the correct
+  // `delete_program` call; unbinding here just lets that deferred deletion complete so the
+  // test can observe it, the same way any real caller would eventually stop using a
+  // torn-down renderer's programs.
+  gl.use_program( None );
+
+  assert!( !gl.is_program( Some( &composite_program ) ), "gl_resources_free must delete composite_shader's program" );
+  assert!( !gl.is_program( Some( &skybox_program ) ), "gl_resources_free must delete skybox_shader's program" );
+}
+
+/// ## Root Cause
+/// `resize()` only assigned `self.bloom_effect`/`self.swap_buffer` fresh values inside the
+/// `if self.use_emission` / `else` branches. When `use_emission` was true and
+/// `UnrealBloomPass::new` returned `Err`, the `?` early-returned *before* either assignment
+/// ran -- but `resizable_resources_free` had already deleted both structs' underlying GL
+/// textures/programs, leaving `self` holding `Some( .. )` values whose handles were already
+/// GPU-deleted ( a dangling handle the next `composite()` call would bind/draw with ).
+///
+/// ## Why Not Caught
+/// No existing test resized a `Renderer` more than once, so the old→new handle transition
+/// was never observed, and `UnrealBloomPass::new`'s only fallible step ( shader compile
+/// from a fixed, always-valid `include_str!` source ) cannot be forced to fail from a live
+/// WebGL2 context without mocking -- this workspace forbids mocking in tests ( see
+/// `rulebook.md`/global test conventions ), so the exact `Err` branch has no live-GL MRE.
+/// This limitation is disclosed rather than worked around with a fake failure.
+///
+/// ## Fix Applied
+/// `bloom_effect`/`swap_buffer` are now cleared to `None` unconditionally, immediately
+/// after `resizable_resources_free`, *before* the fallible `UnrealBloomPass::new(...)?`
+/// line -- so an early return can never leave a `Some` wrapping an already-deleted handle.
+///
+/// ## Prevention
+/// Since the exact error branch has no live-GL trigger, this test instead pins the
+/// achievable real-GL invariant the fix must not regress : resizing twice with emission
+/// enabled must fully replace `bloom_effect`/`swap_buffer` -- the first resize's textures
+/// end up deleted, the second resize's are live -- proving the free-then-recreate sequence
+/// never leaves the old handles both `Some` and dangling at any observable point.
+///
+/// ## Pitfall
+/// Freeing a resource and clearing the handle that refers to it must happen atomically from
+/// the caller's point of view -- never split across a fallible recreation step, or an error
+/// path can leave a dangling handle mistaken for a live one. A defect only reachable via a
+/// GL-implementation-dependent failure ( not a Rust-level parameter ) cannot always be
+/// pinned by a live-context MRE ; code-path reasoning ( see `Root Cause` ) plus a functional
+/// regression test on the reachable path is the honest substitute for one, not the same as
+/// having no test at all -- fabricating a mocked failure would violate the "no mocking" rule
+/// and produce a test that verifies a scenario that could never occur against a real driver.
+// test_kind: bug_reproducer(BUG-435)
+#[ wasm_bindgen_test::wasm_bindgen_test ]
+fn renderer_resize_replaces_bloom_and_swap_buffer_cleanly_across_repeated_resizes()
+{
+  let gl = gl_init();
+  let mut renderer = Renderer::new( &gl, 64, 64, 4 )
+  .expect( "Renderer::new should succeed on a valid context" );
+  renderer.use_emission_set( &gl, true );
+
+  renderer.resize( &gl, 32, 32, 4 ).expect( "first resize with emission enabled should succeed" );
+  let first_bloom = renderer.has_bloom_effect_for_test();
+  let first_swap = renderer.has_swap_buffer_for_test();
+  assert!( first_bloom, "resize with use_emission=true must populate bloom_effect" );
+  assert!( first_swap, "resize with use_emission=true must populate swap_buffer" );
+
+  renderer.resize( &gl, 64, 64, 4 ).expect( "second resize with emission enabled should succeed" );
+  assert!( renderer.has_bloom_effect_for_test(), "bloom_effect must be repopulated ( never left None nor dangling ) after a second resize" );
+  assert!( renderer.has_swap_buffer_for_test(), "swap_buffer must be repopulated ( never left None nor dangling ) after a second resize" );
+
+  // The struct-level invariant the fix protects: at no point after `resize()` returns `Ok`
+  // is either field ever `None` while `use_emission` is true, nor holding a stale handle --
+  // each `resize()` call fully replaces both fields before returning.
+}
+
+/// A texture `gl.is_texture` recognises: WebGL only reports a texture name as a
+/// texture once it has been bound.
+fn bound_texture( gl : &GL ) -> gl::web_sys::WebGlTexture
+{
+  let texture = gl.create_texture().unwrap();
+  gl.bind_texture( gl::TEXTURE_2D, Some( &texture ) );
+  gl.bind_texture( gl::TEXTURE_2D, None );
+  texture
+}
+
+/// The renderer keeps the skybox `Texture` it is given: an owning skybox whose
+/// caller kept no clone (as `Texture::load_from_path`'s callers do) must stay
+/// alive while it is the skybox, survive `resize()`, and be deleted once
+/// clearing the skybox drops its last owner. Before, `skybox_set` stored only
+/// the raw handle, so the owning `Texture` deleted it as soon as the caller's
+/// copy dropped, and `resize()` deleted it a second time.
+#[ wasm_bindgen_test::wasm_bindgen_test ]
+fn renderer_keeps_owning_skybox_alive_across_resize()
+{
+  let gl = gl_init();
+  let mut renderer = Renderer::new( &gl, 64, 64, 4 )
+  .expect( "Renderer::new should succeed on a valid context" );
+  let source = bound_texture( &gl );
+
+  renderer.skybox_set( Some( Texture::owning( &gl, gl::TEXTURE_2D, source.clone(), Sampler::default() ) ) );
+  assert!( gl.is_texture( Some( &source ) ), "the renderer must keep an owning skybox alive" );
+
+  renderer.resize( &gl, 32, 32, 4 ).expect( "resize should succeed" );
+  assert!( gl.is_texture( Some( &source ) ), "resize() must not delete the skybox" );
+
+  renderer.skybox_set( None );
+  assert!( !gl.is_texture( Some( &source ) ), "clearing the skybox must release its last owner" );
+}
+
+/// A non-owning skybox view stays its creator's: neither `resize()` nor
+/// `gl_resources_free` may delete it.
+#[ wasm_bindgen_test::wasm_bindgen_test ]
+fn renderer_never_deletes_a_view_skybox()
+{
+  let gl = gl_init();
+  let mut renderer = Renderer::new( &gl, 64, 64, 4 )
+  .expect( "Renderer::new should succeed on a valid context" );
+  let source = bound_texture( &gl );
+
+  renderer.skybox_set( Some( Texture::former().source( source.clone() ).form() ) );
+  renderer.resize( &gl, 32, 32, 4 ).expect( "resize should succeed" );
+  assert!( gl.is_texture( Some( &source ) ), "resize() must not delete a view skybox" );
+
+  renderer.gl_resources_free( &gl );
+  assert!( gl.is_texture( Some( &source ) ), "gl_resources_free must not delete a view skybox" );
+}
+
+/// A camera looking down -Z, for the skybox pass's inverse matrices.
+fn camera_make() -> Camera
+{
+  Camera::new
+  (
+    gl::F32x3::from_array( [ 0.0, 0.0, 3.0 ] ),
+    gl::F32x3::from_array( [ 0.0, 1.0, 0.0 ] ),
+    gl::F32x3::from_array( [ 0.0, 0.0, 0.0 ] ),
+    1.0,
+    70.0_f32.to_radians(),
+    0.1,
+    1000.0,
+  ).expect( "valid camera parameters" )
+}
+
+/// A complete 1x1 RGBA8 texture filled with `rgba` (no mipmaps, so LINEAR min filter).
+fn solid_texture( gl : &GL, rgba : [ u8; 4 ] ) -> gl::web_sys::WebGlTexture
+{
+  let texture = gl.create_texture().unwrap();
+  gl.bind_texture( gl::TEXTURE_2D, Some( &texture ) );
+  gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array
+  (
+    gl::TEXTURE_2D, 0, gl::RGBA as i32, 1, 1, 0, gl::RGBA, gl::UNSIGNED_BYTE, Some( &rgba )
+  ).unwrap();
+  gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32 );
+  gl.bind_texture( gl::TEXTURE_2D, None );
+  texture
+}
+
+/// Renders an empty scene with `skybox` and reads the centre texel of the
+/// resolved main color target.
+fn background_after_render( gl : &GL, skybox : Option< Texture > ) -> [ f32; 4 ]
+{
+  let mut renderer = Renderer::new( gl, 64, 64, 4 )
+  .expect( "Renderer::new should succeed on a valid context" );
+  renderer.clear_color_set( gl::F32x3::from_array( [ 0.25, 0.5, 0.75 ] ) );
+  renderer.skybox_set( skybox );
+  renderer.render( gl, &mut Scene::new(), &camera_make() ).expect( "render should succeed" );
+
+  let main = renderer.main_texture().expect( "the renderer has a main texture" );
+  let framebuffer = gl.create_framebuffer().unwrap();
+  gl.bind_framebuffer( gl::FRAMEBUFFER, Some( &framebuffer ) );
+  gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, Some( &main ), 0 );
+  let pixel = gl::web_sys::js_sys::Float32Array::new_with_length( 4 );
+  gl.read_pixels_with_opt_array_buffer_view( 32, 32, 1, 1, gl::RGBA, gl::FLOAT, Some( &pixel ) ).unwrap();
+  gl.bind_framebuffer( gl::FRAMEBUFFER, None );
+  gl.delete_framebuffer( Some( &framebuffer ) );
+  renderer.gl_resources_free( gl );
+
+  let mut texel = [ 0.0; 4 ];
+  pixel.copy_to( &mut texel );
+  texel
+}
+
+/// Whether two read-back texels match; every value here is exact in `RGBA16F`,
+/// the tolerance only keeps the comparison off raw float equality.
+fn texel_eq( a : [ f32; 4 ], b : [ f32; 4 ] ) -> bool
+{
+  a.iter().zip( b ).all( | ( x, y ) | ( x - y ).abs() < 1e-3 )
+}
+
+/// A skybox `Texture` with no `source` must draw no skybox: the background
+/// keeps the clear colour at alpha 0, exactly as with no skybox at all. Before,
+/// the pass ran with no texture bound and wrote black at alpha 1. A skybox
+/// with a real texture still covers the background, so the probe can tell the
+/// two apart.
+#[ wasm_bindgen_test::wasm_bindgen_test ]
+fn renderer_skips_a_sourceless_skybox()
+{
+  let gl = gl_init();
+  let cleared = background_after_render( &gl, None );
+  assert!( texel_eq( cleared, [ 0.25, 0.5, 0.75, 0.0 ] ), "an empty scene keeps the clear colour at alpha 0, got {cleared:?}" );
+
+  let sourceless = background_after_render( &gl, Some( Texture::new() ) );
+  assert!( texel_eq( sourceless, cleared ), "a skybox without a source must not be drawn, got {sourceless:?}" );
+
+  let red = solid_texture( &gl, [ 255, 0, 0, 255 ] );
+  let drawn = background_after_render( &gl, Some( Texture::former().source( red ).form() ) );
+  assert!( texel_eq( drawn, [ 1.0, 0.0, 0.0, 1.0 ] ), "a skybox with a source covers the background, got {drawn:?}" );
+}

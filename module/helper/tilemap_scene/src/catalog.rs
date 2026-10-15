@@ -39,8 +39,8 @@ mod private
     /// # Panics
     ///
     /// Panics if `id` was not declared via
-    /// [`CatalogBuilder::require_object`] (or implicitly via
-    /// [`CatalogBuilder::require_state`]) before `build()` was called.
+    /// [`CatalogBuilder::object_require`] (or implicitly via
+    /// [`CatalogBuilder::state_require`]) before `build()` was called.
     /// Forgetting to declare an id is a programmer error — the missing
     /// case is the whole reason `Catalog` exists.
     #[ inline ]
@@ -58,7 +58,7 @@ mod private
     /// # Panics
     ///
     /// Panics if `(obj, state)` was not declared via
-    /// [`CatalogBuilder::require_state`] before `build()` was called.
+    /// [`CatalogBuilder::state_require`] before `build()` was called.
     #[ inline ]
     #[ must_use ]
     pub fn state( &self, obj : &str, state : &str ) -> StateHandle
@@ -156,7 +156,7 @@ mod private
 
     /// Declare that the catalog must resolve the object id `id`.
     #[ must_use ]
-    pub fn require_object( mut self, id : impl Into< String > ) -> Self
+    pub fn object_require( mut self, id : impl Into< String > ) -> Self
     {
       self.objects.push( id.into() );
       self
@@ -164,9 +164,9 @@ mod private
 
     /// Declare that the catalog must resolve `state` on object `obj`.
     /// Implicitly also requires `obj` itself; callers do not need a
-    /// separate `require_object` for the same id.
+    /// separate `object_require` for the same id.
     #[ must_use ]
-    pub fn require_state
+    pub fn state_require
     (
       mut self,
       obj : impl Into< String >,
@@ -218,9 +218,30 @@ mod private
 
       let mut states : HashMap< ( String, String ), StateHandle > = HashMap::default();
       let mut missing_states : Vec< ( String, String ) > = Vec::new();
+      // Fix(BUG-263): the objects loop above dedupes missing ids via
+      // `seen_missing_objects` so a repeated `object_require` never
+      // double-reports, but this states loop had no equivalent guard —
+      // requiring the same `(obj, state)` pair more than once (e.g. from
+      // two independent call sites both declaring the same requirement)
+      // inflated `missing_states.len()` and duplicated the corresponding
+      // `CatalogError::Display` line for each repeat.
+      // Root cause: this loop was written without the
+      // contains_key/seen-set dedup pattern the objects loop just above
+      // it already uses.
+      // Pitfall: when two parallel accumulation loops share a "report
+      // every unique miss exactly once" contract, dedup logic added to
+      // one but not its sibling silently breaks the contract only on the
+      // repeated-input path — the common single-require case still looks
+      // correct, so it's easy to miss in review.
+      let mut seen_missing_states : rustc_hash::FxHashSet< ( String, String ) > = rustc_hash::FxHashSet::default();
 
       for ( obj, state ) in &self.states
       {
+        let key = ( obj.clone(), state.clone() );
+        if states.contains_key( &key ) || seen_missing_states.contains( &key )
+        {
+          continue;
+        }
         let Some( &obj_handle ) = objects.get( obj )
         else
         {
@@ -230,11 +251,12 @@ mod private
         };
         if let Some( h ) = self.scene.state( obj_handle, state )
         {
-          states.insert( ( obj.clone(), state.clone() ), h );
+          states.insert( key, h );
         }
         else
         {
-          missing_states.push( ( obj.clone(), state.clone() ) );
+          seen_missing_states.insert( key.clone() );
+          missing_states.push( key );
         }
       }
 

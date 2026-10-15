@@ -1,3 +1,3 @@
 # mdmath
 
-Multidimensional math.
+Comprehensive multidimensional mathematics library.

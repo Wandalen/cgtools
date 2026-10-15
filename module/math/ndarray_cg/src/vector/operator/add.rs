@@ -1,8 +1,8 @@
 mod private
 {
-  use crate::*;
+  use crate::{vector, Add, Vector, MatNum, AddAssign};
 // use vector::arithmetics::inner_product::*;
-  use vector::{ sum, sum_scalar };
+  use vector::{ sum, scalar_sum };
 
   impl< E, const LEN : usize > Add for Vector< E, LEN >
   where
@@ -13,6 +13,7 @@ mod private
     /// # Overflow
     /// For integer `E` the element-wise addition is not overflow-checked: it
     /// panics in debug / wraps in release once a sum leaves `E`'s range.
+    #[ inline ]
     fn add( self, rhs : Self ) -> Self::Output
     {
         sum( &self, &rhs )
@@ -28,9 +29,10 @@ mod private
     /// # Overflow
     /// For integer `E` the element-wise addition is not overflow-checked: it
     /// panics in debug / wraps in release once a sum leaves `E`'s range.
+    #[ inline ]
     fn add( self, rhs : E ) -> Self::Output
     {
-        sum_scalar( &self, rhs )
+        scalar_sum( &self, rhs )
     }
   }
 
@@ -43,6 +45,7 @@ mod private
     /// # Overflow
     /// For integer `E` the element-wise addition is not overflow-checked: it
     /// panics in debug / wraps in release once a sum leaves `E`'s range.
+    #[ inline ]
     fn add( self, rhs : Self ) -> Self::Output {
       sum( self, rhs )
     }
@@ -55,6 +58,7 @@ mod private
     /// # Overflow
     /// For integer `E` the element-wise addition is not overflow-checked: it
     /// panics in debug / wraps in release once a sum leaves `E`'s range.
+    #[ inline ]
     fn add_assign( &mut self, rhs : Self )
     {
         *self = *self + rhs;

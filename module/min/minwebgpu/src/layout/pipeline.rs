@@ -1,9 +1,11 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
+  use crate::{ web_sys, PipelineLayoutDescriptor };
 
   /// Creates a new GPU pipeline layout.
+  #[ inline ]
+  #[ must_use ]
   pub fn create
   ( 
     device : &web_sys::GpuDevice, 
@@ -14,6 +16,8 @@ mod private
   }
 
   /// Creates a new pipeline layout descriptor builder.
+  #[ inline ]
+  #[ must_use ]
   pub fn desc< 'a >() -> PipelineLayoutDescriptor< 'a >
   {
     PipelineLayoutDescriptor::new()

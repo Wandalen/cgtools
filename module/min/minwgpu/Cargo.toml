@@ -3,7 +3,7 @@ name = "minwgpu"
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
-description = "Minimal, opinionated toolkit that reduces boilerplate for common wgpu patterns (context, buffers, textures)"
+description = "Minimal, opinionated wgpu toolkit — builders and helpers for context, buffer, and pipeline setup"
 repository = "https://github.com/Wandalen/cgtools"
 include = [
     "src/**/*",
@@ -19,6 +19,10 @@ wgpu.workspace = true
 pollster.workspace = true
 mingl.workspace = true
 error_tools.workspace = true
+asbytes.workspace = true
+
+[dev-dependencies]
+wgpu.workspace = true
 asbytes.workspace = true
 
 [lints]

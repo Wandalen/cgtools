@@ -8,7 +8,7 @@ VAOs are essential for managing complex rendering pipelines with multiple mesh t
 
 ![image](./showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 

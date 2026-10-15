@@ -1,8 +1,5 @@
 //! Draws diamond figure that reflects cube map texture
 
-#![ allow( clippy::needless_range_loop ) ]
-#![ allow( clippy::needless_borrow ) ]
-
 use minwebgl as gl;
 use gl::
 {
@@ -10,36 +7,42 @@ use gl::
   JsValue
 };
 
-async fn load_cube_texture( name : &str ) -> Result< [ image::RgbaImage; 6 ], JsValue >
+async fn cube_texture_load( name : &str ) -> Result< [ image::RgbaImage; 6 ], JsValue >
 {
-  let px = gl::file::load( &format!( "static/{}/PX.png", name ) ).await.expect( "Failed to load PX face" );
-  let nx = gl::file::load( &format!( "static/{}/NX.png", name ) ).await.expect( "Failed to load NX face" );
+  let px = gl::file::load( &format!( "static/{name}/PX.png" ) ).await?;
+  let nx = gl::file::load( &format!( "static/{name}/NX.png" ) ).await?;
 
-  let py = gl::file::load( &format!( "static/{}/PY.png", name ) ).await.expect( "Failed to load PY face" );
-  let ny = gl::file::load( &format!( "static/{}/NY.png", name ) ).await.expect( "Failed to load NY face" );
+  let py = gl::file::load( &format!( "static/{name}/PY.png" ) ).await?;
+  let ny = gl::file::load( &format!( "static/{name}/NY.png" ) ).await?;
 
-  let pz = gl::file::load( &format!( "static/{}/PZ.png", name ) ).await.expect( "Failed to load PZ face" );
-  let nz = gl::file::load( &format!( "static/{}/NZ.png", name ) ).await.expect( "Failed to load NZ face" );
+  let pz = gl::file::load( &format!( "static/{name}/PZ.png" ) ).await?;
+  let nz = gl::file::load( &format!( "static/{name}/NZ.png" ) ).await?;
 
-  let px = image::load_from_memory( &px ).unwrap().to_rgba8();
-  let nx = image::load_from_memory( &nx ).unwrap().to_rgba8();
-  let py = image::load_from_memory( &py ).unwrap().to_rgba8();
-  let ny = image::load_from_memory( &ny ).unwrap().to_rgba8();
-  let pz = image::load_from_memory( &pz).unwrap().to_rgba8();
-  let nz = image::load_from_memory( &nz ).unwrap().to_rgba8();
+  let decode = | bytes : &[ u8 ], face : &str | -> Result< image::RgbaImage, JsValue >
+  {
+    image::load_from_memory( bytes )
+    .map( | image | image.to_rgba8() )
+    .map_err( | e | JsValue::from_str( &format!( "Failed to decode {face} face of {name}: {e}" ) ) )
+  };
+
+  let px = decode( &px, "PX" )?;
+  let nx = decode( &nx, "NX" )?;
+  let py = decode( &py, "PY" )?;
+  let ny = decode( &ny, "NY" )?;
+  let pz = decode( &pz, "PZ" )?;
+  let nz = decode( &nz, "NZ" )?;
 
   Ok( [ px, nx, py, ny, pz, nz ] )
 }
 
-fn upload_cube_texture( gl : &GL, faces : &[ image::RgbaImage ], location: u32 )
+fn cube_texture_upload( gl : &GL, faces : &[ image::RgbaImage ], location: u32 )
 {
   let texture = gl.create_texture();
   gl.active_texture( gl::TEXTURE0 + location );
   gl.bind_texture( gl::TEXTURE_CUBE_MAP, texture.as_ref() );
 
-  for i in 0..faces.len()
+  for ( i, image ) in faces.iter().enumerate()
   {
-    let image = &faces[ i ];
     let ( width, height ) = image.dimensions();
     gl. tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array
     (
@@ -51,7 +54,7 @@ fn upload_cube_texture( gl : &GL, faces : &[ image::RgbaImage ], location: u32 )
       0,
       gl::RGBA,
       gl::UNSIGNED_BYTE,
-      Some( &image )
+      Some( image )
     ).expect( "Failed to upload data to texture" );
   }
 
@@ -62,10 +65,39 @@ fn upload_cube_texture( gl : &GL, faces : &[ image::RgbaImage ], location: u32 )
   gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_WRAP_R, gl::CLAMP_TO_EDGE as i32 );
 }
 
+/// Positions, normals, texture coordinates, and indices of a single primitive.
+type Geometry = ( Vec< [ f32; 3 ] >, Vec< [ f32; 3 ] >, Vec< [ f32; 2 ] >, Vec< u32 > );
 
-async fn run() -> Result< (), gl::WebglError >
+/// Reads the first primitive's positions, normals, texture coordinates, and indices
+/// from the parsed glb document.
+fn geometry_read
+(
+  document : &gltf::Document,
+  buffers : &[ gltf::buffer::Data ]
+) -> Geometry
 {
-  gl::browser::setup( Default::default() );
+  let mesh = document.meshes().next().expect( "No meshes were found" );
+  let primitive = mesh.primitives().next().expect( "No primitives were found" );
+  let reader = primitive.reader( | buffer | Some( &buffers[ buffer.index() ] ) );
+
+  let pos_iter = reader.read_positions().expect( "Failed to read positions" );
+  let positions = pos_iter.collect();
+
+  let normals_iter = reader.read_normals().expect( "Failed to read normals" );
+  let normals = normals_iter.collect();
+
+  let tex_iter = reader.read_tex_coords( primitive.index() as u32 ).expect( "Failed to read texture coordinates" );
+  let tex_coords = tex_iter.into_f32().collect();
+
+  let index_iter = reader.read_indices().expect( "Failed to read indices" );
+  let indices = index_iter.into_u32().collect();
+
+  ( positions, normals, tex_coords, indices )
+}
+
+async fn app_run() -> Result< (), gl::WebglError >
+{
+  gl::browser::setup( gl::browser::Config::default() );
   let gl = gl::context::retrieve_or_make()?;
 
   // Vertex and fragment shaders
@@ -75,35 +107,15 @@ async fn run() -> Result< (), gl::WebglError >
   gl.use_program( Some( &program ) );
 
   // Load textures
-  let env_map = load_cube_texture( "skybox" ).await.expect( "Failed to load environment map" );
-  let cube_normal_map = load_cube_texture( "normal_cube" ).await.expect( "Failed to load cube normal map" );
+  let env_map = cube_texture_load( "skybox" ).await.expect( "Failed to load environment map" );
+  let cube_normal_map = cube_texture_load( "normal_cube" ).await.expect( "Failed to load cube normal map" );
 
   // Load model
-  let obj_buffer = gl::file::load( "static/diamond.glb" ).await.expect( "Failed to load the model" );
+  let obj_buffer = gl::file::load( "static/diamond.glb" ).await
+  .map_err( | e | gl::dom::Error::BindgenError( "Failed to load static/diamond.glb", format!( "{e:?}" ) ) )?;
   let ( document, buffers, _ ) = gltf::import_slice( &obj_buffer[ .. ] ).expect( "Failed to parse the glb file" );
 
-  let positions : Vec< [ f32; 3 ] >;
-  let normals : Vec< [ f32; 3 ] >;
-  let tex_coords : Vec< [ f32; 2 ] >;
-  let indices : Vec< u32 >;
-
-  {
-    let mesh = document.meshes().next().expect( "No meshes were found" );
-    let primitive = mesh.primitives().next().expect( "No primitives were found" );
-    let reader = primitive.reader( | buffer | Some( &buffers[ buffer.index() ] ) );
-
-    let pos_iter = reader.read_positions().expect( "Failed to read positions" );
-    positions = pos_iter.collect();
-
-    let normals_iter = reader.read_normals().expect( "Failed to read normals" );
-    normals = normals_iter.collect();
-
-    let tex_iter = reader.read_tex_coords( primitive.index() as u32 ).expect( "Failed to read texture coordinates" );
-    tex_coords = tex_iter.into_f32().collect();
-
-    let index_iter = reader.read_indices().expect( "Failed to read indices" );
-    indices = index_iter.into_u32().collect();
-  }
+  let ( positions, normals, tex_coords, indices ) = geometry_read( &document, &buffers );
 
   let pos_buffer =  gl::buffer::create( &gl )?;
   let normal_buffer = gl::buffer::create( &gl )?;
@@ -115,9 +127,19 @@ async fn run() -> Result< (), gl::WebglError >
 
   let vao = gl::vao::create( &gl )?;
   gl.bind_vertex_array( Some( &vao ) );
-  gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 0 ).attribute_pointer( &gl, 0, &pos_buffer )?;
-  gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 0 ).attribute_pointer( &gl, 1, &normal_buffer )?;
-  gl::BufferDescriptor::new::< [ f32; 2 ] >().stride( 3 ).offset( 0 ).attribute_pointer( &gl, 2, &uv_buffer )?;
+  let position_attr = mingl::VertexAttribute::new( 0, mingl::VectorDataType::new( mingl::DataType::F32, 3, 1 ), 0 );
+  let normal_attr = mingl::VertexAttribute::new( 1, mingl::VectorDataType::new( mingl::DataType::F32, 3, 1 ), 0 );
+  let uv_attr = mingl::VertexAttribute::new( 2, mingl::VectorDataType::new( mingl::DataType::F32, 2, 1 ), 0 );
+  gl::BufferDescriptor::from_vector( position_attr.vector ).stride( 3 ).offset( position_attr.offset ).attribute_pointer( &gl, position_attr.location, &pos_buffer )?;
+  gl::BufferDescriptor::from_vector( normal_attr.vector ).stride( 3 ).offset( normal_attr.offset ).attribute_pointer( &gl, normal_attr.location, &normal_buffer )?;
+  // Fix(BUG-114): stride was 3 (copy-pasted from the 3-component pos/normal lines above), telling WebGL
+  // each uv vertex is 3*4=12 bytes apart when the tightly-packed `[f32;2]` buffer only has 2*4=8 bytes/vertex.
+  // Root cause: `attribute_pointer` (module/min/minwebgl/src/buffer.rs) passes `self.stride * sz` as the
+  // WebGL byte stride; a stride of 3 elements against 2-element data over-reads past the buffer's actual
+  // bound, tripping `GL_INVALID_OPERATION` at draw time for any mesh with >=2 vertices.
+  // Pitfall: when copy-pasting a BufferDescriptor chain for a differently-sized attribute, stride must
+  // match that attribute's OWN element count, not the neighboring attribute's.
+  gl::BufferDescriptor::from_vector( uv_attr.vector ).stride( 2 ).offset( uv_attr.offset ).attribute_pointer( &gl, uv_attr.location, &uv_buffer )?;
 
   let index_buffer = gl::buffer::create( &gl )?;
   gl::index::upload( &gl, &index_buffer, &indices, GL::STATIC_DRAW );
@@ -165,7 +187,6 @@ async fn run() -> Result< (), gl::WebglError >
     gl::F32x3::ZERO
   );
 
-
   // Update uniform values
   gl::uniform::matrix_upload( &gl, projection_matrix_location, &perspective_matrix.to_array(), true ).unwrap();
 
@@ -181,8 +202,8 @@ async fn run() -> Result< (), gl::WebglError >
   gl.uniform1i( gl.get_uniform_location( &program, "envMap" ).as_ref(), env_map_location );
   gl.uniform1i( gl.get_uniform_location( &program, "cubeNormalMap" ).as_ref(), cube_normal_map_location );
 
-  upload_cube_texture( &gl, &env_map, env_map_location as u32 );
-  upload_cube_texture( &gl, &cube_normal_map, cube_normal_map_location as u32 );
+  cube_texture_upload( &gl, &env_map, env_map_location as u32 );
+  cube_texture_upload( &gl, &cube_normal_map, cube_normal_map_location as u32 );
 
   gl.enable( gl::DEPTH_TEST );
 
@@ -195,7 +216,6 @@ async fn run() -> Result< (), gl::WebglError >
       let time = t as f32 / 1000.0;
       let rotation = gl::math::mat3x3::from_angle_y( time );
       let eye = rotation * eye;
-
 
       let view_matrix = gl::math::mat3x3h::look_at_rh( eye, gl::F32x3::ZERO, up );
       let inverse_model_matrix = model_matrix.inverse().unwrap();
@@ -221,5 +241,5 @@ async fn run() -> Result< (), gl::WebglError >
 
 fn main()
 {
-  gl::spawn_local( async move { run().await.unwrap() } );
+  gl::spawn_local( async move { app_run().await.unwrap() } );
 }

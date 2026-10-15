@@ -49,7 +49,6 @@ pub struct Framebuffers
 }
 
 /// Light system data
-#[ allow( dead_code ) ]
 pub struct LightSystem
 {
   pub translations : Vec< [ f32; 3 ] >,
@@ -59,7 +58,6 @@ pub struct LightSystem
   pub orbits : Vec< EllipticalOrbit >,
   pub offsets : Vec< f32 >,
   pub prev_radius_range : Rc< RefCell< ( f32, f32 ) > >,
-  pub max_count : usize,
 }
 
 /// Geometry for rendering

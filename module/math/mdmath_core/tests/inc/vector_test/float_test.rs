@@ -1,8 +1,5 @@
 use super::*;
 
-#[ allow( unused_imports ) ]
-use super::*;
-
 #[ test ]
 fn test_all_true()
 {
@@ -110,18 +107,18 @@ fn test_is_nan()
 
   // Test with a vector containing NaN values
   let vec_with_nan = [ f32::NAN, f32::NAN ];
-  assert!( vec_with_nan.iter().is_nan().all( | x | x ), "Expected all elements to be NaN" );
+  assert!( vec_with_nan.iter().map_is_nan().all( | x | x ), "Expected all elements to be NaN" );
 
   // Test with a vector without NaN values
   let vec_without_nan = [ 3.0, 4.0 ];
-  assert!( !vec_without_nan.iter().is_nan().any( | x | x ), "Expected no elements to be NaN" );
+  assert!( !vec_without_nan.iter().map_is_nan().any( | x | x ), "Expected no elements to be NaN" );
 
   // Test with a mixed vector
   let mixed_vec = [ 3.0, f32::NAN ];
-  assert!( mixed_vec.iter().is_nan().any( | x | x ), "Expected some elements to be NaN" );
+  assert!( mixed_vec.iter().map_is_nan().any( | x | x ), "Expected some elements to be NaN" );
 
   // Test with a mixed vector
   let mixed_vec = [ 3.0, f32::NAN ];
-  assert!( mixed_vec.iter().is_nan().any( | x | x ), "Expected some elements to be NaN" );
+  assert!( mixed_vec.iter().map_is_nan().any( | x | x ), "Expected some elements to be NaN" );
 
 }

@@ -7,6 +7,11 @@ mod private
   /// and it will cast the material to the specified type( another more specific material ).
   ///
   /// Will panic if cast is not possible
+  #[ must_use ]
+  ///
+  /// # Panics
+  ///
+  /// Panics if the material is not of type `T`.
   pub fn cast_unchecked_material_to_ref< T : 'static >( material :  Ref< '_, Box< dyn Material > > ) -> Ref< '_, T >
   {
     Ref::map
@@ -24,6 +29,11 @@ mod private
   /// and it will cast the material to the specified type( another more specific material ).
   ///
   /// Will panic if cast is not possible
+  #[ must_use ]
+  ///
+  /// # Panics
+  ///
+  /// Panics if the material is not of type `T`.
   pub fn cast_unchecked_material_to_ref_mut< T : 'static >( material : RefMut< '_, Box< dyn Material > > ) -> RefMut< '_, T >
   {
     RefMut::map

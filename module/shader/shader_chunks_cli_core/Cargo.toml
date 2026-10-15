@@ -1,0 +1,13 @@
+[package]
+name = "shader_chunks_cli_core"
+version = "0.1.0"
+edition = "2024"
+description = "Shared CLI wiring for the shader_chunks utility family — unilang registry/dispatch, pipe-safe printing, exit-code plumbing, and cli_fmt help rendering, parameterized by binary name"
+
+[dependencies]
+unilang.workspace = true
+cli_fmt.workspace = true
+mod_interface.workspace = true
+
+[lints]
+workspace = true

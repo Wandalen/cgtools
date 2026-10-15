@@ -8,6 +8,7 @@ workspace = true
 
 [dependencies]
 minwebgl = { workspace = true, features = ["math"] }
+mingl = { workspace = true }
 web-sys = { workspace = true, features = [
   "DomRect",
   "MouseEvent",
@@ -18,3 +19,6 @@ web-sys = { workspace = true, features = [
 tiles_tools = { workspace = true }
 pathfinding = { workspace = true }
 browser_input = { workspace = true }
+
+[package.metadata.action]
+tags = ["runtime:browser", "api:webgl"]

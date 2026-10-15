@@ -6,7 +6,7 @@ This demo demonstrates comprehensive outline rendering techniques in WebGL2. It 
 
 ![image](showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 

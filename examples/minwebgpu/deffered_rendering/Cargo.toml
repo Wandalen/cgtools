@@ -30,3 +30,6 @@ features = [
 # No dependencies needed for native targets
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 # Stub dependencies for compilation
+
+[package.metadata.action]
+tags = ["runtime:browser", "api:webgpu"]

@@ -14,19 +14,23 @@ mod private
     }
   };
 
-  /// Controls transition process from one [`AnimationNode`] to another
+  /// Shared transition-trigger predicate : from the edge plus past and current
+  /// [`Pose`], decides whether the transition should start.
+  type ConditionFn = Rc< RefCell< dyn Fn( &AnimationEdge, &Pose, &Pose ) -> bool > >;
+
+  /// Controls transition process from one `AnimationNode` to another
   pub struct AnimationEdge
   {
     /// Edge name
     name : Box< str >,
-    /// Next [`AnimationNode`] after transition
+    /// Next `AnimationNode` after transition
     next : Rc< RefCell< AnimationNode > >,
     /// Transition behavior
     transition : Transition,
     /// Condition closure that manages when apply transition. This implementation
     /// assumes that transition may happen when [`Node`] or [`CharacterControls`]
     /// change theirs state that can be identified by past and present [`Node`]'s [`Pose`].
-    condition : Rc< RefCell< dyn Fn( &AnimationEdge, &Pose, &Pose ) -> bool > >
+    condition : ConditionFn
   }
 
   impl AnimationEdge
@@ -45,30 +49,32 @@ mod private
       {
         name,
         next : next.clone(),
-        transition : transition.clone(),
+        transition,
         condition : Rc::new( RefCell::new( condition ) )
       }
     }
 
-    /// Returns next [`AnimationNode`]
+    /// Returns next `AnimationNode`
     fn next_get( &self ) -> Rc< RefCell< AnimationNode > >
     {
       self.next.clone()
     }
 
-    /// Check if [`Self::condition`] returns true
+    /// Check if `Self::condition` returns true
+    #[ must_use ]
     pub fn is_triggered( &self, past : &Pose, current : &Pose ) -> bool
     {
       ( self.condition.borrow() )( self, past, current )
     }
 
-    /// Get [`Self::transition`] as reference
+    /// Get `Self::transition` as reference
+    #[ must_use ]
     pub fn transition_as_ref( &self ) -> &Transition
     {
       &self.transition
     }
 
-    /// Get [`Self::transition`] as mutable reference
+    /// Get `Self::transition` as mutable reference
     fn transition_as_mut( &mut self ) -> &mut Transition
     {
       &mut self.transition
@@ -95,13 +101,13 @@ mod private
   {
     /// Node name
     name : Box< str >,
-    /// Animation played when this [`AnimationNode`] is current
+    /// Animation played when this `AnimationNode` is current
     /// and transition is not performed yet
     animation : Sequencer,
-    /// [`AnimationEdge`] that controls animation state now. [`AnimationNode`]
-    /// controls also transition process to next [`AnimationNode`].
+    /// [`AnimationEdge`] that controls animation state now. `AnimationNode`
+    /// controls also transition process to next `AnimationNode`.
     in_process : Option< Rc< RefCell< AnimationEdge > > >,
-    /// List of [`AnimationEdge`]'s for transition from one [`AnimationNode`] to another
+    /// List of [`AnimationEdge`]'s for transition from one `AnimationNode` to another
     edges : FxHashMap< Box< str >, Rc< RefCell< AnimationEdge > > >
   }
 
@@ -109,12 +115,12 @@ mod private
   #[ derive( Clone ) ]
   pub struct AnimationGraph
   {
-    /// [`AnimationNode`] that are currently played on
+    /// `AnimationNode` that are currently played on
     /// cycle for related [`crate::webgl::Skeleton`]
     current : Option< Rc< RefCell< AnimationNode > > >,
     /// [`Node`]'s animated by this [`AnimationGraph`]
     nodes : FxHashMap< Box< str >, Rc< RefCell< Node > > >,
-    /// List of [`AnimationNode`] that is part of animation
+    /// List of `AnimationNode` that is part of animation
     /// state update process
     animation_nodes : FxHashMap< Box< str >, Rc< RefCell< AnimationNode > > >,
     /// Last [`Pose`] of related [`crate::webgl::Skeleton`]
@@ -124,6 +130,7 @@ mod private
   impl AnimationGraph
   {
     /// Creates new [`AnimationGraph`]
+    #[ must_use ]
     pub fn new( nodes : &FxHashMap< Box< str >, Rc< RefCell< Node > > > ) -> Self
     {
       Self
@@ -135,19 +142,20 @@ mod private
       }
     }
 
-    /// Gets current [`AnimationNode`] name
+    /// Gets current `AnimationNode` name
+    #[ must_use ]
     pub fn current_name_get( &self ) -> Option< Box< str > >
     {
       self.current.as_ref().map( | n | n.borrow().name.clone() )
     }
 
-    /// Sets current [`AnimationNode`]
+    /// Sets current `AnimationNode`
     pub fn current_set( &mut self, name : &str )
     {
-      self.current = self.animation_nodes.get( &name.to_string().into_boxed_str() ).map( | n | n.clone() );
+      self.current = self.animation_nodes.get( &name.to_string().into_boxed_str() ).cloned();
     }
 
-    /// Add new [`AnimationNode`]
+    /// Add new `AnimationNode`
     pub fn node_add( &mut self, name : &str, animation : Sequencer )
     {
       let name = name.to_string().into_boxed_str();
@@ -167,7 +175,7 @@ mod private
       }
     }
 
-    /// Remove [`AnimationNode`]
+    /// Remove `AnimationNode`
     pub fn node_remove( &mut self, name : &str )
     {
       let name = name.to_string().into_boxed_str();
@@ -233,12 +241,14 @@ mod private
     }
 
     /// Gets map of animated [`Node`]'s
+    #[ must_use ]
     pub fn animated_nodes_get( &self ) -> &FxHashMap< Box< str >, Rc< RefCell< Node > > >
     {
       &self.nodes
     }
 
-    /// Returns [`Sequencer`] from [`AnimationNode`] by node name
+    /// Returns [`Sequencer`] from `AnimationNode` by node name
+    #[ must_use ]
     pub fn node_get( &self, name : &str ) -> Option< Sequencer >
     {
       let name = name.to_string().into_boxed_str();
@@ -253,6 +263,7 @@ mod private
     }
 
     /// Returns [`Transition`] from [`AnimationEdge`] by start node name ( `a` ) and edge name ( `name` )
+    #[ must_use ]
     pub fn edge_get( &self, node_name : &str, name : &str ) -> Option< Transition >
     {
       let node_name = node_name.to_string().into_boxed_str();
@@ -280,7 +291,7 @@ mod private
         if current.borrow().in_process.is_none()
         {
           let mut triggered_edge = None;
-          for ( _, edge ) in &current.borrow().edges
+          for edge in current.borrow().edges.values()
           {
             if edge.borrow().is_triggered( self.last_pose.as_ref().unwrap_or( &current_pose ), &current_pose )
             {
@@ -332,6 +343,13 @@ mod private
         let old = self.current.as_ref().unwrap().clone();
         let next = self.current.as_ref().unwrap().borrow().in_process.as_ref().unwrap().borrow().next_get();
         let time = old.borrow().in_process.as_ref().unwrap().borrow().transition_as_ref().end_ref().time();
+        // Fix(BUG-187): reset before syncing -- `next.animation` is the node's own persistent
+        // Sequencer, which keeps whatever elapsed time it was left at from any previous
+        // activation ( nothing resets it when a node is exited ). Without this reset,
+        // re-entering a node played earlier in the graph's lifetime added the transition's end
+        // time on top of that stale leftover elapsed time instead of starting the new
+        // activation cleanly.
+        next.borrow_mut().animation.reset();
         next.borrow_mut().animation.update( time );
         self.current = Some( next );
         old.borrow().in_process.as_ref().unwrap().borrow_mut().transition_as_mut().reset();

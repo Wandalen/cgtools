@@ -1,0 +1,14 @@
+[package]
+name = "game_of_life"
+version = "0.1.0"
+edition = "2021"
+
+[lints]
+workspace = true
+
+[dependencies]
+tiles_tools = { workspace = true }
+hecs = { workspace = true }
+
+[package.metadata.action]
+tags = ["runtime:native"]

@@ -1,31 +1,13 @@
 //! Hexagonal grid pathfinding example using `tiles_tools` and `minwebgl`.
-#![ allow( clippy::doc_markdown ) ]
-#![ allow( clippy::wildcard_imports ) ]
-#![ allow( clippy::implicit_return ) ]
-#![ allow( clippy::too_many_lines ) ]
-#![ allow( clippy::default_trait_access ) ]
-#![ allow( clippy::min_ident_chars ) ]
-#![ allow( clippy::std_instead_of_core ) ]
-#![ allow( clippy::needless_borrow ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::cast_possible_wrap ) ]
-#![ allow( clippy::map_flatten ) ]
-#![ allow( clippy::cast_precision_loss ) ]
-#![ allow( clippy::uninlined_format_args ) ]
-#![ allow( clippy::redundant_closure ) ]
-#![ allow( clippy::from_iter_instead_of_collect ) ]
-#![ allow( clippy::too_many_arguments ) ]
-#![ allow( clippy::cast_lossless ) ]
-#![ allow( clippy::useless_conversion ) ]
 
 use minwebgl as min;
 use browser_input::{ mouse, Input };
 use tiles_tools::
 {
   collection::Grid2D,
-  coordinates::{ hexagonal::*, pixel::Pixel },
+  coordinates::{ hexagonal::{ Axial, Coordinate, Odd, Offset, Pointy }, pixel::Pixel },
   geometry,
-  layout::*
+  layout::RectangularGrid
 };
 use min::
 {
@@ -40,23 +22,96 @@ use std::{ cell::RefCell, collections::HashMap, rc::Rc };
 
 fn main() -> Result< (), min::WebglError >
 {
-  draw_hexes()
+  hexes_draw()
 }
 
-fn draw_hexes() -> Result< (), minwebgl::WebglError >
+/// GPU resources shared by every demo render function: the drawing context, the shared
+/// hexagon shader, and the precomputed grid/outline/hexagon meshes.
+struct DemoRenderer< 'a >
 {
-  min::browser::setup( Default::default() );
+  context : &'a GL,
+  hex_shader : &'a Program,
+  grid_geometry : &'a min::geometry::Positions,
+  outline_geometry : &'a min::geometry::Positions,
+  hexagon_geometry : &'a min::geometry::Positions,
+}
+
+fn hexes_draw() -> Result< (), minwebgl::WebglError >
+{
+  let ( context, canvas, canvas_size ) = context_and_canvas_setup()?;
+  let mut input = Input::new( Some( canvas.clone().dyn_into().unwrap() ), browser_input::CLIENT ).expect( "Failed to initialize input" );
+
+  let ( grid, grid_center, aspect_scale, grid_mesh ) = grid_build( canvas_size );
+  let ( hex_shader, grid_geometry, outline_geometry, hexagon_geometry ) = geometries_create( &context, &grid_mesh )?;
+
+  // used to swith between demos
+  let demo_number = Rc::new( RefCell::new( 0 ) );
+  let color_picker = ui_setup( &context, &demo_number );
+
+  // for pathfind demo
+  let mut start = Coordinate::< Axial, Pointy >::new( 2, 4 );
+  let mut obstacles : HashMap< Coordinate< Axial, Pointy >, bool > = grid.coordinates()
+  .map( | c | ( c.into(), true ) )
+  .collect();
+
+  // array to store painted hexagons
+  let mut painting_canvas = Grid2D::< Offset< Odd >, Pointy, [ f32; 3 ] >::with_size_and_fn
+  (
+    [ -11, -11 ].into(),
+    [ 12, 12 ].into(),
+    || [ 1.0, 1.0, 1.0 ]
+  );
+
+  let draw = move | _ |
+  {
+    input.state_update();
+
+    let selected_hex_coord = pointer_to_hex( &canvas, canvas_size, aspect_scale, grid_center, &input );
+    let renderer = DemoRenderer
+    {
+      context : &context,
+      hex_shader : &hex_shader,
+      grid_geometry : &grid_geometry,
+      outline_geometry : &outline_geometry,
+      hexagon_geometry : &hexagon_geometry,
+    };
+
+    match *demo_number.borrow()
+    {
+      0 => grid_demo( &renderer, grid_center, aspect_scale, selected_hex_coord ),
+      1 => pathfind_demo( &renderer, &input, grid_center, aspect_scale, &mut start, &mut obstacles, selected_hex_coord ),
+      _ => painting_demo( &renderer, &canvas, canvas_size, &input, aspect_scale, &mut painting_canvas, &color_picker ),
+    }
+
+    input.events_clear();
+
+    true
+  };
+
+  min::exec_loop::run( draw );
+
+  Ok( () )
+}
+
+// creates the webgl context, the canvas handle, and the dpr-corrected canvas size
+fn context_and_canvas_setup() -> Result< ( GL, HtmlCanvasElement, F32x2 ), min::WebglError >
+{
+  min::browser::setup( min::browser::Config::default() );
   let o = min::context::ContextOptions::default()
-  .remove_dpr_scaling( true )
-  .preserve_drawing_buffer( true );
+  .dpr_scaling_remove( true )
+  .drawing_buffer_preserve( true );
   let context = min::context::retrieve_or_make_with( o )?;
   let canvas = context.canvas().unwrap().dyn_into::< HtmlCanvasElement >().unwrap();
   // used to scale canvas true size to css size
   let dpr = web_sys::window().unwrap().device_pixel_ratio() as f32;
   let canvas_size = ( canvas.width() as f32, canvas.height() as f32 ).into_vector() / dpr;
 
-  let mut input = Input::new( Some( canvas.clone().dyn_into().unwrap() ), browser_input::CLIENT ).expect( "Failed to initialize input" );
+  Ok( ( context, canvas, canvas_size ) )
+}
 
+// builds the rectangular hex grid, its pixel-space center, the aspect-corrected scale, and its mesh
+fn grid_build( canvas_size : F32x2 ) -> ( RectangularGrid< Odd, Pointy >, Pixel, F32x2, Vec< f32 > )
+{
   // inclusize grid bounds
   let region =
   [
@@ -66,14 +121,14 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   let grid = RectangularGrid::new( region );
   // coordinates of a point in the center of grid
   let grid_center = grid.center();
-  min::info!( "{:?}", grid_center );
+  min::info!( "{grid_center:?}" );
   let aspect = canvas_size[ 1 ] / canvas_size[ 0 ];
   let scale = 0.1;
   let aspect_scale : F32x2 = [ aspect * scale, scale ].into();
 
   let grid_mesh = geometry::from_iter
   (
-    grid.coordinates().map( | c | Into::< Coordinate< Axial, _ > >::into( c ) ),
+    grid.coordinates().map( Into::< Coordinate< Axial, _ > >::into ),
     geometry::hexagon_triangles,
     // x is inverted because grid goes right and down, so to put it to center we need to offset it to left (neg x)
     // and up (pos y)
@@ -82,34 +137,32 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
     * mat2x2h::scale( [ 0.9, 0.9 ] )
   );
 
+  ( grid, grid_center, aspect_scale, grid_mesh )
+}
+
+// compiles the shared hexagon shader and the grid/outline/hexagon vertex geometries
+fn geometries_create
+(
+  context : &GL,
+  grid_mesh : &[ f32 ],
+) -> Result< ( Rc< Program >, min::geometry::Positions, min::geometry::Positions, min::geometry::Positions ), min::WebglError >
+{
   let vert = include_str!( "../shaders/main.vert" );
   let frag = include_str!( "../shaders/main.frag" );
   let hex_shader = Rc::new( Program::new( context.clone(), vert, frag )? );
   hex_shader.activate();
 
-  let grid_geometry = min::geometry::Positions::new
-  (
-    context.clone(),
-    &grid_mesh,
-    2,
-  )?;
-  let outline_geometry = min::geometry::Positions::new
-  (
-    context.clone(),
-    &geometry::hexagon_lines(),
-    2,
-  )?;
-  let hexagon_geometry = min::geometry::Positions::new
-  (
-    context.clone(),
-    &geometry::hexagon_triangles(),
-    2,
-  )?;
+  let grid_geometry = min::geometry::Positions::new( context.clone(), grid_mesh, 2 )?;
+  let outline_geometry = min::geometry::Positions::new( context.clone(), &geometry::hexagon_lines(), 2 )?;
+  let hexagon_geometry = min::geometry::Positions::new( context.clone(), &geometry::hexagon_triangles(), 2 )?;
 
+  Ok( ( hex_shader, grid_geometry, outline_geometry, hexagon_geometry ) )
+}
+
+// wires up the demo-switcher buttons and returns the color picker used by the painting demo
+fn ui_setup( context : &GL, demo_number : &Rc< RefCell< i32 > > ) -> HtmlInputElement
+{
   let document = web_sys::window().unwrap().document().unwrap();
-
-  // used to swith between demos
-  let demo_number = Rc::new( RefCell::new( 0 ) );
 
   let grid_button : HtmlButtonElement = document
   .get_element_by_id( "grid" )
@@ -170,117 +223,54 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   painting_button.set_onclick( Some( closure.as_ref().unchecked_ref() ) );
   closure.forget();
 
-  let color_picker : HtmlInputElement = document
+  document
   .get_element_by_id( "color-picker" )
   .unwrap()
   .dyn_into()
-  .unwrap();
+  .unwrap()
+}
 
-  // for pathfind demo
-  let mut start = Coordinate::< Axial, Pointy >::new( 2, 4 );
-  let mut obstacles = HashMap::< Coordinate< Axial, Pointy >, bool >::from_iter
+// converts the current pointer position into the hexagon coordinate under the cursor
+fn pointer_to_hex
+(
+  canvas : &HtmlCanvasElement,
+  canvas_size : F32x2,
+  aspect_scale : F32x2,
+  grid_center : Pixel,
+  input : &Input,
+) -> Coordinate< Axial, Pointy >
+{
+  let rect = canvas.get_bounding_client_rect();
+  let canvas_pos = F32x2::new( rect.left() as f32, rect.top() as f32 );
+  let half_size = canvas_size / 2.0;
+  let cursor_pos = F32x2::new( input.pointer_position()[ 0 ] as f32, input.pointer_position()[ 1 ] as f32 );
+  // normalize coodinates to NDC [ -1 : 1 ], then apply inverse ascpect scale
+  // this transforms cursor position to world space
+  // then offset it by center of the grid, so that if cursor is in the center of the canvas, it will be in the center of the grid
+  let cursor_pos : Pixel =
   (
-    grid.coordinates().map( | c | ( c.into(), true ) )
-  );
-
-  // array to store painted hexagons
-  let mut painting_canvas = Grid2D::< Offset< Odd >, Pointy, [ f32; 3 ] >::with_size_and_fn
-  (
-    [ -11, -11 ].into(),
-    [ 12, 12 ].into(),
-    || [ 1.0, 1.0, 1.0 ]
-  );
-
-  let draw = move | _ |
-  {
-    input.update_state();
-
-    let rect = canvas.get_bounding_client_rect();
-    let canvas_pos = F32x2::new( rect.left() as f32, rect.top() as f32 );
-    let half_size = canvas_size / 2.0;
-    let cursor_pos = F32x2::new( input.pointer_position()[ 0 ] as f32, input.pointer_position()[ 1 ] as f32 );
-    // normalize coodinates to NDC [ -1 : 1 ], then apply inverse ascpect scale
-    // this transforms cursor position to world space
-    // then offset it by center of the grid, so that if cursor is in the center of the canvas, it will be in the center of the grid
-    let cursor_pos : Pixel =
-    (
-      ( ( cursor_pos - canvas_pos ) - half_size ) / ( half_size * aspect_scale ) + F32x2::from_array( grid_center.data )
-    ).into();
-    // hexagon which cursor points to
-    let selected_hex_coord : Coordinate::< Axial, Pointy > = cursor_pos.into();
-
-    match *demo_number.borrow()
-    {
-      0 =>
-      {
-        grid_demo
-        (
-          &context,
-          grid_center,
-          aspect_scale,
-          &hex_shader,
-          &grid_geometry,
-          &outline_geometry,
-          selected_hex_coord
-        );
-      }
-      1 =>
-      {
-        pathfind_demo
-        (
-          &context,
-          &input,
-          grid_center,
-          aspect_scale,
-          &hex_shader,
-          &grid_geometry,
-          &hexagon_geometry,
-          &mut start,
-          &mut obstacles,
-          selected_hex_coord
-        );
-      }
-      _ =>
-      {
-        painting_demo
-        (
-          &context,
-          &canvas,
-          canvas_size,
-          &input,
-          aspect_scale,
-          &hex_shader,
-          &hexagon_geometry,
-          &mut painting_canvas,
-          &color_picker
-        );
-      }
-    }
-
-    input.clear_events();
-
-    true
-  };
-
-  min::exec_loop::run( draw );
-
-  Ok( () )
+    ( ( cursor_pos - canvas_pos ) - half_size ) / ( half_size * aspect_scale ) + F32x2::from_array( grid_center.data )
+  ).into();
+  // hexagon which cursor points to
+  cursor_pos.into()
 }
 
 // function responsible for painting on grid
 fn painting_demo
 (
-  context : &GL,
+  renderer : &DemoRenderer< '_ >,
   canvas : &HtmlCanvasElement,
-  canvas_size :F32x2,
+  canvas_size : F32x2,
   input : &Input,
   scale : F32x2,
-  hex_shader : &Program,
-  hexagon_geometry : &min::geometry::Positions,
   painting_canvas : &mut Grid2D< Offset< Odd >, Pointy, [ f32; 3 ] >,
   color_picker : &HtmlInputElement
 )
 {
+  let context = renderer.context;
+  let hex_shader = renderer.hex_shader;
+  let hexagon_geometry = renderer.hexagon_geometry;
+
   let is_mouse_down = input.is_button_down( mouse::MouseButton::Main );
   // not painting anything if the mouse is not pressed
   if !is_mouse_down
@@ -306,15 +296,15 @@ fn painting_demo
 
   // get color
   let color = color_picker.value();
-  let r = u8::from_str_radix( &color[ 1..3 ], 16 ).unwrap() as f32 / 255.0;
-  let g = u8::from_str_radix( &color[ 3..5 ], 16 ).unwrap() as f32 / 255.0;
-  let b = u8::from_str_radix( &color[ 5..7 ], 16 ).unwrap() as f32 / 255.0;
+  let r = f32::from( u8::from_str_radix( &color[ 1..3 ], 16 ).unwrap() ) / 255.0;
+  let g = f32::from( u8::from_str_radix( &color[ 3..5 ], 16 ).unwrap() ) / 255.0;
+  let b = f32::from( u8::from_str_radix( &color[ 5..7 ], 16 ).unwrap() ) / 255.0;
   let color = [ r, g, b ];
 
   painting_canvas[ selected_hex_coord ] = color;
 
   // draw painted hexagon
-  let axial : Coordinate< Axial, _ > = selected_hex_coord.into();
+  let axial : Coordinate< Axial, _ > = selected_hex_coord;
   let pos : Pixel = axial.into();
   let angle = 30.0f32.to_radians();
 
@@ -335,18 +325,20 @@ fn painting_demo
 // function responsible for demonstrating pathfind in grid
 fn pathfind_demo
 (
-  context : &GL,
+  renderer : &DemoRenderer< '_ >,
   input : &Input,
   mut grid_center : Pixel,
   scale : min::F32x2,
-  hex_shader : &Program,
-  grid_geometry : &min::geometry::Positions,
-  hexagon_geometry : &min::geometry::Positions,
   start : &mut Coordinate< Axial, Pointy >,
   obstacles : &mut HashMap< Coordinate< Axial, Pointy >, bool >,
   selected_hex_coord : Coordinate< Axial, Pointy >
 )
 {
+  let context = renderer.context;
+  let hex_shader = renderer.hex_shader;
+  let grid_geometry = renderer.grid_geometry;
+  let hexagon_geometry = renderer.hexagon_geometry;
+
   // update obstacles and start position
   for browser_input::Event { event_type, .. } in input.event_queue().as_slice()
   {
@@ -386,25 +378,25 @@ fn pathfind_demo
   let offsets = obstacles
   .iter()
   .filter( | ( _, v ) | !**v )
-  .map( | ( coord, _ ) |
+  .flat_map( | ( coord, _ ) |
   {
     let mut pos : Pixel = ( *coord ).into();
     // y points down
     pos[ 1 ] = -pos[ 1 ];
     ( pos - grid_center ).data
   })
-  .flatten()
   .collect::< Vec< _ > >();
   let count = ( offsets.len() / 2 ) as i32;
 
   hexagon_geometry.activate();
-  let offsets_buffer = min::buffer::create( &context ).unwrap();
-  min::buffer::upload( &context, &offsets_buffer, offsets.as_slice(), GL::DYNAMIC_DRAW );
-  min::BufferDescriptor::new::< [ f32; 2 ] >()
-  .offset( 0 )
+  let offsets_buffer = min::buffer::create( context ).unwrap();
+  min::buffer::upload( context, &offsets_buffer, offsets.as_slice(), GL::DYNAMIC_DRAW );
+  let offset_attr = mingl::VertexAttribute::new( 1, mingl::VectorDataType::new( mingl::DataType::F32, 2, 1 ), 0 );
+  min::BufferDescriptor::from_vector( offset_attr.vector )
+  .offset( offset_attr.offset )
   .stride( 0 )
   .divisor( 1 )
-  .attribute_pointer( &context, 1, &offsets_buffer ).unwrap();
+  .attribute_pointer( context, offset_attr.location, &offsets_buffer ).unwrap();
 
   hex_shader.uniform_upload( "u_zoom", scale.as_slice() );
   hex_shader.uniform_upload( "u_rotation", [ angle.cos(), angle.sin() ].as_slice() );
@@ -417,7 +409,7 @@ fn pathfind_demo
   (
     start,
     &goal,
-    | coord | obstacles.get( &coord ).copied().unwrap_or_default(),
+    | coord | obstacles.get( coord ).copied().unwrap_or_default(),
     | _ | 1
   );
 
@@ -426,18 +418,21 @@ fn pathfind_demo
     return;
   };
 
-  let offsets = path.iter().map( | coord |
+  let offsets = path.iter().flat_map( | coord |
   {
     let mut pos : Pixel = ( *coord ).into();
     pos[ 1 ] = -pos[ 1 ];
     ( pos - grid_center ).data
   })
-  .flatten()
   .collect::< Vec< _ > >();
   let count = ( offsets.len() / 2 ) as i32;
-  min::buffer::upload( &context, &offsets_buffer, offsets.as_slice(), GL::DYNAMIC_DRAW );
+  min::buffer::upload( context, &offsets_buffer, offsets.as_slice(), GL::DYNAMIC_DRAW );
 
-  hex_shader.uniform_upload( "u_mvp", scale.as_slice() );
+  // Fix(BUG-326): was "u_mvp", which main.vert/main.frag never declare — a silent WebGL no-op
+  // masked only by the obstacle-drawing block above already having set u_zoom to this same value.
+  // Root cause: stale/typo'd uniform name, never caught since unknown uniform names don't error.
+  // Pitfall: WebGL uniform lookups fail silently — verify call-site names against shader source.
+  hex_shader.uniform_upload( "u_zoom", scale.as_slice() );
   hex_shader.uniform_upload( "u_rotation", [ angle.cos(), angle.sin() ].as_slice() );
   hex_shader.uniform_upload( "u_color", &[ 0.1, 0.6, 0.1, 1.0 ] );
   context.draw_arrays_instanced( GL::TRIANGLES, 0, hexagon_geometry.nvertices, count );
@@ -446,15 +441,17 @@ fn pathfind_demo
 // function responsible for demonstrating grid
 fn grid_demo
 (
-  context : &GL,
+  renderer : &DemoRenderer< '_ >,
   mut grid_center : Pixel,
   scale : min::F32x2,
-  hex_shader : &Program,
-  grid_geometry : &min::geometry::Positions,
-  outline_geometry : &min::geometry::Positions,
   selected_hex_coord : Coordinate< Axial, Pointy >
 )
 {
+  let context = renderer.context;
+  let hex_shader = renderer.hex_shader;
+  let grid_geometry = renderer.grid_geometry;
+  let outline_geometry = renderer.outline_geometry;
+
   context.clear( GL::COLOR_BUFFER_BIT );
 
   // draw grid

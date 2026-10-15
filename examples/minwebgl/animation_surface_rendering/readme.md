@@ -8,4 +8,4 @@ This technique is useful for creating water effects, in-game screens or textures
 
 ![image](showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**

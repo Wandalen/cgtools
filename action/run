@@ -1,0 +1,270 @@
+#!/usr/bin/env bash
+#@ purpose: Build and run any example crate by partial, case-insensitive match against its path,
+#@          or by the numeric order id shown in `list` output.
+#@ output:  Unique match: delegates to that example's own `verb/run` — `trunk serve --release`
+#@          on a fresh random port for browser examples (crate has an index.html), opening the
+#@          served page via `browsee` once the build is ready (silently skipped if `browsee` is
+#@          missing, fails, or hangs — the dev server keeps running regardless, open the printed
+#@          URL manually in that case); `cargo run --release --all-features` for native and
+#@          offscreen examples (crate has a `.offscreen` marker: renders once to a file, no
+#@          window — everything else is a live native window). A query that exactly names one
+#@          example (full path, or a complete trailing path-segment chain, e.g. basename alone)
+#@          always resolves to it, even if the same query is also a substring of other, unrelated
+#@          example paths.
+#@          No match: lists nothing, suggests `list`. Fuzzy query loosely matching several
+#@          unrelated paths: reported as ambiguous, candidates listed. Query that exactly names
+#@          more than one example (same basename reused under different parent directories):
+#@          reported as a name collision, not ambiguity — candidates listed, qualify with a
+#@          parent directory to pick one. Never guesses in any of these cases.
+#@ param:   <query>   partial match against the crate's path relative to repo root, e.g.
+#@                    `orrery` matches `examples/orrery/webgpu`; or the numeric order
+#@                    id shown in `list` output's leftmost column, e.g. `62`. Two reserved values
+#@                    instead of a real query: `list [tag]` prints every discoverable example
+#@                    path with its order id, optionally filtered to those carrying `tag` (e.g.
+#@                    `runtime:offscreen` or `api:wgpu` — see the `_TAGS` array below for the
+#@                    full predefined set) — ids reflect position in the full sorted list, so
+#@                    they stay stable across different tag filters; `.` prints this help text.
+#@                    `raw::1` (anywhere in argv, only meaningful with `list`) switches from
+#@                    aligned columns to pipe-delimited `id|path|kind|tags`, one example per
+#@                    line, for scripts (e.g. `action/gallery`) to parse without depending on
+#@                    column widths; `raw::0` (the default) keeps the aligned view.
+set -euo pipefail
+
+_raw=0
+_args=()
+for _a in "$@"
+do
+  case "$_a" in
+    raw::* )
+      _raw="${_a#raw::}"
+      if [[ "$_raw" != "0" && "$_raw" != "1" ]]
+      then
+        printf 'error: raw:: expects 0 or 1, got %q\n' "${_a#raw::}" >&2
+        exit 2
+      fi
+      ;;
+    * ) _args+=( "$_a" ) ;;
+  esac
+done
+set -- "${_args[@]}"
+
+if [[ "${1:-}" == "." ]]
+then
+  printf '\n  %s\n\n' "$(basename "$0")"
+  sed -n 's/^#@ /  /p' "$0"
+  printf '\n'
+  exit 0
+fi
+
+_SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+_REPO_ROOT="$( cd "$_SCRIPT_DIR/.." && pwd )"
+
+# Predefined tag vocabulary (group:name). Each example may declare up to 3,
+# via `[package.metadata.action]` / `tags = [...]` in its own Cargo.toml.
+# Keep sorted within each group.
+_TAGS=(
+  api:vulkan
+  api:webgl
+  api:webgpu
+  api:wgpu
+  runtime:browser
+  runtime:native
+  runtime:offscreen
+  scene:orrery
+)
+
+_tag_known()
+{
+  local _t
+  for _t in "${_TAGS[@]}"
+  do
+    [[ "$_t" == "$1" ]] && return 0
+  done
+  return 1
+}
+
+# Discover every example crate: anything under examples/ (any depth) with
+# its own Cargo.toml — module/helper crates like embroidery_tools are real
+# products, not examples, so they're deliberately out of scope here.
+# Classified as browser (has index.html, served via trunk), offscreen (has
+# a .offscreen marker: renders once to a file and exits, no window opens),
+# or native (everything else, built and run via plain cargo run) — no
+# family names hardcoded, so new example directories are picked up
+# automatically. Also reads each crate's declared tags (up to 3, from the
+# predefined _TAGS set — unknown or excess tags warn to stderr but don't
+# block discovery).
+_discover()
+{
+  local _manifest _dir _rel _kind _tags_raw _tags _t _n
+  while IFS= read -r -d '' _manifest
+  do
+    _dir="$( dirname "$_manifest" )"
+    _rel="${_dir#"$_REPO_ROOT"/}"
+
+    if [[ -f "$_dir/index.html" ]]
+    then
+      _kind="browser"
+    elif [[ -f "$_dir/.offscreen" ]]
+    then
+      _kind="offscreen"
+    else
+      _kind="native"
+    fi
+
+    _tags_raw="$( sed -n -E 's/^tags = \[(.*)\]$/\1/p' "$_manifest" | tr -d '"' )"
+    _tags=""
+    _n=0
+    if [[ -n "$_tags_raw" ]]
+    then
+      while IFS= read -r _t
+      do
+        _t="$( printf '%s' "$_t" | sed -E 's/^ +| +$//g' )"
+        [[ -n "$_t" ]] || continue
+        _n=$(( _n + 1 ))
+        if ! _tag_known "$_t"
+        then
+          printf 'warning: %s declares unknown tag %q\n' "$_rel" "$_t" >&2
+        fi
+        _tags="${_tags:+$_tags,}$_t"
+      done < <( printf '%s\n' "$_tags_raw" | tr ',' '\n' )
+      if (( _n > 3 ))
+      then
+        printf 'warning: %s declares %d tags, max is 3\n' "$_rel" "$_n" >&2
+      fi
+    fi
+
+    printf '%s|%s|%s\n' "$_rel" "$_kind" "$_tags"
+  done < <(find "$_REPO_ROOT/examples" \( -name target -o -name .git \) -prune -o -name Cargo.toml -print0)
+}
+
+# Canonical numbered ordering, shared by `list` (display) and numeric-query
+# lookup (resolution) so an id printed by one always resolves via the other.
+# Emits "<id>|<path>|<kind>|<tags>", 1-based, in the same sorted order `list`
+# already displayed before order ids existed.
+_discover_numbered()
+{
+  local _id=0 _line
+  while IFS= read -r _line
+  do
+    _id=$(( _id + 1 ))
+    printf '%s|%s\n' "$_id" "$_line"
+  done < <(_discover | LC_ALL=C sort)
+}
+
+if [[ $# -eq 0 ]]
+then
+  printf 'error: missing query — pass a partial match against an example path, or "list"\n' >&2
+  printf 'try: %s list\n' "$(basename "$0")" >&2
+  exit 2
+elif [[ $# -gt 2 ]] || { [[ $# -eq 2 ]] && [[ "$1" != "list" ]]; }
+then
+  printf 'error: unexpected arguments (a second argument is only valid after "list")\n' >&2
+  exit 2
+fi
+
+_query="$1"
+
+if [[ "$_query" == "list" ]]
+then
+  _tag_filter="${2:-}"
+  _discover_numbered | while IFS='|' read -r _id _p _k _t
+  do
+    if [[ -n "$_tag_filter" ]]
+    then
+      case ",$_t," in
+        *",$_tag_filter,"*) ;;
+        *) continue ;;
+      esac
+    fi
+    if (( _raw ))
+    then
+      printf '%s|%s|%s|%s\n' "$_id" "$_p" "$_k" "$_t"
+    else
+      # Display joins tags with · for readability; raw::1 keeps commas so
+      # parsers (e.g. action/gallery) never depend on a multibyte separator.
+      printf '%-4s %-60s %-10s %s\n' "$_id" "$_p" "$_k" "${_t//,/·}"
+    fi
+  done
+  exit 0
+fi
+
+_matches=()
+if [[ "$_query" =~ ^[0-9]+$ ]]
+then
+  while IFS='|' read -r _id _p _k _t
+  do
+    if (( _id == 10#$_query ))
+    then
+      _matches+=( "$_p|$_k|$_t" )
+    fi
+  done < <(_discover_numbered)
+else
+  _query_lc="${_query,,}"
+  while IFS= read -r _c
+  do
+    _relpath="${_c%%|*}"
+    if [[ "${_relpath,,}" == *"$_query_lc"* ]]
+    then
+      _matches+=( "$_c" )
+    fi
+  done < <(_discover)
+
+  # An exact match — full relpath, or a complete trailing path-segment chain
+  # — is a different, higher-confidence category than a candidate that merely
+  # contains the query as a substring: narrow to exact matches whenever at
+  # least one exists, and remember it via _exact_tie so a leftover collision
+  # among them (e.g. `hello_triangle` naming 2 unrelated examples) is reported
+  # as a name collision below, never lumped in with genuine fuzzy ambiguity.
+  _exact=()
+  for _c in "${_matches[@]}"
+  do
+    _relpath="${_c%%|*}"
+    _relpath_lc="${_relpath,,}"
+    if [[ "$_relpath_lc" == "$_query_lc" || "$_relpath_lc" == *"/$_query_lc" ]]
+    then
+      _exact+=( "$_c" )
+    fi
+  done
+  if [[ "${#_exact[@]}" -gt 0 ]]
+  then
+    _matches=( "${_exact[@]}" )
+    _exact_tie=1
+  else
+    _exact_tie=0
+  fi
+fi
+
+case "${#_matches[@]}" in
+  0)
+    printf 'error: no example matches %q\n' "$_query" >&2
+    printf 'try: %s list\n' "$(basename "$0")" >&2
+    exit 1
+    ;;
+  1)
+    ;;
+  *)
+    if [[ "${_exact_tie:-0}" -eq 1 ]]
+    then
+      printf 'error: %q exactly names %d examples — qualify with a parent directory:\n' "$_query" "${#_matches[@]}" >&2
+    else
+      printf 'error: ambiguous match %q — %d candidates:\n' "$_query" "${#_matches[@]}" >&2
+    fi
+    for _c in "${_matches[@]}"
+    do
+      printf '  %s\n' "${_c%%|*}" >&2
+    done
+    exit 1
+    ;;
+esac
+
+_relpath="${_matches[0]%%|*}"
+_absdir="$_REPO_ROOT/$_relpath"
+
+if [[ ! -x "$_absdir/verb/run" ]]
+then
+  printf 'error: %s has no executable verb/run\n' "$_relpath" >&2
+  exit 1
+fi
+
+printf 'running -> %s\n' "$_relpath" >&2
+exec "$_absdir/verb/run"

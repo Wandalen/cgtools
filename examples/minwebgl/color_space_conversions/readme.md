@@ -6,7 +6,7 @@ A comprehensive interactive tool for exploring color theory and color space conv
 
 ![image](showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 

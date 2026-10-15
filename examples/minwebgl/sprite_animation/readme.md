@@ -8,7 +8,7 @@ Sprite animation is fundamental for 2D games and UI effects. This example provid
 
 ![image](./showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 

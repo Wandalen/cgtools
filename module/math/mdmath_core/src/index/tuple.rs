@@ -1,4 +1,4 @@
-use super::*;
+use super::{AsIx2, Ix, Ix2, AsIx3, Ix3};
 
 impl AsIx2 for ( Ix, Ix )
 {

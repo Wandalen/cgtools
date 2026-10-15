@@ -1,5 +1,11 @@
 [package]
-name = "minwebgpu__"
+# Fix(BUG-355): name was "minwebgpu__" -- a malformed double-underscore name, not matching the
+# minwebgpu_<crate> convention every sibling crate in this directory follows.
+# Root cause: likely a truncated rename -- the intended "hello_triangle" suffix was never typed
+# in after the trailing underscore.
+# Pitfall: a malformed-but-valid package name compiles and links cleanly with zero symptom;
+# cross-check declared names against sibling naming convention, don't trust them at face value.
+name = "minwebgpu_hello_triangle"
 version = "0.1.0"
 edition = "2021"
 authors = [
@@ -19,3 +25,9 @@ features = [
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 # No minwebgpu dependency for native targets
 
+
+[lints]
+workspace = true
+
+[package.metadata.action]
+tags = ["runtime:browser", "api:webgpu"]

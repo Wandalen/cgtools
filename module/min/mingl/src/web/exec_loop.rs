@@ -4,8 +4,6 @@
 /// Internal namespace for implementation details.
 mod private
 {
-  // use crate::*;
-
   use web_sys::
   {
     wasm_bindgen::
@@ -24,6 +22,11 @@ mod private
   /// # Arguments
   /// * `update_and_draw` - A closure that takes a `f64` timestamp and performs all per-frame logic.
   ///   It should return `true` to continue the loop or `false` to stop it.
+  ///
+  /// # Panics
+  /// Panics under the same conditions as [`animation_frame_request`], which this function
+  /// calls both to start the loop and to schedule each subsequent frame.
+  #[ inline ]
   pub fn run< F >( mut update_and_draw : F )
   where
     F : 'static + FnMut( f64 ) -> bool,
@@ -39,11 +42,11 @@ mod private
       // Request the next frame
       if continuing
       {
-        request_animation_frame( render_loop_clone.borrow().as_ref().unwrap() );
+        animation_frame_request( render_loop_clone.borrow().as_ref().unwrap() );
       }
     }) as Box< dyn FnMut( f64 ) > ));
 
-    request_animation_frame( render_loop.borrow().as_ref().unwrap() );
+    animation_frame_request( render_loop.borrow().as_ref().unwrap() );
   }
 
   /// A helper function to make a single `requestAnimationFrame` call.
@@ -53,8 +56,9 @@ mod private
   ///
   /// # Panics
   /// Panics if it cannot access the browser's `window` object or if the
-  /// `request_animation_frame` call itself fails.
-  pub fn request_animation_frame( f : &Closure< dyn FnMut( f64 ) > )
+  /// `animation_frame_request` call itself fails.
+  #[ inline ]
+  pub fn animation_frame_request( f : &Closure< dyn FnMut( f64 ) > )
   {
     use wasm_bindgen::JsCast;
     web_sys::window()
@@ -71,5 +75,5 @@ crate::mod_interface!
   /// The main function to start the animation loop.
   own use run;
   /// The helper function to request a single animation frame.
-  orphan use request_animation_frame;
+  orphan use animation_frame_request;
 }

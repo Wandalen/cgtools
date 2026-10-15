@@ -1,13 +1,15 @@
+//! Video-as-texture example — streams an HTML video element into a WebGL2 texture.
+
 use minwebgl as gl;
 
 fn main()
 {
-  gl::spawn_local( async move { run().await.unwrap() } );
+  app_run().unwrap();
 }
 
-async fn run() -> Result< (), gl::WebglError >
+fn app_run() -> Result< (), gl::WebglError >
 {
-  gl::browser::setup( Default::default() );
+  gl::browser::setup( gl::browser::Config::default() );
   let gl = gl::context::retrieve_or_make()?;
 
   let vertex_shader_src = include_str!( "../shaders/main.vert" );
@@ -19,7 +21,7 @@ async fn run() -> Result< (), gl::WebglError >
   let video_width = 640;
   let video_height = 480;
 
-  let video_element = gl::dom::create_video_element( path, video_width, video_height )
+  let video_element = gl::dom::video_element_create( path, video_width, video_height )
   .expect( "Failed to create video element" );
   let texture = gl.create_texture().expect( "Failed to create texture" );
   gl.bind_texture( gl::TEXTURE_2D, Some( &texture ) );
@@ -31,7 +33,7 @@ async fn run() -> Result< (), gl::WebglError >
     {
       gl.clear_color( 0.8, 0.8, 0.8, 1.0 );
       gl.clear( gl::COLOR_BUFFER_BIT );
-      gl::texture::d2::update_video( &gl, &texture, &video_element );
+      gl::texture::d2::video_update( &gl, &texture, &video_element );
 
       gl.draw_arrays( gl::TRIANGLE_STRIP, 0, 4 );
 

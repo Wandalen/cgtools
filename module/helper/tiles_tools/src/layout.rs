@@ -2,7 +2,7 @@
 //! area within a hexagonal grid using offset coordinates. It provides methods for iterating
 //! over the coordinates within these bounds and for calculating the layout's center point in pixel space.
 
-use crate::coordinates::{ hexagonal, pixel };
+use crate::coordinates::pixel;
 use crate::coordinates::hexagonal::{ Axial, Coordinate, Flat, Offset, Pointy };
 use ndarray_cg::{F32x2, I32x2};
 use pixel::Pixel;
@@ -21,10 +21,7 @@ impl< Parity, Orientation > Clone for RectangularGrid< Parity, Orientation >
   /// Clones the rectangular grid layout.
   fn clone( &self ) -> Self
   {
-    Self
-    {
-      bounds : self.bounds,
-    }
+    *self
   }
 }
 
@@ -42,6 +39,7 @@ impl< Parity, Orientation > RectangularGrid< Parity, Orientation >
   ///
   /// # Panics
   /// Panics if the minimum coordinate is greater than the maximum coordinate on either axis.
+  #[ must_use ]
   pub const fn new( bounds : [ Coordinate< Offset< Parity >, Orientation >; 2 ] ) -> Self
   {
     assert!( bounds[ 0 ].q <= bounds[ 1 ].q, "Incorrect bounds" );
@@ -72,12 +70,13 @@ where
   Coordinate< Offset< Parity >, Pointy > : Into< Coordinate< Axial, Pointy > >,
 {
   /// Calculates the geometric center of the grid in pixel coordinates for a pointy-topped layout.
+  #[ must_use ]
   pub fn center( &self ) -> Pixel
   {
     let [ min, max ] = self.bounds;
 
     let min1 : Pixel = Into::< Coordinate< Axial, Pointy > >::into( min ).into();
-    let min_x = if min.r + 1 <= max.r
+    let min_x = if min.r < max.r
     {
       let min2 = Coordinate::< Offset< Parity >, Pointy >::new( min.q, min.r + 1 );
       let min2 : Pixel = Into::< Coordinate< Axial, Pointy > >::into( min2 ).into();
@@ -90,7 +89,7 @@ where
     let min_y = min1[ 1 ];
 
     let max1 : Pixel = Into::< Coordinate< Axial, Pointy > >::into( max ).into();
-    let max_x = if max.r - 1 >= min.r
+    let max_x = if max.r > min.r
     {
       let max2 = Coordinate::< Offset< Parity >, Pointy >::new( max.q, max.r - 1 );
       let max2 : Pixel = Into::< Coordinate< Axial, Pointy > >::into( max2 ).into();
@@ -111,12 +110,23 @@ where
   Coordinate< Offset< Parity >, Flat > : Into< Coordinate< Axial, Flat > >,
 {
   /// Calculates the geometric center of the grid in pixel coordinates for a flat-topped layout.
+  #[ must_use ]
   pub fn center( &self ) -> F32x2
   {
     let [ min, max ] = self.bounds;
 
     let min1 : Pixel = Into::< Coordinate< Axial, Flat > >::into( min ).into();
-    let min_y = if min.r + 1 <= max.r
+    // Fix(BUG-131)
+    // Root cause: copy-pasted from the Pointy impl above without updating the
+    // guard axis -- Pointy's pixel-x depends on r's parity (guard: min.r<max.r),
+    // but Flat's pixel-y depends on q's parity (the candidate below already
+    // varies q, min.q+1), so the guard must test the q range, not the r range.
+    // Pitfall: when two sibling impls share a near-identical structure differing
+    // only in which axis is parity-dependent, copy-pasting one into the other
+    // silently leaves stale references to the wrong axis in guard conditions
+    // that never fail to compile -- verify every field reference against the
+    // orientation's own parity rule, not just the shape of the surrounding code.
+    let min_y = if min.q < max.q
     {
       let min2 = Coordinate::< Offset< Parity >, Flat >::new( min.q + 1, min.r );
       let min2 : Pixel = Into::< Coordinate< Axial, Flat > >::into( min2 ).into();
@@ -129,7 +139,7 @@ where
     let min_x = min1[ 0 ];
 
     let max1 : Pixel = Into::< Coordinate< Axial, Flat > >::into( max ).into();
-    let max_y = if max.r - 1 >= min.r
+    let max_y = if max.q > min.q
     {
       let max2 = Coordinate::< Offset< Parity >, Flat >::new( max.q - 1, max.r );
       let max2 : Pixel = Into::< Coordinate< Axial, Flat > >::into( max2 ).into();
@@ -161,20 +171,17 @@ impl< Parity, Orientation > Iterator for RectangularGridIterator< Parity, Orient
   /// Advances the iterator to the next coordinate in the grid, row by row.
   fn next( &mut self ) -> Option< Self::Item >
   {
-    if self.current[ 1 ] <= self.max[ 1 ]
+    if self.current[ 1 ] > self.max[ 1 ]
     {
-      let ret = Coordinate::< Offset< _ >, _ >::new( self.current[ 0 ], self.current[ 1 ] );
-      self.current[ 0 ] += 1;
-      if self.current[ 0 ] > self.max[ 0 ]
-      {
-        self.current[ 0 ] = self.min[ 0 ];
-        self.current[ 1 ] += 1;
-      }
-      return Some( ret );
+      return None;
     }
-    else
+    let ret = Coordinate::< Offset< _ >, _ >::new( self.current[ 0 ], self.current[ 1 ] );
+    self.current[ 0 ] += 1;
+    if self.current[ 0 ] > self.max[ 0 ]
     {
-      None
+      self.current[ 0 ] = self.min[ 0 ];
+      self.current[ 1 ] += 1;
     }
+    Some( ret )
   }
 }

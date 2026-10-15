@@ -8,5 +8,5 @@ Techniques from this example can be used for procedural infinite tilemaps visual
 
 ![image](showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 

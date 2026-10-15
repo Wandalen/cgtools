@@ -38,6 +38,14 @@ mod private
   impl NarrowOutlinePass
   {
     /// Creates a new `NarrowOutlinePass` instance.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if the outline shaders fail to compile or link.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a required uniform location is absent from the compiled shader.
     pub fn new(
       gl : &gl::WebGl2RenderingContext,
       position_texture : Option< gl::web_sys::WebGlTexture >,
@@ -79,7 +87,7 @@ mod private
     }
 
     /// Sets the thickness of the outline.
-    pub fn set_outline_thickness( &mut self, new_value : f32 )
+    pub fn outline_thickness_set( &mut self, new_value : f32 )
     {
       self.outline_thickness = new_value;
     }

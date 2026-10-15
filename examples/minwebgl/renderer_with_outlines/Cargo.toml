@@ -18,8 +18,8 @@ gltf = { workspace = true, features = [ "import", "KHR_materials_specular" ] }
 renderer = { workspace = true }
 zune-hdr = { workspace = true }
 rustc-hash = { workspace = true }
-rand = { version = "0.8.5" }
-getrandom = { version = "0.2.16", features = [ "js" ] }
+rand = { version = "0.10.2" }
+getrandom = { version = "0.4.3", features = [ "wasm_js" ] }
 
 [dependencies.web-sys]
 workspace = true
@@ -36,3 +36,6 @@ features = [
   'WebGlRenderbuffer',
   'HtmlInputElement'
 ]
+
+[package.metadata.action]
+tags = ["runtime:browser", "api:webgl"]

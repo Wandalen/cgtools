@@ -8,7 +8,7 @@ This example shows how to create, load, and sample cube maps.
 
 ![image](showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 

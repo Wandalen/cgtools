@@ -1,9 +1,6 @@
 //! Integration tests for the `scene-model` feature: parsing, serde round-trip,
 //! and loader API surface.
 
-
-#![ allow( clippy::min_ident_chars ) ]   // short locals like `o` / `s` are idiomatic inside closures and one-shot assertions
-
 use rustc_hash::FxHashMap as HashMap;
 
 use tilemap_scene::
@@ -26,7 +23,8 @@ use tilemap_renderer::types::{ MipmapMode, SamplerFilter, WrapMode };
 
 // ────────────────────────────────────────────────────────────────────────────
 // Minimal end-to-end: parse a render spec with one grass object and one
-// knight object featuring a masked team-colour layer, then validate.
+// knight object featuring a masked team-colour layer, then validate (which
+// rejects the Masked layer until compile implements it).
 // ────────────────────────────────────────────────────────────────────────────
 
 const MINIMAL_SPEC : &str = r#"
@@ -132,13 +130,24 @@ fn parses_minimal_spec()
 }
 
 #[ test ]
-fn validates_minimal_spec()
+fn validate_minimal_spec_reports_only_masked_tint()
 {
   let spec = RenderSpec::from_ron_str( MINIMAL_SPEC ).expect( "spec must parse" );
   // MINIMAL_SPEC declares assets "terrain" / "knight_sheet" and pipeline
-  // layers "terrain" / "units"; every reference resolves, so validate()
-  // succeeds.
-  spec.validate().expect( "minimal spec validates clean" );
+  // layers "terrain" / "units"; every reference resolves. The one violation
+  // is the knight's Masked team layer: compile does not implement Masked, so
+  // validate() reports it at load instead of letting render() fail later.
+  let errs = spec.validate().expect_err( "Masked tint must be reported" );
+  assert!
+  (
+    matches!
+    (
+      errs.as_slice(),
+      [ tilemap_scene::ValidationError::UnsupportedBehaviour { object, behaviour } ]
+        if object == "knight" && *behaviour == "Masked tint"
+    ),
+    "expected exactly one UnsupportedBehaviour for knight's Masked tint, got {errs:?}",
+  );
 }
 
 #[ test ]
@@ -261,6 +270,136 @@ fn validate_rejects_unknown_asset_in_animation()
 }
 
 #[ test ]
+fn validate_rejects_unknown_corner_source_layer()
+{
+  // VertexCorners.corner_source names "ghost_layer", which is not the
+  // global_layer of any object, so corner resolution could only ever fall
+  // back to VOID_ID silently. validate() must flag the misspelling.
+  let spec : RenderSpec = ron::from_str( r#"
+    RenderSpec(
+        version: "0.2.0",
+        assets: [
+            Asset( id: "terrain", path: "t.png", kind: Atlas( tile_size: ( 72, 64 ), columns: 8 ) ),
+        ],
+        objects: [
+            Object(
+                id: "grass",
+                anchor: Hex,
+                global_layer: "terrain",
+                states: { "default": [ ( sprite_source: VertexCorners( patterns: [], asset: "terrain", corner_source: Some( "ghost_layer" ) ) ) ] },
+            ),
+        ],
+        pipeline: (
+            hex: ( tiling: HexFlatTop, grid_stride: ( 72, 64 ) ),
+            layers: [ ( id: "terrain" ) ],
+        ),
+    )
+  "# ).expect( "spec parses" );
+  let errs = spec.validate().expect_err( "unknown corner_source layer must be flagged" );
+  assert!
+  (
+    errs.iter().any( | e | matches!
+    (
+      e,
+      tilemap_scene::ValidationError::UnresolvedRef { kind, id, .. }
+        if *kind == "corner_source layer" && id == "ghost_layer"
+    )),
+    "expected UnresolvedRef for corner_source layer 'ghost_layer', got {errs:?}",
+  );
+}
+
+#[ test ]
+fn validate_accepts_known_corner_source_layer()
+{
+  // corner_source naming a real object's global_layer must validate clean.
+  let spec : RenderSpec = ron::from_str( r#"
+    RenderSpec(
+        version: "0.2.0",
+        assets: [
+            Asset( id: "terrain", path: "t.png", kind: Atlas( tile_size: ( 72, 64 ), columns: 8 ) ),
+        ],
+        objects: [
+            Object(
+                id: "grass",
+                anchor: Hex,
+                global_layer: "terrain",
+                states: { "default": [ ( sprite_source: VertexCorners( patterns: [], asset: "terrain", corner_source: Some( "terrain" ) ) ) ] },
+            ),
+        ],
+        pipeline: (
+            hex: ( tiling: HexFlatTop, grid_stride: ( 72, 64 ) ),
+            layers: [ ( id: "terrain" ) ],
+        ),
+    )
+  "# ).expect( "spec parses" );
+  spec.validate().expect( "known corner_source layer validates clean" );
+}
+
+/// One `orient_to_grid` layer with the given `patterns` RON.
+fn orient_layer_spec( patterns : &str ) -> RenderSpec
+{
+  ron::from_str( &format!( r#"
+    RenderSpec(
+        version: "0.2.0",
+        assets: [
+            Asset( id: "terrain", path: "t.png", kind: Atlas( tile_size: ( 72, 64 ), columns: 8 ) ),
+        ],
+        objects: [
+            Object(
+                id: "blend",
+                anchor: Hex,
+                global_layer: "terrain",
+                states: {{ "default": [ ( sprite_source: VertexCorners( patterns: [ {patterns} ], asset: "terrain", orient_to_grid: true ) ) ] }},
+            ),
+        ],
+        pipeline: (
+            hex: ( tiling: HexFlatTop, grid_stride: ( 72, 64 ) ),
+            layers: [ ( id: "terrain" ) ],
+        ),
+    )
+  "# ) ).expect( "spec parses" )
+}
+
+#[ test ]
+fn validate_rejects_orient_layer_with_two_solid_ids()
+{
+  // Orientation counts corners against one self id, so "sand"'s edge and
+  // corner tiles would be oriented as if no corner were present.
+  let spec = orient_layer_spec( r#"
+    ( corners: ( "grass", "grass", "grass" ), sprite_pattern: "g_{rot}" ),
+    ( corners: ( "grass", "grass", "*" ), sprite_pattern: "ge_{rot}" ),
+    ( corners: ( "sand", "sand", "sand" ), sprite_pattern: "s_{rot}" ),
+    ( corners: ( "sand", "sand", "*" ), sprite_pattern: "se_{rot}" ),
+    ( corners: ( "grass", "grass", "grass" ), sprite_pattern: "g2_{rot}", priority: 1 ),
+  "# );
+  let errs = spec.validate().expect_err( "two solid ids on one orient layer must be flagged" );
+  assert!
+  (
+    matches!
+    (
+      errs.as_slice(),
+      [ tilemap_scene::ValidationError::ConflictingOrientSelfIds { object, state, ids } ]
+        if object == "blend" && state == "default" && ids == &[ "grass".to_owned(), "sand".to_owned() ]
+    ),
+    "expected exactly one ConflictingOrientSelfIds( grass, sand ), got {errs:?}",
+  );
+}
+
+#[ test ]
+fn validate_accepts_orient_layer_with_one_solid_id()
+{
+  // One solid id, repeated or not, plus non-solid patterns is the supported
+  // shape.
+  let spec = orient_layer_spec( r#"
+    ( corners: ( "grass", "grass", "grass" ), sprite_pattern: "g_{rot}" ),
+    ( corners: ( "grass", "grass", "grass" ), sprite_pattern: "g2_{rot}", priority: 1 ),
+    ( corners: ( "grass", "grass", "*" ), sprite_pattern: "ge_{rot}" ),
+    ( corners: ( "*", "*", "*" ), sprite_pattern: "w_{rot}" ),
+  "# );
+  spec.validate().expect( "a single solid id validates clean" );
+}
+
+#[ test ]
 fn validate_rejects_missing_default_state()
 {
   // Object.default_state names a key that is not present in the states map.
@@ -335,6 +474,439 @@ fn validate_rejects_reserved_id()
   );
 }
 
+#[ test ]
+fn validate_rejects_duplicate_object_id()
+{
+  // Two objects declare the same id.
+  let spec : RenderSpec = ron::from_str( r#"
+    RenderSpec(
+        version: "0.2.0",
+        assets: [
+            Asset( id: "terrain", path: "t.png", kind: Atlas( tile_size: ( 72, 64 ), columns: 8 ) ),
+        ],
+        objects: [
+            Object(
+                id: "grass",
+                anchor: Hex,
+                global_layer: "terrain",
+                states: { "default": [ ( sprite_source: Static( ( "terrain", "0" ) ) ) ] },
+            ),
+            Object(
+                id: "grass",
+                anchor: Hex,
+                global_layer: "terrain",
+                states: { "default": [ ( sprite_source: Static( ( "terrain", "0" ) ) ) ] },
+            ),
+        ],
+        pipeline: (
+            hex: ( tiling: HexFlatTop, grid_stride: ( 72, 64 ) ),
+            layers: [ ( id: "terrain" ) ],
+        ),
+    )
+  "# ).expect( "spec parses" );
+  let errs = spec.validate().expect_err( "duplicate object id must be flagged" );
+  assert!
+  (
+    errs.iter().any( | e | matches!
+    (
+      e,
+      tilemap_scene::ValidationError::DuplicateId { kind, id }
+        if *kind == "object" && id == "grass"
+    )),
+    "expected DuplicateId for object 'grass', got {errs:?}",
+  );
+}
+
+#[ test ]
+fn validate_rejects_duplicate_asset_id()
+{
+  // Two assets declare the same id — proves duplicate_ids_check generalises
+  // beyond the objects collection exercised above.
+  let spec : RenderSpec = ron::from_str( r#"
+    RenderSpec(
+        version: "0.2.0",
+        assets: [
+            Asset( id: "terrain", path: "t.png", kind: Atlas( tile_size: ( 72, 64 ), columns: 8 ) ),
+            Asset( id: "terrain", path: "other.png", kind: Atlas( tile_size: ( 72, 64 ), columns: 8 ) ),
+        ],
+        objects: [
+            Object(
+                id: "grass",
+                anchor: Hex,
+                global_layer: "terrain",
+                states: { "default": [ ( sprite_source: Static( ( "terrain", "0" ) ) ) ] },
+            ),
+        ],
+        pipeline: (
+            hex: ( tiling: HexFlatTop, grid_stride: ( 72, 64 ) ),
+            layers: [ ( id: "terrain" ) ],
+        ),
+    )
+  "# ).expect( "spec parses" );
+  let errs = spec.validate().expect_err( "duplicate asset id must be flagged" );
+  assert!
+  (
+    errs.iter().any( | e | matches!
+    (
+      e,
+      tilemap_scene::ValidationError::DuplicateId { kind, id }
+        if *kind == "asset" && id == "terrain"
+    )),
+    "expected DuplicateId for asset 'terrain', got {errs:?}",
+  );
+}
+
+#[ test ]
+fn validate_rejects_unresolved_animation_ref()
+{
+  // Sprite source plays an animation id that is not declared.
+  let spec : RenderSpec = ron::from_str( r#"
+    RenderSpec(
+        version: "0.2.0",
+        assets: [
+            Asset( id: "terrain", path: "t.png", kind: Atlas( tile_size: ( 72, 64 ), columns: 8 ) ),
+        ],
+        objects: [
+            Object(
+                id: "grass",
+                anchor: Hex,
+                global_layer: "terrain",
+                states: { "default": [ ( sprite_source: Animation( ( "ghost_anim" ) ) ) ] },
+            ),
+        ],
+        pipeline: (
+            hex: ( tiling: HexFlatTop, grid_stride: ( 72, 64 ) ),
+            layers: [ ( id: "terrain" ) ],
+        ),
+    )
+  "# ).expect( "spec parses" );
+  let errs = spec.validate().expect_err( "dangling animation ref must be flagged" );
+  assert!
+  (
+    errs.iter().any( | e | matches!
+    (
+      e,
+      tilemap_scene::ValidationError::UnresolvedRef { kind, id, .. }
+        if *kind == "animation" && id == "ghost_anim"
+    )),
+    "expected UnresolvedRef for animation 'ghost_anim', got {errs:?}",
+  );
+}
+
+#[ test ]
+fn validate_rejects_unresolved_tint_ref()
+{
+  // Layer behaviour flat-tints with an undeclared tint id.
+  let spec : RenderSpec = ron::from_str( r#"
+    RenderSpec(
+        version: "0.2.0",
+        assets: [
+            Asset( id: "terrain", path: "t.png", kind: Atlas( tile_size: ( 72, 64 ), columns: 8 ) ),
+        ],
+        objects: [
+            Object(
+                id: "grass",
+                anchor: Hex,
+                global_layer: "terrain",
+                states: {
+                    "default": [
+                        (
+                            sprite_source: Static( ( "terrain", "0" ) ),
+                            behaviour: ( tint: Flat( ( "ghost_tint" ) ) ),
+                        ),
+                    ],
+                },
+            ),
+        ],
+        pipeline: (
+            hex: ( tiling: HexFlatTop, grid_stride: ( 72, 64 ) ),
+            layers: [ ( id: "terrain" ) ],
+        ),
+    )
+  "# ).expect( "spec parses" );
+  let errs = spec.validate().expect_err( "dangling tint ref must be flagged" );
+  assert!
+  (
+    errs.iter().any( | e | matches!
+    (
+      e,
+      tilemap_scene::ValidationError::UnresolvedRef { kind, id, .. }
+        if *kind == "tint" && id == "ghost_tint"
+    )),
+    "expected UnresolvedRef for tint 'ghost_tint', got {errs:?}",
+  );
+}
+
+#[ test ]
+fn validate_rejects_unresolved_effect_ref()
+{
+  // Layer behaviour lists an effect id that is not declared.
+  let spec : RenderSpec = ron::from_str( r#"
+    RenderSpec(
+        version: "0.2.0",
+        assets: [
+            Asset( id: "terrain", path: "t.png", kind: Atlas( tile_size: ( 72, 64 ), columns: 8 ) ),
+        ],
+        objects: [
+            Object(
+                id: "grass",
+                anchor: Hex,
+                global_layer: "terrain",
+                states: {
+                    "default": [
+                        (
+                            sprite_source: Static( ( "terrain", "0" ) ),
+                            behaviour: ( effects: [ ( "ghost_effect" ) ] ),
+                        ),
+                    ],
+                },
+            ),
+        ],
+        pipeline: (
+            hex: ( tiling: HexFlatTop, grid_stride: ( 72, 64 ) ),
+            layers: [ ( id: "terrain" ) ],
+        ),
+    )
+  "# ).expect( "spec parses" );
+  let errs = spec.validate().expect_err( "dangling effect ref must be flagged" );
+  assert!
+  (
+    errs.iter().any( | e | matches!
+    (
+      e,
+      tilemap_scene::ValidationError::UnresolvedRef { kind, id, .. }
+        if *kind == "effect" && id == "ghost_effect"
+    )),
+    "expected UnresolvedRef for effect 'ghost_effect', got {errs:?}",
+  );
+}
+
+#[ test ]
+fn validate_rejects_unresolved_connects_with()
+{
+  // NeighborBitmask.connects_with names an object id that is not declared.
+  let spec : RenderSpec = ron::from_str( r#"
+    RenderSpec(
+        version: "0.2.0",
+        assets: [
+            Asset( id: "terrain", path: "t.png", kind: Atlas( tile_size: ( 72, 64 ), columns: 8 ) ),
+        ],
+        objects: [
+            Object(
+                id: "grass",
+                anchor: Hex,
+                global_layer: "terrain",
+                states: {
+                    "default": [
+                        (
+                            sprite_source: NeighborBitmask(
+                                connects_with: [ "ghost_neighbor" ],
+                                source: ByAtlas( asset: "terrain", layout: Bitmask6 ),
+                            ),
+                        ),
+                    ],
+                },
+            ),
+        ],
+        pipeline: (
+            hex: ( tiling: HexFlatTop, grid_stride: ( 72, 64 ) ),
+            layers: [ ( id: "terrain" ) ],
+        ),
+    )
+  "# ).expect( "spec parses" );
+  let errs = spec.validate().expect_err( "dangling connects_with entry must be flagged" );
+  assert!
+  (
+    errs.iter().any( | e | matches!
+    (
+      e,
+      tilemap_scene::ValidationError::UnresolvedRef { kind, id, .. }
+        if *kind == "object" && id == "ghost_neighbor"
+    )),
+    "expected UnresolvedRef for object 'ghost_neighbor', got {errs:?}",
+  );
+}
+
+#[ test ]
+fn validate_rejects_illegal_composite_nesting()
+{
+  // ViewportTiled.content nests another composite (NeighborBitmask) — SPEC
+  // §5 permits only leaf sources in a composite's inner slots.
+  let spec : RenderSpec = ron::from_str( r#"
+    RenderSpec(
+        version: "0.2.0",
+        assets: [
+            Asset( id: "terrain", path: "t.png", kind: Atlas( tile_size: ( 72, 64 ), columns: 8 ) ),
+        ],
+        objects: [
+            Object(
+                id: "grass",
+                anchor: Hex,
+                global_layer: "terrain",
+                states: {
+                    "default": [
+                        (
+                            sprite_source: ViewportTiled(
+                                content: NeighborBitmask(
+                                    connects_with: [],
+                                    source: ByAtlas( asset: "terrain", layout: Bitmask6 ),
+                                ),
+                                tiling: Center,
+                                anchor_point: Center,
+                            ),
+                        ),
+                    ],
+                },
+            ),
+        ],
+        pipeline: (
+            hex: ( tiling: HexFlatTop, grid_stride: ( 72, 64 ) ),
+            layers: [ ( id: "terrain" ) ],
+        ),
+    )
+  "# ).expect( "spec parses" );
+  let errs = spec.validate().expect_err( "composite-in-composite nesting must be flagged" );
+  assert!
+  (
+    errs.iter().any( | e | matches!
+    (
+      e,
+      tilemap_scene::ValidationError::IllegalSourceNesting { outer, inner }
+        if *outer == "ViewportTiled" && *inner == "NeighborBitmask"
+    )),
+    "expected IllegalSourceNesting for ViewportTiled/NeighborBitmask, got {errs:?}",
+  );
+}
+
+#[ test ]
+fn validate_rejects_square_tiling()
+{
+  // pipeline.hex.tiling requests the reserved Square4 strategy.
+  let spec : RenderSpec = ron::from_str( r#"
+    RenderSpec(
+        version: "0.2.0",
+        assets: [
+            Asset( id: "terrain", path: "t.png", kind: Atlas( tile_size: ( 72, 64 ), columns: 8 ) ),
+        ],
+        objects: [
+            Object(
+                id: "grass",
+                anchor: Hex,
+                global_layer: "terrain",
+                states: { "default": [ ( sprite_source: Static( ( "terrain", "0" ) ) ) ] },
+            ),
+        ],
+        pipeline: (
+            hex: ( tiling: Square4, grid_stride: ( 72, 64 ) ),
+            layers: [ ( id: "terrain" ) ],
+        ),
+    )
+  "# ).expect( "spec parses" );
+  let errs = spec.validate().expect_err( "Square4 tiling must be flagged" );
+  assert!
+  (
+    errs.iter().any( | e | matches!( e, tilemap_scene::ValidationError::UnsupportedTiling( name ) if name == "Square4" ) ),
+    "expected UnsupportedTiling for 'Square4', got {errs:?}",
+  );
+}
+
+#[ test ]
+fn validate_accepts_tint_effect_connects_with()
+{
+  // Positive case: a flat tint, an effect, and a self-referencing
+  // connects_with all resolve cleanly — MINIMAL_SPEC never exercises these
+  // paths, so validate_minimal_spec_reports_only_masked_tint alone doesn't cover them.
+  // Uses r##"..."## (not r#"..."#) because the tint colour literal below
+  // contains `"#`, which would otherwise prematurely close a single-hash
+  // raw string — same reason MINIMAL_SCENE uses r##"..."## for "#cc2233".
+  let spec : RenderSpec = ron::from_str( r##"
+    RenderSpec(
+        version: "0.2.0",
+        assets: [
+            Asset( id: "terrain", path: "t.png", kind: Atlas( tile_size: ( 72, 64 ), columns: 8 ) ),
+        ],
+        tints: [ Tint( id: "dusk", color: "#223344", strength: 0.5 ) ],
+        effects: [ Effect( id: "sway", kind: VertexDisplace( axis: X, amplitude: 2.0, frequency: 1.0 ) ) ],
+        objects: [
+            Object(
+                id: "grass",
+                anchor: Hex,
+                global_layer: "terrain",
+                states: {
+                    "default": [
+                        (
+                            sprite_source: NeighborBitmask(
+                                connects_with: [ "grass" ],
+                                source: ByAtlas( asset: "terrain", layout: Bitmask6 ),
+                            ),
+                            behaviour: (
+                                tint: Flat( ( "dusk" ) ),
+                                effects: [ ( "sway" ) ],
+                            ),
+                        ),
+                    ],
+                },
+            ),
+        ],
+        pipeline: (
+            hex: ( tiling: HexFlatTop, grid_stride: ( 72, 64 ) ),
+            layers: [ ( id: "terrain" ) ],
+        ),
+    )
+  "## ).expect( "spec parses" );
+  spec.validate().expect( "tint / effect / self-connects_with all resolve" );
+}
+
+#[ test ]
+fn validate_rejects_non_multiply_tint_mode()
+{
+  // Tints fold into the multiplicative Sprite.tint, so a Flat tint declared
+  // with `mode: Add` would silently render as a multiply. validate() must
+  // flag the tint declaration; the Multiply tint beside it stays clean.
+  let spec : RenderSpec = ron::from_str( r##"
+    RenderSpec(
+        version: "0.2.0",
+        assets: [
+            Asset( id: "terrain", path: "t.png", kind: Atlas( tile_size: ( 72, 64 ), columns: 8 ) ),
+        ],
+        tints: [
+            Tint( id: "glow", color: "#ffcc00", strength: 1.0, mode: Add ),
+            Tint( id: "dusk", color: "#223344", strength: 0.5, mode: Multiply ),
+        ],
+        objects: [
+            Object(
+                id: "grass",
+                anchor: Hex,
+                global_layer: "terrain",
+                states: {
+                    "default": [
+                        (
+                            sprite_source: Static( ( "terrain", "0" ) ),
+                            behaviour: ( tint: Flat( ( "glow" ) ) ),
+                        ),
+                    ],
+                },
+            ),
+        ],
+        pipeline: (
+            hex: ( tiling: HexFlatTop, grid_stride: ( 72, 64 ) ),
+            layers: [ ( id: "terrain" ) ],
+            global_tint: Some( ( "dusk" ) ),
+        ),
+    )
+  "## ).expect( "spec parses" );
+  let errs = spec.validate().expect_err( "non-Multiply tint mode must be flagged" );
+  assert!
+  (
+    matches!
+    (
+      errs.as_slice(),
+      [ tilemap_scene::ValidationError::UnsupportedTintMode { tint, mode : BlendMode::Add } ] if tint == "glow"
+    ),
+    "expected exactly one UnsupportedTintMode for 'glow', got {errs:?}",
+  );
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Scene parsing — tiles + entities + viewport instances.
 // ────────────────────────────────────────────────────────────────────────────
@@ -377,6 +949,61 @@ fn validates_minimal_scene()
 {
   let scene = SceneSnapshot::from_ron_str( MINIMAL_SCENE ).expect( "scene must parse" );
   scene.validate().expect( "skeleton validation returns Ok" );
+}
+
+#[ test ]
+fn validate_rejects_conflicting_tile_source()
+{
+  // Both `tiles` and `map` are populated — mutually exclusive, since
+  // SceneSnapshot::palette_expand silently prefers `tiles` and drops `map`
+  // when both are present.
+  let scene : SceneSnapshot = ron::from_str( r#"
+    SceneSnapshot(
+        meta: ( name: Some("Demo"), render_spec: Some("render_spec.ron") ),
+        bounds: ( min: ( 0, 0 ), max: ( 3, 3 ) ),
+        tiles: [
+            ( pos: ( 0, 0 ), objects: [ "grass" ] ),
+        ],
+        map: [ "GG" ],
+    )
+  "# ).expect( "scene parses" );
+  let errs = scene.validate().expect_err( "conflicting tile source must be flagged" );
+  assert!
+  (
+    errs.iter().any( | e | matches!
+    (
+      e,
+      tilemap_scene::ValidationError::ConflictingTileSource { tiles_len, map_rows }
+        if *tiles_len == 1 && *map_rows == 1
+    )),
+    "expected ConflictingTileSource(1, 1), got {errs:?}",
+  );
+}
+
+#[ test ]
+fn validate_rejects_owner_out_of_range()
+{
+  // entities[0].owner indexes past the end of `players` (empty here).
+  let scene : SceneSnapshot = ron::from_str( r#"
+    SceneSnapshot(
+        meta: ( name: Some("Demo"), render_spec: Some("render_spec.ron") ),
+        bounds: ( min: ( 0, 0 ), max: ( 3, 3 ) ),
+        entities: [
+            ( at: ( 1, 1 ), object: "knight", owner: 0 ),
+        ],
+    )
+  "# ).expect( "scene parses" );
+  let errs = scene.validate().expect_err( "out-of-range owner must be flagged" );
+  assert!
+  (
+    errs.iter().any( | e | matches!
+    (
+      e,
+      tilemap_scene::ValidationError::UnresolvedRef { kind, id, context }
+        if *kind == "player" && id == "0" && context.contains( "owner" )
+    )),
+    "expected UnresolvedRef for player '0', got {errs:?}",
+  );
 }
 
 // ────────────────────────────────────────────────────────────────────────────

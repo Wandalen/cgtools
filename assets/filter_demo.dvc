@@ -1,0 +1,6 @@
+outs:
+- md5: 955aee076e60f39c85ce42a3e3f1e0f2.dir
+  size: 87649
+  nfiles: 1
+  hash: md5
+  path: filter_demo

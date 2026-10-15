@@ -25,6 +25,7 @@ mod private
     ///
     /// This method returns a tuple containing the vertices, indices, and the number of vertices
     /// for the cap's mesh.
+    #[must_use]
     pub fn geometry( &self ) -> ( Vec< f32 >, Vec< u32 >, usize )
     {
       match self 
@@ -55,11 +56,18 @@ mod private
 
   pub fn round_cap_geometry( segments : usize ) -> ( Vec< [ f32; 2 ] >, Vec< [ u32; 3 ] > )
   {
+    // Fix(BUG-236): `segments == 0` made the loop below divide by zero (`i as f32 / segments as f32`
+    // with `segments = 0`), pushing a NaN vertex into the returned geometry instead of erroring.
+    // Root cause: no floor on `segments` before it's used as a division's divisor.
+    // Pitfall: `f32` division never panics on a zero divisor -- it silently returns NaN -- so this
+    // has to be guarded at the entry point, mirroring `Tween::new`/`Step::new`'s established
+    // `.max( .. )` convention for the identical defect shape (BUG-142/BUG-233).
+    let segments = segments.max( 1 );
     let mut positions = Vec::new();
     let mut indices = Vec::new();
 
     positions.push( [ 0.0; 2 ] );
-    for i in 0..( segments + 1 )
+    for i in 0..=segments
     {
       let theta = std::f32::consts::PI * 0.5 + i as f32 / segments as f32 * std::f32::consts::PI;
       let ( y, x ) = theta.sin_cos();

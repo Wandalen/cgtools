@@ -10,16 +10,16 @@ mod private
 {
   use tilemap_renderer::commands::{ Clear, RenderCommand, Sprite };
   use crate::anchor::Anchor;
-  use crate::compile::animation::resolve_animation_frame;
+  use crate::compile::animation::animation_frame_resolve;
   use crate::compile::assets::CompiledAssets;
   use crate::compile::camera::Camera;
-  use crate::compile::conditions::evaluate_condition;
+  use crate::compile::conditions::condition_evaluate;
   use crate::compile::coords::{ hex_to_world_pixel_flat, hex_to_world_pixel_pointy };
   use crate::compile::edges::
   {
     CanonicalEdge,
     canonical_edge,
-    compute_edge_connected_bitmask,
+    edge_connected_bitmask_compute,
     edge_lookup as build_edge_lookup,
     edge_rotation,
     edge_world_pixel,
@@ -27,21 +27,24 @@ mod private
   use crate::compile::error::CompileError;
   use crate::compile::neighbors::
   {
-    compute_neighbor_bitmask,
+    neighbor_bitmask_compute,
     dir_name,
     neighbor_offset_by_dir,
     neighbor_state_at,
     tile_lookup as build_tile_lookup,
     tile_max_priority,
   };
+  use crate::compile::orient::dual_orientation_index;
+  use crate::compile::tint::FrameTints;
   use crate::compile::vertex::
   {
     canonicalize,
-    enumerate_triangles,
-    find_matching_pattern,
-    resolve_corners,
+    triangles_enumerate,
+    matching_pattern_find,
+    corners_resolve,
+    TriangleContext,
   };
-  use crate::hash::hash_coord;
+  use crate::hash::coord_hash;
   use crate::layer::{ LayerBehaviour, ObjectLayer };
   use crate::object::Object;
   use crate::pipeline::{ SortMode, TilingStrategy };
@@ -50,7 +53,7 @@ mod private
   use crate::instance::{ Instance, Placement };
   use crate::scene::Scene;
   use crate::snapshot::{ EdgeInstance, EdgePosition, Tile };
-  use crate::source::{ NeighborBitmaskSource, SpriteSource, VariantSelection, ViewportTiling };
+  use crate::source::{ NeighborBitmaskSource, SpriteSource, TriBlendPattern, VariantSelection, ViewportTiling };
   use crate::spec::RenderSpec;
   use tilemap_renderer::types::Transform;
   use rustc_hash::FxHashMap as HashMap;
@@ -70,15 +73,15 @@ mod private
     tiling : TilingStrategy,
     grid_stride : ( u32, u32 ),
     viewport_size : ( u32, u32 ),
-    /// Scene-level seed folded to `u32` for `hash_coord`. Consumed by
+    /// Scene-level seed folded to `u32` for `coord_hash`. Consumed by
     /// `VariantSelection::Random`.
     scene_seed : u32,
-    /// Resolved global tint multiplier — `[1,1,1,1]` when `pipeline.global_tint`
-    /// is `None`. Multiplied into every emitted `Sprite.tint`.
-    global_tint : [ f32; 4 ],
+    /// Global tint and declared tints resolved once for this frame; the only
+    /// source of an emitted `Sprite.tint` (see [`FrameTints::sprite_tint`]).
+    tints : FrameTints< 'a >,
   }
 
-  fn make_transform( sx : f32, sy : f32, zoom : f32 ) -> Transform
+  fn transform_make( sx : f32, sy : f32, zoom : f32 ) -> Transform
   {
     Transform
     {
@@ -90,11 +93,20 @@ mod private
     }
   }
 
-  /// Multiply the alpha channel of a tint by a per-layer alpha factor.
-  #[ inline ]
-  fn tinted( [ r, g, b, a ] : [ f32; 4 ], alpha : f32 ) -> [ f32; 4 ]
+  /// Projects a world-space point through the camera, then shifts it by the
+  /// sprite's pivot, producing the final sprite transform.
+  fn point_to_transform
+  (
+    wx : f32,
+    wy : f32,
+    pivot : ( f32, f32 ),
+    sprite_id : tilemap_renderer::types::ResourceId< tilemap_renderer::types::asset::Sprite >,
+    ctx : &FrameContext< '_ >,
+  ) -> Transform
   {
-    [ r, g, b, a * alpha ]
+    let ( sx, sy ) = ctx.camera.project( ( wx, wy ) );
+    let ( sx, sy ) = pivot_apply( sx, sy, ctx.camera.zoom, pivot, sprite_id, ctx.compiled );
+    transform_make( sx, sy, ctx.camera.zoom )
   }
 
   /// Shift the projected scene-anchor point so the sprite's anchor pixel
@@ -112,7 +124,7 @@ mod private
   ///    the semantic contact point (feet, ground touch, vertex attachment).
   /// 2. **Object-level normalized `pivot`** — fraction of sprite size.
   ///    Used as a fallback when no per-frame anchor is set.
-  fn apply_pivot
+  fn pivot_apply
   (
     sx : f32,
     sy : f32,
@@ -163,93 +175,201 @@ mod private
     }
   }
 
+  // Fix(BUG-156)
+  // Root cause: `ObjectLayer::z_in_object` is documented (layer.rs, object.rs,
+  // docs/format/001) as the draw order within one object's layer stack, and
+  // docs/algorithm/002_scene_rendering_pass.md's own pseudocode specifies it as a
+  // pre-sort applied to each object's stack before bucket-wide sort/emission -- but
+  // every compile-pass call site iterated `stack` in raw declaration order, so the
+  // field was read nowhere in the compile pipeline.
+  // Pitfall: a documented-but-unread field compiles cleanly and produces plausible
+  // output (declaration order often coincides with intended order), so this class of
+  // bug has no compiler signal -- only a direct doc-vs-usage grep catches it.
+  /// Returns `stack`'s layers ordered by ascending `z_in_object` (ties keep their
+  /// relative declaration order, since `sort_by_key` is stable).
+  fn layers_in_z_order( stack : &[ ObjectLayer ] ) -> Vec< &ObjectLayer >
+  {
+    let mut ordered : Vec< &ObjectLayer > = stack.iter().collect();
+    ordered.sort_by_key( | layer | layer.z_in_object );
+    ordered
+  }
+
+  /// One triangle's corners as read through one `corner_source` channel.
+  struct CornerChannel< 'a >
+  {
+    /// The layer's `corner_source` (`None` = terrain id).
+    source : Option< &'a str >,
+    /// Corner ids parallel to the triangle's corners.
+    raw : [ String; 3 ],
+    /// `raw` sorted for pattern matching.
+    canonical : [ String; 3 ],
+    /// Canonical-sort rotation (legacy `{rot}`).
+    rotation : u8,
+  }
+
+  /// The corners of `tri` read through channel `source`, resolved on first
+  /// use and cached in `channels` for every later layer that reads the same
+  /// channel. `channels` holds one triangle's channels; clear it per triangle.
+  fn corner_channel< 'c, 'a >
+  (
+    channels : &'c mut Vec< CornerChannel< 'a > >,
+    tri : &TriangleContext,
+    source : Option< &'a str >,
+    ctx : &FrameContext< '_ >,
+  ) -> &'c CornerChannel< 'a >
+  {
+    let idx = if let Some( i ) = channels.iter().position( | c | c.source == source )
+    {
+      i
+    }
+    else
+    {
+      let raw = corners_resolve( tri, &ctx.tile_lookup, ctx.spec, source );
+      let ( canonical, rotation ) = canonicalize( &raw );
+      channels.push( CornerChannel { source, raw, canonical, rotation } );
+      channels.len() - 1
+    };
+    &channels[ idx ]
+  }
+
+  /// A `VertexCorners` layer routed into the bucket being compiled, with its
+  /// triangle-independent state.
+  struct VertexLayer< 'a >
+  {
+    object : &'a Object,
+    layer : &'a ObjectLayer,
+    /// The id orient mode counts corners against: the value of the layer's
+    /// solid (X,X,X) pattern, so a neighbouring object's id (e.g. an adjacent
+    /// player's region) reads as void instead of being mistaken for the
+    /// distinguishing corner. `None` outside orient mode.
+    self_id : Option< &'a str >,
+  }
+
+  /// Every `VertexCorners` layer whose effective pipeline layer is
+  /// `bucket_id`, in object order and `z_in_object` order within an object.
+  fn vertex_layers_gather< 'a >( bucket_id : &str, spec : &'a RenderSpec ) -> Vec< VertexLayer< 'a > >
+  {
+    let mut layers = Vec::new();
+    for object in &spec.objects
+    {
+      let Some( stack ) = object.states.get( &object.default_state )
+      else { continue };
+      for layer in layers_in_z_order( stack )
+      {
+        let SpriteSource::VertexCorners { patterns, orient_to_grid, .. } = &layer.sprite_source
+        else { continue };
+        let effective = layer.pipeline_layer.as_deref().unwrap_or( object.global_layer.as_str() );
+        if effective == bucket_id
+        {
+          let self_id = if *orient_to_grid { patterns.iter().find_map( TriBlendPattern::self_id ) } else { None };
+          layers.push( VertexLayer { object, layer, self_id } );
+        }
+      }
+    }
+    layers
+  }
+
+  /// The sprite `vl` draws on a triangle whose corners read `corners`, or
+  /// `None` when no pattern matches. `corner_px` are the corner hex centres
+  /// and `( wx, wy )` their centroid.
+  fn vertex_sprite_build
+  (
+    vl : &VertexLayer< '_ >,
+    corners : &CornerChannel< '_ >,
+    corner_px : &[ ( f32, f32 ); 3 ],
+    ( wx, wy ) : ( f32, f32 ),
+    ctx : &FrameContext< '_ >,
+  ) -> Result< Option< Sprite >, CompileError >
+  {
+    let SpriteSource::VertexCorners { patterns, asset, orient_to_grid, offset, .. } = &vl.layer.sprite_source
+    else { return Ok( None ) };
+    let Some( pattern ) = matching_pattern_find( patterns, &corners.canonical )
+    else { return Ok( None ) };
+
+    // Both modes substitute `{rot}`; only the index source differs.
+    // Orient mode picks a pre-baked discrete orientation from triangle
+    // geometry; legacy mode uses the canonical-sort rotation. Either way
+    // `transform.rotation` stays 0 — no runtime sprite rotation.
+    let rot_index = if *orient_to_grid
+    {
+      dual_orientation_index( &corners.raw, vl.self_id, corner_px, wx, wy, ctx.tiling )
+    }
+    else
+    {
+      corners.rotation
+    };
+    let frame_name = pattern.sprite_pattern.replace( "{rot}", &rot_index.to_string() );
+
+    let sprite_id = ctx.compiled.ids.sprite( asset, &frame_name )
+      .ok_or_else( || CompileError::UnresolvedRef
+      {
+        kind : "sprite",
+        id : format!( "{asset}:{frame_name}" ),
+        context : format!( "object {:?} VertexCorners frame {frame_name}", vl.object.id ),
+      })?;
+
+    // Optional static world offset — shifts only the drawn sprite (a tinted,
+    // nudged copy for a 2.5D wall / drop-shadow), not the corner/orientation
+    // geometry resolved above.
+    let ( ox, oy ) = offset.unwrap_or( ( 0.0, 0.0 ) );
+    Ok( Some( Sprite
+    {
+      transform : point_to_transform( wx + ox, wy + oy, vl.object.pivot, sprite_id, ctx ),
+      sprite : sprite_id,
+      tint : ctx.tints.sprite_tint( vl.object, &vl.layer.behaviour, None )?,
+      blend : vl.layer.behaviour.blend,
+      clip : None,
+    }))
+  }
+
   /// Emit dual-mesh triangle sprites for every `VertexCorners` layer that
   /// routes into `bucket_id`. One sprite per triangle whose canonical
   /// corner tuple matches at least one pattern.
-  fn compile_vertex_pass
+  fn vertex_pass_compile
   (
     bucket_id : &str,
     tiles : &[ Tile ],
     ctx : &FrameContext< '_ >,
   ) -> Result< Vec< ( f32, f32, Sprite ) >, CompileError >
   {
-    // Gather every VertexCorners layer that belongs in this bucket.
-    let mut layers : Vec< ( &Object, &ObjectLayer ) > = Vec::new();
-    for object in &ctx.spec.objects
-    {
-      let Some( stack ) = object.states.get( &object.default_state )
-      else { continue };
-      for layer in stack
-      {
-        if !matches!( layer.sprite_source, SpriteSource::VertexCorners { .. } )
-        {
-          continue;
-        }
-        let effective = layer.pipeline_layer.as_deref().unwrap_or( object.global_layer.as_str() );
-        if effective == bucket_id
-        {
-          layers.push( ( object, layer ) );
-        }
-      }
-    }
+    let layers = vertex_layers_gather( bucket_id, ctx.spec );
+    let Some( first ) = layers.first()
+    else { return Ok( Vec::new() ) };
+    // The object id passed to `hex_world_pixel` only affects an unsupported-
+    // tiling error message, so any layer's object id is fine.
+    let id_for_err = &first.object.id;
 
-    if layers.is_empty()
-    {
-      return Ok( Vec::new() );
-    }
-
-    let triangles = enumerate_triangles( tiles, ctx.tiling );
     let mut out : Vec< ( f32, f32, Sprite ) > = Vec::new();
+    // Corners of the current triangle, resolved once per `corner_source`
+    // channel and shared by every layer that reads the same channel.
+    let mut channels : Vec< CornerChannel< '_ > > = Vec::new();
 
-    for tri in &triangles
+    for tri in &triangles_enumerate( tiles, ctx.tiling )
     {
-      let raw_corners = resolve_corners( tri, &ctx.tile_lookup, ctx.spec );
-      let ( canonical, rotation ) = canonicalize( raw_corners );
-
-      for ( object, layer ) in &layers
+      channels.clear();
+      // Corner hex pixel centres, indexed parallel to `tri.corners`. Computed
+      // once per triangle — independent of the layer / corner channel — and
+      // reused for the centroid (their average) and the orient-mode frame pick.
+      let mut corner_px = [ ( 0.0_f32, 0.0_f32 ); 3 ];
+      for ( i, corner ) in tri.corners.iter().enumerate()
       {
-        let SpriteSource::VertexCorners { patterns, asset } = &layer.sprite_source
+        corner_px[ i ] = hex_world_pixel( corner.0, corner.1, ctx, id_for_err )?;
+      }
+      let wx = ( corner_px[ 0 ].0 + corner_px[ 1 ].0 + corner_px[ 2 ].0 ) / 3.0;
+      let wy = ( corner_px[ 0 ].1 + corner_px[ 1 ].1 + corner_px[ 2 ].1 ) / 3.0;
+
+      for vl in &layers
+      {
+        // Corners come from THIS layer's channel (terrain id by default, or
+        // the named draw layer), so independent dual grids — e.g. base
+        // terrain and per-player regions — coexist on the same cells.
+        let SpriteSource::VertexCorners { corner_source, .. } = &vl.layer.sprite_source
         else { continue };
-
-        let Some( pattern ) = find_matching_pattern( patterns, &canonical )
-        else { continue };
-
-        let frame_name = pattern.sprite_pattern.replace( "{rot}", &rotation.to_string() );
-        let sprite_id = ctx.compiled.ids.sprite( asset, &frame_name )
-          .ok_or_else( || CompileError::UnresolvedRef
-          {
-            kind : "sprite",
-            id : format!( "{asset}:{frame_name}" ),
-            context : format!( "object {:?} VertexCorners rotation {rotation}", object.id ),
-          })?;
-
-        // Triangle pixel centre: average the three corner hex pixel centres.
-        let mut sum_x = 0.0_f32;
-        let mut sum_y = 0.0_f32;
-        for corner in &tri.corners
+        let corners = corner_channel( &mut channels, tri, corner_source.as_deref(), ctx );
+        if let Some( sprite ) = vertex_sprite_build( vl, corners, &corner_px, ( wx, wy ), ctx )?
         {
-          let ( cx, cy ) = hex_world_pixel( corner.0, corner.1, ctx, &object.id )?;
-          sum_x += cx;
-          sum_y += cy;
+          out.push( ( wx, wy, sprite ) );
         }
-        let wx = sum_x / 3.0;
-        let wy = sum_y / 3.0;
-        let ( sx, sy ) = ctx.camera.project( ( wx, wy ) );
-        let ( sx, sy ) = apply_pivot( sx, sy, ctx.camera.zoom, object.pivot, sprite_id, ctx.compiled );
-        let transform = make_transform( sx, sy, ctx.camera.zoom );
-
-        out.push
-        ((
-          wx, wy,
-          Sprite
-          {
-            transform,
-            sprite : sprite_id,
-            tint : tinted( ctx.global_tint, layer.behaviour.alpha ),
-            blend : layer.behaviour.blend,
-            clip : None,
-          },
-        ));
       }
     }
 
@@ -260,7 +380,7 @@ mod private
   /// Resolve a sprite source for an `Edge`-anchored object. Accepts the
   /// same leaf sources as the hex path (`Static` / `Animation` / `Variant`)
   /// plus the edge-specific `EdgeConnectedBitmask`.
-  fn resolve_edge_sprite_source
+  fn edge_sprite_source_resolve
   (
     source : &SpriteSource,
     object : &Object,
@@ -272,15 +392,15 @@ mod private
     {
       SpriteSource::EdgeConnectedBitmask { connects_with, source : bmsource, layout : _ } =>
       {
-        let mask = compute_edge_connected_bitmask( canon, connects_with, ctx.tiling, &ctx.edge_lookup );
+        let mask = edge_connected_bitmask_compute( canon, connects_with, ctx.tiling, &ctx.edge_lookup );
         match bmsource
         {
           NeighborBitmaskSource::ByMapping { mapping, fallback } =>
           {
             match mapping.get( &mask )
             {
-              Some( inner ) => resolve_edge_sprite_source( inner, object, canon, ctx ),
-              None          => resolve_edge_sprite_source( fallback, object, canon, ctx ),
+              Some( inner ) => edge_sprite_source_resolve( inner, object, canon, ctx ),
+              None          => edge_sprite_source_resolve( fallback, object, canon, ctx ),
             }
           },
           NeighborBitmaskSource::ByAtlas { asset, layout : _ } =>
@@ -304,7 +424,7 @@ mod private
         // typically these are Loop animations anyway, so it doesn't matter).
         // No instance seed available here; `PhaseOffset::Instance`
         // falls back to 0.0 on edge sprites by design.
-        resolve_animation_frame( anim, ctx.time_seconds, 0.0, canon.0, None )
+        animation_frame_resolve( anim, ctx.time_seconds, 0.0, canon.0, None )
       },
       SpriteSource::Variant { variants, selection } =>
       {
@@ -317,8 +437,8 @@ mod private
             max : 0,
           });
         }
-        let chosen = pick_variant_index( variants, *selection, canon.0, object, ctx )?;
-        resolve_edge_sprite_source( &variants[ chosen ].sprite, object, canon, ctx )
+        let chosen = variant_index_pick( variants, *selection, canon.0, object, ctx )?;
+        edge_sprite_source_resolve( &variants[ chosen ].sprite, object, canon, ctx )
       },
       other => Err( CompileError::UnsupportedSource
       {
@@ -333,8 +453,8 @@ mod private
   /// Dispatches over all non-vertex sources: `Static`, `Animation`,
   /// `Variant`, `NeighborBitmask`. `NeighborCondition` is handled by
   /// [`emit_neighbor_condition`] directly (emits multiple sprites).
-  /// `VertexCorners` is handled by [`compile_vertex_pass`].
-  fn resolve_sprite_source
+  /// `VertexCorners` is handled by [`vertex_pass_compile`].
+  fn sprite_source_resolve
   (
     source : &SpriteSource,
     object : &Object,
@@ -355,11 +475,11 @@ mod private
             context : format!( "object {:?} layer sprite_source", object.id ),
           })?;
         // Non-instance path: `OneShot` uses absolute master time. The
-        // per-instance variant ([`resolve_sprite_source_with_phase`])
+        // per-instance variant ([`sprite_source_with_phase_resolve`])
         // threads `inst.state_entered_time` through for the correct
         // timing. No instance seed here, so `PhaseOffset::Instance`
         // falls back to 0.0.
-        resolve_animation_frame( anim, ctx.time_seconds, 0.0, pos, None )
+        animation_frame_resolve( anim, ctx.time_seconds, 0.0, pos, None )
       },
       SpriteSource::Variant { variants, selection } =>
       {
@@ -372,20 +492,20 @@ mod private
             max : 0,
           });
         }
-        let chosen = pick_variant_index( variants, *selection, pos, object, ctx )?;
-        resolve_sprite_source( &variants[ chosen ].sprite, object, pos, ctx )
+        let chosen = variant_index_pick( variants, *selection, pos, object, ctx )?;
+        sprite_source_resolve( &variants[ chosen ].sprite, object, pos, ctx )
       },
       SpriteSource::NeighborBitmask { connects_with, source : bmsource } =>
       {
-        let mask = compute_neighbor_bitmask( pos, connects_with, ctx.tiling, &ctx.tile_lookup );
+        let mask = neighbor_bitmask_compute( pos, connects_with, ctx.tiling, &ctx.tile_lookup );
         match bmsource
         {
           NeighborBitmaskSource::ByMapping { mapping, fallback } =>
           {
             match mapping.get( &mask )
             {
-              Some( inner ) => resolve_sprite_source( inner, object, pos, ctx ),
-              None          => resolve_sprite_source( fallback, object, pos, ctx ),
+              Some( inner ) => sprite_source_resolve( inner, object, pos, ctx ),
+              None          => sprite_source_resolve( fallback, object, pos, ctx ),
             }
           },
           NeighborBitmaskSource::ByAtlas { asset, layout : _ } =>
@@ -403,7 +523,7 @@ mod private
   }
 
   /// Deterministic Variant selection. See SPEC §5.2.
-  fn pick_variant_index
+  fn variant_index_pick
   (
     variants : &[ crate::source::Variant ],
     selection : VariantSelection,
@@ -416,7 +536,7 @@ mod private
     {
       VariantSelection::HashCoord =>
       {
-        weighted_pick( variants, object, | | u64::from( hash_coord( pos.0, pos.1, 0 ) ) )
+        weighted_pick( variants, object, | | u64::from( coord_hash( pos.0, pos.1, 0 ) ) )
       },
       VariantSelection::Fixed( idx ) =>
       {
@@ -436,7 +556,7 @@ mod private
         // Deterministic pseudo-random — seeded from `Scene.seed`, salted with
         // the grid coord so different cells pick different variants. Same
         // seed + coord + variant list → same pick across frames and runs.
-        weighted_pick( variants, object, | | u64::from( hash_coord( pos.0, pos.1, ctx.scene_seed ) ) )
+        weighted_pick( variants, object, | | u64::from( coord_hash( pos.0, pos.1, ctx.scene_seed ) ) )
       },
     }
   }
@@ -470,33 +590,6 @@ mod private
     Ok( variants.len() - 1 )
   }
 
-  /// Parse a `"#rrggbb"` or `"#rrggbbaa"` colour string into linear-ish
-  /// `[f32; 4]`. Returns `None` on malformed input — caller decides whether
-  /// to error or fall back.
-  fn parse_hex_rgba( s : &str ) -> Option< [ f32; 4 ] >
-  {
-    let s = s.strip_prefix( '#' )?;
-    let hex_byte = | i : usize | u8::from_str_radix( s.get( i..i + 2 )?, 16 ).ok();
-    match s.len()
-    {
-      6 => Some(
-      [
-        f32::from( hex_byte( 0 )? ) / 255.0,
-        f32::from( hex_byte( 2 )? ) / 255.0,
-        f32::from( hex_byte( 4 )? ) / 255.0,
-        1.0,
-      ]),
-      8 => Some(
-      [
-        f32::from( hex_byte( 0 )? ) / 255.0,
-        f32::from( hex_byte( 2 )? ) / 255.0,
-        f32::from( hex_byte( 4 )? ) / 255.0,
-        f32::from( hex_byte( 6 )? ) / 255.0,
-      ]),
-      _ => None,
-    }
-  }
-
   fn source_name( s : &SpriteSource ) -> &'static str
   {
     match s
@@ -515,7 +608,7 @@ mod private
 
   // ════════════════════════════════════════════════════════════════════════
   // Scene-driven rendering — entry points called by
-  // [`crate::renderer::Renderer::render`]. `gather_frame_emits` returns
+  // [`crate::renderer::Renderer::render`]. `frame_emits_gather` returns
   // structured per-bucket emit data the renderer turns into batched
   // commands; `render_into` is a thin wrapper that flattens emits into
   // a per-sprite command stream for tests / fall-back code paths.
@@ -535,7 +628,7 @@ mod private
   /// scene's spatial indexes has no live entry — this would only happen if
   /// the indexes were corrupted by mutation outside the documented
   /// `Scene` API.
-  /// Output of [`gather_frame_emits`] — per-bucket, structured emit
+  /// Output of [`frame_emits_gather`] — per-bucket, structured emit
   /// data the renderer needs to either flatten into per-sprite
   /// `RenderCommand`s or group into batches.
   pub struct FrameEmits
@@ -579,7 +672,7 @@ mod private
   /// Panics in debug builds if `scene` exposes an instance handle for
   /// which the underlying `Instance` is missing — only possible if the
   /// scene's spatial indexes are inconsistent with its slotmap.
-  pub fn gather_frame_emits
+  pub fn frame_emits_gather
   (
     compiled : &CompiledAssets,
     scene : &Scene,
@@ -600,14 +693,13 @@ mod private
       });
     }
 
-    let synthetic_tiles = build_scene_tiles( scene );
-    let synthetic_edges = build_scene_edges( scene, spec );
+    let synthetic_tiles = scene_tiles_build( scene );
+    let synthetic_edges = scene_edges_build( scene, spec );
 
     let viewport_size = spec.pipeline.viewport_size.unwrap_or( camera.viewport_size );
     let edge_lookup = build_edge_lookup( &synthetic_edges, spec.pipeline.hex.tiling );
     let seed = scene.seed();
     let scene_seed = ( seed as u32 ) ^ ( ( seed >> 32 ) as u32 );
-    let global_tint = resolve_scene_global_tint( spec, scene )?;
     let ctx = FrameContext
     {
       spec,
@@ -620,7 +712,7 @@ mod private
       grid_stride : spec.pipeline.hex.grid_stride,
       viewport_size,
       scene_seed,
-      global_tint,
+      tints : FrameTints::new( spec, scene )?,
     };
 
     let mut buckets = Vec::with_capacity( spec.pipeline.layers.len() );
@@ -657,21 +749,22 @@ mod private
 
         let Placement::Hex { q, r } = inst.placement else { continue };
 
-        for layer in stack
+        // Fix(BUG-156): see `layers_in_z_order` doc comment for root cause.
+        for layer in layers_in_z_order( stack )
         {
           let effective = layer.pipeline_layer.as_deref().unwrap_or( object.global_layer.as_str() );
           if effective != bucket.id { continue; }
 
-          let layer_draws = compile_instance_layer( object, layer, ( q, r ), inst, &ctx )?;
+          let layer_draws = instance_layer_compile( object, layer, ( q, r ), inst, &ctx )?;
           draws.extend( layer_draws );
         }
       }
 
-      draws.extend( compile_vertex_pass( bucket.id.as_str(), &synthetic_tiles, &ctx )? );
-      draws.extend( compile_edge_pass_scene( bucket.id.as_str(), scene, &ctx )? );
-      draws.extend( compile_free_pass_scene( bucket.id.as_str(), scene, &ctx )? );
+      draws.extend( vertex_pass_compile( bucket.id.as_str(), &synthetic_tiles, &ctx )? );
+      draws.extend( edge_pass_scene_compile( bucket.id.as_str(), scene, &ctx )? );
+      draws.extend( free_pass_scene_compile( bucket.id.as_str(), scene, &ctx )? );
 
-      apply_sort_mode( &mut draws, bucket.sort );
+      sort_mode_apply( &mut draws, bucket.sort );
 
       let sprites : Vec< Sprite > = draws.into_iter().map( | ( _, _, s ) | s ).collect();
 
@@ -680,7 +773,7 @@ mod private
       // renderer can decide whether to wrap in `ScreenSpaceSprite` or
       // (eventually) batch viewport sprites too.
       let mut tmp : Vec< RenderCommand > = Vec::new();
-      compile_viewport_pass_scene( bucket.id.as_str(), scene, &ctx, &mut tmp )?;
+      viewport_pass_scene_compile( bucket.id.as_str(), scene, &ctx, &mut tmp )?;
       let screen_space : Vec< Sprite > = tmp.into_iter().filter_map( | c | match c
       {
         RenderCommand::ScreenSpaceSprite( s ) => Some( s ),
@@ -695,12 +788,12 @@ mod private
 
   /// Flatten [`FrameEmits`] into a per-sprite `RenderCommand` stream —
   /// the pre-Step-4b output shape. Kept as a thin wrapper for the
-  /// renderer's fall-back path and for `flatten_to_sprites` test
+  /// renderer's fall-back path and for `commands_to_sprites` test
   /// helpers that compare against the historical baseline.
   ///
   /// # Errors
   ///
-  /// Propagates errors from [`gather_frame_emits`].
+  /// Propagates errors from [`frame_emits_gather`].
   pub fn render_into
   (
     out : &mut Vec< RenderCommand >,
@@ -709,7 +802,7 @@ mod private
     camera : &Camera,
   ) -> Result< (), CompileError >
   {
-    let emits = gather_frame_emits( compiled, scene, camera )?;
+    let emits = frame_emits_gather( compiled, scene, camera )?;
     out.push( RenderCommand::Clear( Clear { color : emits.clear_color } ) );
     for bucket in emits.buckets
     {
@@ -725,7 +818,7 @@ mod private
   /// stay in their own passes). Object ids are looked up via the spec; the
   /// returned tiles are owned and used as the source for `tile_lookup`
   /// in [`render_into`].
-  fn build_scene_tiles( scene : &Scene ) -> Vec< Tile >
+  fn scene_tiles_build( scene : &Scene ) -> Vec< Tile >
   {
     let spec = scene.spec();
     let mut by_cell : HashMap< ( i32, i32 ), Vec< String > > = HashMap::default();
@@ -744,7 +837,7 @@ mod private
   }
 
   /// Build a synthetic `Vec<EdgeInstance>` from the scene's edge handles.
-  fn build_scene_edges( scene : &Scene, spec : &RenderSpec ) -> Vec< EdgeInstance >
+  fn scene_edges_build( scene : &Scene, spec : &RenderSpec ) -> Vec< EdgeInstance >
   {
     scene.edge_instances().iter().map( | &h |
     {
@@ -759,37 +852,8 @@ mod private
     }).collect()
   }
 
-  /// Resolve the effective global tint, honouring `Scene`'s runtime override.
-  fn resolve_scene_global_tint( spec : &RenderSpec, scene : &Scene ) -> Result< [ f32; 4 ], CompileError >
-  {
-    let tint_ref = scene.global_tint().cloned().or_else( || spec.pipeline.global_tint.clone() );
-    let Some( tint_ref ) = tint_ref else { return Ok( [ 1.0, 1.0, 1.0, 1.0 ] ); };
-    let id = &tint_ref.0;
-    let tint = spec.tints.iter().find( | t | &t.id == id )
-      .ok_or_else( || CompileError::UnresolvedRef
-      {
-        kind : "tint",
-        id : id.clone(),
-        context : "scene.global_tint / pipeline.global_tint".into(),
-      })?;
-    let [ r, g, b, a ] = parse_hex_rgba( &tint.color ).ok_or_else( || CompileError::UnresolvedRef
-    {
-      kind : "tint color",
-      id : tint.color.clone(),
-      context : format!( "tint {:?}", tint.id ),
-    })?;
-    let s = tint.strength.clamp( 0.0, 1.0 );
-    Ok(
-    [
-      1.0 + s * ( r - 1.0 ),
-      1.0 + s * ( g - 1.0 ),
-      1.0 + s * ( b - 1.0 ),
-      1.0 + s * ( a - 1.0 ),
-    ])
-  }
-
   /// Apply a bucket's sort mode to the draw list.
-  fn apply_sort_mode( draws : &mut [ ( f32, f32, Sprite ) ], sort : SortMode )
+  fn sort_mode_apply( draws : &mut [ ( f32, f32, Sprite ) ], sort : SortMode )
   {
     use core::cmp::Ordering;
     let cmp_f = | a : f32, b : f32 | a.partial_cmp( &b ).unwrap_or( Ordering::Equal );
@@ -811,7 +875,7 @@ mod private
   /// instance's per-instance overrides through the emit. Drop-in
   /// replacement for `compile_layer` where the position comes from
   /// the instance's `Placement` rather than a `Tile`.
-  fn compile_instance_layer
+  fn instance_layer_compile
   (
     object : &Object,
     layer : &ObjectLayer,
@@ -826,7 +890,7 @@ mod private
       // Synthesize a temporary `Tile` carrying the owning object's id so
       // the existing helper can compute current-cell priority correctly.
       let tile = Tile { pos, objects : vec![ object.id.clone() ] };
-      return emit_neighbor_condition_with_overrides( object, &tile, condition, sides, sprite_pattern, asset, &layer.behaviour, inst, ctx );
+      return neighbor_condition_with_overrides_emit( object, &tile, condition, sides, sprite_pattern, asset, &layer.behaviour, inst, ctx );
     }
 
     // `VertexCorners` doesn't emit per-instance.
@@ -848,9 +912,7 @@ mod private
         })?;
       let ( q, r ) = pos;
       let ( wx, wy ) = hex_world_pixel( q, r, ctx, &object.id )?;
-      let ( sx, sy ) = ctx.camera.project( ( wx, wy ) );
-      let ( sx, sy ) = apply_pivot( sx, sy, ctx.camera.zoom, object.pivot, sprite_id, ctx.compiled );
-      let transform = make_transform( sx, sy, ctx.camera.zoom );
+      let transform = point_to_transform( wx, wy, object.pivot, sprite_id, ctx );
       return Ok( vec!
       [
         (
@@ -859,7 +921,7 @@ mod private
           {
             transform,
             sprite : sprite_id,
-            tint : final_tint( ctx.global_tint, layer.behaviour.alpha, inst.tint ),
+            tint : ctx.tints.sprite_tint( object, &layer.behaviour, inst.tint )?,
             blend : layer.behaviour.blend,
             clip : None,
           },
@@ -867,7 +929,7 @@ mod private
       ]);
     }
 
-    let sprite_ref = resolve_sprite_source_with_phase
+    let sprite_ref = sprite_source_with_phase_resolve
     (
       &layer.sprite_source, object, pos, inst.phase_offset, inst.state_entered_time,
       Some( inst.instance_phase_seed ), ctx,
@@ -882,9 +944,7 @@ mod private
 
     let ( q, r ) = pos;
     let ( wx, wy ) = hex_world_pixel( q, r, ctx, &object.id )?;
-    let ( sx, sy ) = ctx.camera.project( ( wx, wy ) );
-    let ( sx, sy ) = apply_pivot( sx, sy, ctx.camera.zoom, object.pivot, sprite_id, ctx.compiled );
-    let transform = make_transform( sx, sy, ctx.camera.zoom );
+    let transform = point_to_transform( wx, wy, object.pivot, sprite_id, ctx );
 
     Ok( vec!
     [
@@ -894,7 +954,7 @@ mod private
         {
           transform,
           sprite : sprite_id,
-          tint : final_tint( ctx.global_tint, layer.behaviour.alpha, inst.tint ),
+          tint : ctx.tints.sprite_tint( object, &layer.behaviour, inst.tint )?,
           blend : layer.behaviour.blend,
           clip : None,
         },
@@ -902,14 +962,14 @@ mod private
     ])
   }
 
-  /// Variant of `resolve_sprite_source` that threads per-instance overrides
+  /// Variant of `sprite_source_resolve` that threads per-instance overrides
   /// (`phase_override`, `oneshot_origin`) into animation resolution.
   ///
-  /// `oneshot_origin` is forwarded into [`resolve_animation_frame`] — it
+  /// `oneshot_origin` is forwarded into [`animation_frame_resolve`] — it
   /// only affects `AnimationMode::OneShot` (whose local time is the elapsed
   /// since the instance entered the state), while `Loop` / `PingPong` keep
   /// riding the master clock for cross-instance harmonic phase.
-  fn resolve_sprite_source_with_phase
+  fn sprite_source_with_phase_resolve
   (
     source         : &SpriteSource,
     object         : &Object,
@@ -941,9 +1001,9 @@ mod private
             // explicit per-instance phase overrides).
             let mut anim_clone = anim.clone();
             anim_clone.phase_offset = crate::resource::PhaseOffset::Fixed( phase );
-            resolve_animation_frame( &anim_clone, ctx.time_seconds, oneshot_origin, pos, instance_seed )
+            animation_frame_resolve( &anim_clone, ctx.time_seconds, oneshot_origin, pos, instance_seed )
           },
-          None => resolve_animation_frame( anim, ctx.time_seconds, oneshot_origin, pos, instance_seed ),
+          None => animation_frame_resolve( anim, ctx.time_seconds, oneshot_origin, pos, instance_seed ),
         }
       },
       SpriteSource::Variant { variants, selection } =>
@@ -952,21 +1012,24 @@ mod private
         {
           return Err( CompileError::OutOfRange { owner : object.id.clone(), index : 0, max : 0 } );
         }
-        let chosen = pick_variant_index( variants, *selection, pos, object, ctx )?;
-        resolve_sprite_source_with_phase
+        let chosen = variant_index_pick( variants, *selection, pos, object, ctx )?;
+        sprite_source_with_phase_resolve
         (
           &variants[ chosen ].sprite, object, pos, phase_override, oneshot_origin, instance_seed, ctx,
         )
       },
-      _ => resolve_sprite_source( source, object, pos, ctx ),
+      _ => sprite_source_resolve( source, object, pos, ctx ),
     }
   }
 
   /// `emit_neighbor_condition` variant that composes the per-instance
   /// tint into each emitted sprite.
-  #[ allow( clippy::too_many_arguments ) ]
-  #[ allow( clippy::similar_names ) ]   // raw_sx / raw_sy are a coordinate pair
-  fn emit_neighbor_condition_with_overrides
+  #[ allow( clippy::too_many_arguments, reason = "each parameter is a distinct input needed to resolve and place a neighbor-conditioned sprite variant with per-instance tint; grouping into a struct would add indirection without reducing call-site complexity" ) ]
+  // `raw_sx` / `raw_sy` denote one (x, y) screen-space pair produced together by
+  // `ctx.camera.project`; splitting the names further apart would obscure that
+  // pairing rather than reduce confusion.
+  #[ allow( clippy::similar_names, reason = "raw_sx/raw_sy denote one (x, y) screen-space pair produced together by ctx.camera.project; the shared prefix reflects that pairing" ) ]
+  fn neighbor_condition_with_overrides_emit
   (
     object : &Object,
     tile : &Tile,
@@ -990,7 +1053,7 @@ mod private
       let Some( offset ) = neighbor_offset_by_dir( ctx.tiling, side ) else { continue; };
       let neighbour_pos = ( tile.pos.0 + offset.0, tile.pos.1 + offset.1 );
       let neighbour = neighbor_state_at( neighbour_pos, &ctx.tile_lookup, ctx.spec );
-      if !evaluate_condition( condition, &neighbour, current_priority ) { continue; }
+      if !condition_evaluate( condition, &neighbour, current_priority ) { continue; }
 
       let frame_name = sprite_pattern.replace( "{dir}", dir_name( side ) );
       let sprite_id = ctx.compiled.ids.sprite( asset, &frame_name )
@@ -1001,8 +1064,8 @@ mod private
           context : format!( "object {:?} NeighborCondition side {side:?}", object.id ),
         })?;
 
-      let ( sx, sy ) = apply_pivot( raw_sx, raw_sy, ctx.camera.zoom, object.pivot, sprite_id, ctx.compiled );
-      let transform = make_transform( sx, sy, ctx.camera.zoom );
+      let ( sx, sy ) = pivot_apply( raw_sx, raw_sy, ctx.camera.zoom, object.pivot, sprite_id, ctx.compiled );
+      let transform = transform_make( sx, sy, ctx.camera.zoom );
 
       out.push
       ((
@@ -1011,7 +1074,7 @@ mod private
         {
           transform,
           sprite : sprite_id,
-          tint : final_tint( ctx.global_tint, behaviour.alpha, inst.tint ),
+          tint : ctx.tints.sprite_tint( object, behaviour, inst.tint )?,
           blend : behaviour.blend,
           clip : None,
         },
@@ -1020,30 +1083,10 @@ mod private
     Ok( out )
   }
 
-  /// Compose the per-sprite tint as
-  /// `global * layer_alpha (alpha-channel only) * instance_tint`.
-  #[ inline ]
-  fn final_tint( global : [ f32; 4 ], layer_alpha : f32, inst : Option< [ f32; 4 ] > ) -> [ f32; 4 ]
-  {
-    let [ gr, gg, gb, ga ] = global;
-    let composed = [ gr, gg, gb, ga * layer_alpha ];
-    match inst
-    {
-      None => composed,
-      Some( [ ir, ig, ib, ia ] ) =>
-      [
-        composed[ 0 ] * ir,
-        composed[ 1 ] * ig,
-        composed[ 2 ] * ib,
-        composed[ 3 ] * ia,
-      ],
-    }
-  }
-
   /// Emit sprites for every Scene edge handle whose owning Object routes
   /// into `bucket_id`. Mirrors `compile_edge_pass` but iterates Scene's
   /// handle list and applies per-instance overrides.
-  fn compile_edge_pass_scene
+  fn edge_pass_scene_compile
   (
     bucket_id : &str,
     scene : &Scene,
@@ -1081,12 +1124,13 @@ mod private
         object : object.id.clone(),
       })?;
 
-      for layer in stack
+      // Fix(BUG-156): see `layers_in_z_order` doc comment for root cause.
+      for layer in layers_in_z_order( stack )
       {
         let effective = layer.pipeline_layer.as_deref().unwrap_or( object.global_layer.as_str() );
         if effective != bucket_id { continue; }
 
-        let sprite_ref = resolve_edge_sprite_source( &layer.sprite_source, object, canon, ctx )?;
+        let sprite_ref = edge_sprite_source_resolve( &layer.sprite_source, object, canon, ctx )?;
         let sprite_id = ctx.compiled.ids.sprite( &sprite_ref.asset, &sprite_ref.frame )
           .ok_or_else( || CompileError::UnresolvedRef
           {
@@ -1105,7 +1149,7 @@ mod private
           });
         };
         let ( sx, sy ) = ctx.camera.project( ( wx, wy ) );
-        let ( sx, sy ) = apply_pivot( sx, sy, ctx.camera.zoom, object.pivot, sprite_id, ctx.compiled );
+        let ( sx, sy ) = pivot_apply( sx, sy, ctx.camera.zoom, object.pivot, sprite_id, ctx.compiled );
 
         let transform = Transform
         {
@@ -1123,7 +1167,7 @@ mod private
           {
             transform,
             sprite : sprite_id,
-            tint : final_tint( ctx.global_tint, layer.behaviour.alpha, inst.tint ),
+            tint : ctx.tints.sprite_tint( object, &layer.behaviour, inst.tint )?,
             blend : layer.behaviour.blend,
             clip : None,
           },
@@ -1134,7 +1178,7 @@ mod private
   }
 
   /// Emit sprites for every Scene free-pos handle. Mirrors `compile_free_pass`.
-  fn compile_free_pass_scene
+  fn free_pass_scene_compile
   (
     bucket_id : &str,
     scene : &Scene,
@@ -1167,7 +1211,8 @@ mod private
         object : object.id.clone(),
       })?;
 
-      for layer in stack
+      // Fix(BUG-156): see `layers_in_z_order` doc comment for root cause.
+      for layer in layers_in_z_order( stack )
       {
         let effective = layer.pipeline_layer.as_deref().unwrap_or( object.global_layer.as_str() );
         if effective != bucket_id { continue; }
@@ -1201,16 +1246,14 @@ mod private
               context : format!( "object {:?} free-pos external slot {slot:?}", object.id ),
             })?;
           let ( wx, wy ) = ( x, y );
-          let ( sx, sy ) = ctx.camera.project( ( wx, wy ) );
-          let ( sx, sy ) = apply_pivot( sx, sy, ctx.camera.zoom, object.pivot, sprite_id, ctx.compiled );
-          let transform = make_transform( sx, sy, ctx.camera.zoom );
+          let transform = point_to_transform( wx, wy, object.pivot, sprite_id, ctx );
           out.push((
             wx, wy,
             Sprite
             {
               transform,
               sprite : sprite_id,
-              tint : final_tint( ctx.global_tint, layer.behaviour.alpha, inst.tint ),
+              tint : ctx.tints.sprite_tint( object, &layer.behaviour, inst.tint )?,
               blend : layer.behaviour.blend,
               clip : None,
             },
@@ -1218,7 +1261,7 @@ mod private
           continue;
         }
 
-        let sprite_ref = resolve_sprite_source_with_phase
+        let sprite_ref = sprite_source_with_phase_resolve
         (
           &layer.sprite_source, object, ( 0, 0 ), inst.phase_offset, inst.state_entered_time,
           Some( inst.instance_phase_seed ), ctx,
@@ -1232,9 +1275,7 @@ mod private
           })?;
 
         let ( wx, wy ) = ( x, y );
-        let ( sx, sy ) = ctx.camera.project( ( wx, wy ) );
-        let ( sx, sy ) = apply_pivot( sx, sy, ctx.camera.zoom, object.pivot, sprite_id, ctx.compiled );
-        let transform = make_transform( sx, sy, ctx.camera.zoom );
+        let transform = point_to_transform( wx, wy, object.pivot, sprite_id, ctx );
 
         out.push
         ((
@@ -1243,7 +1284,7 @@ mod private
           {
             transform,
             sprite : sprite_id,
-            tint : final_tint( ctx.global_tint, layer.behaviour.alpha, inst.tint ),
+            tint : ctx.tints.sprite_tint( object, &layer.behaviour, inst.tint )?,
             blend : layer.behaviour.blend,
             clip : None,
           },
@@ -1254,7 +1295,7 @@ mod private
   }
 
   /// Emit `ScreenSpaceSprite` commands for every Scene viewport handle.
-  fn compile_viewport_pass_scene
+  fn viewport_pass_scene_compile
   (
     bucket_id : &str,
     scene : &Scene,
@@ -1286,7 +1327,8 @@ mod private
         object : object.id.clone(),
       })?;
 
-      for layer in stack
+      // Fix(BUG-156): see `layers_in_z_order` doc comment for root cause.
+      for layer in layers_in_z_order( stack )
       {
         let effective = layer.pipeline_layer.as_deref().unwrap_or( object.global_layer.as_str() );
         if effective != bucket_id { continue; }
@@ -1301,7 +1343,7 @@ mod private
           });
         };
 
-        let sprite_ref = resolve_sprite_source( content, object, ( 0, 0 ), ctx )?;
+        let sprite_ref = sprite_source_resolve( content, object, ( 0, 0 ), ctx )?;
         let sprite_id = ctx.compiled.ids.sprite( &sprite_ref.asset, &sprite_ref.frame )
           .ok_or_else( || CompileError::UnresolvedRef
           {
@@ -1338,7 +1380,7 @@ mod private
             {
               transform,
               sprite : sprite_id,
-              tint : final_tint( ctx.global_tint, layer.behaviour.alpha, inst.tint ),
+              tint : ctx.tints.sprite_tint( object, &layer.behaviour, inst.tint )?,
               blend : layer.behaviour.blend,
               clip : None,
             }));
@@ -1359,7 +1401,7 @@ mod private
           {
             transform,
             sprite : sprite_id,
-            tint : final_tint( ctx.global_tint, layer.behaviour.alpha, inst.tint ),
+            tint : ctx.tints.sprite_tint( object, &layer.behaviour, inst.tint )?,
             blend : layer.behaviour.blend,
             clip : None,
           }));
@@ -1373,7 +1415,7 @@ mod private
 mod_interface::mod_interface!
 {
   own use render_into;
-  own use gather_frame_emits;
+  own use frame_emits_gather;
   own use FrameEmits;
   own use BucketEmits;
 }

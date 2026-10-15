@@ -8,7 +8,7 @@ Ray casting is fundamental for 3D user interfaces and game mechanics. This examp
 
 ![image](showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 
@@ -19,3 +19,13 @@ Ray casting is fundamental for 3D user interfaces and game mechanics. This examp
 [Lode's Computer Graphics Tutorial]: https://lodev.org/cgtutor/raycasting.html
 [Wolfenstein 3D Source Code]: https://github.com/id-Software/wolf3d
 [Ray Casting Computer Graphics]: https://en.wikipedia.org/wiki/Ray_casting
+
+## Responsibility Table
+
+| File | Responsibility |
+| ---- | -------------- |
+| src/main.rs | WebGL2 render loop: raycasting, minimap draw, per-frame input/movement wiring |
+| src/controls.rs | Keyboard move/rotation direction state via `browser_input` |
+| src/sim.rs | Pure map/raycasting/movement logic, kept dependency-free so `tests/` can exercise it natively |
+| tests/wall_tunnel_test.rs | Regression coverage for `src/sim.rs` ( includes `bug_reproducer(BUG-522)` ) |
+| Cargo.toml | Crate manifest: minwebgl/mingl/browser_input dependencies |

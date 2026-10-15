@@ -15,7 +15,7 @@ fn test_rot()
   let got = the_module::mat2x2::rot( angle_radians );
   println!( "name: {} | size: {}", core::any::type_name_of_val( &got ), core::mem::size_of_val( &got ) );
   println!( "name: {} | size: {}", core::any::type_name_of_val( &exp ), core::mem::size_of_val( &exp ) );
-  println!( "Rotation matrix for {} degrees:\n{:?}", angle_radians, got );
+  println!( "Rotation matrix for {angle_radians} degrees:\n{got:?}" );
   assert_eq!( got, exp );
 }
 
@@ -31,7 +31,7 @@ fn test_scale()
   ]);
   let got = the_module::mat2x2::scale( [ sx, sy ] );
   assert_eq!( got, exp );
-  let got = the_module::mat2x2::scale( &[ sx, sy ] );
+  let got = the_module::mat2x2::scale( [ sx, sy ] );
   assert_eq!( got, exp );
 }
 
@@ -47,7 +47,7 @@ fn test_shear()
   ]);
   let got = the_module::mat2x2::shear( [ shx, shy ] );
   assert_eq!( got, exp );
-  let got = the_module::mat2x2::shear( &[ shx, shy ] );
+  let got = the_module::mat2x2::shear( [ shx, shy ] );
   assert_eq!( got, exp );
 }
 
@@ -66,11 +66,7 @@ fn test_reflect_x()
 #[ test ]
 fn test_reflect_y()
 {
-  use the_module::
-  {
-    RawSliceMut,
-    mat::DescriptorOrderRowMajor,
-  };
+  
   let exp = the_module::F32x2x2::from_row_major
   ([
     -1.0, 0.0,

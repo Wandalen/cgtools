@@ -12,10 +12,10 @@ extern "C"
   // these bindings are attributed as `allow( unsafe_code )`
 
   #[ wasm_bindgen( js_name = "newGui" ) ]
-  pub fn new_gui() -> JsValue;
+  pub fn gui_new() -> JsValue;
 
   #[ wasm_bindgen( js_name = "addFolder" ) ]
-  pub fn add_folder( gui : &JsValue, name : &str ) -> JsValue;
+  pub fn folder_add( gui : &JsValue, name : &str ) -> JsValue;
 
   #[ wasm_bindgen( js_name = "addController" ) ]
   pub fn add
@@ -29,19 +29,19 @@ extern "C"
   ) -> JsValue;
 
   #[ wasm_bindgen( js_name = "addColorController" ) ]
-  pub fn add_color( gui : &JsValue, object : &JsValue, property : &str ) -> JsValue;
+  pub fn color_add( gui : &JsValue, object : &JsValue, property : &str ) -> JsValue;
 
   #[ wasm_bindgen( js_name = "addDropdownController" ) ]
-  pub fn add_dropdown( gui : &JsValue, object : &JsValue, property : &str, options : &JsValue ) -> JsValue;
+  pub fn dropdown_add( gui : &JsValue, object : &JsValue, property : &str, options : &JsValue ) -> JsValue;
 
   #[ wasm_bindgen( js_name = "onFinishChange" ) ]
   pub fn on_finish_change( gui : &JsValue, callback : &web_sys::js_sys::Function );
 
   #[ wasm_bindgen( js_name = "getTitle" ) ]
-  pub fn get_title( gui : &JsValue ) -> String;
+  pub fn title_get( gui : &JsValue ) -> String;
 
   #[ wasm_bindgen( js_name = "getFolders" ) ]
-  pub fn get_folders( gui : &JsValue ) -> Array;
+  pub fn folders_get( gui : &JsValue ) -> Array;
 
   #[ wasm_bindgen( js_name = "hide" ) ]
   pub fn hide( gui : &JsValue ) -> JsValue;

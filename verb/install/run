@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+#@ purpose: Install all workspace binaries — every workspace member under module/ that has
+#@          a bin target is installed via `cargo install --path`. Demo crates under
+#@          examples/ are deliberately excluded: they are browser/wasm example bins, not
+#@          installable tools. The crate set is enumerated from `cargo metadata` at run
+#@          time, so new module/ CLI crates are picked up without editing this script.
+#@ param:   dry::1         show what would be installed without installing anything
+#@          <crate ...>    install only the named crates (must be module/ bin crates);
+#@                         omit to install all of them
+#@ note:    Directory-shaped module (see module.toml, inheritable = false): resolves via
+#@          the ancestor-walk dispatcher (`verb install`) only from the workspace root
+#@          itself, never from a nested descendant directory. Direct invocation
+#@          (`verb/install/run`) works from anywhere.
+set -euo pipefail
+
+if [[ "${1:-}" == "." ]]
+then
+  printf '\n  %s\n\n' "$(basename "$0")"
+  sed -n 's/^#@ /  /p' "$0"
+  printf '\n'
+  exit 0
+fi
+
+_SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+_REPO_ROOT="$( cd "$_SCRIPT_DIR/../.." && pwd )"
+cd "$_REPO_ROOT"
+
+command -v jq > /dev/null || { echo "verb/install: jq not on PATH (needed to parse cargo metadata)" >&2 ; exit 2 ; }
+
+_dry=0
+_crates=()
+for _a in "$@"
+do
+  case "$_a" in
+    dry::1 ) _dry=1 ;;
+    dry::0 ) _dry=0 ;;
+    *::* )
+      echo "verb/install: unknown parameter: $_a" >&2
+      echo "usage: verb/install/run [dry::1] [crate ...]" >&2
+      exit 1
+      ;;
+    * ) _crates+=( "$_a" ) ;;
+  esac
+done
+
+# name<TAB>crate_dir for every workspace member under module/ with a bin target.
+_found="$( cargo metadata --format-version 1 --no-deps \
+  | jq -r --arg root "$_REPO_ROOT/module/" '
+      .packages[]
+      | select( .manifest_path | startswith( $root ) )
+      | select( any( .targets[] ; .kind | index( "bin" ) ) )
+      | [ .name, ( .manifest_path | rtrimstr( "/Cargo.toml" ) ) ]
+      | @tsv' )"
+
+if [[ -z "$_found" ]]
+then
+  echo "verb/install: no bin-target crates found under module/ — nothing to install" >&2
+  exit 1
+fi
+
+# Targeted install: validate every requested name against the enumerated set, loudly.
+if [[ ${#_crates[@]} -gt 0 ]]
+then
+  _selected=""
+  for _c in "${_crates[@]}"
+  do
+    _line="$( printf '%s\n' "$_found" | awk -F '\t' -v n="$_c" '$1 == n' )"
+    if [[ -z "$_line" ]]
+    then
+      echo "verb/install: '$_c' is not a module/ bin crate; available:" >&2
+      printf '%s\n' "$_found" | awk -F '\t' '{ print "  " $1 }' >&2
+      exit 1
+    fi
+    _selected+="$_line"$'\n'
+  done
+  _found="${_selected%$'\n'}"
+fi
+
+while IFS=$'\t' read -r _name _dir
+do
+  if [[ "$_dry" == 1 ]]
+  then
+    echo "[dry-run] would run: cargo install --path $_dir"
+  else
+    printf '=== install: %s ===\n' "$_name"
+    cargo install --path "$_dir"
+  fi
+done <<< "$_found"

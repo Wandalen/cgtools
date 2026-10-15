@@ -24,7 +24,7 @@ example_name/
   Cargo.toml           # Project dependencies (required)
   index.html           # HTML entry point (required for WebGL/WebGPU)
   readme.md            # Example documentation (required)
-  showcase.png/jpg     # Preview image (required)
+  showcase.webp        # Preview image (required)
 ```
 
 ### Directory Categories
@@ -35,6 +35,8 @@ Examples are organized into the following categories:
 - **minwebgpu/** - WebGPU examples (browser-based)
 - **minwgpu/** - wgpu examples (native rendering)
 - **math/** - Mathematical computation examples
+- **scene_script/** - Rhai scripting examples (native, no rendering)
+- **tiles_tools/** - Tile-based game-dev examples (native, no rendering)
 
 ---
 
@@ -113,15 +115,15 @@ fn main()
 }
 ```
 
-### 4. showcase.png or showcase.jpg
+### 4. showcase.webp
 
 Every example **must** include a showcase image:
 
-- **Format:** PNG, JPEG, GIF
+- **Format:** WebP
 - **Recommended size:** 1920x1080 or 1280x720
 - **Aspect ratio:** 16:9 preferred
 - **Quality:** High quality, representative of the example's output
-- **Filename:** `showcase.png`, `showcase.jpg`, `showcase.gif` (lowercase)
+- **Filename:** `showcase.webp` (lowercase)
 
 The showcase image should:
 - Clearly demonstrate the example's visual output
@@ -154,10 +156,10 @@ All example readme.md files **must** follow the standardized template format def
 - Convert folder name to human-readable format
 
 **Examples:**
-- `trivial` � `# Trivial WebGL Example`
-- `hexagonal_grid` � `# Hexagonal Grid`
-- `deferred_shading` � `# Deferred Shading`
-- `hello_triangle` � `# Hello Triangle`
+- `trivial` → `# Trivial WebGL Example`
+- `hexagonal_grid` → `# Hexagonal Grid`
+- `deferred_shading` → `# Deferred Shading`
+- `hello_triangle` → `# Hello Triangle`
 
 #### 2. Keywords
 
@@ -235,12 +237,12 @@ volumetric effects.
 #### 4. Showcase Image
 
 ```markdown
-![image](./showcase.png)
+![image](./showcase.webp)
 ```
 
 **Requirements:**
 - Use relative path to showcase image
-- Use `./showcase.png`, `./showcase.jpg`, `./showcase.gif`
+- Use `./showcase.webp`
 - Include the `./` prefix for clarity
 - Use lowercase filename
 

@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+#@ purpose: Ordinary (per-increment) verification — native `cargo nextest` only, scoped to
+#@          the narrowest breadth that covers the change. Final/full verification (native
+#@          nextest+doctest+clippy chain, plus the wasm32 browser-example compile check) is
+#@          `verb/test`; use that at phase/task completion gates instead of this.
+#@ param:   pkg::<crate>   scope to one workspace package (cargo nextest run -p <crate>);
+#@                         omit to run the full native workspace suite
+#@          anything else  passed straight through as a cargo-nextest filter expression
+#@                         (substring or -E filterset), e.g. `verb/test_only pkg::mingl error`
+set -euo pipefail
+
+if [[ "${1:-}" == "." ]]
+then
+  printf '\n  %s\n\n' "$(basename "$0")"
+  sed -n 's/^#@ /  /p' "$0"
+  printf '\n'
+  exit 0
+fi
+
+_SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+_REPO_ROOT="$( cd "$_SCRIPT_DIR/.." && pwd )"
+cd "$_REPO_ROOT"
+
+_pkg=""
+_args=()
+for _a in "$@"
+do
+  case "$_a" in
+    pkg::* ) _pkg="${_a#pkg::}" ;;
+    * ) _args+=( "$_a" ) ;;
+  esac
+done
+set -- "${_args[@]}"
+
+if [[ -n "$_pkg" ]]
+then
+  exec cargo nextest run --all-features -p "$_pkg" "$@"
+else
+  exec cargo nextest run --all-features --workspace "$@"
+fi

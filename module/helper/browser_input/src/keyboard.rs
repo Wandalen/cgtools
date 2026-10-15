@@ -6,120 +6,344 @@ use strum::EnumCount;
 /// KeyboardCode represents all possible values for the KeyboardEvent.code property
 /// as defined in the UI Events KeyboardEvent code Values specification.
 #[ derive( Debug, Clone, Copy, PartialEq, Eq, Hash, EnumCount ) ]
-#[ allow( missing_docs ) ]
+#[ non_exhaustive ]
 pub enum KeyboardKey
 {
   // Modifier keys
+  /// The left `Alt` key.
   AltLeft,
+  /// The right `Alt` key (`AltGr` on some layouts).
   AltRight,
+  /// The left `Control` key.
   ControlLeft,
+  /// The right `Control` key.
   ControlRight,
+  /// The left `Meta` key (Windows/Command key).
   MetaLeft,
+  /// The right `Meta` key (Windows/Command key).
   MetaRight,
+  /// The left `Shift` key.
   ShiftLeft,
+  /// The right `Shift` key.
   ShiftRight,
 
   // Whitespace keys
+  /// The `Enter`/`Return` key.
   Enter,
+  /// The `Tab` key.
   Tab,
+  /// The `Space` bar.
   Space,
 
   // Navigation keys
+  /// The down arrow key.
   ArrowDown,
+  /// The left arrow key.
   ArrowLeft,
+  /// The right arrow key.
   ArrowRight,
+  /// The up arrow key.
   ArrowUp,
+  /// The `End` key.
   End,
+  /// The `Home` key.
   Home,
+  /// The `Page Down` key.
   PageDown,
+  /// The `Page Up` key.
   PageUp,
 
   // UI keys
+  /// The `Escape` key.
   Escape,
+  /// The `Caps Lock` key.
   CapsLock,
+  /// The `Scroll Lock` key.
   ScrollLock,
+  /// The `Num Lock` key.
   NumLock,
+  /// The `Print Screen` key.
   PrintScreen,
+  /// The `Pause`/`Break` key.
   Pause,
+  /// The context menu key.
   ContextMenu,
 
   // Common function keys
-  F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12,
-  F13, F14, F15, F16, F17, F18, F19, F20, F21, F22, F23, F24,
+  /// The `F1` function key.
+  F1,
+  /// The `F2` function key.
+  F2,
+  /// The `F3` function key.
+  F3,
+  /// The `F4` function key.
+  F4,
+  /// The `F5` function key.
+  F5,
+  /// The `F6` function key.
+  F6,
+  /// The `F7` function key.
+  F7,
+  /// The `F8` function key.
+  F8,
+  /// The `F9` function key.
+  F9,
+  /// The `F10` function key.
+  F10,
+  /// The `F11` function key.
+  F11,
+  /// The `F12` function key.
+  F12,
+  /// The `F13` function key.
+  F13,
+  /// The `F14` function key.
+  F14,
+  /// The `F15` function key.
+  F15,
+  /// The `F16` function key.
+  F16,
+  /// The `F17` function key.
+  F17,
+  /// The `F18` function key.
+  F18,
+  /// The `F19` function key.
+  F19,
+  /// The `F20` function key.
+  F20,
+  /// The `F21` function key.
+  F21,
+  /// The `F22` function key.
+  F22,
+  /// The `F23` function key.
+  F23,
+  /// The `F24` function key.
+  F24,
 
   // Editing keys
+  /// The `Backspace` key.
   Backspace,
+  /// The `Clear` key.
   Clear,
+  /// The `Delete` key.
   Delete,
+  /// The `Insert` key.
   Insert,
 
   // Alphanumeric keys
-  Digit0, Digit1, Digit2, Digit3, Digit4, Digit5, Digit6, Digit7, Digit8, Digit9,
-  KeyA, KeyB, KeyC, KeyD, KeyE, KeyF, KeyG, KeyH, KeyI, KeyJ, KeyK, KeyL, KeyM,
-  KeyN, KeyO, KeyP, KeyQ, KeyR, KeyS, KeyT, KeyU, KeyV, KeyW, KeyX, KeyY, KeyZ,
+  /// The top-row `0` digit key (not numpad).
+  Digit0,
+  /// The top-row `1` digit key (not numpad).
+  Digit1,
+  /// The top-row `2` digit key (not numpad).
+  Digit2,
+  /// The top-row `3` digit key (not numpad).
+  Digit3,
+  /// The top-row `4` digit key (not numpad).
+  Digit4,
+  /// The top-row `5` digit key (not numpad).
+  Digit5,
+  /// The top-row `6` digit key (not numpad).
+  Digit6,
+  /// The top-row `7` digit key (not numpad).
+  Digit7,
+  /// The top-row `8` digit key (not numpad).
+  Digit8,
+  /// The top-row `9` digit key (not numpad).
+  Digit9,
+  /// The `A` letter key.
+  KeyA,
+  /// The `B` letter key.
+  KeyB,
+  /// The `C` letter key.
+  KeyC,
+  /// The `D` letter key.
+  KeyD,
+  /// The `E` letter key.
+  KeyE,
+  /// The `F` letter key.
+  KeyF,
+  /// The `G` letter key.
+  KeyG,
+  /// The `H` letter key.
+  KeyH,
+  /// The `I` letter key.
+  KeyI,
+  /// The `J` letter key.
+  KeyJ,
+  /// The `K` letter key.
+  KeyK,
+  /// The `L` letter key.
+  KeyL,
+  /// The `M` letter key.
+  KeyM,
+  /// The `N` letter key.
+  KeyN,
+  /// The `O` letter key.
+  KeyO,
+  /// The `P` letter key.
+  KeyP,
+  /// The `Q` letter key.
+  KeyQ,
+  /// The `R` letter key.
+  KeyR,
+  /// The `S` letter key.
+  KeyS,
+  /// The `T` letter key.
+  KeyT,
+  /// The `U` letter key.
+  KeyU,
+  /// The `V` letter key.
+  KeyV,
+  /// The `W` letter key.
+  KeyW,
+  /// The `X` letter key.
+  KeyX,
+  /// The `Y` letter key.
+  KeyY,
+  /// The `Z` letter key.
+  KeyZ,
 
   // Numpad keys
-  Numpad0, Numpad1, Numpad2, Numpad3, Numpad4, Numpad5, Numpad6, Numpad7, Numpad8, Numpad9,
-  NumpadAdd, NumpadSubtract, NumpadMultiply, NumpadDivide, NumpadEnter, NumpadDecimal, NumpadEqual, NumpadComma,
+  /// The numpad `0` key.
+  Numpad0,
+  /// The numpad `1` key.
+  Numpad1,
+  /// The numpad `2` key.
+  Numpad2,
+  /// The numpad `3` key.
+  Numpad3,
+  /// The numpad `4` key.
+  Numpad4,
+  /// The numpad `5` key.
+  Numpad5,
+  /// The numpad `6` key.
+  Numpad6,
+  /// The numpad `7` key.
+  Numpad7,
+  /// The numpad `8` key.
+  Numpad8,
+  /// The numpad `9` key.
+  Numpad9,
+  /// The numpad `+` (add) key.
+  NumpadAdd,
+  /// The numpad `-` (subtract) key.
+  NumpadSubtract,
+  /// The numpad `*` (multiply) key.
+  NumpadMultiply,
+  /// The numpad `/` (divide) key.
+  NumpadDivide,
+  /// The numpad `Enter` key.
+  NumpadEnter,
+  /// The numpad decimal point (`.`) key.
+  NumpadDecimal,
+  /// The numpad `=` (equal) key.
+  NumpadEqual,
+  /// The numpad `,` (comma) key, found on some layouts.
+  NumpadComma,
 
   // Symbol keys
+  /// The backquote/backtick (`` ` ``) key.
   Backquote,
+  /// The left bracket (`[`) key.
   BracketLeft,
+  /// The right bracket (`]`) key.
   BracketRight,
+  /// The comma (`,`) key.
   Comma,
+  /// The period (`.`) key.
   Period,
+  /// The semicolon (`;`) key.
   Semicolon,
+  /// The quote (`'`) key.
   Quote,
+  /// The backslash (`\`) key.
   Backslash,
+  /// The forward slash (`/`) key.
   Slash,
+  /// The minus (`-`) key.
   Minus,
+  /// The equal (`=`) key.
   Equal,
+  /// An additional backslash-like key found on some international keyboard layouts.
   IntlBackslash,
+  /// The `Ro` key found on Japanese keyboard layouts.
   IntlRo,
+  /// The `Yen` key found on Japanese keyboard layouts.
   IntlYen,
 
   // Mobile and special buttons
+  /// The volume-down media key.
   AudioVolumeDown,
+  /// The volume-mute media key.
   AudioVolumeMute,
+  /// The volume-up media key.
   AudioVolumeUp,
+  /// The browser back-navigation key.
   BrowserBack,
+  /// The browser favorites/bookmarks key.
   BrowserFavorites,
+  /// The browser forward-navigation key.
   BrowserForward,
+  /// The browser home key.
   BrowserHome,
+  /// The browser refresh key.
   BrowserRefresh,
+  /// The browser search key.
   BrowserSearch,
+  /// The browser stop-loading key.
   BrowserStop,
+  /// The media eject key.
   Eject,
+  /// The key that launches the first configured application.
   LaunchApp1,
+  /// The key that launches the second configured application.
   LaunchApp2,
+  /// The key that launches the default mail application.
   LaunchMail,
+  /// The media play/pause key.
   MediaPlayPause,
+  /// The media stop key.
   MediaStop,
+  /// The media next-track key.
   MediaTrackNext,
+  /// The media previous-track key.
   MediaTrackPrevious,
+  /// The power key.
   Power,
+  /// The sleep key.
   Sleep,
+  /// The wake-up key.
   WakeUp,
 
   // Extra keys for international keyboards
-  Lang1, Lang2, Lang3, Lang4, Lang5,
+  /// The `Lang1` input-method key, found on Korean/Japanese keyboard layouts.
+  Lang1,
+  /// The `Lang2` input-method key, found on Korean/Japanese keyboard layouts.
+  Lang2,
+  /// The `Lang3` input-method key, found on Japanese keyboard layouts.
+  Lang3,
+  /// The `Lang4` input-method key, found on Japanese keyboard layouts.
+  Lang4,
+  /// The `Lang5` input-method key, found on Japanese keyboard layouts.
+  Lang5,
+  /// The IME conversion key, found on Japanese keyboard layouts.
   Convert,
+  /// The IME non-conversion key, found on Japanese keyboard layouts.
   NonConvert,
+  /// The kana mode toggle key, found on Japanese keyboard layouts.
   KanaMode,
 
   // Unidentified key
+  /// A key that could not be identified or mapped to a known `KeyboardEvent.code` value.
   Unidentified,
 }
 
 impl KeyboardKey
 {
-  /// Convert a string code value to a KeyboardCode enum variant
-  pub fn from_code( code : &str ) -> Self
-  {
-    KeyboardKey::from_str( code ).unwrap_or( KeyboardKey::Unidentified )
-  }
-
   /// Get the string representation of this KeyboardCode
+  #[ expect( clippy::too_many_lines, reason = "exhaustive 150-variant match acting as a static lookup table mirroring the DOM KeyboardEvent.code spec; splitting it would fragment one spec mapping across multiple functions for no behavioral benefit" ) ]
+  #[ inline ]
+  #[ must_use ]
   pub const fn as_str( &self ) -> &'static str
   {
     match self
@@ -303,6 +527,8 @@ impl KeyboardKey
   }
 
   /// Check if this is a navigation key
+  #[ inline ]
+  #[ must_use ]
   pub fn is_navigation( &self ) -> bool
   {
     matches!
@@ -320,6 +546,8 @@ impl KeyboardKey
   }
 
   /// Check if this is a modifier key
+  #[ inline ]
+  #[ must_use ]
   pub fn is_modifier( &self ) -> bool
   {
     matches!
@@ -337,6 +565,8 @@ impl KeyboardKey
   }
 
   /// Check if this is a function key
+  #[ inline ]
+  #[ must_use ]
   pub fn is_function_key( &self ) -> bool
   {
     matches!
@@ -352,6 +582,8 @@ impl KeyboardKey
   }
 
   /// Check if this is a numpad key
+  #[ inline ]
+  #[ must_use ]
   pub fn is_numpad( &self ) -> bool
   {
     matches!
@@ -371,185 +603,205 @@ impl FromStr for KeyboardKey
 {
   type Err = ();
 
+  // Fix(UX/DX #6): match against `s.to_lowercase()` instead of `s` directly, and lowercase
+  // every pattern literal below to match -- mirrors `MouseButton::from_str`'s own
+  // `s.to_lowercase().as_str()` idiom (browser_input/src/mouse.rs), for consistency between
+  // the two sibling `FromStr` impls in this crate. Confirmed safe: this `FromStr` impl's sole
+  // real caller (`browser_input/src/input.rs`, via `KeyboardKey::from( event.code().as_str() )`)
+  // always receives the browser-native, canonically-cased `KeyboardEvent.code` string, so this
+  // is a pure widening (accepts strictly more input than before) with no observed caller whose
+  // behavior could regress.
+  #[ expect( clippy::too_many_lines, reason = "exhaustive 150-variant match acting as a static lookup table mirroring the DOM KeyboardEvent.code spec — same reasoning as as_str above" ) ]
+  #[ inline ]
   fn from_str( s : &str ) -> Result< Self, Self::Err >
   {
-    match s
+    match s.to_lowercase().as_str()
     {
       // Modifier keys
-      "AltLeft" => Ok( KeyboardKey::AltLeft ),
-      "AltRight" => Ok( KeyboardKey::AltRight ),
-      "ControlLeft" => Ok( KeyboardKey::ControlLeft ),
-      "ControlRight" => Ok( KeyboardKey::ControlRight ),
-      "MetaLeft" => Ok( KeyboardKey::MetaLeft ),
-      "MetaRight" => Ok( KeyboardKey::MetaRight ),
-      "ShiftLeft" => Ok( KeyboardKey::ShiftLeft ),
-      "ShiftRight" => Ok( KeyboardKey::ShiftRight ),
+      "altleft" => Ok( KeyboardKey::AltLeft ),
+      "altright" => Ok( KeyboardKey::AltRight ),
+      "controlleft" => Ok( KeyboardKey::ControlLeft ),
+      "controlright" => Ok( KeyboardKey::ControlRight ),
+      "metaleft" => Ok( KeyboardKey::MetaLeft ),
+      "metaright" => Ok( KeyboardKey::MetaRight ),
+      "shiftleft" => Ok( KeyboardKey::ShiftLeft ),
+      "shiftright" => Ok( KeyboardKey::ShiftRight ),
 
       // Whitespace keys
-      "Enter" => Ok( KeyboardKey::Enter ),
-      "Tab" => Ok( KeyboardKey::Tab ),
-      "Space" => Ok( KeyboardKey::Space ),
+      "enter" => Ok( KeyboardKey::Enter ),
+      "tab" => Ok( KeyboardKey::Tab ),
+      "space" => Ok( KeyboardKey::Space ),
 
       // Navigation keys
-      "ArrowDown" => Ok( KeyboardKey::ArrowDown ),
-      "ArrowLeft" => Ok( KeyboardKey::ArrowLeft ),
-      "ArrowRight" => Ok( KeyboardKey::ArrowRight ),
-      "ArrowUp" => Ok( KeyboardKey::ArrowUp ),
-      "End" => Ok( KeyboardKey::End ),
-      "Home" => Ok( KeyboardKey::Home ),
-      "PageDown" => Ok( KeyboardKey::PageDown ),
-      "PageUp" => Ok( KeyboardKey::PageUp ),
+      "arrowdown" => Ok( KeyboardKey::ArrowDown ),
+      "arrowleft" => Ok( KeyboardKey::ArrowLeft ),
+      "arrowright" => Ok( KeyboardKey::ArrowRight ),
+      "arrowup" => Ok( KeyboardKey::ArrowUp ),
+      "end" => Ok( KeyboardKey::End ),
+      "home" => Ok( KeyboardKey::Home ),
+      "pagedown" => Ok( KeyboardKey::PageDown ),
+      "pageup" => Ok( KeyboardKey::PageUp ),
 
       // UI keys
-      "Escape" => Ok( KeyboardKey::Escape ),
-      "CapsLock" => Ok( KeyboardKey::CapsLock ),
-      "ScrollLock" => Ok( KeyboardKey::ScrollLock ),
-      "NumLock" => Ok( KeyboardKey::NumLock ),
-      "PrintScreen" => Ok( KeyboardKey::PrintScreen ),
-      "Pause" => Ok( KeyboardKey::Pause ),
-      "ContextMenu" => Ok( KeyboardKey::ContextMenu ),
+      "escape" => Ok( KeyboardKey::Escape ),
+      "capslock" => Ok( KeyboardKey::CapsLock ),
+      "scrolllock" => Ok( KeyboardKey::ScrollLock ),
+      "numlock" => Ok( KeyboardKey::NumLock ),
+      "printscreen" => Ok( KeyboardKey::PrintScreen ),
+      "pause" => Ok( KeyboardKey::Pause ),
+      "contextmenu" => Ok( KeyboardKey::ContextMenu ),
 
       // Function keys
-      "F1" => Ok( KeyboardKey::F1 ),
-      "F2" => Ok( KeyboardKey::F2 ),
-      "F3" => Ok( KeyboardKey::F3 ),
-      "F4" => Ok( KeyboardKey::F4 ),
-      "F5" => Ok( KeyboardKey::F5 ),
-      "F6" => Ok( KeyboardKey::F6 ),
-      "F7" => Ok( KeyboardKey::F7 ),
-      "F8" => Ok( KeyboardKey::F8 ),
-      "F9" => Ok( KeyboardKey::F9 ),
-      "F10" => Ok( KeyboardKey::F10 ),
-      "F11" => Ok( KeyboardKey::F11 ),
-      "F12" => Ok( KeyboardKey::F12 ),
-      "F13" => Ok( KeyboardKey::F13 ),
-      "F14" => Ok( KeyboardKey::F14 ),
-      "F15" => Ok( KeyboardKey::F15 ),
-      "F16" => Ok( KeyboardKey::F16 ),
-      "F17" => Ok( KeyboardKey::F17 ),
-      "F18" => Ok( KeyboardKey::F18 ),
-      "F19" => Ok( KeyboardKey::F19 ),
-      "F20" => Ok( KeyboardKey::F20 ),
-      "F21" => Ok( KeyboardKey::F21 ),
-      "F22" => Ok( KeyboardKey::F22 ),
-      "F23" => Ok( KeyboardKey::F23 ),
-      "F24" => Ok( KeyboardKey::F24 ),
+      "f1" => Ok( KeyboardKey::F1 ),
+      "f2" => Ok( KeyboardKey::F2 ),
+      "f3" => Ok( KeyboardKey::F3 ),
+      "f4" => Ok( KeyboardKey::F4 ),
+      "f5" => Ok( KeyboardKey::F5 ),
+      "f6" => Ok( KeyboardKey::F6 ),
+      "f7" => Ok( KeyboardKey::F7 ),
+      "f8" => Ok( KeyboardKey::F8 ),
+      "f9" => Ok( KeyboardKey::F9 ),
+      "f10" => Ok( KeyboardKey::F10 ),
+      "f11" => Ok( KeyboardKey::F11 ),
+      "f12" => Ok( KeyboardKey::F12 ),
+      "f13" => Ok( KeyboardKey::F13 ),
+      "f14" => Ok( KeyboardKey::F14 ),
+      "f15" => Ok( KeyboardKey::F15 ),
+      "f16" => Ok( KeyboardKey::F16 ),
+      "f17" => Ok( KeyboardKey::F17 ),
+      "f18" => Ok( KeyboardKey::F18 ),
+      "f19" => Ok( KeyboardKey::F19 ),
+      "f20" => Ok( KeyboardKey::F20 ),
+      "f21" => Ok( KeyboardKey::F21 ),
+      "f22" => Ok( KeyboardKey::F22 ),
+      "f23" => Ok( KeyboardKey::F23 ),
+      "f24" => Ok( KeyboardKey::F24 ),
 
       // Editing keys
-      "Backspace" => Ok( KeyboardKey::Backspace ),
-      "Clear" => Ok( KeyboardKey::Clear ),
-      "Delete" => Ok( KeyboardKey::Delete ),
-      "Insert" => Ok( KeyboardKey::Insert ),
+      "backspace" => Ok( KeyboardKey::Backspace ),
+      "clear" => Ok( KeyboardKey::Clear ),
+      "delete" => Ok( KeyboardKey::Delete ),
+      "insert" => Ok( KeyboardKey::Insert ),
 
       // Alphanumeric keys
-      "Digit0" => Ok( KeyboardKey::Digit0 ),
-      "Digit1" => Ok( KeyboardKey::Digit1 ),
-      "Digit2" => Ok( KeyboardKey::Digit2 ),
-      "Digit3" => Ok( KeyboardKey::Digit3 ),
-      "Digit4" => Ok( KeyboardKey::Digit4 ),
-      "Digit5" => Ok( KeyboardKey::Digit5 ),
-      "Digit6" => Ok( KeyboardKey::Digit6 ),
-      "Digit7" => Ok( KeyboardKey::Digit7 ),
-      "Digit8" => Ok( KeyboardKey::Digit8 ),
-      "Digit9" => Ok( KeyboardKey::Digit9 ),
-      "KeyA" => Ok( KeyboardKey::KeyA ),
-      "KeyB" => Ok( KeyboardKey::KeyB ),
-      "KeyC" => Ok( KeyboardKey::KeyC ),
-      "KeyD" => Ok( KeyboardKey::KeyD ),
-      "KeyE" => Ok( KeyboardKey::KeyE ),
-      "KeyF" => Ok( KeyboardKey::KeyF ),
-      "KeyG" => Ok( KeyboardKey::KeyG ),
-      "KeyH" => Ok( KeyboardKey::KeyH ),
-      "KeyI" => Ok( KeyboardKey::KeyI ),
-      "KeyJ" => Ok( KeyboardKey::KeyJ ),
-      "KeyK" => Ok( KeyboardKey::KeyK ),
-      "KeyL" => Ok( KeyboardKey::KeyL ),
-      "KeyM" => Ok( KeyboardKey::KeyM ),
-      "KeyN" => Ok( KeyboardKey::KeyN ),
-      "KeyO" => Ok( KeyboardKey::KeyO ),
-      "KeyP" => Ok( KeyboardKey::KeyP ),
-      "KeyQ" => Ok( KeyboardKey::KeyQ ),
-      "KeyR" => Ok( KeyboardKey::KeyR ),
-      "KeyS" => Ok( KeyboardKey::KeyS ),
-      "KeyT" => Ok( KeyboardKey::KeyT ),
-      "KeyU" => Ok( KeyboardKey::KeyU ),
-      "KeyV" => Ok( KeyboardKey::KeyV ),
-      "KeyW" => Ok( KeyboardKey::KeyW ),
-      "KeyX" => Ok( KeyboardKey::KeyX ),
-      "KeyY" => Ok( KeyboardKey::KeyY ),
-      "KeyZ" => Ok( KeyboardKey::KeyZ ),
+      "digit0" => Ok( KeyboardKey::Digit0 ),
+      "digit1" => Ok( KeyboardKey::Digit1 ),
+      "digit2" => Ok( KeyboardKey::Digit2 ),
+      "digit3" => Ok( KeyboardKey::Digit3 ),
+      "digit4" => Ok( KeyboardKey::Digit4 ),
+      "digit5" => Ok( KeyboardKey::Digit5 ),
+      "digit6" => Ok( KeyboardKey::Digit6 ),
+      "digit7" => Ok( KeyboardKey::Digit7 ),
+      "digit8" => Ok( KeyboardKey::Digit8 ),
+      "digit9" => Ok( KeyboardKey::Digit9 ),
+      "keya" => Ok( KeyboardKey::KeyA ),
+      "keyb" => Ok( KeyboardKey::KeyB ),
+      "keyc" => Ok( KeyboardKey::KeyC ),
+      "keyd" => Ok( KeyboardKey::KeyD ),
+      "keye" => Ok( KeyboardKey::KeyE ),
+      "keyf" => Ok( KeyboardKey::KeyF ),
+      "keyg" => Ok( KeyboardKey::KeyG ),
+      "keyh" => Ok( KeyboardKey::KeyH ),
+      "keyi" => Ok( KeyboardKey::KeyI ),
+      "keyj" => Ok( KeyboardKey::KeyJ ),
+      "keyk" => Ok( KeyboardKey::KeyK ),
+      "keyl" => Ok( KeyboardKey::KeyL ),
+      "keym" => Ok( KeyboardKey::KeyM ),
+      "keyn" => Ok( KeyboardKey::KeyN ),
+      "keyo" => Ok( KeyboardKey::KeyO ),
+      "keyp" => Ok( KeyboardKey::KeyP ),
+      "keyq" => Ok( KeyboardKey::KeyQ ),
+      "keyr" => Ok( KeyboardKey::KeyR ),
+      "keys" => Ok( KeyboardKey::KeyS ),
+      "keyt" => Ok( KeyboardKey::KeyT ),
+      "keyu" => Ok( KeyboardKey::KeyU ),
+      "keyv" => Ok( KeyboardKey::KeyV ),
+      "keyw" => Ok( KeyboardKey::KeyW ),
+      "keyx" => Ok( KeyboardKey::KeyX ),
+      "keyy" => Ok( KeyboardKey::KeyY ),
+      "keyz" => Ok( KeyboardKey::KeyZ ),
 
       // Numpad keys
-      "Numpad0" => Ok( KeyboardKey::Numpad0 ),
-      "Numpad1" => Ok( KeyboardKey::Numpad1 ),
-      "Numpad2" => Ok( KeyboardKey::Numpad2 ),
-      "Numpad3" => Ok( KeyboardKey::Numpad3 ),
-      "Numpad4" => Ok( KeyboardKey::Numpad4 ),
-      "Numpad5" => Ok( KeyboardKey::Numpad5 ),
-      "Numpad6" => Ok( KeyboardKey::Numpad6 ),
-      "Numpad7" => Ok( KeyboardKey::Numpad7 ),
-      "Numpad8" => Ok( KeyboardKey::Numpad8 ),
-      "Numpad9" => Ok( KeyboardKey::Numpad9 ),
-      "NumpadAdd" => Ok( KeyboardKey::NumpadAdd ),
-      "NumpadSubtract" => Ok( KeyboardKey::NumpadSubtract ),
-      "NumpadMultiply" => Ok( KeyboardKey::NumpadMultiply ),
-      "NumpadDivide" => Ok( KeyboardKey::NumpadDivide ),
-      "NumpadEnter" => Ok( KeyboardKey::NumpadEnter ),
-      "NumpadDecimal" => Ok( KeyboardKey::NumpadDecimal ),
-      "NumpadEqual" => Ok( KeyboardKey::NumpadEqual ),
-      "NumpadComma" => Ok( KeyboardKey::NumpadComma ),
+      "numpad0" => Ok( KeyboardKey::Numpad0 ),
+      "numpad1" => Ok( KeyboardKey::Numpad1 ),
+      "numpad2" => Ok( KeyboardKey::Numpad2 ),
+      "numpad3" => Ok( KeyboardKey::Numpad3 ),
+      "numpad4" => Ok( KeyboardKey::Numpad4 ),
+      "numpad5" => Ok( KeyboardKey::Numpad5 ),
+      "numpad6" => Ok( KeyboardKey::Numpad6 ),
+      "numpad7" => Ok( KeyboardKey::Numpad7 ),
+      "numpad8" => Ok( KeyboardKey::Numpad8 ),
+      "numpad9" => Ok( KeyboardKey::Numpad9 ),
+      "numpadadd" => Ok( KeyboardKey::NumpadAdd ),
+      "numpadsubtract" => Ok( KeyboardKey::NumpadSubtract ),
+      "numpadmultiply" => Ok( KeyboardKey::NumpadMultiply ),
+      "numpaddivide" => Ok( KeyboardKey::NumpadDivide ),
+      "numpadenter" => Ok( KeyboardKey::NumpadEnter ),
+      "numpaddecimal" => Ok( KeyboardKey::NumpadDecimal ),
+      "numpadequal" => Ok( KeyboardKey::NumpadEqual ),
+      "numpadcomma" => Ok( KeyboardKey::NumpadComma ),
 
       // Symbol keys
-      "Backquote" => Ok( KeyboardKey::Backquote ),
-      "BracketLeft" => Ok( KeyboardKey::BracketLeft ),
-      "BracketRight" => Ok( KeyboardKey::BracketRight ),
-      "Comma" => Ok( KeyboardKey::Comma ),
-      "Period" => Ok( KeyboardKey::Period ),
-      "Semicolon" => Ok( KeyboardKey::Semicolon ),
-      "Quote" => Ok( KeyboardKey::Quote ),
-      "Backslash" => Ok( KeyboardKey::Backslash ),
-      "Slash" => Ok( KeyboardKey::Slash ),
-      "Minus" => Ok( KeyboardKey::Minus ),
-      "Equal" => Ok( KeyboardKey::Equal ),
-      "IntlBackslash" => Ok( KeyboardKey::IntlBackslash ),
-      "IntlRo" => Ok( KeyboardKey::IntlRo ),
-      "IntlYen" => Ok( KeyboardKey::IntlYen ),
+      "backquote" => Ok( KeyboardKey::Backquote ),
+      "bracketleft" => Ok( KeyboardKey::BracketLeft ),
+      "bracketright" => Ok( KeyboardKey::BracketRight ),
+      "comma" => Ok( KeyboardKey::Comma ),
+      "period" => Ok( KeyboardKey::Period ),
+      "semicolon" => Ok( KeyboardKey::Semicolon ),
+      "quote" => Ok( KeyboardKey::Quote ),
+      "backslash" => Ok( KeyboardKey::Backslash ),
+      "slash" => Ok( KeyboardKey::Slash ),
+      "minus" => Ok( KeyboardKey::Minus ),
+      "equal" => Ok( KeyboardKey::Equal ),
+      "intlbackslash" => Ok( KeyboardKey::IntlBackslash ),
+      "intlro" => Ok( KeyboardKey::IntlRo ),
+      "intlyen" => Ok( KeyboardKey::IntlYen ),
 
       // Media keys
-      "AudioVolumeDown" => Ok( KeyboardKey::AudioVolumeDown ),
-      "AudioVolumeMute" => Ok( KeyboardKey::AudioVolumeMute ),
-      "AudioVolumeUp" => Ok( KeyboardKey::AudioVolumeUp ),
-      "BrowserBack" => Ok( KeyboardKey::BrowserBack ),
-      "BrowserFavorites" => Ok( KeyboardKey::BrowserFavorites ),
-      "BrowserForward" => Ok( KeyboardKey::BrowserForward ),
-      "BrowserHome" => Ok( KeyboardKey::BrowserHome ),
-      "BrowserRefresh" => Ok( KeyboardKey::BrowserRefresh ),
-      "BrowserSearch" => Ok( KeyboardKey::BrowserSearch ),
-      "BrowserStop" => Ok( KeyboardKey::BrowserStop ),
-      "Eject" => Ok( KeyboardKey::Eject ),
-      "LaunchApp1" => Ok( KeyboardKey::LaunchApp1 ),
-      "LaunchApp2" => Ok( KeyboardKey::LaunchApp2 ),
-      "LaunchMail" => Ok( KeyboardKey::LaunchMail ),
-      "MediaPlayPause" => Ok( KeyboardKey::MediaPlayPause ),
-      "MediaStop" => Ok( KeyboardKey::MediaStop ),
-      "MediaTrackNext" => Ok( KeyboardKey::MediaTrackNext ),
-      "MediaTrackPrevious" => Ok( KeyboardKey::MediaTrackPrevious ),
-      "Power" => Ok( KeyboardKey::Power ),
-      "Sleep" => Ok( KeyboardKey::Sleep ),
-      "WakeUp" => Ok( KeyboardKey::WakeUp ),
+      "audiovolumedown" => Ok( KeyboardKey::AudioVolumeDown ),
+      "audiovolumemute" => Ok( KeyboardKey::AudioVolumeMute ),
+      "audiovolumeup" => Ok( KeyboardKey::AudioVolumeUp ),
+      "browserback" => Ok( KeyboardKey::BrowserBack ),
+      "browserfavorites" => Ok( KeyboardKey::BrowserFavorites ),
+      "browserforward" => Ok( KeyboardKey::BrowserForward ),
+      "browserhome" => Ok( KeyboardKey::BrowserHome ),
+      "browserrefresh" => Ok( KeyboardKey::BrowserRefresh ),
+      "browsersearch" => Ok( KeyboardKey::BrowserSearch ),
+      "browserstop" => Ok( KeyboardKey::BrowserStop ),
+      "eject" => Ok( KeyboardKey::Eject ),
+      "launchapp1" => Ok( KeyboardKey::LaunchApp1 ),
+      "launchapp2" => Ok( KeyboardKey::LaunchApp2 ),
+      "launchmail" => Ok( KeyboardKey::LaunchMail ),
+      "mediaplaypause" => Ok( KeyboardKey::MediaPlayPause ),
+      "mediastop" => Ok( KeyboardKey::MediaStop ),
+      "mediatracknext" => Ok( KeyboardKey::MediaTrackNext ),
+      "mediatrackprevious" => Ok( KeyboardKey::MediaTrackPrevious ),
+      "power" => Ok( KeyboardKey::Power ),
+      "sleep" => Ok( KeyboardKey::Sleep ),
+      "wakeup" => Ok( KeyboardKey::WakeUp ),
 
       // International keys
-      "Lang1" => Ok( KeyboardKey::Lang1 ),
-      "Lang2" => Ok( KeyboardKey::Lang2 ),
-      "Lang3" => Ok( KeyboardKey::Lang3 ),
-      "Lang4" => Ok( KeyboardKey::Lang4 ),
-      "Lang5" => Ok( KeyboardKey::Lang5 ),
-      "Convert" => Ok( KeyboardKey::Convert ),
-      "NonConvert" => Ok( KeyboardKey::NonConvert ),
-      "KanaMode" => Ok( KeyboardKey::KanaMode ),
+      "lang1" => Ok( KeyboardKey::Lang1 ),
+      "lang2" => Ok( KeyboardKey::Lang2 ),
+      "lang3" => Ok( KeyboardKey::Lang3 ),
+      "lang4" => Ok( KeyboardKey::Lang4 ),
+      "lang5" => Ok( KeyboardKey::Lang5 ),
+      "convert" => Ok( KeyboardKey::Convert ),
+      "nonconvert" => Ok( KeyboardKey::NonConvert ),
+      "kanamode" => Ok( KeyboardKey::KanaMode ),
 
       // Unknown key
       _ => Ok( KeyboardKey::Unidentified ),
     }
+  }
+}
+
+impl From< &str > for KeyboardKey
+{
+  /// Convert a string code value to a KeyboardCode enum variant
+  #[ inline ]
+  fn from( code : &str ) -> Self
+  {
+    KeyboardKey::from_str( code ).unwrap_or( KeyboardKey::Unidentified )
   }
 }

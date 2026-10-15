@@ -1,5 +1,3 @@
-#[ allow( unused_imports ) ]
-#[ allow( clippy::used_underscore_binding ) ]
 use super::*;
 
 #[ test ]

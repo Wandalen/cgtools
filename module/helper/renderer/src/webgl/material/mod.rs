@@ -126,12 +126,12 @@ mod private
     }
 
     /// Returns `true` if the material's uniform data has changed and needs
-    /// to be re-uploaded to the GPU via [`upload_on_state_change`].
+    /// to be re-uploaded to the GPU via [`Self::upload_on_state_change`].
     fn needs_update( &self ) -> bool;
 
     /// Sets or clears the dirty flag for material uniforms.
     /// Implementations must use interior mutability (e.g. `Cell<bool>`).
-    fn set_needs_update( &self, value : bool );
+    fn needs_update_set( &self, value : bool );
 
     /// Returns the base texture unit for IBL textures.
     ///
@@ -154,8 +154,8 @@ mod private
       None
     }
 
-    /// Returns reference to [`ProgramInfo`] with shader locations and used [`ShaderProgram`]
-    fn make_shader_program( &self, gl : &gl::WebGl2RenderingContext, program : &gl::WebGlProgram ) -> Box< dyn ShaderProgram >;
+    /// Returns reference to [`ProgramInfo`](crate::webgl::ProgramInfo) with shader locations and used [`ShaderProgram`]
+    fn shader_program_make( &self, gl : &gl::WebGl2RenderingContext, program : &gl::WebGlProgram ) -> Box< dyn ShaderProgram >;
 
     /// Returns the material type identifier (e.g., "PBR", "Unlit", "Custom").
     fn type_name( &self ) -> &'static str;
@@ -175,18 +175,21 @@ mod private
     fn fragment_shader( &self ) -> String;
 
     /// Return a string containing combined version of the vertex and fragment defines
+    #[ expect( clippy::unnecessary_literal_bound, reason = "overrides return references into `&self`-owned cache fields, so the signature cannot promise `'static`" ) ]
     fn defines_str( &self ) -> &str
     {
       ""
     }
 
     /// Returns a string containing vertex shader related defines
+    #[ expect( clippy::unnecessary_literal_bound, reason = "overrides return non-`'static` cached-field references" ) ]
     fn vertex_defines_str( &self ) -> &str
     {
       ""
     }
 
     /// Returns a string containing fragment shader related defines
+    #[ expect( clippy::unnecessary_literal_bound, reason = "overrides return non-`'static` cached-field references" ) ]
     fn fragment_defines_str( &self ) -> &str
     {
       ""
@@ -209,6 +212,10 @@ mod private
     ///
     /// * `gl`: The `WebGl2RenderingContext`.
     /// * `locations`: A hash map of uniform locations in the shader program.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if a uniform upload fails.
     fn upload_on_state_change
     (
       &self,
@@ -221,6 +228,10 @@ mod private
     ///
     /// * `gl`: The `WebGl2RenderingContext`.
     /// * `locations`: A hash map of uniform locations in the shader program.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if a uniform upload fails.
     fn upload
     (
       &self,
@@ -235,7 +246,7 @@ mod private
     /// Activates and binds all material textures to their assigned texture units,
     /// and uploads sampler parameters (filtering, wrapping).
     ///
-    /// Each texture must be bound to the same unit that was assigned in [`configure`].
+    /// Each texture must be bound to the same unit that was assigned in [`Self::configure`].
     /// Implementations **must** call `gl.active_texture( gl::TEXTURE0 + unit )` before
     /// binding each texture to ensure correct unit targeting.
     ///
@@ -245,6 +256,17 @@ mod private
 
     /// Dyn safe clone method
     fn dyn_clone( &self ) -> Box< dyn Material >;
+
+    /// Returns `self` as `&dyn Any`, for downcasting a `&dyn Material` back to its concrete type
+    /// (e.g. `Rc<RefCell<Box<dyn Material>>>` on a [`crate::webgl::Primitive`] down to `&PbrMaterial`
+    /// when applying node-scoped configuration such as engraving that isn't expressed through
+    /// the `Material` trait itself). Implementations should always be `{ self }` — there is no
+    /// generic default because the `&Self -> &dyn Any` coercion requires `Self: Sized`, which a
+    /// trait method usable through `dyn Material` cannot assume.
+    fn as_any( &self ) -> &dyn std::any::Any;
+
+    /// Returns `self` as `&mut dyn Any`, the mutable counterpart of [`Material::as_any`].
+    fn as_any_mut( &mut self ) -> &mut dyn std::any::Any;
 
     /// Returns an alpha mode for the current materials
     fn alpha_mode( &self ) -> AlphaMode
@@ -310,7 +332,25 @@ mod private
     }
 
     /// Called by the renderer after recompilation to clear the recompile flag.
-    fn clear_recompile_flag( &self ) {}
+    fn recompile_flag_clear( &self ) {}
+  }
+
+  /// The vertex and fragment sources the renderer compiles for `material`: the `#version 300 es`
+  /// header, each stage's own defines, `USE_IBL` in the fragment stage only when `use_ibl`, then
+  /// the stage's source.
+  #[ must_use ]
+  pub fn shader_sources( material : &dyn Material, use_ibl : bool ) -> ( String, String )
+  {
+    let ibl_define = if use_ibl { "#define USE_IBL\n" } else { "" };
+    let vs = format!( "#version 300 es\n{}\n{}", material.vertex_defines_str(), material.vertex_shader() );
+    let fs = format!
+    (
+      "#version 300 es\n{}\n{}\n{}",
+      material.fragment_defines_str(),
+      ibl_define,
+      material.fragment_shader()
+    );
+    ( vs, fs )
   }
 
 }
@@ -332,4 +372,17 @@ crate::mod_interface!
     MaterialUploadContext,
     Material
   };
+}
+
+pub( crate ) use private::shader_sources;
+
+/// The internals `tests/` reaches, exposed only under `test_internals`.
+///
+/// Not part of the surface: with the feature off, the default and what every dependent gets,
+/// this module does not exist.
+#[ cfg( feature = "test_internals" ) ]
+#[ doc( hidden ) ]
+pub mod internal
+{
+  pub use super::private::shader_sources;
 }

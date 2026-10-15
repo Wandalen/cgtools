@@ -10,6 +10,15 @@ rustdocflags = [
 
 # WebAssembly specific configuration
 [target.wasm32-unknown-unknown]
+# Lets `cargo test --target wasm32-unknown-unknown` execute browser tests
+# headlessly: the runner picks the browser via CHROMEDRIVER/GECKODRIVER and
+# launches it with its own built-in headless capabilities. The shim (not the
+# bare runner) re-anchors cwd to the workspace root so test asset fetches
+# resolve — cargo would otherwise hand the runner each package's own
+# directory as cwd. Pitfall: a webdriver.json in the runner's cwd replaces
+# the built-in capabilities wholesale (headless included); the driver
+# defaults are what's proven to launch here, so none is committed.
+runner = "script/wasm_test_runner.sh"
 rustflags = [
   "--cfg",
   "web_sys_unstable_apis",

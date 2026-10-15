@@ -3,34 +3,7 @@
 #![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
 #![ cfg_attr( not( doc ), doc = "Line drawing and manipulation utilities for 2D and 3D graphics" ) ]
 
-#![ allow( clippy::needless_borrow ) ]
-#![ allow( clippy::cast_precision_loss ) ]
-#![ allow( clippy::implicit_return ) ]
-#![ allow( clippy::missing_inline_in_public_items ) ]
-#![ allow( clippy::min_ident_chars ) ]
-#![ allow( clippy::similar_names ) ]
-#![ allow( clippy::missing_panics_doc ) ]
-#![ allow( clippy::missing_errors_doc ) ]
-#![ allow( clippy::must_use_candidate ) ]
-#![ allow( clippy::redundant_static_lifetimes ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::cast_possible_wrap ) ]
-#![ allow( clippy::cast_sign_loss ) ]
-#![ allow( clippy::field_reassign_with_default ) ]
-#![ allow( clippy::wildcard_imports ) ]
-#![ allow( clippy::range_plus_one ) ]
-#![ allow( clippy::std_instead_of_core ) ]
-#![ allow( clippy::map_flatten ) ]
-#![ allow( clippy::semicolon_if_nothing_returned ) ]
-#![ allow( clippy::exhaustive_enums ) ]
-#![ allow( clippy::exhaustive_structs ) ]
-#![ allow( clippy::len_zero ) ]
-#![ allow( clippy::redundant_closure ) ]
-#![ allow( clippy::redundant_closure_for_method_calls ) ]
-#![ allow( clippy::redundant_field_names ) ]
-#![ allow( clippy::collapsible_else_if ) ]
-#![ allow( clippy::too_many_lines ) ]
-#![ allow( clippy::match_wildcard_for_single_variants ) ]
+extern crate alloc;
 
 mod private
 {
@@ -123,14 +96,22 @@ mod private
 
           #[ cfg( feature = "distance" ) ]
           {
+            // Fix(BUG-238): `mag2()` returns a *squared* distance, but was compared directly
+            // against `EPSILON` (a linear-scale tolerance), making the effective dedup radius
+            // `sqrt(EPSILON)` (~3.45e-4 for f32) instead of the intended `EPSILON` (~1.19e-7) --
+            // silently dropping legitimately distinct points closer than that.
+            // Root cause: squared-distance optimization (`mag2()` avoids a `sqrt()` call) without
+            // squaring the comparison threshold to match.
+            // Pitfall: any `mag2()`/`distance_squared()` comparison must square its threshold too --
+            // `d² <= t` means `d <= sqrt(t)`, not `d <= t`.
             let distance = if let Some( last ) = self.geometry.points.back().copied()
             {
-              if ( last - point ).mag2() <= std::$primitive_type::EPSILON 
+              if ( last - point ).mag2() <= $primitive_type::EPSILON * $primitive_type::EPSILON
               {
                 return;
               }
 
-              ( point - last ).mag() 
+              ( point - last ).mag()
             }
             else
             {
@@ -155,14 +136,16 @@ mod private
 
           #[ cfg( feature = "distance" ) ]
           {
+            // Fix(BUG-238): same squared-vs-linear EPSILON mismatch as `point_add_back` above --
+            // see that comment for the full explanation.
             let distance = if let Some( last ) = geometry.points.front().copied()
             {
-              if ( last - point ).mag2() <= std::$primitive_type::EPSILON 
+              if ( last - point ).mag2() <= $primitive_type::EPSILON * $primitive_type::EPSILON
               {
                 return;
               }
 
-              ( point - last ).mag() 
+              ( point - last ).mag()
             }
             else
             {
@@ -231,8 +214,17 @@ mod private
           self.geometry.points[ index ]
         }
 
+        // Fix(BUG-154)
+        // Root cause: doc comment claimed "Will panic if index is out of range", copy-pasted
+        // from `point_get`'s doc (which does panic, via direct `Index` on the backing
+        // `VecDeque`) -- but this method reads the index via `.get_mut()` guarded by
+        // `if let Some(..)`, which silently no-ops on an out-of-range index instead.
+        // Pitfall: a doc comment copied from a sibling method must be re-verified against the
+        // copy's own implementation, not assumed to still apply -- `point_get`'s direct
+        // indexing and `point_set`'s `.get_mut()` guard are different access patterns despite
+        // near-identical doc wording.
         /// Sets the points at the specified position.
-        /// Will panic if index is out of range
+        /// Silently does nothing if index is out of range.
         pub fn point_set< P : gl::VectorIter< $primitive_type, $dimensions > >( &mut self, point : P, index : usize )
         {
           if let Some( p ) = self.geometry.points.get_mut( index )
@@ -248,8 +240,12 @@ mod private
           }
         }
 
+        // Fix(BUG-154)
+        // Root cause: same doc/code mismatch as `point_set` above -- doc claimed a panic this
+        // method's `.get_mut()`-guarded body never produces.
+        // Pitfall: see `point_set`'s comment above for the full explanation.
         /// Sets the points at the specified position.
-        /// Will panic if index is out of range
+        /// Silently does nothing if index is out of range.
         pub fn color_set< C : gl::VectorIter< $primitive_type, 3 > >( &mut self, color : C, index : usize )
         {
           if let Some( c ) = self.geometry.colors.get_mut( index )
@@ -424,12 +420,20 @@ mod private
         }
 
         /// Retrieves a reference to the mesh.
+        ///
+        /// # Errors
+        ///
+        /// Returns `WebglError` if the mesh has not been created yet.
         pub fn mesh_get( &self ) -> Result< &Mesh, gl::WebglError >
         {
           self.render_state.mesh.as_ref().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )
         }  
 
         /// Retrieves a mutable reference to the mesh.
+        ///
+        /// # Errors
+        ///
+        /// Returns `WebglError` if the mesh has not been created yet.
         pub fn mesh_get_mut( &mut self ) -> Result< &mut Mesh, gl::WebglError >
         {
           self.render_state.mesh.as_mut().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )

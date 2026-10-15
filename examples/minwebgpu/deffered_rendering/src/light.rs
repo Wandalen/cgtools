@@ -1,5 +1,5 @@
 use minwebgpu::{self as gl, web_sys, WebGPUError};
-use rand::Rng;
+use rand::RngExt;
 pub const NUM_LIGHTS : usize = 150;
 
 #[ repr( C ) ]
@@ -29,8 +29,7 @@ impl Light
       power : self.power,
       color : self.color.to_array(),
       position : self.position.to_array(),
-      direction : self.direction,
-      ..Default::default()
+      direction : self.direction
     }
   }
 }
@@ -44,8 +43,8 @@ impl LightState
 {
   pub fn new( device : &web_sys::GpuDevice ) -> Result< Self, WebGPUError >
   {
-    let lights = generate_lights();
-    let lights_raw = lights.iter().map( | l | l.as_raw() ).collect::< Vec< LightRaw> >();
+    let lights = lights_generate();
+    let lights_raw = lights.iter().map( Light::as_raw ).collect::< Vec< LightRaw> >();
 
     let buffer = gl::BufferInitDescriptor::new
     (
@@ -119,7 +118,7 @@ impl LightVisualizationState
   }
 }
 
-fn generate_lights() -> Vec< Light >
+fn lights_generate() -> Vec< Light >
 {
   let mut rng = rand::rng();
 
@@ -141,8 +140,8 @@ fn generate_lights() -> Vec< Light >
 
     let light = Light
     {
-      power,
       color,
+      power,
       position,
       direction
     };

@@ -1,4 +1,4 @@
-use crate::*;
+use crate::{Mat3, MatNum, mat, RawSliceMut, ScalarMut, Ix2, ConstLayout, IndexingMut, MatEl, nd, Vector, VectorIter, Mat, RawSlice, TryInto, Mat4, Quat};
 
 impl< E, Descriptor > Mat3< E, Descriptor >
 where
@@ -12,6 +12,7 @@ Self : RawSliceMut< Scalar = E > +
   /// Computes the determinant of the matrix. Requires a signed scalar because
   /// the cofactor expansion subtracts terms, which can be negative; the result
   /// is undefined (panic or wrap) for unsigned element types.
+  #[ inline ]
   pub fn determinant( &self ) -> E
   {
     let a = *self.scalar_ref( Ix2( 0, 0 ) );
@@ -46,6 +47,11 @@ Self : RawSliceMut< Scalar = E > +
 {
   /// Computes the inverse of the matrix.
   /// If the determinant is zero - return `None`
+  ///
+  /// # Panics
+  /// Panics if iterating over the matrix's elements yields fewer than 9
+  /// values (guaranteed not to happen for a well-formed `Mat3`).
+  #[ inline ]
   pub fn inverse( &self ) -> Option< Self >
   {
     let det = self.determinant();
@@ -67,6 +73,10 @@ Self : RawSliceMut< Scalar = E > +
   }
 
    /// Creates a transformation matrix from scale, rotation( angle ) and translation
+  ///
+  /// # Panics
+  /// Panics if `scale`'s or `translation`'s iterator yields fewer than 2 elements.
+  #[ inline ]
   pub fn from_scale_rotation_translation< Vec >
   (
     scale : Vec,
@@ -111,12 +121,18 @@ Descriptor : mat::Descriptor,
 Self : RawSlice< Scalar = E >
 {
   /// Converts the matrix to an array
+  ///
+  /// # Panics
+  /// Panics if the underlying raw slice does not have exactly 9 elements
+  /// (guaranteed not to happen for a well-formed `Mat< 3, 3, E, Descriptor >`).
+  #[ inline ]
   pub fn to_array( &self ) -> [ E; 9 ]
   {
     self.raw_slice().try_into().unwrap()
   }
 
   /// Converts the matrix to a 4x4 homogenous matrix
+  #[ inline ]
   pub fn to_homogenous( &self ) -> Mat4< E, Descriptor >
   where
     Mat4< E, Descriptor > : RawSliceMut< Scalar = E >
@@ -148,7 +164,13 @@ Self : RawSlice< Scalar = E >
     mat
   }
 
-  /// Convertes this matrix into the 3x3 matrix
+  // Fix(BUG-287): doc said "into the 3x3 matrix" while the signature returns `Mat<2,2,...>`.
+  // Root cause: copy-pasted from `Mat4::truncate()` (4x4 -> 3x3, where that text is correct)
+  // without updating it for this type's own 3x3 -> 2x2 conversion.
+  // Pitfall: a doc/code mismatch like this misleads callers about the returned shape even
+  // though the runtime behavior (already covered by `test_truncate_*`) was always correct.
+  /// Converts this matrix into the 2x2 matrix, dropping the last row and column.
+  #[ inline ]
   pub fn truncate( &self ) -> Mat< 2, 2, E, Descriptor >
   where
     Mat< 2, 2, E, Descriptor > : RawSliceMut< Scalar = E >
@@ -165,7 +187,7 @@ Self : RawSlice< Scalar = E >
     ];
 
     let mut mat3 = Mat::< 2, 2, E, Descriptor >::default();
-    mat3.raw_set_slice( &trunc_slice );
+    mat3.raw_slice_set( &trunc_slice );
     mat3
   }
 }
@@ -177,6 +199,7 @@ Descriptor : mat::Descriptor,
 Self : RawSliceMut< Scalar = E >
 {
   /// Construct a matrix from columns
+  #[ inline ]
   pub fn from_cols
   (
     x : Vector< E, 3 >,
@@ -202,6 +225,7 @@ Descriptor : mat::Descriptor,
 Self : RawSliceMut< Scalar = E >
 {
   /// Creates a rotation matrix from a unit quaternion
+  #[ inline ]
   pub fn from_quat( quat : Quat< E > ) -> Self
   {
     let x2 = quat.x() + quat.x();
@@ -235,6 +259,8 @@ Descriptor : mat::Descriptor,
 Self : RawSliceMut< Scalar = E >
 {
   /// Creates a 3x3 identity matrix.
+  #[ inline ]
+  #[ must_use ]
   pub fn identity() -> Self
   {
     let mat = Self::default();
@@ -243,6 +269,8 @@ Self : RawSliceMut< Scalar = E >
 }
 
 /// Creates a 3x3 identity matrix
+#[ inline ]
+#[ must_use ]
 pub fn identity< E >() -> Mat3< E, mat::DescriptorOrderColumnMajor >
 where
   E : MatNum,

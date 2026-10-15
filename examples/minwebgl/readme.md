@@ -48,10 +48,11 @@ trunk serve --release
 
 Below is a list of all available examples, each demonstrating a unique WebGL concept.
 
-| Example | Description |
+| Example | Responsibility |
 | :--- | :--- |
 | **Rendering Fundamentals** | |
 | `trivial` | A minimal "hello world" that draws a single point on the screen. |
+| `context_triangle_smoke` | The narrowest browser-side smoke test: context from canvas, one shader pair, one triangle, verified by pixel readback. |
 | `attributes_vao` | Demonstrates using a Vertex Array Object (VAO) to manage multiple vertex attributes. |
 | `attributes_instanced` | Shows how to use instanced drawing to render many objects with a single draw call. |
 | `attributes_matrix` | An advanced instancing example that passes transformation matrices as per-instance attributes. |
@@ -73,7 +74,6 @@ Below is a list of all available examples, each demonstrating a unique WebGL con
 | `obj_viewer` | A more advanced OBJ model viewer with full MTL material and texture support. |
 | `gltf_viewer` | A production-quality PBR viewer for glTF 2.0 models with IBL and post-processing. |
 | `3d_line` | Renders dynamic, animates 3D lines in a scene with interactive orbit controls. |
-| `spinning_cube_size_opt` | A spinning cube demo that showcases effective techniques for reducing WASM bundle size. |
 | **Advanced Rendering & PBR** | |
 | `simple_pbr` | A minimal, shader-only example demonstrating the core principles of Physically-Based Rendering. |
 | `pbr_lighting` | Advanced PBR lighting techniques with multiple light types and realistic material responses. |
@@ -82,7 +82,6 @@ Below is a list of all available examples, each demonstrating a unique WebGL con
 | `shadowmap` | Shadow mapping implementation for realistic shadow rendering in 3D scenes. |
 | `diamond` | A specialized renderer for a diamond, simulating complex refraction and dispersion effects using cube maps. |
 | **Post-Processing & Effects** | |
-| `filter` | A simple example applying a single, interactive emboss filter to an image. |
 | `filters` | A comprehensive demo of various GPU-accelerated image filters applied in real-time. |
 | `postprocessing` | A complete postprocessing effects pipeline with multiple passes and effects. |
 | `outline` | Implements a real-time object outline using the multi-pass Jump Flooding Algorithm (JFA). |
@@ -102,6 +101,7 @@ Below is a list of all available examples, each demonstrating a unique WebGL con
 | `object_picking` | Demonstrates precise, GPU-based object selection in a 3D scene using a color-coded ID buffer. |
 | `character_control` | Character movement and control system with physics and input handling. |
 | `color_space_conversions` | An interactive tool to visualize real-time conversions between numerous color spaces. |
+| `touch_input_test` | A minimal manual test for touch and pointer input on mobile (pan, pinch, zoom) via `browser_input`. |
 | **Optimization** | |
 | `minimize_wasm` | A guide and example for optimizing the size of WebAssembly builds using `wee_alloc` and `wasm-opt`. |
 | `space_partition` | Showcases the usage of k-d tree, KNN and range searches using the cgtools rendering library |

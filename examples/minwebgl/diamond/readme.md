@@ -8,7 +8,7 @@ This example illustrates complex lighting calculations and material systems need
 
 ![](./showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 

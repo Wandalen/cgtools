@@ -203,7 +203,6 @@ let bind_group = device.create_bind_group(&gpu::BindGroupDescriptor {
 
 - **[Hello Triangle](../../../examples/minwebgpu/hello_triangle/)** - Basic WebGPU triangle
 - **[Deferred Rendering](../../../examples/minwebgpu/deffered_rendering/)** - Advanced lighting with WebGPU
-- **[Compute Particles](../../../examples/minwebgpu/compute_particles/)** - GPU particle simulation
 
 ## 🔧 Advanced Features
 
@@ -267,4 +266,17 @@ wasm-pack build --target web --out-dir pkg
 # Development with trunk
 trunk serve --release
 ```
+
+## 📖 Documentation
+
+Design documentation (architecture pattern, invariants, features, known pitfalls) lives in [`docs/`](docs/definition/readme.md).
+
+## Directory Layout
+
+| Path | Responsibility |
+|------|----------------|
+| `src/` | Crate source — WebGPU context, resource, pipeline, and command-encoding wrappers |
+| `docs/` | Design documentation as typed doc definitions — see [docs/definition/readme.md](docs/definition/readme.md) |
+| `changelog.md` | Release history |
+| `readme.md` | This file — user-facing entry point |
 

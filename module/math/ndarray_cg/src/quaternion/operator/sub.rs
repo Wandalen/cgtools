@@ -1,6 +1,6 @@
 mod private
 {
-  use crate::*;
+  use crate::{Sub, Quat, MatEl, NdFloat, SubAssign};
   // use vector::arithmetics::inner_product::*;
 
   // Quat - Quat
@@ -10,6 +10,7 @@ mod private
   {
     type Output = Self;
 
+    #[ inline ]
     fn sub( self, rhs : Self ) -> Self::Output
     {
       let v = self.0 - rhs.0;
@@ -24,6 +25,7 @@ mod private
   {
     type Output = Quat< E >;
 
+    #[ inline ]
     fn sub( self, rhs : Self ) -> Self::Output
     {
       let v = self.0 - rhs.0;
@@ -36,9 +38,10 @@ mod private
   where
     E : MatEl + NdFloat
   {
+    #[ inline ]
     fn sub_assign( &mut self, rhs : Self )
     {
-      ( *self ).0 = ( *self ).0 - rhs.0;
+      self.0 = self.0 - rhs.0;
     }
   }
 
@@ -49,6 +52,7 @@ mod private
   {
     type Output = Self;
 
+    #[ inline ]
     fn sub( self, rhs : E ) -> Self::Output
     {
       let v = self.0 - rhs;

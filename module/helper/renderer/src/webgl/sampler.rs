@@ -94,6 +94,7 @@ mod private
   impl Sampler 
   {
     /// Creates a new `Sampler` with default values.
+    #[ must_use ]
     pub fn new() -> Self
     {
       Self::default()
@@ -160,7 +161,7 @@ mod private
         gl::REPEAT => Self::Repeat,
         gl::CLAMP_TO_EDGE => Self::ClampToEdge,
         gl::MIRRORED_REPEAT => Self::MirroredRepeat,
-        e => panic!( "Invalid WrappingMode value: {}", e )
+        e => panic!( "Invalid WrappingMode value: {e}" )
       }
     }
   }
@@ -182,7 +183,7 @@ mod private
       {
         gl::LINEAR => Self::Linear,
         gl::NEAREST => Self::Nearest,
-        e => panic!( "Invalid MagFilterMode value: {}", e )
+        e => panic!( "Invalid MagFilterMode value: {e}" )
       }
     }
   }
@@ -212,7 +213,7 @@ mod private
         gl::NEAREST_MIPMAP_LINEAR => Self::NearestMipmapLinear,
         gl::LINEAR_MIPMAP_NEAREST => Self::LinearMipmapNearest,
         gl::LINEAR_MIPMAP_LINEAR => Self::LinearMipMapLinear,
-        e => panic!( "Invalid MinFilterMode value: {}", e )
+        e => panic!( "Invalid MinFilterMode value: {e}" )
       }
     }
   }
@@ -246,7 +247,7 @@ mod private
         gl::NOTEQUAL => Self::Notequal,
         gl::ALWAYS => Self::Always,
         gl::NEVER => Self::Never,
-        e => panic!( "Invalid CompareFunction value: {}", e )
+        e => panic!( "Invalid CompareFunction value: {e}" )
       }
     }
   }

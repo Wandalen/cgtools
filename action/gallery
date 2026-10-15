@@ -1,0 +1,432 @@
+#!/usr/bin/env bash
+# Regenerates examples/index.html's gallery region (stats + filter buttons + tag-group/card
+# listing) and fully regenerates examples/index.md, both from action/run's own example
+# discovery plus each example's own readme.md — title from its first heading, description
+# from the paragraph following its **Keywords:** line. Single source of truth: no example
+# metadata is hand-maintained or duplicated in either generated file. Relative links inside
+# a description are rebased against the example's own directory when emitted into index.md,
+# so links written for a readme's location stay valid one level up at examples/ (absolute
+# URLs, #anchors, and root-relative paths pass through untouched); the HTML side strips
+# link syntax entirely, so it needs no rebasing.
+#
+# Grouping is by tag — the group:key values each example declares in its own Cargo.toml's
+# [package.metadata.action] table. One section per distinct tag, listing every example that
+# carries it, so an example with several tags appears in each of those groups. An example
+# with no tags still counts in the stats but lands in no group — warned to stderr, never
+# dropped silently.
+#
+# index.html is spliced between fixed marker comments (GALLERY:STATS:*, GALLERY:FILTERS:*,
+# GALLERY:SECTIONS:*) so the hand-authored CSS/header/footer/search-filter JS around it is
+# never touched. Browser-kind examples link to their own live-demo path (only resolves once
+# GitHub Pages actually hosts the built dist/ output there); other kinds link to GitHub's
+# own rendered readme.md view, since a plain relative link to raw markdown does not render
+# as HTML once deployed. index.md always links to each example's own readme.md — it's
+# consumed via GitHub's repo browser, where that has always rendered correctly.
+#
+# `verify::1`: writes nothing; diffs freshly generated content against what's on disk and
+# exits non-zero (printing the diff) if either file would change — for CI drift detection.
+set -euo pipefail
+
+_SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+_REPO_ROOT="$( cd "$_SCRIPT_DIR/.." && pwd )"
+_EXAMPLES_DIR="$_REPO_ROOT/examples"
+_INDEX_HTML="$_EXAMPLES_DIR/index.html"
+_INDEX_MD="$_EXAMPLES_DIR/index.md"
+_GH_REPO="Wandalen/cgtools"
+_GH_BRANCH="master"
+
+_verify=0
+for _a in "$@"
+do
+  case "$_a" in
+    verify::* )
+      _verify="${_a#verify::}"
+      if [[ "$_verify" != "0" && "$_verify" != "1" ]]
+      then
+        printf 'error: verify:: expects 0 or 1, got %q\n' "${_a#verify::}" >&2
+        exit 2
+      fi
+      ;;
+    * ) printf 'error: unknown argument %q (expected verify::1)\n' "$_a" >&2; exit 2 ;;
+  esac
+done
+
+_tmp="$( mktemp -d )"
+trap 'rm -rf "$_tmp"' EXIT
+
+# GitHub-anchor slug for index.md's TOC: lowercase, drop everything outside [a-z0-9 -],
+# then each space to a hyphen — `API · WebGL` → `api--webgl` (the `·` is removed, its
+# two surrounding spaces each become a hyphen), matching the anchor GitHub itself
+# generates for that heading. Spaces map one-to-one, never collapsed.
+_slugify()
+{
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9 -]//g; s/ /-/g'
+}
+
+# Friendly display label for a "group:name" tag (e.g. api:webgl -> "API · WebGL").
+# Both halves fall back to _title_case_fallback so an outlier tag not special-cased
+# below (e.g. scene:orrery) still renders sensibly instead of being hardcoded here.
+_tag_label()
+{
+  local _group="${1%%:*}" _name="${1#*:}" _group_label _name_label
+  case "$_group" in
+    api) _group_label="API" ;;
+    runtime) _group_label="Runtime" ;;
+    scene) _group_label="Scene" ;;
+    *) _group_label="$( _title_case_fallback "$_group" )" ;;
+  esac
+  case "$_name" in
+    webgl) _name_label="WebGL" ;;
+    webgpu) _name_label="WebGPU" ;;
+    wgpu) _name_label="WGPU" ;;
+    *) _name_label="$( _title_case_fallback "$_name" )" ;;
+  esac
+  printf '%s · %s' "$_group_label" "$_name_label"
+}
+
+_html_escape()
+{
+  # BUG-315 task/bug/315_gallery_html_escape_ampersand_backreference.md --
+  # Fix(BUG-315): each replacement's & must be escaped as \& below.
+  # Root cause: bash's ${var/pattern/replacement} treats an unescaped & in `replacement`
+  # as a backreference to the matched text (sed-style), not a literal ampersand -- so
+  # without the backslash, "<" became "<lt;" instead of "&lt;" (matched text + literal
+  # entity-name suffix), and likewise for >/".
+  # Pitfall: the &->&amp; line looks correct even when written the same broken way, since
+  # its matched text (&) coincidentally equals the character the literal replacement
+  # would have inserted anyway -- that coincidence hid the bug in the other 3 lines.
+  local _s="$1"
+  _s="${_s//&/\&amp;}"
+  _s="${_s//</\&lt;}"
+  _s="${_s//>/\&gt;}"
+  _s="${_s//\"/\&quot;}"
+  printf '%s' "$_s"
+}
+
+_extract_title()
+{
+  sed -n '1{s/^#\+[[:space:]]*//p}' "$1/readme.md"
+}
+
+# Description = the first paragraph following the readme's **Keywords:** line that isn't
+# just a standalone image embed (some readmes put a screenshot directly under Keywords,
+# before the prose). Empty if the readme has no Keywords line — the caller omits the
+# description rather than guessing at a fallback extraction heuristic.
+_extract_description()
+{
+  awk '
+    function is_img(s) { return s ~ /^!\[[^]]*\]\([^)]*\)[[:space:]]*$/ }
+    /^\*\*Keywords:\*\*/ { mode = 1; next }
+    mode == 0 { next }
+    mode == 1 && /^[[:space:]]*$/ { next }
+    mode == 1 { buf = $0; nlines = 1; mode = 2; next }
+    mode == 2 && /^[[:space:]]*$/ {
+      if (nlines == 1 && is_img(buf)) { mode = 1; buf = ""; nlines = 0; next }
+      desc = buf
+      exit
+    }
+    mode == 2 { buf = buf " " $0; nlines++; next }
+    END { if (desc == "" && mode == 2 && !(nlines == 1 && is_img(buf))) desc = buf; print desc }
+  ' "$1/readme.md"
+}
+
+# Plain-text rendering of a markdown snippet for embedding in HTML: inline links keep only
+# their link text, backticks and emphasis markers are dropped. The markdown output (index.md)
+# uses the raw, unstripped description instead — there, that syntax renders correctly.
+_strip_markdown()
+{
+  sed -E \
+    -e 's/\[([^]]*)\]\([^)]*\)/\1/g' \
+    -e 's/`//g' \
+    -e 's/\*\*([^*]+)\*\*/\1/g' \
+    -e 's/\*([^*]+)\*/\1/g' \
+    <<< "$1"
+}
+
+_title_case_fallback()
+{
+  local _s="${1//_/ }" _out="" _w
+  for _w in $_s
+  do
+    _out="${_out:+$_out }${_w^}"
+  done
+  printf '%s' "$_out"
+}
+
+# Lexically normalizes a /-joined path: drops empty and `.` segments, resolves `..`
+# against preceding segments, keeps leading `..` runs that climb above the base.
+_normalize_path()
+{
+  local IFS='/' _seg _n
+  local -a _stack=()
+  for _seg in $1
+  do
+    case "$_seg" in
+      '' | . ) ;;
+      .. )
+        _n=${#_stack[@]}
+        if (( _n )) && [[ "${_stack[$(( _n - 1 ))]}" != ".." ]]
+        then
+          unset "_stack[$(( _n - 1 ))]"
+          _stack=( "${_stack[@]}" )
+        else
+          _stack+=( ".." )
+        fi
+        ;;
+      * ) _stack+=( "$_seg" ) ;;
+    esac
+  done
+  printf '%s' "${_stack[*]}"
+}
+
+# Rebases every inline-link target in a markdown snippet against the given example
+# directory (examples/-relative), so a link written for the readme's own location still
+# resolves when the text lands in examples/index.md one level up. Absolute URLs,
+# mailto:, in-page #anchors, and root-relative paths pass through untouched. Processes
+# links right-to-left so each BASH_REMATCH consumes the text before the last link.
+_rebase_links()
+{
+  local _text="$1" _base="$2" _suffix="" _target _norm
+  while [[ "$_text" =~ ^(.*)\]\(([^\)]*)\)(.*)$ ]]
+  do
+    _target="${BASH_REMATCH[2]}"
+    case "$_target" in
+      http://* | https://* | mailto:* | \#* | /* ) ;;
+      * )
+        _norm="$( _normalize_path "$_base/$_target" )"
+        if [[ "$_norm" == ..* ]]
+        then
+          _target="$_norm"
+        else
+          _target="./$_norm"
+        fi
+        ;;
+    esac
+    _suffix="](${_target})${BASH_REMATCH[3]}${_suffix}"
+    _text="${BASH_REMATCH[1]}"
+  done
+  printf '%s%s' "$_text" "$_suffix"
+}
+
+_tmp_stats="$_tmp/stats.html"
+_tmp_sections="$_tmp/sections.html"
+_tmp_tagfilters="$_tmp/tagfilters.html"
+_tmp_md_body="$_tmp/body.md"
+mkdir -p "$_tmp/card" "$_tmp/mdrow"
+: > "$_tmp_sections"
+: > "$_tmp_md_body"
+
+_total=0
+_browser=0
+_with_showcase=0
+_example_ids=()
+_example_tags=()
+
+# Pass 1: render every example's card and md row exactly once, keyed by its stable
+# discovery id; remember its tags. Grouping happens in pass 2, so an example carrying
+# several tags is rendered once and then emitted into each of its groups.
+while IFS='|' read -r _id _relpath _kind _tags
+do
+  _total=$(( _total + 1 ))
+  [[ "$_kind" == "browser" ]] && _browser=$(( _browser + 1 ))
+  if [[ -z "$_tags" ]]
+  then
+    printf 'warning: %s declares no tags — it will appear in no tag group\n' "$_relpath" >&2
+  fi
+  _example_ids+=( "$_id" )
+  _example_tags+=( "$_tags" )
+
+  _absdir="$_REPO_ROOT/$_relpath"
+  _relpath_short="${_relpath#examples/}"
+
+  _title="$( _extract_title "$_absdir" )"
+  [[ -n "$_title" ]] || _title="$( _title_case_fallback "$( basename "$_relpath" )" )"
+  _desc="$( _extract_description "$_absdir" )"
+
+  _title_esc="$( _html_escape "$_title" )"
+  _desc_esc="$( _html_escape "$( _strip_markdown "$_desc" )" )"
+  _name="$( tr '[:upper:]' '[:lower:]' <<< "${_relpath_short##*/}" | tr '_' ' ' )"
+  _readme_link="./${_relpath_short}/readme.md"
+
+  if [[ "$_kind" == "browser" ]]
+  then
+    _gallery_link="./${_relpath_short}/"
+  else
+    _gallery_link="https://github.com/$_GH_REPO/blob/$_GH_BRANCH/$_relpath/readme.md"
+  fi
+
+  if [[ -f "$_absdir/showcase.webp" ]]
+  then
+    _with_showcase=$(( _with_showcase + 1 ))
+    _image_html="                        <img src=\"./${_relpath_short}/showcase.webp\" alt=\"$_title_esc\" loading=\"lazy\" width=\"350\" height=\"250\">"
+    _status_html='                        <span class="demo-status">✓ Has Showcase</span>'
+  else
+    _image_html='                        <span>No showcase yet</span>'
+    _status_html='                        <span class="demo-status incomplete">No Showcase Yet</span>'
+  fi
+
+  {
+    printf '                <article class="demo-card" role="article" data-name="%s" data-path="%s" data-tags="%s">\n' "$_name" "$_relpath_short" "$_tags"
+    printf '                    <div class="demo-image">\n'
+    printf '%s\n' "$_image_html"
+    printf '                    </div>\n'
+    printf '                    <div class="demo-content">\n'
+    printf '                        <h3 class="demo-title">%s</h3>\n' "$_title_esc"
+    if [[ -n "$_desc_esc" ]]
+    then
+      printf '                        <p class="demo-desc">%s</p>\n' "$_desc_esc"
+    fi
+    printf '%s\n' "$_status_html"
+    printf '                        <div class="demo-links">\n'
+    printf '                            <a href="%s" class="demo-link" aria-label="View %s demo">View Details</a>\n' "$_gallery_link" "$_title_esc"
+    printf '                        </div>\n'
+    printf '                    </div>\n'
+    printf '                </article>\n'
+    printf '\n'
+  } > "$_tmp/card/$_id.html"
+
+  _md_desc="$( _rebase_links "$_desc" "$_relpath_short" )"
+  _md_desc="${_md_desc//|/\\|}"
+  [[ -n "$_md_desc" ]] || _md_desc="—"
+  printf '[%s](%s) | %s\n' "${_title//|/\\|}" "$_readme_link" "$_md_desc" > "$_tmp/mdrow/$_id.md"
+done < <( "$_SCRIPT_DIR/run" list raw::1 )
+
+# Pass 2: one section per distinct tag, C-collated so group order is deterministic
+# (api:* < runtime:* < scene:*); an example appears in every group whose tag it
+# carries, its single pass-1 card emitted into each. Members keep pass 1's discovery
+# order within each group. The filter row is generated from the same tag list with
+# data-filter values equal to each section's data-category, so the hand-authored
+# filter JS (exact string match) keeps working unchanged.
+_all_tags="$( printf '%s\n' "${_example_tags[@]}" | tr ',' '\n' | sed '/^$/d' | LC_ALL=C sort -u )"
+
+printf '            <button class="filter-btn active" data-filter="all">All Tags</button>\n' > "$_tmp_tagfilters"
+
+_group_count=0
+while IFS= read -r _tag
+do
+  [[ -n "$_tag" ]] || continue
+  _group_count=$(( _group_count + 1 ))
+  _label="$( _tag_label "$_tag" )"
+
+  _members=()
+  for _i in "${!_example_ids[@]}"
+  do
+    case ",${_example_tags[$_i]}," in
+      *",$_tag,"*) _members+=( "${_example_ids[$_i]}" ) ;;
+    esac
+  done
+
+  _n=${#_members[@]}
+  _plural="s"
+  [[ $_n -eq 1 ]] && _plural=""
+
+  printf '            <button class="filter-btn" data-filter="%s">%s</button>\n' "$_tag" "$_label" >> "$_tmp_tagfilters"
+
+  {
+    printf '        <!-- %s -->\n' "$_tag"
+    printf '        <section class="category-section" data-category="%s">\n' "$_tag"
+    printf '            <div class="category-header">\n'
+    printf '                <h2>%s</h2>\n' "$_label"
+    printf '                <span class="category-badge">%s demo%s</span>\n' "$_n" "$_plural"
+    printf '            </div>\n'
+    printf '            <div class="demo-grid">\n'
+    for _m in "${_members[@]}"
+    do
+      cat "$_tmp/card/$_m.html"
+    done
+    printf '            </div>\n'
+    printf '        </section>\n'
+    printf '\n'
+  } >> "$_tmp_sections"
+
+  {
+    printf '\n## %s\n\n' "$_label"
+    printf 'Example | Description\n--- | ---\n'
+    for _m in "${_members[@]}"
+    do
+      cat "$_tmp/mdrow/$_m.md"
+    done
+  } >> "$_tmp_md_body"
+done <<< "$_all_tags"
+
+{
+  printf '        <div class="stat-card" aria-live="polite" aria-atomic="true">\n'
+  printf '            <div class="stat-number" id="totalDemos">%s</div>\n' "$_total"
+  printf '            <div class="stat-label">Total Examples</div>\n'
+  printf '        </div>\n'
+  printf '        <div class="stat-card">\n'
+  printf '            <div class="stat-number" id="completedDemos">%s</div>\n' "$_browser"
+  printf '            <div class="stat-label">Live Demos</div>\n'
+  printf '        </div>\n'
+  printf '        <div class="stat-card">\n'
+  printf '            <div class="stat-number">%s</div>\n' "$_with_showcase"
+  printf '            <div class="stat-label">With Showcase</div>\n'
+  printf '        </div>\n'
+  printf '        <div class="stat-card">\n'
+  printf '            <div class="stat-number">%s</div>\n' "$_group_count"
+  printf '            <div class="stat-label">Tag Groups</div>\n'
+  printf '        </div>\n'
+} > "$_tmp_stats"
+
+_splice_between()
+{
+  local _in="$1" _begin="$2" _end="$3" _content="$4" _out="$5"
+  awk -v begin="$_begin" -v end="$_end" -v contentfile="$_content" '
+    index($0, begin) { print; while ((getline line < contentfile) > 0) print line; skip = 1; next }
+    index($0, end) { skip = 0 }
+    skip { next }
+    { print }
+  ' "$_in" > "$_out"
+}
+
+if ! grep -qF '<!-- GALLERY:STATS:BEGIN -->' "$_INDEX_HTML" || ! grep -qF '<!-- GALLERY:SECTIONS:BEGIN -->' "$_INDEX_HTML" || ! grep -qF '<!-- GALLERY:TAGFILTERS:BEGIN -->' "$_INDEX_HTML"
+then
+  printf 'error: examples/index.html is missing its GALLERY marker comments (GALLERY:STATS:BEGIN/END, GALLERY:TAGFILTERS:BEGIN/END, GALLERY:SECTIONS:BEGIN/END) — they must exist once, by hand, before this script can splice into it\n' >&2
+  exit 1
+fi
+
+_splice_between "$_INDEX_HTML" '<!-- GALLERY:STATS:BEGIN -->' '<!-- GALLERY:STATS:END -->' "$_tmp_stats" "$_tmp/step1.html"
+_splice_between "$_tmp/step1.html" '<!-- GALLERY:TAGFILTERS:BEGIN -->' '<!-- GALLERY:TAGFILTERS:END -->' "$_tmp_tagfilters" "$_tmp/step2.html"
+_splice_between "$_tmp/step2.html" '<!-- GALLERY:SECTIONS:BEGIN -->' '<!-- GALLERY:SECTIONS:END -->' "$_tmp_sections" "$_tmp/index.html.new"
+
+{
+  printf '# Examples\n\n'
+  printf 'Interactive WebGL/WebGPU examples demonstrating CGTools capabilities, grouped by tag — an example appears in every group whose tag it carries. Generated by `action/gallery` from each example'"'"'s own readme.md — do not hand-edit.\n\n'
+  printf '## Table of Contents\n\n'
+  while IFS= read -r _tag
+  do
+    [[ -n "$_tag" ]] || continue
+    _label="$( _tag_label "$_tag" )"
+    printf -- '- [%s](#%s)\n' "$_label" "$( _slugify "$_label" )"
+  done <<< "$_all_tags"
+  cat "$_tmp_md_body"
+} > "$_tmp/index.md.new"
+
+if (( _verify ))
+then
+  _drift=0
+  if ! diff -u "$_INDEX_HTML" "$_tmp/index.html.new" > "$_tmp/diff_html.txt"
+  then
+    _drift=1
+    printf '=== examples/index.html would change ===\n' >&2
+    cat "$_tmp/diff_html.txt" >&2
+  fi
+  if ! diff -u "$_INDEX_MD" "$_tmp/index.md.new" > "$_tmp/diff_md.txt"
+  then
+    _drift=1
+    printf '=== examples/index.md would change ===\n' >&2
+    cat "$_tmp/diff_md.txt" >&2
+  fi
+  if (( _drift ))
+  then
+    printf 'error: gallery is out of date — run action/gallery to regenerate\n' >&2
+    exit 1
+  fi
+  printf 'gallery is up to date (%d examples, %d tag groups)\n' "$_total" "$_group_count"
+  exit 0
+fi
+
+cp "$_tmp/index.html.new" "$_INDEX_HTML"
+cp "$_tmp/index.md.new" "$_INDEX_MD"
+printf 'regenerated examples/index.html and examples/index.md (%d examples, %d live demos, %d with showcase, %d tag groups)\n' \
+  "$_total" "$_browser" "$_with_showcase" "$_group_count"

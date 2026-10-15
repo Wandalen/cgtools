@@ -1,7 +1,7 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
+  use crate::{ GpuCompareFunction, GpuStencilOperation, web_sys };
 
   /// A builder for creating a `web_sys::GpuStencilFaceState`.
   #[ derive( Default, Clone ) ]
@@ -34,12 +34,16 @@ mod private
   impl StencilFaceState 
   {
     /// Creates a new `StencilFaceState` with default values.
+    #[ inline ]
+    #[ must_use ]
     pub fn new() -> Self
     {
       Self::default()
     }
 
     /// Sets the stencil comparison function.
+    #[ inline ]
+    #[ must_use ]
     pub fn compare( mut self, compare : GpuCompareFunction ) -> Self
     {
       self.compare = Some( compare );
@@ -47,6 +51,8 @@ mod private
     }
 
     /// Sets the operation for when the depth test fails.
+    #[ inline ]
+    #[ must_use ]
     pub fn depth_fail_op( mut self, op : GpuStencilOperation ) -> Self
     {
       self.depth_fail_op = Some( op );
@@ -54,6 +60,8 @@ mod private
     }
 
     /// Sets the operation for when both stencil and depth tests pass.
+    #[ inline ]
+    #[ must_use ]
     pub fn pass_op( mut self, op : GpuStencilOperation ) -> Self
     {
       self.pass_op = Some( op );
@@ -61,6 +69,8 @@ mod private
     }
 
     /// Sets the operation for when the stencil test fails.
+    #[ inline ]
+    #[ must_use ]
     pub fn fail_op( mut self, op : GpuStencilOperation ) -> Self
     {
       self.fail_op = Some( op );
@@ -70,6 +80,7 @@ mod private
 
   impl From< StencilFaceState > for web_sys::GpuStencilFaceState 
   {
+    #[ inline ]
     fn from( value: StencilFaceState ) -> Self 
     {
       let state = web_sys::GpuStencilFaceState::new();

@@ -26,6 +26,7 @@ mod private
     ///
     /// This method returns a tuple containing the vertices, indices, uvs, and the number of
     /// elements for the join's mesh.
+    #[must_use]
     pub fn geometry( &self ) -> ( Vec< f32 >, Vec< u32 >, Vec< f32 >, usize )
     {
       match self 
@@ -34,7 +35,7 @@ mod private
         {
           let ( g, uv ) = round_geometry( *row_precision, *column_precision );
           let len = g.len();
-          let g : Vec< f32 > = g.into_iter().map( | v | v.as_array() ).flatten().collect();
+          let g : Vec< f32 > = g.into_iter().flat_map(| v | v.as_array()).collect();
           let ind = Vec::new();
           ( g, ind, uv, len )
         },
@@ -42,7 +43,7 @@ mod private
         {
           let ( g, uv ) = miter_geometry( *row_precision, *column_precision );
           let len = g.len();
-          let g : Vec< f32 > = g.into_iter().map( | v | v.as_array() ).flatten().collect();
+          let g : Vec< f32 > = g.into_iter().flat_map(| v | v.as_array()).collect();
           let ind = Vec::new();
           ( g, ind, uv, len )
         },
@@ -50,7 +51,7 @@ mod private
         {
           let ( g, uv ) = bevel_geometry( *row_precision, *column_precision );
           let len = g.len();
-          let g : Vec< f32 > = g.into_iter().map( | v | v.as_array() ).flatten().collect();
+          let g : Vec< f32 > = g.into_iter().flat_map(| v | v.as_array()).collect();
           let ind = Vec::new();
           ( g, ind, uv, len )
         }
@@ -67,8 +68,26 @@ mod private
   }
 
   /// Generates the vertex data for a round join.
-  pub fn round_geometry( row_precision : usize, column_precision : usize ) -> ( Vec< gl::F32x2 >, Vec< f32 > ) 
+  #[must_use]
+  pub fn round_geometry( row_precision : usize, column_precision : usize ) -> ( Vec< gl::F32x2 >, Vec< f32 > )
   {
+    // Fix(BUG-491): `row_precision`/`column_precision` are used both as loop bounds and as
+    // division divisors (`i as f32 / row_precision as f32`, `k as f32 / column_precision as
+    // f32`) with no floor. `column_precision == 0` computes a genuine NaN internally (unrescued
+    // `0.0 / 0.0`); it never reached the returned geometry only because every read loop that
+    // populates `verticies`/`uvs` is bounded by the exclusive range `0..column_precision`
+    // (empty for `column_precision == 0`), so the observable defect was silently empty output,
+    // not NaN -- see BUG-491's report for the full empirical trace.
+    // Root cause: same missing-floor shape already fixed via `.max( 1 )` in
+    // `caps.rs::round_cap_geometry` (BUG-236) and `helpers.rs::circle_geometry` (BUG-237), not
+    // yet applied here.
+    // Pitfall: a loop-bound coincidence that happens to prevent a downstream NaN from escaping
+    // is not a substitute for flooring the value at its source -- it only changes the failure
+    // mode (NaN vs. silently empty output) and breaks the moment an unrelated future edit
+    // widens that read loop.
+    let row_precision = row_precision.max( 1 );
+    let column_precision = column_precision.max( 1 );
+
     let mut vertex_row_list = Vec::with_capacity( row_precision );
     let mut verticies = Vec::new();
     let mut uvs = Vec::new();
@@ -76,12 +95,12 @@ mod private
     let center_offset = 0.005;
 
     // Create vertices
-    for i in 0..( row_precision + 1 )
+    for i in 0..=row_precision
     {
       let rm = ( 1.0 - ( i as f32 / row_precision as f32 ) ).max( center_offset );
       let mut column_list = Vec::with_capacity( column_precision );
 
-      for k in 0..( column_precision + 1 )
+      for k in 0..=column_precision
       {
         let cm = k as f32 / column_precision as f32;
         column_list.push( gl::F32x2::new( cm, rm  ) );
@@ -138,8 +157,14 @@ mod private
   }
 
   /// Generates the vertex data for a bevel join.
-  pub fn bevel_geometry( row_precision : usize, column_precision : usize ) -> ( Vec< gl::F32x2 >, Vec< f32 > ) 
+  #[must_use]
+  pub fn bevel_geometry( row_precision : usize, column_precision : usize ) -> ( Vec< gl::F32x2 >, Vec< f32 > )
   {
+    // Fix(BUG-491): same missing floor as `round_geometry` above -- see that comment for the
+    // full explanation.
+    let row_precision = row_precision.max( 1 );
+    let column_precision = column_precision.max( 1 );
+
     let mut vertex_row_list = Vec::with_capacity( row_precision );
     let mut verticies = Vec::new();
     let mut uvs = Vec::new();
@@ -150,14 +175,14 @@ mod private
     let center_offset = 0.005;
 
     // Create vertices
-    for i in 0..( row_precision + 1 )
+    for i in 0..=row_precision
     {
       let rm = ( 1.0 - ( i as f32 / row_precision as f32 ) ).max( center_offset );
       let mut column_list = Vec::with_capacity( column_precision );
       let rp0 = p0 * rm;
       let rp1 = p1 * rm;
 
-      for k in 0..( column_precision + 1 )
+      for k in 0..=column_precision
       {
         let cm = k as f32 / column_precision as f32;
         let p = rp0 * ( 1.0 - cm ) + rp1 * cm;
@@ -215,8 +240,14 @@ mod private
   }
 
   /// Generates the vertex data for a miter join.
-  pub fn miter_geometry( row_precision : usize, column_precision : usize ) -> ( Vec< gl::F32x3 >, Vec< f32 > ) 
+  #[must_use]
+  pub fn miter_geometry( row_precision : usize, column_precision : usize ) -> ( Vec< gl::F32x3 >, Vec< f32 > )
   {
+    // Fix(BUG-491): same missing floor as `round_geometry` above -- see that comment for the
+    // full explanation.
+    let row_precision = row_precision.max( 1 );
+    let column_precision = column_precision.max( 1 );
+
     let mut vertex_row_list = Vec::with_capacity( row_precision );
     let mut verticies = Vec::new();
     let mut uvs = Vec::new();
@@ -228,7 +259,7 @@ mod private
     let center_offset = 0.005;
 
     // Create vertices
-    for i in 0..( row_precision + 1 )
+    for i in 0..=row_precision
     {
       let rm = ( 1.0 - ( i as f32 / row_precision as f32 ) ).max( center_offset );
       let mut column_list = Vec::with_capacity( column_precision );
@@ -245,7 +276,7 @@ mod private
       }
 
       // Right triangle
-      for k in 0..( column_precision + 1 )
+      for k in 0..=column_precision
       {
         let cm = k as f32 / column_precision as f32;
         let p = rp1 * ( 1.0 - cm ) + rp2 * cm;

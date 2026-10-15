@@ -8,7 +8,7 @@ This technique is particularly useful for skinned animation or instanced renderi
 
 ![image](./showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 

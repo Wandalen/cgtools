@@ -20,5 +20,16 @@ features = [
   'PointerEvent',
   'WheelEvent',
   'WebGlTexture',
-  'HtmlImageElement'
+  'HtmlImageElement',
+  'HtmlInputElement',
+  'File',
+  'FileList',
+  'FileReader',
+  'Event'
 ]
+
+[package.metadata.action]
+tags = ["runtime:browser", "api:webgl"]
+
+[lints]
+workspace = true

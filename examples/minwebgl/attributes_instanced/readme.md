@@ -8,7 +8,7 @@ This technique is crucial for rendering scenes with many similar objects like tr
 
 ![image](./showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 

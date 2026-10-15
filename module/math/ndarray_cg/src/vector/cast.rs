@@ -13,7 +13,7 @@
 
 mod private
 {
-  use crate::*;
+  use crate::{Vector, MatEl};
   use ::num_traits::AsPrimitive;
 
   impl< E, const N : usize > Vector< E, N >
