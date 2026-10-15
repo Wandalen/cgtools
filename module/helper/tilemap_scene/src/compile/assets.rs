@@ -16,6 +16,7 @@ mod private
   use crate::compile::error::CompileError;
   use crate::compile::ids::IdMap;
   use crate::compile::neighbors::dir_name;
+  use crate::compile::orient::orient_frame_count;
   use crate::compile::resolver::AssetResolver;
   use crate::resource::{ AnimationTiming, AssetKind, SpriteRef };
   use crate::source::{ NeighborBitmaskSource, SpriteSource, Variant };
@@ -190,13 +191,16 @@ mod private
         }
         Ok( () )
       },
-      SpriteSource::VertexCorners { patterns, asset } =>
+      SpriteSource::VertexCorners { patterns, asset, orient_to_grid, .. } =>
       {
-        // Each pattern has a `{rot}` placeholder in 0..3; allocate all three
-        // rotations so the frame pass has a guaranteed lookup per triangle.
+        // Each pattern's `{rot}` placeholder is expanded to every index the
+        // frame pass can pick, so the lookup is guaranteed. Legacy mode: the
+        // canonical-sort rotation, 0..3. Orient mode: `orient_frame_count`,
+        // which shares its rule with the frame pass (see `compile/orient.rs`).
         for pattern in patterns
         {
-          for rot in 0_u32..3
+          let count = if *orient_to_grid { orient_frame_count( pattern ) } else { 3 };
+          for rot in 0..count
           {
             let frame_name = pattern.sprite_pattern.replace( "{rot}", &rot.to_string() );
             let sprite_ref = SpriteRef { asset : asset.clone(), frame : frame_name };
