@@ -12,7 +12,7 @@ glTF is the standard format for 3D content on the web. This example provides a p
 
 ## KTX2 compressed textures
 
-Build with the `ktx2` feature to load a KTX2 / Basis Universal model (`KHR_texture_basisu`) instead of the default. The textures are decoded in pure Rust and transcoded at load time to whichever compressed format your GPU supports (ASTC 4×4, BC7 or ETC2), falling back to uncompressed RGBA8:
+Build with the `ktx2` feature to load models whose textures are KTX2 / Basis Universal (`KHR_texture_basisu`). The feature adds the decoder; it does not change which model loads, so point `gltf_path` in `src/main.rs` at such a model. The textures are decoded in pure Rust and transcoded at load time to whichever compressed format your GPU supports (ASTC 4×4, BC7 or ETC2), falling back to uncompressed RGBA8:
 
 ```sh
 trunk serve --release --features ktx2
