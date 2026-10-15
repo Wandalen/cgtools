@@ -35,6 +35,33 @@ vec3 aces_tone_map( vec3 hdr )
   return clamp( m2 * ( a / b ), vec3( 0.0 ), vec3( 1.0 ) );
 }
 
+// The plain blend for a partially covered pixel: no background estimate needed.
+vec3 coverage_blend( vec4 src )
+{
+  return mix( src.rgb, aces_tone_map( src.rgb ), src.a );
+}
+
+// Averages the pure-background ( alpha = 0 ) pixels among the 8 neighbours of `p` into
+// `background` and returns how many there were. Neighbours outside the image are
+// skipped rather than clamped onto the edge, which would count one pixel several times.
+float background_estimate( ivec2 p, ivec2 size, out vec3 background )
+{
+  vec3 sum = vec3( 0.0 );
+  float count = 0.0;
+  for( int y = -1; y <= 1; y++ )
+  {
+    for( int x = -1; x <= 1; x++ )
+    {
+      ivec2 q = p + ivec2( x, y );
+      if( ( x == 0 && y == 0 ) || any( lessThan( q, ivec2( 0 ) ) ) || any( greaterThanEqual( q, size ) ) ) { continue; }
+      vec4 n = texelFetch( sourceTexture, q, 0 );
+      if( n.a <= 0.0 ) { sum += n.rgb; count += 1.0; }
+    }
+  }
+  background = count > 0.0 ? sum / count : vec3( 0.0 );
+  return count;
+}
+
 void main()
 {
   vec4 src = texture( sourceTexture, vUv );
@@ -66,32 +93,20 @@ void main()
   ivec2 p = ivec2( vUv * vec2( size ) );
   if( !useTransparentCoverage || texelFetch( transparentCoverage, p, 0 ).a < 1.0 )
   {
-    frag_color = vec4( mix( src.rgb, aces_tone_map( src.rgb ), src.a ), 1.0 );
+    frag_color = vec4( coverage_blend( src ), 1.0 );
     return;
-  }
-
-  vec3 backgroundSum = vec3( 0.0 );
-  float backgroundCount = 0.0;
-  for( int y = -1; y <= 1; y++ )
-  {
-    for( int x = -1; x <= 1; x++ )
-    {
-      if( x == 0 && y == 0 ) { continue; }
-      vec4 n = texelFetch( sourceTexture, clamp( p + ivec2( x, y ), ivec2( 0 ), size - 1 ), 0 );
-      if( n.a <= 0.0 ) { backgroundSum += n.rgb; backgroundCount += 1.0; }
-    }
   }
 
   // No pure-background neighbour, so no background estimate: every neighbour is
   // geometry ( a pixel wedged between two surfaces ) or covered by transparency. Fall
   // back to the plain blend rather than guess.
-  if( backgroundCount == 0.0 )
+  vec3 background;
+  if( background_estimate( p, size, background ) == 0.0 )
   {
-    frag_color = vec4( mix( src.rgb, aces_tone_map( src.rgb ), src.a ), 1.0 );
+    frag_color = vec4( coverage_blend( src ), 1.0 );
     return;
   }
 
-  vec3 background = backgroundSum / backgroundCount;
   // Clamped: the background is an estimate, and a small error divided by a small
   // coverage must not turn into negative light. A tiny `a` can inflate `geometry`,
   // but aces_tone_map() clamps to 1, so its contribution stays bounded by `a`.

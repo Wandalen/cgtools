@@ -82,6 +82,57 @@ mod tests
   /// light ), and returns the center pixel.
   fn shade( gl : &GL, material : &PbrMaterial, uv_0 : [ f32; 8 ], uv_1 : [ f32; 8 ], light : Option< Light > ) -> [ u8; 4 ]
   {
+    let ( width, height ) = ( gl.drawing_buffer_width(), gl.drawing_buffer_height() );
+    gl.bind_framebuffer( gl::FRAMEBUFFER, None );
+    draw( gl, material, uv_0, uv_1, light, width, height );
+    center_pixel( gl, width, height )
+  }
+
+  /// Like [`shade`], but into an off-screen framebuffer with the lit colour on attachment 0 and
+  /// the emissive output on attachment 1, as the renderer's MRT pass has them; returns both
+  /// center pixels.
+  fn shade_with_emission( gl : &GL, material : &PbrMaterial, light : Option< Light > ) -> ( [ u8; 4 ], [ u8; 4 ] )
+  {
+    const SIZE : i32 = 8;
+    let framebuffer = gl.create_framebuffer().expect( "create_framebuffer succeeds" );
+    gl.bind_framebuffer( gl::FRAMEBUFFER, Some( &framebuffer ) );
+    let attachments = [ gl::COLOR_ATTACHMENT0, gl::COLOR_ATTACHMENT1 ];
+    let textures : Vec< _ > = attachments.iter().map( | attachment |
+    {
+      let texture = gl.create_texture().expect( "create_texture succeeds" );
+      gl.bind_texture( gl::TEXTURE_2D, Some( &texture ) );
+      gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::RGBA8, SIZE, SIZE );
+      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, *attachment, gl::TEXTURE_2D, Some( &texture ), 0 );
+      texture
+    } ).collect();
+    let draw_buffers = gl::js_sys::Array::new();
+    for attachment in attachments { draw_buffers.push( &f64::from( attachment ).into() ); }
+    gl.draw_buffers( &draw_buffers );
+    assert_eq!( gl.check_framebuffer_status( gl::FRAMEBUFFER ), gl::FRAMEBUFFER_COMPLETE, "the MRT framebuffer is complete" );
+
+    draw( gl, material, UPRIGHT, UPRIGHT, light, SIZE, SIZE );
+    gl.read_buffer( gl::COLOR_ATTACHMENT0 );
+    let color = center_pixel( gl, SIZE, SIZE );
+    gl.read_buffer( gl::COLOR_ATTACHMENT1 );
+    let emission = center_pixel( gl, SIZE, SIZE );
+
+    gl.bind_framebuffer( gl::FRAMEBUFFER, None );
+    gl.delete_framebuffer( Some( &framebuffer ) );
+    for texture in &textures { gl.delete_texture( Some( texture ) ); }
+    ( color, emission )
+  }
+
+  fn center_pixel( gl : &GL, width : i32, height : i32 ) -> [ u8; 4 ]
+  {
+    let mut pixel = [ 0_u8; 4 ];
+    gl.read_pixels_with_opt_u8_array( width / 2, height / 2, 1, 1, gl::RGBA, gl::UNSIGNED_BYTE, Some( &mut pixel ) )
+    .expect( "read_pixels succeeds" );
+    pixel
+  }
+
+  /// Draws the quad with `material`'s program into the bound `width`×`height` framebuffer.
+  fn draw( gl : &GL, material : &PbrMaterial, uv_0 : [ f32; 8 ], uv_1 : [ f32; 8 ], light : Option< Light >, width : i32, height : i32 )
+  {
     let ( vs, fs ) = shader_sources( material, false );
     let program = gl::ProgramFromSources::new( &vs, &fs ).compile_and_link( gl ).expect( "PBR program compiles" );
     let shader = PBRShader::new( gl, &program );
@@ -114,21 +165,15 @@ mod tests
     material.upload_on_state_change( gl, &ctx ).expect( "material uniforms upload" );
     material.bind( gl );
 
-    let ( width, height ) = ( gl.drawing_buffer_width(), gl.drawing_buffer_height() );
-    gl.bind_framebuffer( gl::FRAMEBUFFER, None );
     gl.viewport( 0, 0, width, height );
     gl.clear_color( 0.0, 0.0, 0.0, 0.0 );
     gl.clear( gl::COLOR_BUFFER_BIT );
     gl.draw_arrays( gl::TRIANGLE_STRIP, 0, 4 );
     assert_eq!( gl.get_error(), gl::NO_ERROR, "the draw raises no GL error" );
 
-    let mut pixel = [ 0_u8; 4 ];
-    gl.read_pixels_with_opt_u8_array( width / 2, height / 2, 1, 1, gl::RGBA, gl::UNSIGNED_BYTE, Some( &mut pixel ) )
-    .expect( "read_pixels succeeds" );
     gl.bind_vertex_array( None );
     gl.delete_vertex_array( Some( &vao ) );
     gl.delete_program( Some( &program ) );
-    pixel
   }
 
   /// Factors a material leaves unset must be uploaded as their extension's default: programs are
@@ -248,6 +293,35 @@ mod tests
         "a full-strength 0.5 multiplier must halve the pixel: plain {plain:?}, highlighted {halved:?}"
       );
     }
+  }
+
+  /// The highlight scales only the lit colour: the emissive output feeds bloom, which must not
+  /// flare up on hover or selection, so it stays the same with the highlight off and fully on.
+  #[ wasm_bindgen_test ]
+  fn highlight_leaves_the_emissive_output_untouched()
+  {
+    let gl = gl_init();
+    let light = ( [ 0.0, 0.0, 1.0 ], 1.0 );
+    let shade_with = | strength : f32 |
+    {
+      let mut material = PbrMaterial::new( &gl );
+      material.base_color_factor = gl::F32x4::from( [ 0.5, 0.5, 0.5, 1.0 ] );
+      material.metallic_factor = 0.0;
+      material.emissive_factor = gl::F32x3::from( [ 0.5, 0.25, 0.75 ] );
+      material.highlight_color = gl::F32x3::splat( 0.5 );
+      material.highlight_strength = strength;
+      shade_with_emission( &gl, &material, Some( light ) )
+    };
+
+    let ( plain, plain_emission ) = shade_with( 0.0 );
+    let ( highlighted, highlighted_emission ) = shade_with( 1.0 );
+    assert!( plain_emission[ 2 ] > 150, "precondition: the emissive output is written, got {plain_emission:?}" );
+    assert!
+    (
+      highlighted[ 0 ].saturating_add( 10 ) < plain[ 0 ],
+      "precondition: the highlight darkens the lit colour: plain {plain:?}, highlighted {highlighted:?}"
+    );
+    assert_eq!( highlighted_emission, plain_emission, "the highlight must not change the emissive output" );
   }
 
   /// `anisotropyStrength` is defined on [ 0, 1 ]. Out-of-range values, from an asset or from
