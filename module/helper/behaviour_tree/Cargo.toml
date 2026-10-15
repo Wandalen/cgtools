@@ -7,6 +7,7 @@ description = "Behavior tree implementation for hierarchical AI decision-making 
 repository = "https://github.com/Wandalen/cgtools"
 include = [
     "src/**/*",
+    "tests/**/*",
     "Cargo.toml",
     "readme*",
     "license*",

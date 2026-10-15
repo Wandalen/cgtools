@@ -7,7 +7,7 @@ description = "Minimal, opinionated wgpu toolkit — builders and helpers for co
 repository = "https://github.com/Wandalen/cgtools"
 include = [
     "src/**/*",
-    "spec.md",
+    "tests/**/*",
     "Cargo.toml",
     "readme*",
     "license*",

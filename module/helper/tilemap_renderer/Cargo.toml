@@ -9,8 +9,6 @@ repository = "https://github.com/Wandalen/cgtools"
 include = [
     "src/**/*",
     "tests/**/*",
-    "spec.md",
-    "roadmap.md",
     "Cargo.toml",
     "readme.md",
     "license*",
