@@ -44,7 +44,7 @@
 | animation_graph_tests.rs | Tests animation graph stuff |
 | mirror_tests.rs | Tests animation mirroring stuff |
 | pbr_shading_readback_test.rs | Pixel readback of the real PBR program on a lit quad: clearcoat, anisotropy and normal-map shading properties (`test_internals`) |
-| ar_alpha_readback_test.rs | Pixel readback of the AR alpha path: `ToSrgbPass` alpha forwarding stays premultiplied, an `is_occluder` material hides the opaque geometry behind it in `Renderer::render`, and the colour mask is restored after the frame |
+| ar_alpha_readback_test.rs | Pixel readback of the AR alpha path: `ToSrgbPass` alpha forwarding stays premultiplied, `ColorGradingPass` passes alpha through, an `is_occluder` material hides the opaque geometry behind it in `Renderer::render`, and the colour mask is restored after the frame |
 | tonemapping_edge_readback_test.rs | Pixel readback of the ACES `ToneMappingPass` over real `Renderer` frames: no light fringe on an opaque MSAA silhouette, no ring around a transparent quad's edge |
 | tangent_frame_test.rs | Pixel readback of `main.frag`'s tangent-less `getTBN`: frame columns point along glTF's tangent space |
 | clearcoat_anisotropy_shader_tests.rs | Headless-browser shader-compilation tests for KHR_materials_clearcoat / KHR_materials_anisotropy, from the renderer's own source assembly (`test_internals`) |

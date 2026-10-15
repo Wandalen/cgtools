@@ -81,3 +81,6 @@ HAL once one exists.
 | `tests/animation_tests.rs` | Animation tracks driving the scene graph |
 | `tests/skeleton_tests.rs` | Skinning path of the scene side |
 | `tests/tests.rs` | Test aggregator for the crate |
+| `tests/pbr_shading_readback_test.rs` | Pixel readback of the PBR program: clearcoat, anisotropy, normal map, highlight |
+| `tests/tonemapping_edge_readback_test.rs` | Pixel readback of the ACES pass over real frames: MSAA edges and transparent coverage |
+| `tests/ar_alpha_readback_test.rs` | Pixel readback of the AR path: `ToSrgbPass` and `ColorGradingPass` alpha forwarding, and occluders drawn first in the opaque pass |
