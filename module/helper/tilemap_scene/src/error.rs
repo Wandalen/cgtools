@@ -4,6 +4,7 @@ mod private
 {
   use core::fmt;
   use error_tools::Error;
+  use tilemap_renderer::types::BlendMode;
 
   /// Error returned by [`crate::spec::RenderSpec::load`] /
   /// [`crate::snapshot::SceneSnapshot::load`] and their `from_ron_str`
@@ -118,6 +119,50 @@ mod private
     /// at render time. [`crate::spec::RenderSpec::from_ron_str`] does not
     /// run validation, so it still parses square specs successfully.
     UnsupportedTiling( String ),
+    /// A layer declares a draw-time behaviour this implementation does not
+    /// support yet.
+    ///
+    /// Currently constructed only for `TintBehaviour::Masked`. Compilation
+    /// rejects it too ([`crate::compile::CompileError::UnsupportedBehaviour`]),
+    /// but only on the first frame that draws the layer; reporting it here
+    /// makes [`crate::spec::RenderSpec::load`] fail instead, the same way
+    /// [`Self::UnsupportedTiling`] handles reserved tiling strategies.
+    UnsupportedBehaviour
+    {
+      /// Owning object's id.
+      object : String,
+      /// Behaviour kind encountered (e.g. `"Masked tint"`).
+      behaviour : &'static str,
+    },
+    /// A declared tint uses a composition `mode` other than `Multiply`.
+    ///
+    /// Every tint consumer (`pipeline.global_tint`, the scene's runtime
+    /// global tint, `TintBehaviour::Flat`) folds the tint into the sprite's
+    /// multiplicative `Sprite.tint`, so only `Multiply` can be honoured; any
+    /// other mode would silently render as a multiply.
+    UnsupportedTintMode
+    {
+      /// Id of the offending tint.
+      tint : String,
+      /// The declared mode.
+      mode : BlendMode,
+    },
+    /// An `orient_to_grid` `VertexCorners` layer declares solid `( X, X, X )`
+    /// patterns for more than one id.
+    ///
+    /// Orientation counts a triangle's corners against one self id per layer
+    /// (the first solid pattern's id), so the edge and corner tiles of every
+    /// other solid id would be oriented as if none of their corners were
+    /// present.
+    ConflictingOrientSelfIds
+    {
+      /// Owning object's id.
+      object : String,
+      /// State whose layer declares the patterns.
+      state : String,
+      /// The distinct solid ids, in pattern order.
+      ids : Vec< String >,
+    },
     /// A sprite source is not valid for the declaring object's anchor type.
     ///
     /// For example, `NeighborBitmask` only works on `Hex` anchors;
@@ -174,6 +219,12 @@ mod private
           write!( f, "composite source {inner} cannot be nested inside {outer}" ),
         Self::UnsupportedTiling( name ) =>
           write!( f, "unsupported tiling strategy: {name}" ),
+        Self::UnsupportedBehaviour { object, behaviour } =>
+          write!( f, "object {object:?} uses {behaviour}, which is not implemented yet" ),
+        Self::UnsupportedTintMode { tint, mode } =>
+          write!( f, "tint {tint:?} declares mode {mode:?}; only Multiply is implemented" ),
+        Self::ConflictingOrientSelfIds { object, state, ids } =>
+          write!( f, "object {object:?} state {state:?}: orient_to_grid VertexCorners layer has solid patterns for several ids {ids:?}; only one is supported" ),
         Self::AnchorSourceMismatch { anchor, source_kind } =>
           write!( f, "sprite source {source_kind} is not valid for anchor {anchor}" ),
         Self::MissingDefaultState { object, state } =>

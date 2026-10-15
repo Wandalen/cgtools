@@ -33,12 +33,12 @@ for each layer in pipeline.layers:
 
 A layer whose `sprite_source` is a composite source (`NeighborCondition`, `VertexCorners` — see `format/005`) may push more than one draw call per instance in a single pass (up to `len(sides)` for `NeighborCondition`); every other source pushes exactly one.
 
-**Tint composition order** — each draw call's final color is composed through five stages, each with its own blend mode (default `Multiply`):
+**Tint composition order** — each draw call's final color is composed through five stages, each with its own blend mode (default `Multiply`). Only `Multiply` is implemented: declared tints feed the multiplicative `Sprite.tint`, and `validate()` rejects a `Tint` whose `mode` is anything else (`ValidationError::UnsupportedTintMode`); compilation rejects it too (`CompileError::UnsupportedTintMode`) when it is reached by a spec built without `RenderSpec::load`.
 
 1. Sampled sprite pixels (the raw texture read).
-2. Layer behaviour tint (`TintBehaviour::Flat` or `::Masked`, see `format/006`).
-3. Layer-level `effects` producing color modulations (see `format/004`).
-4. The bucket's own `PipelineLayer.tint_mask`, if set (see `format/007`).
+2. Layer behaviour tint (`TintBehaviour::Flat`, see `format/006`; `::Masked` is declared but currently rejected at load and compile).
+3. Layer-level `effects` producing color modulations (see `format/004`). *Not applied yet* — compilation passes effect references through without reading them (`roadmap.md`, polish item 2).
+4. The bucket's own `PipelineLayer.tint_mask`, if set (see `format/007`). *Not applied yet* — the reference is checked at load, but no compile pass reads it, so a set `tint_mask` has no visible effect (`roadmap.md`, polish item 14).
 5. `RenderPipeline.global_tint` (see `format/007`), applied last, uniformly across every draw call in the frame regardless of which bucket or object it came from.
 
 **Missing-sprite handling**: there is no render-time warning or placeholder path — the crate has no logging dependency at all, and the originally-specified warn-and-substitute behavior (magenta checkerboard) is a deliberately-unimplemented pending option tracked in `roadmap.md`'s `External` sprite-source item, not current behavior. What actually happens splits by cause:
