@@ -50,13 +50,14 @@ crosstalk.
 | `mod.rs` | Layer entry point; documents the two boundaries the compile layer owns (Y-down → Y-up flip, asset resolution). |
 | `assets.rs` | `assets_compile` + `CompiledAssets` — turns asset declarations into `tilemap_renderer::assets::Assets` and pre-allocates every sprite reachable from any source / animation. Called once by `Renderer::new`. |
 | `frame.rs` | `frame_emits_gather` — per-tick lowering that walks objects × layers × instances and returns structured per-bucket `Sprite` / screen-space lists; consumed by `Renderer::render`. Buckets batch into a single `DrawBatch` when every sprite shares one `(sheet, blend, clip)` key (including single-key sorted buckets, whose instance-buffer order equals the sort order); multi-key sorted buckets keep the per-sprite fallback. `render_into` is a thin compatibility wrapper that flattens emits to the legacy per-sprite stream. |
+| `frame/vertex_corners.rs` | The `VertexCorners` dual-grid pass of `frame.rs`: a resolve tier that depends only on hex-cell occupancy, cached across frames by `VertexResolveCache` (keyed on `Scene::tiles_revision`), and a per-frame projection that folds in the global tint, `AlphaPulse` and `FadeGate`. |
 | `camera.rs` | `Camera` — world-pixel → viewport-pixel projection used by the frame pass. |
 | `coords.rs` | Hex-axial → world-pixel (Y-up) helpers; the single Y-axis flip from `tiles_tools` lives here. |
 | `viewport.rs` | `viewport_transform` / `tiled_positions` — screen-space transforms for `ViewportTiled` sources, Y-up convention. |
 | `edges.rs` | Edge-anchor canonicalisation, neighbour resolution, world-pixel placement, sprite rotation. |
 | `vertex.rs` | Vertex-corner pattern resolution for `VertexCorners` sources. |
 | `orient.rs` | `orient_to_grid` frame pick for a `VertexCorners` dual triangle (`dual_orientation_index`) and the frame-count rule (`orient_frame_count`) shared with the asset pass. |
-| `tint.rs` | `FrameTints` — the frame's tint state (global tint plus every declared tint, resolved once) and `sprite_tint`, the single per-sprite composition of a layer's `TintBehaviour`, layer alpha and instance tint used by every emit site. |
+| `tint.rs` | `FrameTints` — the frame's tint state (global tint plus every declared tint, resolved once) and `sprite_tint`, the single per-sprite composition of a layer's `TintBehaviour`, layer alpha and instance tint used by every emit site. The cached vertex pass splits it: `layer_multiplier` at resolve time, `layer_tint_compose` (adds the global tint and layer alpha) every frame. |
 | `neighbors.rs` | Hex-anchor neighbour mask computation feeding `NeighborBitmask` / `NeighborCondition`. |
 | `conditions.rs` | `NeighborCondition` rule evaluation. |
 | `animation.rs` | `animation_frame_resolve` — deterministic per-tile frame pick given timing + phase offset. Also exposes `animation_duration_seconds` / `declared_phase_seconds` consumed by `Scene::tick`. |
