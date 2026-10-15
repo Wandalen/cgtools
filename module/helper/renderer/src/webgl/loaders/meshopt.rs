@@ -66,6 +66,35 @@ mod private
         Self::Indices => "INDICES",
       }
     }
+
+    /// The mode named `name`, as the extension spells it.
+    fn from_name( name : &str ) -> Result< Self, String >
+    {
+      match name
+      {
+        "ATTRIBUTES" => Ok( Self::Attributes ),
+        "TRIANGLES" => Ok( Self::Triangles ),
+        "INDICES" => Ok( Self::Indices ),
+        other => Err( format!( "unknown mode `{other}`" ) ),
+      }
+    }
+
+    /// Checks the stride, filter and element count this mode allows.
+    fn layout_check( self, stride : usize, filter : MeshoptFilter, count : usize ) -> Result< (), String >
+    {
+      match self
+      {
+        Self::Attributes if stride == 0 || stride % 4 != 0 || stride > 256 =>
+          Err( format!( "ATTRIBUTES byteStride {stride} must be a multiple of 4 up to 256" ) ),
+        Self::Triangles | Self::Indices if stride != 2 && stride != 4 =>
+          Err( format!( "{} byteStride {stride} must be 2 or 4", self.as_str() ) ),
+        Self::Triangles | Self::Indices if filter != MeshoptFilter::None =>
+          Err( format!( "{} data cannot use a filter", self.as_str() ) ),
+        Self::Triangles if count % 3 != 0 =>
+          Err( format!( "TRIANGLES count {count} is not a multiple of 3" ) ),
+        Self::Attributes | Self::Triangles | Self::Indices => Ok( () ),
+      }
+    }
   }
 
   /// The post-decode transform applied to attribute data.
@@ -99,6 +128,33 @@ mod private
         Self::Exponential => "EXPONENTIAL",
         Self::Color => "COLOR",
       }
+    }
+
+    /// The filter named `name` ( `None` when absent ), as `extension` allows it: `COLOR`
+    /// exists only in `KHR_meshopt_compression`.
+    fn from_name( name : Option< &str >, extension : &str ) -> Result< Self, String >
+    {
+      match name
+      {
+        None | Some( "NONE" ) => Ok( Self::None ),
+        Some( "OCTAHEDRAL" ) => Ok( Self::Octahedral ),
+        Some( "QUATERNION" ) => Ok( Self::Quaternion ),
+        Some( "EXPONENTIAL" ) => Ok( Self::Exponential ),
+        Some( "COLOR" ) if extension == "KHR_meshopt_compression" => Ok( Self::Color ),
+        Some( other ) => Err( format!( "unknown {extension} filter `{other}`" ) ),
+      }
+    }
+
+    /// Checks that this filter can decode elements of `stride` bytes.
+    fn stride_check( self, stride : usize ) -> Result< (), String >
+    {
+      let fits = match self
+      {
+        Self::None | Self::Exponential => true,
+        Self::Octahedral | Self::Color => stride == 4 || stride == 8,
+        Self::Quaternion => stride == 8,
+      };
+      if fits { Ok( () ) } else { Err( format!( "filter {} does not support byteStride {stride}", self.as_str() ) ) }
     }
   }
 
@@ -151,23 +207,8 @@ mod private
         .ok_or_else( || format!( "`{name}` is not a non-negative integer" ) )
       };
 
-      let mode = match value.get( "mode" ).and_then( Value::as_str )
-      {
-        Some( "ATTRIBUTES" ) => MeshoptMode::Attributes,
-        Some( "TRIANGLES" ) => MeshoptMode::Triangles,
-        Some( "INDICES" ) => MeshoptMode::Indices,
-        Some( other ) => return Err( format!( "unknown mode `{other}`" ) ),
-        None => return Err( "missing `mode`".to_string() ),
-      };
-      let filter = match value.get( "filter" ).and_then( Value::as_str )
-      {
-        None | Some( "NONE" ) => MeshoptFilter::None,
-        Some( "OCTAHEDRAL" ) => MeshoptFilter::Octahedral,
-        Some( "QUATERNION" ) => MeshoptFilter::Quaternion,
-        Some( "EXPONENTIAL" ) => MeshoptFilter::Exponential,
-        Some( "COLOR" ) if extension == "KHR_meshopt_compression" => MeshoptFilter::Color,
-        Some( other ) => return Err( format!( "unknown {extension} filter `{other}`" ) ),
-      };
+      let mode = MeshoptMode::from_name( value.get( "mode" ).and_then( Value::as_str ).ok_or( "missing `mode`" )? )?;
+      let filter = MeshoptFilter::from_name( value.get( "filter" ).and_then( Value::as_str ), extension )?;
 
       let spec = Self
       {
@@ -179,43 +220,8 @@ mod private
         mode,
         filter,
       };
-
-      let stride = spec.byte_stride;
-      match spec.mode
-      {
-        MeshoptMode::Attributes =>
-        {
-          if stride == 0 || stride % 4 != 0 || stride > 256
-          {
-            return Err( format!( "ATTRIBUTES byteStride {stride} must be a multiple of 4 up to 256" ) );
-          }
-        },
-        MeshoptMode::Triangles | MeshoptMode::Indices =>
-        {
-          if stride != 2 && stride != 4
-          {
-            return Err( format!( "{} byteStride {stride} must be 2 or 4", spec.mode.as_str() ) );
-          }
-          if spec.filter != MeshoptFilter::None
-          {
-            return Err( format!( "{} data cannot use a filter", spec.mode.as_str() ) );
-          }
-        },
-      }
-      if spec.mode == MeshoptMode::Triangles && spec.count % 3 != 0
-      {
-        return Err( format!( "TRIANGLES count {} is not a multiple of 3", spec.count ) );
-      }
-      let filter_fits = match spec.filter
-      {
-        MeshoptFilter::None | MeshoptFilter::Exponential => true,
-        MeshoptFilter::Octahedral | MeshoptFilter::Color => stride == 4 || stride == 8,
-        MeshoptFilter::Quaternion => stride == 8,
-      };
-      if !filter_fits
-      {
-        return Err( format!( "filter {} does not support byteStride {stride}", spec.filter.as_str() ) );
-      }
+      spec.mode.layout_check( spec.byte_stride, spec.filter, spec.count )?;
+      spec.filter.stride_check( spec.byte_stride )?;
 
       Ok( spec )
     }
@@ -227,9 +233,11 @@ mod private
       self.count.checked_mul( self.byte_stride )
     }
 
-    /// Checks that the compressed bytes lie inside their buffer and that the decoded
-    /// data fits the view they decode into. `buffer_lengths` holds every loaded buffer's
-    /// length, by index.
+    /// Checks that the compressed bytes lie inside their buffer, that the decoded
+    /// data fits the view they decode into, and that the two do not overlap: the
+    /// decoder writes the view while it reads the compressed bytes, so a shared range
+    /// would decode from data it has already overwritten. `buffer_lengths` holds every
+    /// loaded buffer's length, by index.
     ///
     /// # Errors
     ///
@@ -258,11 +266,25 @@ mod private
         return Err( format!( "view range {view_offset}+{view_length} exceeds buffer {view_buffer} ( {target_length} bytes )" ) );
       }
 
-      match self.decoded_length()
+      let decoded = match self.decoded_length()
       {
-        Some( decoded ) if decoded <= view_length => Ok( () ),
-        _ => Err( format!( "{} x {} decoded bytes do not fit the view's {view_length}", self.count, self.byte_stride ) ),
+        Some( decoded ) if decoded <= view_length => decoded,
+        _ => return Err( format!( "{} x {} decoded bytes do not fit the view's {view_length}", self.count, self.byte_stride ) ),
+      };
+
+      // Both ends were bounded by a buffer length above, so neither sum overflows.
+      let overlaps = self.buffer == view_buffer
+      && self.byte_offset < view_offset + decoded
+      && view_offset < self.byte_offset + self.byte_length;
+      if overlaps
+      {
+        return Err( format!
+        (
+          "compressed range {}+{} overlaps the decoded range {view_offset}+{decoded} in buffer {view_buffer}",
+          self.byte_offset, self.byte_length
+        ) );
       }
+      Ok( () )
     }
   }
 
@@ -321,39 +343,45 @@ mod private
         decoder_ready = true;
       }
 
-      // `ranges_check` bounded every value below by a JS array length, so none overflows.
-      let as_u32 = | v : usize | u32::try_from( v ).unwrap_or( u32::MAX );
-      let source = buffers[ spec.buffer ].subarray
-      (
-        as_u32( spec.byte_offset ),
-        as_u32( spec.byte_offset + spec.byte_length )
-      );
-      let target = buffers[ view.buffer().index() ].subarray
-      (
-        as_u32( view.offset() ),
-        as_u32( view.offset() + spec.count * spec.byte_stride )
-      );
-
-      DECODER.with( | d |
-      {
-        d.decode_gltf_buffer
-        (
-          &target,
-          as_u32( spec.count ),
-          as_u32( spec.byte_stride ),
-          &source,
-          spec.mode.as_str(),
-          spec.filter.as_str()
-        )
-      } )
-      .map_err( | e |
-      {
-        gl::browser::error!( "glTF bufferView {}: meshopt decode failed: {e:?}", view.index() );
-        gl::WebglError::Other( "meshopt decode failed" )
-      } )?;
+      view_decode( &spec, &view, buffers )?;
     }
 
     Ok( () )
+  }
+
+  /// Decodes one checked view's compressed bytes into its own range of `buffers`.
+  fn view_decode( spec : &MeshoptView, view : &gltf::buffer::View< '_ >, buffers : &[ js_sys::Uint8Array ] ) -> Result< (), gl::WebglError >
+  {
+    // `ranges_check` bounded every value below by a JS array length, so none overflows.
+    let as_u32 = | v : usize | u32::try_from( v ).unwrap_or( u32::MAX );
+    let source = buffers[ spec.buffer ].subarray
+    (
+      as_u32( spec.byte_offset ),
+      as_u32( spec.byte_offset + spec.byte_length )
+    );
+    let target = buffers[ view.buffer().index() ].subarray
+    (
+      as_u32( view.offset() ),
+      as_u32( view.offset() + spec.count * spec.byte_stride )
+    );
+
+    DECODER.with( | d |
+    {
+      d.decode_gltf_buffer
+      (
+        &target,
+        as_u32( spec.count ),
+        as_u32( spec.byte_stride ),
+        &source,
+        spec.mode.as_str(),
+        spec.filter.as_str()
+      )
+    } )
+    .map_err( | e |
+    {
+      gl::browser::error!( "glTF bufferView {}: meshopt decode failed: {e:?}", view.index() );
+      gl::WebglError::Other( "meshopt decode failed" )
+    } )
   }
 }
 
