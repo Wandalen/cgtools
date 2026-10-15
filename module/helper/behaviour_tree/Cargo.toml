@@ -6,6 +6,7 @@ rust-version = "1.88"
 authors = ["Kostiantyn Mysnyk <wandalen@obox.systems>"]
 license = "MIT"
 description = "Behavior tree implementation for hierarchical AI decision-making in games"
+readme = "readme.md"
 keywords = ["behavior-tree", "ai", "gamedev", "decision-making"]
 categories = ["game-development", "algorithms"]
 repository = "https://github.com/Wandalen/cgtools"

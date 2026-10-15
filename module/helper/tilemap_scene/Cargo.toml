@@ -6,6 +6,7 @@ rust-version = "1.89"
 authors = ["cgtools contributors"]
 license = "MIT"
 description = "Compositional declarative scene format for 2D tile-based games — compile to tilemap_renderer commands"
+readme = "readme.md"
 keywords = ["tilemap", "scene", "2d", "gamedev", "tiles"]
 categories = ["game-development", "rendering"]
 repository = "https://github.com/Wandalen/cgtools"

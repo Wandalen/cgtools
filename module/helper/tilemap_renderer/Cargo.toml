@@ -6,6 +6,7 @@ rust-version = "1.88"
 authors = ["cgtools contributors"]
 license = "MIT"
 description = "Agnostic 2D rendering engine with backend adapter support"
+readme = "readme.md"
 keywords = ["tilemap", "2d", "rendering", "gamedev", "graphics"]
 categories = ["rendering", "graphics", "game-development"]
 repository = "https://github.com/Wandalen/cgtools"
