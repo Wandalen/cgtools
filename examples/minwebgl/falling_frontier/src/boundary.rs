@@ -1,6 +1,6 @@
 //! CPU-side view-zone boundary polyline builder, ported from
 //! `buildBoundaryPolyline`/`sampleBoundaryRadius`/`normalizeAngle` in
-//! `examples/threejs/falling_frontier/src/world/tacticalGrid.js`.
+//! the three.js original's `src/world/tacticalGrid.js`.
 //!
 //! Builds a closed polyline (in world XZ) around a focus point: a faceted
 //! circle of `BASE_CIRCLE_SEGMENTS` segments, replaced locally by extra
