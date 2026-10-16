@@ -67,6 +67,9 @@ HAL once one exists.
 |------|--------------|
 | `src/webgl/loaders/gltf.rs` | Content import onto the scene graph |
 | `src/webgl/loaders/gltf_extensions.rs` | Required-extension validation, reading the clearcoat / anisotropy extension JSON, and applying those layers to imported materials |
+| `src/webgl/loaders/gltf_buffers.rs` | The bytes of every glTF buffer: the GLB chunk, fetched uris, zeroed meshopt fallbacks |
+| `src/webgl/loaders/gltf_quantization.rs` | `KHR_mesh_quantization`: dequantized `POSITION` bounds and integer `VEC3` accessor reads |
+| `src/webgl/loaders/meshopt.rs` | `EXT_meshopt_compression` / `KHR_meshopt_compression`: per-view extension parsing, range checks, and decoding into the fallback buffers |
 | `src/webgl/material/pbr.rs` | Main shader pair and material upload |
 | `src/webgl/material/pbr/accessors.rs` | `PbrMaterial` property getters and setters |
 | `src/webgl/node.rs` | Scene-graph node and transform hierarchy |
