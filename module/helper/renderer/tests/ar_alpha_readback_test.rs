@@ -2,7 +2,8 @@
 //! forwarding, whose output must be valid premultiplied alpha for the canvas, and a depth-only
 //! `Material::is_occluder` material drawn by the real `Renderer::render`, which must leave the
 //! background showing where it stands in front of opaque geometry. `ColorGradingPass`, which
-//! sits between them in an AR chain, must pass the coverage alpha through.
+//! sits between them in an AR chain, must pass the coverage alpha through, and `ScenePicker`
+//! must report the occluder, not what it hides.
 
 #[ cfg( target_arch = "wasm32" ) ]
 #[ cfg( test ) ]
@@ -16,6 +17,7 @@ mod tests
   use renderer::webgl::
   {
     post_processing::{ ColorGradingPass, Pass, ToSrgbPass },
+    picking::{ IdBuffer, PickId, ScenePicker },
     material::PbrMaterial,
     AttributeInfo,
     Camera,
@@ -333,5 +335,60 @@ mod tests
     .dyn_into::< gl::js_sys::Array >().expect( "COLOR_WRITEMASK is an array" );
     let mask : Vec< bool > = mask.iter().map( | v | v.as_bool().expect( "a bool" ) ).collect();
     assert_eq!( mask, [ true; 4 ], "colour writes are on after the frame" );
+  }
+
+  // --- Occluders in ScenePicker ---
+
+  /// The pick id `ScenePicker` reports for each named node of the occluder scenes.
+  fn pick_id_of( node : &Node ) -> PickId
+  {
+    match node.name_get().as_deref()
+    {
+      Some( "occluder" ) => 1,
+      Some( "quad" ) => 2,
+      _ => 0,
+    }
+  }
+
+  /// `ScenePicker` draws an occluder into the id buffer like any mesh: depth-tested, and
+  /// whatever its colour mask. So a pick in front of the geometry an occluder hides
+  /// reports the occluder, never what is behind it, whichever of the two the scene lists
+  /// first — the picking pass has no draw-order dependency to get wrong.
+  #[ wasm_bindgen_test ]
+  fn picking_reports_the_occluder_not_the_geometry_behind_it()
+  {
+    let gl = gl_init();
+    let camera = camera();
+    let view_projection = camera.projection_matrix_get() * camera.view_matrix_get();
+    let picker = ScenePicker::new( &gl ).expect( "ScenePicker::new succeeds" );
+    let mut buffer = IdBuffer::new( &gl ).expect( "IdBuffer::new succeeds" );
+    buffer.size_set( SIZE, SIZE ).expect( "size_set succeeds" );
+    let mid = ( SIZE / 2 ) as i32;
+
+    for occluder_first in [ false, true ]
+    {
+      let quad = rect_node( &gl, [ -5.0, -5.0, 5.0, 5.0 ], 0.0, Box::new( PbrMaterial::new( &gl ) ) );
+      quad.borrow_mut().name_set( "quad" );
+      let occluder = rect_node( &gl, [ -5.0, -5.0, 0.0, 5.0 ], 1.0, Box::new( Occluder( PbrMaterial::new( &gl ) ) ) );
+      occluder.borrow_mut().name_set( "occluder" );
+
+      let mut scene = Scene::new();
+      if occluder_first
+      {
+        scene.add( occluder );
+        scene.add( quad );
+      }
+      else
+      {
+        scene.add( quad );
+        scene.add( occluder );
+      }
+      scene.world_matrix_update();
+      picker.render( &buffer, &scene, view_projection, pick_id_of ).expect( "picking renders" );
+      assert_eq!( gl.get_error(), gl::NO_ERROR, "the picking pass raises no GL error" );
+
+      assert_eq!( buffer.read( mid - 16, mid ), Some( 1 ), "occluder first: {occluder_first}; the occluder covers the quad here" );
+      assert_eq!( buffer.read( mid + 16, mid ), Some( 2 ), "occluder first: {occluder_first}; beside the occluder the quad is picked" );
+    }
   }
 }
