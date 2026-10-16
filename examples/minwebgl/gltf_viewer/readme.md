@@ -1,10 +1,20 @@
 # glTF Viewer
 
-**Keywords:** glTF, PBR, 3D Models, WebGL2
+**Keywords:** glTF, PBR, 3D Models, WebGL2, OpenPBR
 
-This demo is a comprehensive glTF 2.0 viewer implementing physically-based rendering (PBR) in WebGL2. It loads and displays 3D models with industry-standard materials, including metallic-roughness workflow, normal mapping, and image-based lighting.
+This demo is a comprehensive glTF 2.0 viewer implementing physically-based rendering (PBR) in WebGL2. It loads and displays 3D models with industry-standard materials, including metallic-roughness workflow, normal mapping, and image-based lighting. It doubles as the interactive test bench for the renderer's OpenPBR adoption.
 
 glTF is the standard format for 3D content on the web. This example provides a production-ready viewer with full PBR material support, suitable for e-commerce, education, and 3D asset preview.
+
+## Debug UI
+
+The **Debug** panel lets you drive the viewer without editing code:
+
+- **Reference tests** — the model list leads with `KHR ClearCoatTest` and `KHR AnisotropyDiscTest`, the Khronos parameter-sweep grids published alongside reference renders. They are the only check the clearcoat and anisotropy lobes get that reading the spec cannot give them; compare against the reference images in the glTF-Sample-Assets repository.
+- **Mode** — `glTF model viewer` (load a model from the list below), `OpenPBR test` (procedural scenes used to validate the OpenPBR material work — step 1 is a solid-colour icosphere to check geometry), or `USD scene ( loaders::usd )` — a six-object set scene (icospheres + cubes under per-object `Xform` stacks with translate/rotate/scale ops) binding five real `.mtlx` materials (metal, coat, high-IOR, paint, fuzz) plus one inline `UsdPreviewSurface`, run through the full USD pipeline: stage composition, mesh triangulation, mtlx-bound material resolution and GL scene assembly.
+- **Material** — in `OpenPBR test` / `USD scene` modes: pick the embedded `.mtlx` (velvet / gold / glass / iridescent, plus the OpenPBR Shader Playground's cord / straw / yellow paint — see `materials/ATTRIBUTION.md` for the ASWF Digital Assets License).
+- **Model** — a dropdown of the bundled glTF assets; switching reloads the scene and re-frames the camera.
+- **material params** — live sliders for roughness / metalness / specular IOR / clearcoat / fuzz / thin-film and **§3.3 / §3.4 transmission** (`transmissionWeight`, `transmissionDepth`, `transmissionColorR/G/B`, `thinWalled`). Raising the weight re-routes the test icosphere into the transmission pass ( glass is the default test material ). `transmissionDepth` is the spec's absorption length scale, so it only shows once a `transmissionColor*` channel is below 1 ( white light becomes that color after travelling one depth ); `thinWalled` collapses the slab into a zero-thickness shell — no refraction offset, no absorption — and the `roughness` slider blurs the refracted tap. The fuzz sliders now also dim the substrate underneath the layer by its directional albedo ( the renderer uploads the `loaders::sheen_albedo` LUT at startup ), so raising `fuzzWeight` on the velvet material shifts energy into the silhouette rim instead of simply brightening the whole sphere. `dispersionScale` / `dispersionAbbe` add §3.6 chromatic dispersion — visible only where there is contrast *behind* the glass to separate, so raise `transmissionWeight` first and leave `thinWalled` off; the Abbe number runs backwards to the effect (20 is strongly dispersive, 64 is ordinary crown glass). The environment map supplies that contrast: it is drawn as the skybox at the end of the opaque pass, which is what the transmission capture resolves, so it is what the glass refracts. `subsurfaceWeight` / `subsurfaceColor*` add §3.5 translucency — only with `thinWalled` on, since a thick subsurface surface needs the diffusion pass and is left unmapped; put a light behind the sphere to see it.
 
 ![image](./showcase.webp)
 

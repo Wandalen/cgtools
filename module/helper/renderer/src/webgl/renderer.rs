@@ -17,6 +17,7 @@ mod private
       MAX_DIRECT_LIGHTS,
       MAX_SPOT_LIGHTS
     },
+    material::fallback_slab_thickness,
     post_processing::
     {
       BlendPass,
@@ -74,11 +75,22 @@ mod private
     material_program_map : FxHashMap< uuid::Uuid, ( uuid::Uuid, bool ) >,
     /// (node, primitive, primitive_index, program_uuid)
     transparent_nodes : Vec< TransparentNodeEntry >,
+    /// (node, primitive, primitive_index, program_uuid)
+    /// Transmissive primitives ( OpenPBR §3.3 ), drawn in a dedicated pass that
+    /// samples the transmission target captured right after the opaque pass.
+    transmission_nodes : Vec< TransparentNodeEntry >,
     /// (node, primitive, primitive_index, program_uuid, has_emission, is_occluder)
     opaque_nodes : Vec< OpaqueNodeEntry >,
 
     /// Holds the precomputed textures used for Image-Based Lighting.
     ibl : Option< IBL >,
+    /// Kulla–Conty multi-scatter energy-compensation LUT ( `E(μ,α)` / `E_avg` ),
+    /// bound for `USE_OPENPBR` materials for direct-light energy compensation.
+    kulla_lut : Option< gl::web_sys::WebGlTexture >,
+    /// Fuzz ( sheen ) directional-albedo LUT ( `E(μ, α)` ), bound for
+    /// `USE_OPENPBR` materials so the substrate under the fuzz layer can be
+    /// albedo-scaled instead of simply having the fuzz lobe added on top.
+    sheen_lut : Option< gl::web_sys::WebGlTexture >,
     /// If set to true, the renderer will add blur to the original image
     use_emission : bool,
     /// The **framebuffer context** used for multisampling and post-processing. This
@@ -125,6 +137,8 @@ mod private
       let framebuffer_ctx = FramebufferContext::new( gl, width, height, samples );
       let use_emission = false;
       let ibl = None;
+      let kulla_lut = None;
+      let sheen_lut = None;
       let mut blend_effect = BlendPass::new( gl )?;
       blend_effect.dst_factor = gl::ONE;
       blend_effect.src_factor = gl::ONE;
@@ -154,8 +168,11 @@ mod private
           compiled_programs : FxHashMap::default(),
           material_program_map : FxHashMap::default(),
           ibl,
-          transparent_nodes : vec![],
-          opaque_nodes : vec![],
+          kulla_lut,
+          sheen_lut,
+      transparent_nodes : vec![],
+      transmission_nodes : vec![],
+      opaque_nodes : vec![],
           use_emission,
           framebuffer_ctx,
           blend_effect,
@@ -229,6 +246,23 @@ mod private
     pub fn ibl_set( &mut self, ibl : IBL )
     {
       self.ibl = Some( ibl );
+    }
+
+    /// Sets the Kulla–Conty multi-scatter energy-compensation LUT ( `E(μ, α)` /
+    /// `E_avg(α)` ) used by `USE_OPENPBR` materials for direct-light energy
+    /// compensation.
+    pub fn kulla_conty_lut_set( &mut self, texture : gl::web_sys::WebGlTexture )
+    {
+      self.kulla_lut = Some( texture );
+    }
+
+    /// Sets the fuzz ( sheen ) directional-albedo LUT ( `E(μ, α)` ) used by
+    /// `USE_OPENPBR` materials to albedo-scale the substrate underneath the fuzz
+    /// layer. Without it the fuzz lobe is simply added on top, which adds energy
+    /// instead of redistributing it — see `loaders::sheen_albedo`.
+    pub fn sheen_albedo_lut_set( &mut self, texture : gl::web_sys::WebGlTexture )
+    {
+      self.sheen_lut = Some( texture );
     }
 
     /// Sets whether the renderer should use the emission texture for post-processing effects.
@@ -433,6 +467,17 @@ mod private
 
       self.per_program_uniforms_upload( gl, camera, &lights )?;
       self.opaque_draw( gl, camera )?;
+
+      // §3.3 transmission pass : capture the just-rendered opaque scene ( color
+      // + depth ), then draw transmissive materials sampling it. Drawn into the
+      // same MSAA main/depth buffers with depth test + write on, so glass sits
+      // correctly among opaque geometry; WBOIT transparent objects draw after.
+      if !self.transmission_nodes.is_empty()
+      {
+        self.framebuffer_ctx.transmission_capture( gl );
+        self.transmission_draw( gl, camera )?;
+      }
+
       if !self.transparent_nodes.is_empty()
       {
         self.transparent_draw( gl )?;
@@ -452,6 +497,7 @@ mod private
     ) -> Result< FxHashMap< LightType, Vec< Light > >, gl::WebglError >
     {
       self.transparent_nodes.clear();
+      self.transmission_nodes.clear();
       self.opaque_nodes.clear();
       let mut lights = FxHashMap::< LightType, Vec< Light > >::default();
 
@@ -540,7 +586,16 @@ mod private
         // but intentionally omitted from the vertex shader — IBL is fragment-only.
         let defines = material.defines_str();
         let ibl_define = if use_ibl { "#define USE_IBL\n" } else { "" };
-        let full_defines = format!( "{defines}{ibl_define}" );
+        // Exact-token match: `USE_OPENPBR_IOR` must NOT satisfy this — it would
+        // otherwise wrongly enable the Kulla-Conty compensation for IOR-only
+        // materials ( "USE_OPENPBR" is a substring of "USE_OPENPBR_IOR" ).
+        let use_kulla = self.kulla_lut.is_some() && defines.contains( "#define USE_OPENPBR\n" );
+        let kulla_define = if use_kulla { "#define USE_KULLA_CONTY\n" } else { "" };
+        // Same exact-token reasoning as above: the fuzz albedo-scaling LUT is an
+        // `USE_OPENPBR` feature, not an `USE_OPENPBR_IOR` one.
+        let use_sheen_lut = self.sheen_lut.is_some() && defines.contains( "#define USE_OPENPBR\n" );
+        let sheen_define = if use_sheen_lut { "#define USE_SHEEN_ALBEDO\n" } else { "" };
+        let full_defines = format!( "{defines}{ibl_define}{kulla_define}{sheen_define}" );
         let cache_key = ( ( **material ).type_id(), full_defines.clone() );
 
         let prog_id = if let Some( &existing_id ) = self.shader_source_registry.get( &cache_key )
@@ -554,7 +609,7 @@ mod private
           //   shader stages caused fragment-only defines to appear in the vertex shader and vice versa.
           // Pitfall: defines_str() remains correct as the cache key (it covers all variants) — only
           //   the per-stage compilation calls must use the stage-specific accessors.
-          let ( vs_src, fs_src ) = crate::webgl::material::shader_sources( &**material, use_ibl );
+          let ( vs_src, fs_src ) = crate::webgl::material::shader_sources_with_defines( &**material, use_ibl, &format!( "{kulla_define}{sheen_define}" ) );
           let program = gl::ProgramFromSources::new( &vs_src, &fs_src ).compile_and_link( gl )?;
           let shader_program = material.shader_program_make( gl, &program );
           let new_id = uuid::Uuid::new_v4();
@@ -588,6 +643,28 @@ mod private
             }
           }
 
+          // Bind the Kulla–Conty LUT for OpenPBR materials ( direct-light
+          // multi-scatter energy compensation ).
+          if use_kulla
+          {
+            let locations = shader_program.locations();
+            let unit : u32 = 19;
+            gl.active_texture( gl::TEXTURE0 + unit );
+            gl.bind_texture( gl::TEXTURE_2D, self.kulla_lut.as_ref() );
+            gl.uniform1i( locations.get( "kullaConty" ).expect( "USE_OPENPBR material missing 'kullaConty' sampler" ).clone().as_ref(), unit as i32 );
+          }
+
+          // Bind the fuzz directional-albedo LUT for OpenPBR materials ( energy
+          // scaling of the substrate under the fuzz layer ).
+          if use_sheen_lut
+          {
+            let locations = shader_program.locations();
+            let unit : u32 = 25;
+            gl.active_texture( gl::TEXTURE0 + unit );
+            gl.bind_texture( gl::TEXTURE_2D, self.sheen_lut.as_ref() );
+            gl.uniform1i( locations.get( "sheenAlbedo" ).expect( "USE_OPENPBR material missing 'sheenAlbedo' sampler" ).clone().as_ref(), unit as i32 );
+          }
+
           self.shader_source_registry.insert( cache_key, new_id );
           self.compiled_programs.insert( new_id, shader_program );
           new_id
@@ -598,20 +675,29 @@ mod private
         prog_id
       };
 
-      // Separate transparent objects for later rendering.
-      match material.alpha_mode()
+      // Routing ( adoption plan §3.3 ) : transmissive materials go to the
+      // dedicated transmission pass ( they sample the captured opaque image ),
+      // alpha-blended materials to the WBOIT pass, everything else opaque.
+      if material.transmission_active()
       {
-        AlphaMode::Blend
-        => self.transparent_nodes.push( ( node.clone(), primitive_rc.clone(), primitive_index, program_uuid ) ),
-        _ => self.opaque_nodes.push( OpaqueNodeEntry
+        self.transmission_nodes.push( ( node.clone(), primitive_rc.clone(), primitive_index, program_uuid ) );
+      }
+      else
+      {
+        match material.alpha_mode()
         {
-          node : node.clone(),
-          primitive : primitive_rc.clone(),
-          primitive_index,
-          program_id : program_uuid,
-          has_emission : material.has_emission(),
-          is_occluder : material.is_occluder(),
-        } ),
+          AlphaMode::Blend
+          => self.transparent_nodes.push( ( node.clone(), primitive_rc.clone(), primitive_index, program_uuid ) ),
+          _ => self.opaque_nodes.push( OpaqueNodeEntry
+          {
+            node : node.clone(),
+            primitive : primitive_rc.clone(),
+            primitive_index,
+            program_id : program_uuid,
+            has_emission : material.has_emission(),
+            is_occluder : material.is_occluder(),
+          } ),
+        }
       }
 
       Ok( () )
@@ -635,7 +721,12 @@ mod private
       {
         active_program_ids.insert( *pid );
       }
+      for ( _, _, _, pid ) in &self.transmission_nodes
+      {
+        active_program_ids.insert( *pid );
+      }
 
+      let screen_size = gl::F32x2::from( [ self.framebuffer_ctx.texture_width as f32, self.framebuffer_ctx.texture_height as f32 ] );
       for prog_id in &active_program_ids
       {
         if let Some( program ) = self.compiled_programs.get_mut( prog_id )
@@ -646,6 +737,10 @@ mod private
           if let Some( exposure_loc ) = program.locations().get( "exposure" )
           {
             gl::uniform::upload( gl, exposure_loc.clone(), &self.exposure )?;
+          }
+          if let Some( screen_loc ) = program.locations().get( "uScreenSize" )
+          {
+            gl::uniform::upload( gl, screen_loc.clone(), screen_size.as_slice() )?;
           }
         }
       }
@@ -753,6 +848,116 @@ mod private
         self.skybox_draw( gl, camera );
       }
 
+      Ok( () )
+    }
+
+    /// Phase 3a: Draws transmissive primitives ( §3.3 ). They sample the
+    /// transmission target captured from the opaque pass and refract it, and
+    /// write into the same MSAA main/depth buffers with depth test + write
+    /// enabled (so glass occludes like a solid), no blending.
+    fn transmission_draw
+    (
+      &mut self,
+      gl : &GL,
+      _camera : &Camera
+    ) -> Result< (), gl::WebglError >
+    {
+      self.transmission_nodes.sort_by_key( | ( _, _, _, pid ) | *pid );
+
+      gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
+      gl.disable( gl::BLEND );
+      gl.enable( gl::DEPTH_TEST );
+      gl.depth_mask( true );
+      gl.depth_func( gl::LESS );
+
+      let mut current_program_id : Option< uuid::Uuid > = None;
+      let mut last_material_id : Option< uuid::Uuid > = None;
+
+      for ( node_rc, primitive_rc, prim_idx, program_id ) in &self.transmission_nodes
+      {
+        let node_ref = node_rc.borrow();
+        let primitive = primitive_rc.borrow();
+        let material = primitive.material.borrow();
+        let Some( shader_program ) = self.compiled_programs.get( program_id ) else
+        {
+          gl::warn!( "compiled_programs missing {program_id:?} — skipping transmission draw" );
+          continue;
+        };
+
+        if current_program_id != Some( *program_id )
+        {
+          shader_program.bind( gl );
+          current_program_id = Some( *program_id );
+          last_material_id = None;
+        }
+
+        material_depth_properties_enable( gl, &**material );
+        material_face_properties_enable( gl, &**material );
+        material_color_mask_enable( gl, &**material );
+
+        let material_upload_context = MaterialUploadContext
+        {
+          node : &node_ref,
+          primitive_id : Some( *prim_idx ),
+          locations : shader_program.locations()
+        };
+
+        if material.needs_update() || last_material_id != Some( material.id() )
+        {
+          material.upload_on_state_change( gl, &material_upload_context )?;
+          material.needs_update_set( false );
+        }
+        material.upload( gl, &material_upload_context )?;
+        material.bind( gl );
+
+        if let Some( ref ibl ) = self.ibl
+        {
+          if let Some( ibl_base_texture_unit ) = material.ibl_base_texture_unit()
+          {
+            ibl.bind( gl, ibl_base_texture_unit );
+          }
+        }
+
+        // Bind the transmission target after `material.bind` ( which may retarget
+        // active units ) : color at the material's base unit, depth at base+1 —
+        // same contract the IBL bind honors ( see `Material::transmission_texture_unit` ).
+        if let Some( base_unit ) = material.transmission_texture_unit()
+        {
+          gl.active_texture( gl::TEXTURE0 + base_unit );
+          gl.bind_texture( gl::TEXTURE_2D, self.framebuffer_ctx.transmission_color_texture.as_ref() );
+          gl.active_texture( gl::TEXTURE0 + base_unit + 1 );
+          gl.bind_texture( gl::TEXTURE_2D, self.framebuffer_ctx.transmission_depth_texture.as_ref() );
+        }
+
+        // Object-sized slab. OpenPBR has no geometric-thickness parameter, so a
+        // `.mtlx` / `.usda` surface authors none and the material can only fall
+        // back to a constant - which is wrong at every scale but one : a 0.5
+        // world-unit slab on a scene normalised to a unit box is thicker than the
+        // objects in it, and the refracted tap lands somewhere else entirely.
+        // Only the renderer knows how big the primitive actually is, so it
+        // supplies the thickness here, after `material.upload` has written the
+        // authored one. See `material::fallback_slab_thickness` for the choice of
+        // extent and for the thin-walled alternative.
+        if !material.transmission_thickness_authored()
+        {
+          if let Some( location ) = shader_program.locations().get( "transmissionThickness" )
+          {
+            let world_box = primitive.bounding_box().transform_apply( node_ref.world_matrix_get() );
+            let extent = world_box.max - world_box.min;
+            let thickness = fallback_slab_thickness( [ extent.x(), extent.y(), extent.z() ] );
+            gl.uniform1f( location.clone().as_ref(), thickness );
+          }
+        }
+
+        last_material_id = Some( material.id() );
+
+        let locations = shader_program.locations();
+        node_ref.upload( gl, locations );
+        primitive.bind( gl );
+        primitive.draw( gl );
+      }
+
+      gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
       Ok( () )
     }
 

@@ -2,6 +2,7 @@ mod private
 {
   use std::{ cell::RefCell, rc::Rc };
   use gltf::mesh::iter::MorphTargets;
+  use gltf::json::Value;
   use crate::webgl::loaders::gltf_extensions::{ document_validate, material_layer_extensions_apply };
   use crate::webgl::loaders::gltf_buffers::buffers_load;
   use crate::webgl::loaders::gltf_quantization::{ accessor_vec3_read, position_bounds_dequantize };
@@ -20,6 +21,7 @@ mod private
     Geometry,
     IndexInfo,
     MagFilterMode,
+    material::OpenPbrParams,
     material::PbrMaterial,
     Material,
     Mesh,
@@ -777,6 +779,13 @@ mod private
 
       material_layer_extensions_apply( &gltf_m, textures, &mut material );
 
+      // OpenPBR Surface adoption ( ASWF OpenPBR → ratified KHR_materials_* ):
+      // capture the scalar/color factor carriers of the remaining extensions
+      // wholesale. Goes through the setter so the defines cache is rebuilt -
+      // a direct field assign would leave `USE_OPENPBR` out of the cache for
+      // materials that raise no later texture define.
+      material.openpbr_params_set( material_openpbr_params_read( &gltf_m ) );
+
       if let Some( n ) = gltf_m.normal_texture()
       {
         material.normal_scale = n.scale();
@@ -806,6 +815,110 @@ mod private
     materials.push( Rc::new( RefCell::new( Box::new( fallback ) ) ) );
 
     ( materials, material_variation_map )
+  }
+
+  /// Reads the OpenPBR Surface parameters that the ratified `KHR_materials_*`
+  /// extensions carry on a glTF material into an [`OpenPbrParams`]. Pure JSON
+  /// extraction — no `WebGl2RenderingContext`, no texture/buffer resolution —
+  /// so it is natively unit-testable off-GPU ( same pattern as
+  /// [`required_extensions_check`] / `light_list_get` ).
+  ///
+  /// Presence semantics : a parameter is `Some` only while its extension is
+  /// present on the material, with the extension's own schema default applied
+  /// when the key is omitted ( e.g. `KHR_materials_ior` with no `ior` yields
+  /// `Some( 1.5 )` ). `volume_attenuation_distance` is the exception — omitted
+  /// means the schema default `+inf` ( non-absorbing medium ), represented as
+  /// `None`. See [`OpenPbrParams`] and the crate `readme.md` "OpenPBR adoption"
+  /// section for the OpenPBR-parameter correspondence.
+  #[ must_use ]
+  pub fn material_openpbr_params_read( gltf_m : &gltf::Material< '_ > ) -> OpenPbrParams
+  {
+    let mut params = OpenPbrParams::default();
+
+    let scalar = | ext : &Value, key : &str, default : f32 | -> f32
+    {
+      ext.get( key ).and_then( Value::as_f64 ).map_or( default, | v | v as f32 )
+    };
+
+    let color = | ext : &Value, key : &str, default : [ f32; 3 ] | -> [ f32; 3 ]
+    {
+      ext.get( key )
+      .and_then( Value::as_array )
+      .map_or( default, | arr |
+      {
+        let mut c = [ 0.0_f32; 3 ];
+        for ( i, v ) in arr.iter().take( 3 ).enumerate()
+        {
+          c[ i ] = v.as_f64().unwrap_or( 0.0 ) as f32;
+        }
+        c
+      } )
+    };
+
+    // KHR_materials_ior → OpenPBR `specular_ior`.
+    if let Some( ext ) = gltf_m.extension_value( "KHR_materials_ior" )
+    {
+      params.ior = Some( scalar( ext, "ior", 1.5 ) );
+    }
+
+    // KHR_materials_sheen → OpenPBR `fuzz_*` lobe. glTF `TextureInfo` semantics :
+    // a factor omitted while its texture is present defaults to full strength.
+    if let Some( ext ) = gltf_m.extension_value( "KHR_materials_sheen" )
+    {
+      let color_default = if ext.get( "sheenColorTexture" ).is_some() { [ 1.0, 1.0, 1.0 ] } else { [ 0.0, 0.0, 0.0 ] };
+      let roughness_default = if ext.get( "sheenRoughnessTexture" ).is_some() { 1.0 } else { 0.0 };
+      params.sheen_color_factor = Some( color( ext, "sheenColorFactor", color_default ) );
+      params.sheen_roughness_factor = Some( scalar( ext, "sheenRoughnessFactor", roughness_default ) );
+    }
+
+    // KHR_materials_transmission → OpenPBR `transmission_weight`.
+    if let Some( ext ) = gltf_m.extension_value( "KHR_materials_transmission" )
+    {
+      params.transmission_factor = Some( scalar( ext, "transmissionFactor", 0.0 ) );
+    }
+
+    // KHR_materials_volume → OpenPBR `transmission_depth` medium absorption.
+    if let Some( ext ) = gltf_m.extension_value( "KHR_materials_volume" )
+    {
+      params.volume_thickness_factor = Some( scalar( ext, "thicknessFactor", 0.0 ) );
+      if let Some( distance ) = ext.get( "attenuationDistance" ).and_then( Value::as_f64 )
+      {
+        params.volume_attenuation_distance = Some( distance as f32 );
+      }
+      params.volume_attenuation_color = Some( color( ext, "attenuationColor", [ 1.0, 1.0, 1.0 ] ) );
+    }
+
+    // KHR_materials_iridescence → OpenPBR `thin_film_*` lobe. `iridescenceFactor`
+    // follows the same texture-defaults-to-one rule as the sheen factors above.
+    if let Some( ext ) = gltf_m.extension_value( "KHR_materials_iridescence" )
+    {
+      let factor_default = if ext.get( "iridescenceTexture" ).is_some() { 1.0 } else { 0.0 };
+      params.iridescence_factor = Some( scalar( ext, "iridescenceFactor", factor_default ) );
+      params.iridescence_ior = Some( scalar( ext, "iridescenceIor", 1.3 ) );
+      params.iridescence_thickness_minimum = Some( scalar( ext, "iridescenceThicknessMinimum", 100.0 ) );
+      params.iridescence_thickness_maximum = Some( scalar( ext, "iridescenceThicknessMaximum", 400.0 ) );
+    }
+
+    // KHR_materials_emissive_strength → OpenPBR emission luminance scale.
+    if let Some( ext ) = gltf_m.extension_value( "KHR_materials_emissive_strength" )
+    {
+      params.emissive_strength = Some( scalar( ext, "emissiveStrength", 1.0 ) );
+    }
+
+    // KHR_materials_dispersion → OpenPBR `transmission_dispersion_scale` ( 20 / Abbe ).
+    if let Some( ext ) = gltf_m.extension_value( "KHR_materials_dispersion" )
+    {
+      params.dispersion = Some( scalar( ext, "dispersion", 0.0 ) );
+    }
+
+    // KHR_materials_diffuse_transmission → OpenPBR translucent-base scattering.
+    if let Some( ext ) = gltf_m.extension_value( "KHR_materials_diffuse_transmission" )
+    {
+      params.diffuse_transmission_factor = Some( scalar( ext, "diffuseTransmissionFactor", 0.0 ) );
+      params.diffuse_transmission_color_factor = Some( color( ext, "diffuseTransmissionColorFactor", [ 1.0, 1.0, 1.0 ] ) );
+    }
+
+    params
   }
 
   /// Computes a vertex attribute's [`gl::BufferDescriptor`] from its glTF
@@ -1454,6 +1567,7 @@ crate::mod_interface!
   {
     GLTF,
     load,
+    material_openpbr_params_read,
     texture_upload_count_get,
     asset_uri_resolve,
     light_list_get,

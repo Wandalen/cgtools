@@ -1,0 +1,863 @@
+# OpenPBR Surface Adoption — Plan & Progress
+
+Living plan for adopting the ASWF **OpenPBR Surface** shading model
+( <https://academysoftwarefoundation.github.io/OpenPBR/> ) into this crate's
+WebGL renderer.
+
+OpenPBR has **no glTF extension of its own**; it ships as **MaterialX** (`.mtlx`)
+and **USD**. Content therefore reaches this renderer through two ingestion lanes,
+tracked here:
+
+1. **glTF transport** — the ratified Khronos `KHR_materials_*` set (done for
+   scalar/color carriers; shading partial).
+2. **Native OpenPBR content** — MaterialX `.mtlx` and USD `.usda/.usdc/.usdz`
+   (planned in §2), so the actual OpenPBR model libraries can be consumed
+   directly rather than via a lossy glTF export.
+
+The two-stage strategy per lane — **load**, then **shade** — is tracked below.
+
+---
+
+## 1. Progress tracking
+
+### 1.1 Done — loader stage
+
+- [x] `OpenPbrParams` value type (`src/webgl/material/pbr.rs`): 15 scalar/color
+      carriers, one `Option` per parameter, KHR schema defaults documented per
+      field and mapped to the OpenPBR parameter each transports. `is_empty()`
+      gates shader selection.
+- [x] `loaders::gltf::material_openpbr_params_read` (`src/webgl/loaders/gltf.rs`):
+      pure, off-GPU reader for `KHR_materials_ior`, `_sheen`, `_transmission`,
+      `_volume`, `_iridescence`, `_emissive_strength`, `_dispersion`,
+      `_diffuse_transmission`. Presence semantics: `Some` only while the
+      extension is present, already defaulted to the schema default.
+- [x] `PbrMaterial::openpbr_params` field wired in `materials_create`.
+- [x] Native tests: `tests/gltf_material_extensions_test.rs` (13 cases).
+- [x] Docs: crate `readme.md` OpenPBR section + status table; `changelog.md`.
+
+### 1.2 Done — shading stage (opaque path)
+
+- [x] `USE_OPENPBR` define (any carrier present) + `USE_KHR_materials_emissive_strength`
+      define (`pbr.rs` `local_defines`).
+- [x] Uniforms `ior`, `sheenColorFactor`, `sheenRoughnessFactor`, `emissiveStrength`
+      (locations + gated upload with shader-side defaults).
+- [x] `main.frag` `USE_OPENPBR` blocks:
+      - dielectric Fresnel F0 from IOR `(η−1)²/(η+1)²` (`specular_ior`);
+      - energy-preserving per-axis roughness mapping `αt = r²√(2/(1+(1−a)²))`,
+        `αb = (1−a)αt` (clamps `r≥0.001`, `a≤0.999`);
+      - Smith joint-visibility `V = 0.5/(NoL·Λ(V)+NoV·Λ(L))` with
+        `Λ(v)=√(1+((v·T)²αt²+(v·B)²αb²)/(v·N)²)`;
+      - fuzz/sheen lobe (`KHR_materials_sheen` → Charlie NDF + Ashikhmin-Premoze
+        visibility) for direct + spot + point + IBL, with the substrate
+        albedo-scaled by the lobe’s directional albedo `E(μ, α)`
+        (`USE_SHEEN_ALBEDO` LUT, `loaders::sheen_albedo`) so the layer
+        redistributes energy instead of adding it;
+      - `emissiveStrength` scaling (also honored on the legacy path).
+- [x] Fdez-Agüera/three.js multi-scatter on the **IBL term only** (existing
+      `integrateBRDF` split-sum `FssEss`/`Fms`) — an approximation, *not* a
+      Kulla–Conty LUT; see the pending item in §1.3 / §3.7.
+
+### 1.3 Not implemented / blocked
+
+| Feature | Carrier | Status / blocker |
+|---|---|---|
+| Refraction (`transmission_weight`) | `KHR_materials_transmission` | **3.3a + 3.3b landed — browser-UNTESTED** — dedicated transmission pass + opaque-target capture + screen-space refraction, now with the roughness blur ( mip chain ), occluder rejection from the captured depth, and the thin-walled variant (§3.3). Backface/second-layer tracing and dispersion still open. |
+| Volume (`transmission_depth`, absorption) | `KHR_materials_volume` | **Landed — browser-UNTESTED** — Beer–Lambert absorption over the traversed slab (§3.4), `mu_t = -ln( T ) / lambda` with `T` = `transmission_color` and `lambda` = `transmission_depth`; `lambda = 0` degenerates to the spec's constant tint. Scattering (`transmission_scatter`) and a real per-pixel thickness ( backface depth / `thicknessTexture` ) are still open. |
+| Dispersion (20 / Abbe) | `KHR_materials_dispersion` | **Blocked** — per-channel refraction (3× the transmission pass). |
+| Subsurface / translucent scattering | `KHR_materials_diffuse_transmission` | **Blocked** — needs a diffusion pass (per-RGB radius profile). |
+| Thin-film iridescence | `KHR_materials_iridescence` | **Landed (§3.2)** — `USE_OPENPBR_IRIDESCENCE` spectral Fresnel in `main.frag`. Known model limit: on a near-perfect mirror substrate the interference terms cancel (`R23 ≈ 1 ⇒ Cm = Rs−T121 ≈ 0`) and the film only lifts `F_s` toward 1 — visible color needs low-reflectance bases. |
+| Kulla–Conty multi-scatter energy compensation (LUT) | n/a (model fidelity) | **Landed for direct lights (§3.7)** — `loaders::kulla_conty` LUT, `USE_KULLA_CONTY`; IBL still uses the Fdez-Agüera split-sum (unifying it onto the same LUT is a follow-up). |
+| Textured lobe carriers (sheen/transmission/thickness/iridescence/diffuseTransmission color) | all of the above | **Subset landed (§3.1), browser-untested** — sheen color/roughness + iridescence weight textures wired at fragment units 20–22 (native loader tests pass; `openpbr_lobe_texture_test.rs` awaits a wasm browser run). Remaining carriers ride the §3.3 transmission pass. |
+| Native OpenPBR content import (MaterialX `.mtlx`, USD `.usda/.usdc/.usdz`) | format lane (§2) | **N2 + N3-lite landed; N3 scene slice browser-verified** — `loaders::usd` (`native-formats`): pure resolver/mesh-extract/`usd_scene_analyze` core (21 native tests) + GL `usd_scene_load` verified live through `gltf_viewer`'s USD mode (caught + fixed 3 bugs). **See the "USD lane : what works / unverified / missing" matrix in §2.3 for the full state.** Top gaps: `UsdUVTexture`/mtlx `<image>` textures, binary `.usdc`/`.usdz` untested, cameras/lights, instancing/subdivision. |
+
+Blockers are architectural, not mathematical: the renderer is a single-pass
+forward shader (`main.frag`) with weighted-blended OIT for transparency; nothing
+exists to sample "the scene behind/through a surface".
+
+---
+
+## 2. Native OpenPBR content formats (MaterialX / USD)
+
+OpenPBR is authored and archived as **MaterialX** (`.mtlx`) — the ASWF repo's
+`examples/open_pbr_*.mtlx` library (~100 materials) plus the
+`reference/open_pbr_surface.mtlx` implementation — and as **USD**
+(`.usda`/`.usdc`/`.usdz`; e.g. the Omniverse/OpenUSD OpenPBR material
+libraries). glTF carries only a lossy subset through `KHR_materials_*`. "Full
+support" therefore adds a second ingestion lane that reads these formats
+directly.
+
+### 2.1 Canonical internal surface: `OpenPbrSurface`
+
+Introduce a native parameter surface holding the full OpenPBR set (41 params:
+`base_weight/color/diffuse_roughness/metalness`, `specular_*`, `subsurface_*`,
+`transmission_*`, `thin_film_*`, `coat_*`, `fuzz_*`, `emission_*`,
+`geometry_*`). Both lanes converge on it:
+
+- glTF `KHR_materials_*` carriers → `OpenPbrParams` (existing, presence-based)
+  → `OpenPbrSurface`;
+- `.mtlx` / `.usda` readers → `OpenPbrSurface` directly.
+
+`OpenPbrSurface` is the single input to the material/shader path (the current
+`USE_OPENPBR` uniforms are a subset of it).
+
+### 2.2 Feasibility & blockers
+
+- The **USD** (Pixar) and **MaterialX** (ASWF) C++ runtimes are not hostable in
+  wasm. **MaterialX** additionally has **no usable Rust crate** on crates.io
+  (`materialx` / `materialx-sys` are v0.0.0 placeholder bindings) — a `.mtlx`
+  reader must be purpose-built (the format is XML).
+- **USD** has `openusd` (github.com/mxpv/openusd, v0.7): a **pure-Rust, no-C++
+  implementation** that reads/writes `.usda`, `.usdc`, and `.usdz`, ships a
+  composed `Stage` and opt-in typed schema views including **`UsdShade`**
+  (`Material::compute_surface_source` → shader id / nodegraph). Caveats: active
+  development with **no API stability below 1.0**. **Wasm spike: PASSED
+  (2026-09)** — core `openusd` and `openusd-schemas` (feature `shade`) both
+  compile for `wasm32-unknown-unknown` (Stage open/traverse, typed
+  `Material::compute_surface_source`); runtime behaviour on real assets is still
+  unverified. (C++ pxr bindings such as `usd`/`usd-rs`, `rust-usd`, `pxr_sys`
+  are native-only and rejected for the wasm runtime path.)
+- Native binary **`.usdc`/`.usdz`** stays feasible only via `openusd` (above); if
+  the wasm spike fails, they fall back to offline conversion (§2.3 N4).
+- Purpose-built readers for the **OpenPBR subset** mapping onto `OpenPbrSurface`
+  remain the core work and are off-GPU + natively testable. USD materials that
+  carry OpenPBR surface as an embedded MaterialX nodegraph (`UsdMtlx`) or a
+  referenced `.mtlx` asset still resolve to the **same MaterialX parameter
+  vocabulary** — so one shared OpenPBR-parameter extraction core serves both the
+  standalone `.mtlx` reader (N2) and the USD reader (N3).
+- Record an ADR (root `docs/adr/`) for the runtime-vs-offline split before N2.
+
+### 2.3 Phased plan
+
+Status: **N1 complete, N2 landed, N3-lite landed** — `OpenPbrSurface` (type,
+spec defaults, glTF-carrier mapping) in `src/webgl/material/openpbr_surface.rs`;
+the `.mtlx` reader in `src/webgl/loaders/openpbr_mtlx.rs` (verified against all
+54 real `.mtlx` of OpenPBRShaderPlayground, 2026-09); the `.usda` → `.mtlx`
+asset-reference resolver (`N3-lite`) in `src/webgl/loaders/openpbr_usda.rs`
+(verified end-to-end on the real `iceCube.usda` + its `.mtlx`). Native tests in
+`tests/openpbr_mtlx_test.rs`, `tests/openpbr_gltf_mapping_test.rs` and
+`tests/openpbr_usda_test.rs`. The full `openusd` Stage reader (§2.2, wasm spike
+passed) and N4 are still open.
+
+- **N1** — `OpenPbrSurface` type + mapping from the existing glTF carriers;
+  keep `OpenPbrParams` presence semantics for glTF, add native defaults for the
+  full parameter set.
+- **N2** — `.mtlx` reader (OpenPBR subset): resolve material surface instances
+  of `open_pbr_surface.mtlx` from their `<input name="…" value="…">` wiring;
+  texture inputs deferred to the §3.1 texture plumbing; unresolvable graphs are
+  reported, never silently dropped.
+- **N3** — USD reader. The `openusd` wasm spike **passed** (see §2.2), so layer
+  `openusd` + `openusd-schemas` (`shade`) as an optional `native-formats`
+  feature and read `.usda`/`.usdc`/`.usdz`: walk `Material` prims →
+  `compute_surface_source` → extract the OpenPBR/MaterialX surface inputs via
+  the shared N2 parameter core. Should real-asset runtime behaviour fail, fall
+  back to a hand-rolled `.usda` text-subset reader, with `.usdz`/`.usdc`
+  offline-only (§2.3 N4).
+     Status ( 2026-09 ): **browser-verified** —
+     `loaders::usd` ( feature `native-formats` ) ships:
+     - Pure, native-tested core ( 21 cases in `tests/usd_scene_test.rs` ) :
+       `UsdInMemoryResolver` ( `ar::Resolver` over a `path -> bytes` map — the
+       browser feed ), `usd_stage_open`, `usd_mesh_extract` ( fan triangulation +
+       vertex/faceVarying/indexed primvar corner resolution for `normals`,
+       `primvars:st`, `primvars:displayColor` ), `usd_local_to_world`, and
+       `usd_scene_analyze` — the whole scene pass resolved off-GPU :
+       hierarchy with parent links, shading-subtree ( `Material`/`Shader`/
+       `NodeGraph` ) skipping, visibility/purpose filtering, material binding
+       resolution with ancestor inheritance over **both lanes** —
+       `UsdPreviewSurface` channels and the native OpenPBR lane ( a bound
+       `Material` carrying `references = @./x.mtlx@` is fetched through the
+       `UsdAssetProvider` trait, implemented by the resolver, and parsed by the
+       N2 `openpbr_surfaces_from_mtlx`, captured as `UsdMaterialData::surface` )
+       — plus the row-vector → column-major f32 matrix bridge
+       ( `gf_matrix_to_column_major` ).
+     - Thin GL assembly : `usd_geometry_create` ( CPU `UsdMeshData` → VAO +
+       buffers, slots 0/1/2 matching `main.vert` ) , `usd_material_apply` ( full
+       `OpenPbrSurface` → `openpbr_surface_apply` when present, else preview
+       factors, + alpha-mode/ior routing ) , `usd_scene_load` ( nodes +
+       shared-material cache + hierarchy wiring + `Scene` ) .
+     - Browser feed : `usd_scene_load_http` ( async — fetches the `.usda`,
+       discovers its `@./x.mtlx@` references with the N3-lite scanner, fetches
+       those too ) and `usd_scene_from_texts` ( synchronous, from embedded /
+       in-memory strings — what the viewer uses ). `gltf_viewer` gained a
+       **USD scene** mode : a six-object set scene ( icospheres + real quad-faced
+       cubes under per-object translate/rotateXYZ/scale `Xform` stacks, five
+       `.mtlx`-bound materials covering metal/coat/high-IOR/paint/fuzz plus one
+       inline `UsdPreviewSurface` ), studio rig, no IBL.
+     - **Browser verification complete (2026-09)** via the viewer mode; it caught
+       and fixed three real bugs : `interpolation` read as `String` instead of
+       `Token` ( zero-filled normals → dark sphere ), `xformOp` attributes
+       authored in prim-metadata parens ( USDA parse error ), and generated
+       cubes whose `faceVertexCounts` said triangles over quad corner indices
+       ( collapsed faces ). All regression-guarded natively.
+     Still open for N3: USD texture channels (`UsdUVTexture` → `TextureInfo`
+     slots — both material lanes currently drop texture connections ; the
+     playground corpus is texture-driven, so real assets look flat until this
+     lands, and its `.tif` maps need a browser-decodable story ),
+     `mtlx_target` named-surface selection ( the usd lane takes the first
+     surface, same gap as the N3-lite loader ), camera / lights ingestion,
+     `metersPerUnit` / non-Y `upAxis`, binary `.usdc`/`.usdz` roots ( supported
+     by `openusd` through the same resolver, untested ), analytic gprims,
+      subdivision-surface tessellation and instancing.
+
+  #### USD lane : what works, what is unverified, what is missing ( 2026-09 )
+
+  A one-glance matrix of the USD reader's real state, so "can we read USD yet?"
+  never needs re-deriving. Verdict up front : **a genuinely useful subset, NOT
+  full USD.** Composed `.usda` scenes with real OpenPBR materials load and render
+  correctly ; production assets that depend on textures or instancing do not yet.
+
+  | State | Item | Notes / why |
+  |---|---|---|
+  | ✅ works, natively + browser-verified | `.usda` stage composition via pure-Rust `openusd` | `UsdInMemoryResolver` + `usd_stage_open` ; no filesystem needed |
+  | ✅ | Mesh topology : triangles AND quads | `usd_mesh_extract` fan-triangulates `faceVertexCounts`/`faceVertexIndices` ( the playground set-scene quads render clean ) |
+  | ✅ | Primvars : `normals`, `primvars:st`, `displayColor`, `vertex`/`faceVarying`/indexed | corner resolution incl. `:indices` indirection ; the `interpolation`-as-`Token` bug is fixed + regression-tested |
+  | ✅ | `Xform` op stacks + hierarchy | translate / rotateXYZ / scale / matrix ops, row-vector → column-major bridge, per-object nesting |
+  | ✅ | Visibility / purpose filtering | `Invisible` / `proxy` / `guide` prims dropped |
+  | ✅ | Material bindings with ancestor inheritance | `MaterialBindingAPI::compute_bound_material` walking up the namespace |
+  | ✅ | Both material lanes | inline `UsdPreviewSurface` → `UsdMaterialData` ; `prepend references = @./x.mtlx@` → N2 reader → `OpenPbrSurface` → `openpbr_surface_apply` ( metal / coat / ior / fuzz / thin-film ) |
+  | ✅ | GL scene assembly | `usd_scene_load` → `Geometry` (VAO slots 0/1/2) + shared-material cache + `Scene` ; verified live in `gltf_viewer` USD mode |
+  | ⚠️ built, **not yet run by you** | `usd_scene_load_http` | async root fetch + `@./x.mtlx@` discovery + sibling fetches ; only the embedded-string path (`usd_scene_from_texts`) has run in a browser — needs a served-file test ( trunk `copy-dir` ) |
+  | ⚠️ built, **not yet run by you** | §3.1 lobe textures ( sheen color/roughness, iridescence weight ) | `openpbr_lobe_texture_test.rs` never executed ( needs wasm browser driver ) ; no texture-driven glTF test asset wired yet ( Khronos *SheenChair* is the candidate ) |
+  | ❌ not implemented | **Textures** — `UsdUVTexture` / mtlx `<image>` channels | both lanes read scalars only and drop texture connections, so the playground's image-driven materials ( iceCube etc. ) look flat. Blocker beyond plumbing : the corpus maps are **`.tif`/`.exr`**, which browsers can't decode natively — needs an `image`-crate (or similar) wasm decode decision or a png/jpg-only first tier |
+  | ❌ not implemented | Binary `.usdc` / `.usdz` roots | `openusd` parses them through the same `ar::Asset` feed in principle, but only `.usda` text fixtures are exercised ; untested end-to-end |
+  | ❌ not implemented | Cameras / lights ingestion | USD `domeLight`/`diskLight`/`Camera` prims ignored — the viewer uses its own studio rig. Needs a `Light`/`Camera` mapping step |
+  | ❌ not implemented | Instancing ( `PointInstancer`, instanceable prototypes ) | meshes referenced many times draw once each ; prototype expansion is unimplemented |
+  | ❌ not implemented | Subdivision surfaces | `catmullClark`/`loop` meshes render as their coarse cage ; needs a tessellator |
+  | ❌ not implemented | Analytic gprims ( `Cube`/`Sphere`/`Cone`/… ) | only `def Mesh` is turned into geometry ; intrinsic shapes need tesselation |
+  | ❌ not implemented | `metersPerUnit`, non-`Y` `upAxis` | scenes authored in mm / Z-up will mis-scale/rotate ; needs a root transform |
+  | ❌ not implemented | Inline ( non-referenced ) MaterialX nodegraphs in USD | `UsdMtlx` shader-prims authored directly into the layer ; only the external-`.mtlx`-reference pattern resolves today |
+  | ❌ not implemented | `mtlx_target` named-surface selection | the USD lane and N3-lite both take the FIRST `open_pbr_surface` in a `.mtlx` ( latent for one-surface-per-file corpora like the playground ; wrong for multi-surface files ) |
+  | ❌ out of scope here | Full OpenPBR evaluation ( subsurface, transmission/volume, dispersion ) | gated on the renderer §3.3/§3.5 passes, not the USD reader — the values are parsed + stored but not yet shaded |
+- **N4** — authoring/converter path for real content: export the same material
+  to glTF + `KHR_materials_*` for the browser runtime, and keep parameters with
+  no KHR carrier in a private `OPENPBR_materials` JSON extension on the glTF
+  material (the loader already reads arbitrary extension JSON by name), so
+  nothing is lost on round-trip.
+
+### 2.4 Model sources for these formats
+
+- MaterialX: `AcademySoftwareFoundation/OpenPBR` `examples/open_pbr_*.mtlx`
+  (native import once N2 lands; offline render in Arnold / MaterialX Viewer as
+  ground truth meanwhile).
+- **Digital Production Example Library `OpenPBRShaderPlayground`**
+  ( <https://github.com/DigitalProductionExampleLibrary/OpenPBRShaderPlayground> )
+  — ~40 real production materials shipped as `.usda`/`.mtlx` pairs plus
+  reference PNG/EXR renders. Verified shape (2026-09): USD `Material` prims
+  reference **external `.mtlx` files** (`prepend references =
+  @./<name>.mtlx@</MaterialX/Materials/<name>>`), and the `.mtlx` wires many
+  scalars to texture nodes (`nodename`) — so the N3 USD lane resolves to the N2
+  `.mtlx` reader, and texture-driven inputs stay at defaults until §3.1.
+- USD/OpenPBR: Omniverse OpenPBR material library (OpenUSD + MaterialX);
+  Physically Based / MaterialX libraries that publish `.mtlx` or USD variants.
+- Cross-format suites: the same material authored as `.mtlx`, `.usda`, and glTF
+  `KHR_materials_*` must converge to one `OpenPbrSurface` (equivalence tests,
+  §4.1).
+
+---
+
+## 3. Renderer pipeline adjustments (to fully support OpenPBR)
+
+Current frame shape (from `docs/feature/001_pbr_rendering_core.md`):
+**opaque → transparent (WBOIT) → resolve/composite → post → display**, allocated
+by `src/webgl/renderer.rs`. The new work inserts passes in and around this, in
+dependency order:
+
+### 3.1 Textured lobe carriers (unblocked — do first)
+Plumbing only. Add `Option<TextureInfo>` slots for
+`sheenColorTexture`, `sheenRoughnessTexture`, `transmissionTexture`,
+`thicknessTexture`, `iridescenceTexture`, `iridescenceThicknessTexture`,
+`diffuseTransmissionTexture`, `diffuseTransmissionColorTexture`; parse them in
+the loader (reuse the generic `parse_ext_texture_info`), add sampler uniforms +
+UV defines + `configure()` unit assignment + `bind()` unit binds. Texture-unit
+headroom ( corrected 2026-09 — the original note that "13–15 are free" was wrong ):
+units 0–12 are material textures, **13–15 are the vertex-stage skinning/morph
+slots** ( `skeleton::{GLOBAL_MATRICES_SLOT, INVERSE_MATRICES_SLOT, DISPLACEMENTS_SLOT}` ),
+IBL takes 16–18 and the Kulla-Conty LUT 19, so the new fragment lobe samplers
+occupy **20–22**.
+
+Status: **subset landed, browser-untested (2026-09)** —
+`sheenColorTexture` + `sheenRoughnessTexture` ( units 20/21 ) and
+`iridescenceTexture` ( unit 22 ) are wired end to end: `PbrMaterial` slots +
+setters, loader parsing ( `lobe_textures_apply` ), `USE_SHEEN_COLOR_TEXTURE` /
+`USE_SHEEN_ROUGHNESS_TEXTURE` / `USE_IRIDESCENCE_TEXTURE` defines gated on
+texture presence alone, shader RGB/A multiplication of the factors with glTF
+"factor omitted + texture present ⇒ 1" defaults. Native loader tests pass;
+`tests/openpbr_lobe_texture_test.rs` ( gating + headless compile ) still needs
+a wasm browser run. The remaining carriers ( `transmissionTexture`,
+`thicknessTexture`, `iridescenceThicknessTexture`,
+`diffuseTransmission*Texture` ) are deferred — their lobes need the §3.3
+transmission pass to consume them meaningfully anyway.
+
+### 3.2 Thin-film iridescence (unblocked — can land independently)
+In-fragment spectral Fresnel (Airy/etalon `Δφ = 2π·2·d·n₂·cosθ₂/λ`, thickness
+min/max from `iridescenceThickness{Min,Max}imum`, `iridescenceIor`). Only IBL
+wrinkle: the prefiltered env map is monochromatic — tint per channel or 3-tap.
+
+### 3.3 Transmission render target (unblocks refraction, volume, dispersion)
+Mirror the existing extra-pass pattern (`post_processing/`, `shadow.rs`, PMREM):
+
+1. Allocate a transmission color (+ reuse depth) target in `renderer.rs`.
+2. After the opaque resolve and **before** the transparent pass, make the
+   opaque scene image available to transmissive materials as a texture.
+3. In the transmissive material path compute the refraction direction via Snell
+   with `ior`, apply roughness-driven blur, and sample the transmission texture
+   (depth-guided parallax like the three.js `TransmissionPass` approach).
+4. Route `transmission_factor` materials into the transparent pass.
+
+Status: **3.3a + 3.3b landed, browser-UNTESTED (2026-09)**.
+
+3.3a — the pass itself: `FramebufferContext` gained a transmission target
+( RGBA16F color + a DEPTH24_STENCIL8 *texture* depth, both MSAA-resolved by
+`transmission_capture()` ) captured right after the opaque pass; `Renderer`
+routes weight-gated materials into a new `transmission_draw` pass between opaque
+and WBOIT ( depth test + write on, no blend ), binding color/depth at fragment
+units 23/24 via the `Material::transmission_active` / `transmission_texture_unit`
+contract; `main.frag` `USE_TRANSMISSION` refracts the view into the slab,
+projects the exit point to screen uv and replaces the diffuse term with the
+scene tap.
+
+3.3b — what the follow-up added:
+
+- **Exit-ray fix**: the second `refract()` used the *entry* eta ( `1 / ior` )
+  again instead of its reciprocal, bending the ray inward twice. The exit ray is
+  taken to return to `-V`, so only the exit *position* matters and the second
+  refraction is gone; the exit point is `vWorldPos + t_in * d`, with `d` the
+  traversal from `material::traversal_length`.
+- **Traversal model** ( corrected 2026-09 ): `d` is the convex-body chord
+  `thickness * |cos|`, exact for a sphere of diameter `thickness`. It was
+  originally the flat-slab `thickness / |cos|`, which has the cosine on the
+  wrong side for anything convex - it lengthens the path towards the silhouette
+  where the real chord shortens ( ~1.8x over at the rim at IOR 1.5 ), throwing
+  the screen-space tap off the object exactly where the refraction is strongest,
+  and it needed a `|cos|` floor to stay finite. A genuine parallel pane is the
+  thin-walled case, which never reaches this function. `material::traversal_length`
+  records the slab and the constant-`thickness` ( three.js / glTF sample viewer )
+  readings as the alternatives.
+- **Roughness blur**: the transmission color target is allocated with a full mip
+  chain and `generate_mipmap`'d after each capture; the shader reads
+  `textureLod` at `log2( size ) * roughness * clamp( 2*ior - 2, 0, 1 )`
+  ( `material::blur_lod`, the three.js `applyIorToRoughness` heuristic ), so a
+  rough surface gets a pre-filtered tap instead of a mirror-sharp one.
+- **Depth-guided validation**: the captured depth is finally sampled. It is
+  linearized through the projection matrix and compared against this fragment's
+  own view-space z — a tap whose surface sits *in front of* the glass is an
+  occluder, not something seen through it, and falls back to the un-refracted
+  pixel ( as do off-screen taps ). This is rejection, **not** a parallax
+  ray-march: a valid tap is still taken at the thin-plate exit point. The
+  rejection reads the *nearest* depth over a small cross around the tap rather
+  than the one texel under it, because the capture’s colour and depth disagree
+  at a silhouette ( filtered colour, single-sample `NEAREST` depth blit ) and
+  testing the exact texel let the half-covered edge pixels through as a bright
+  outline of every foreground object - see `material::occluder_dilation_texels`.
+- **Beer–Lambert absorption** (§3.4) and the **thin-walled** variant
+  ( `USE_TRANSMISSION_THIN_WALLED`: no interior, so no offset, no path length,
+  no absorption ).
+- **Fresnel split**: the transmitted term is weighted by `1 - F( f0, NoV )`. The
+  reflected share is already in `color` as the specular/IBL response, so without
+  it a grazing rim carried both lobes at full strength.
+
+Carrier semantics were corrected with it: OpenPBR `transmission_depth` is an
+*absorption length scale*, not a geometric thickness, so it now maps to the glTF
+`attenuationDistance` carrier ( `volume_attenuation_distance` ) and the geometric
+slab depth stays on `thicknessFactor` ( `volume_thickness_factor` );
+`geometry_thin_walled` maps to `thicknessFactor = 0`. The pure math the shader
+evaluates ( traversal length, transmittance, blur LOD ) lives in
+`material/transmission.rs` and is native-tested in `openpbr_transmission_test.rs`;
+`openpbr_transmission_shader_test.rs` covers the define gating + GLSL compile of
+all three variants in a browser.
+
+3.3c — **back-surface refraction: implemented, measured, reverted** ( 2026-09 ).
+Worth recording in full, because the result is counter-intuitive and the code is
+cheap to write again.
+
+The exit ray used to be - and once more is - assumed to leave parallel to the
+view, which is what a parallel slab does. Refracting a second time on the way out
+was implemented instead: modelling the body as a sphere of diameter
+`transmissionThickness` makes the exit normal closed-form from the entry normal
+and interior ray alone ( the radius cancels: `normalize( N - 2 ( N . t ) t )` ),
+and one depth sample at the exit point gives the distance to carry the ray along
+the true exit direction. Traced against an analytic two-refraction ball lens
+( sphere, IOR 1.5, background three radii back ) it matched at every sample to
+float precision.
+
+It still looked wrong, and the reason is not the model. A real ball is a
+*wide-angle* instrument: a pixel 80% of the way to the silhouette reads the scene
+1.6 radii off-axis, one at 98% reads 7.7 radii off. All of that is outside the
+frame, so the outer band of every transmissive object fell back to the
+un-refracted pixel - i.e. to whatever sits directly behind it - and the band a
+crystal ball is actually recognised by is precisely what a screen-space capture
+cannot supply. The same happened whenever the exit ray hit the far plane in
+depth: the travel diverged, the tap left the frame, fallback. Optical fidelity
+and a screen-space capture pull in opposite directions here.
+
+So the traversal is now the plain thickness with no angle dependence - the
+three.js / glTF-sample-viewer model - which keeps every tap near the object and
+on-screen, degrades gracefully at the silhouette instead of falling off a cliff,
+and makes an asset look the same here as in the renderers it was authored in.
+`material::traversal_length` carries the three readings and the measurements.
+**The prerequisite for revisiting this is a capture that extends past the frame**
+( a cube-map probe, or a widened capture ), not a better formula.
+
+**Still NOT in 3.3b/c** ( registered below ): second-layer handling
+( transmissive surfaces still cannot see each other ), a real
+per-pixel thickness ( `thicknessTexture` or a backface-depth prepass ), the
+half-resolution transmission target, `transmissionTexture`, transmissive objects
+seeing each other ( the capture holds the opaque pass only ), and dispersion
+(§3.6).
+
+### 3.4 Volume thickness + Beer–Lambert (on top of 3.3)
+- Thickness source: bake/`thicknessTexture`, or render transmissive back faces'
+  depth into a thickness target (leverage existing `doubleSided`/`faceDirection`).
+- `T = attenuationColor^(d / attenuationDistance)` along the refracted ray
+  (corrected IOR path length), combined with the transmission tint.
+
+Status: **landed with 3.3b, browser-UNTESTED (2026-09)** — the absorption half.
+The spec states the interior medium's extinction as `mu_t = -ln( T ) / lambda`
+with `T` = `transmission_color` and `lambda` = `transmission_depth`, i.e. white
+light becomes exactly `T` after travelling `lambda`; the glTF volume carriers
+spell the identical relation as `attenuationColor ^ ( d / attenuationDistance )`,
+so both ingestion lanes land on one function ( `material::transmittance`,
+mirrored by `transmissionTransmittance` in `main.frag`, gated on
+`USE_TRANSMISSION_ABSORPTION` ). `lambda = 0` is the spec's "the interior medium
+is absent" case and keeps the previous behaviour — `transmission_color` as a
+constant multiplicative tint on the refraction. `d` is the slab traversal from
+§3.3b, so the absorption deepens at grazing incidence as it should.
+
+**Where the geometric thickness comes from ( decided 2026-09 ).** OpenPBR has no
+geometric-thickness parameter at all - `transmission_depth` is an absorption
+length scale, not a distance through the object - so a `.mtlx` / `.usda`
+surface authors nothing to offset the refracted ray by. Two readings are
+defensible and the renderer takes the first; the second is recorded here so it
+stays available if we change our minds:
+
+1. **Object-sized slab ( chosen ).** When the material authors no thickness
+   ( `Material::transmission_thickness_authored` is false, i.e. no glTF
+   `KHR_materials_volume` carrier ), `transmission_draw` overrides the
+   `transmissionThickness` uniform per draw with the smallest world-space
+   bounding-box extent of the primitive
+   ( `material::fallback_slab_thickness` ). Refraction becomes scale-invariant :
+   the previous fixed `0.5` world-unit fallback was thicker than the whole
+   scene once the viewer normalised it to a unit bounding box, so the refracted
+   tap landed on unrelated geometry. The *smallest* extent is the shortest way
+   through the object - exact for a pane, an over-estimate of the average chord
+   for a sphere, and modest enough either way for a screen-space offset.
+2. **Thin-walled.** glTF says a material without `KHR_materials_volume` has no
+   volume at all, so the strictly spec-faithful reading is no offset and no
+   absorption ( `USE_TRANSMISSION_THIN_WALLED` ). Correct by the letter of both
+   specs, but an unauthored glass ball then stops refracting entirely, which
+   makes the native-content lane look broken rather than approximate. Moving to
+   it means returning `0.0` from `fallback_slab_thickness` unconditionally - its
+   degenerate-extent path already behaves exactly that way.
+
+Open here: the thickness is still one number per drawn primitive rather than a
+per-pixel distance from a backface-depth prepass or a `thicknessTexture`; and
+`transmission_scatter` / `transmission_scatter_anisotropy`
+( `mu_s = S / lambda`, `mu_a = mu_t - mu_s` ) are parsed but not evaluated —
+in-scattering needs §3.5's diffusion pass.
+
+### 3.5 Subsurface / diffuse transmission (on top of 3.3)
+- Screen-space (or texture-space) diffusion profile over scattered irradiance,
+  per-RGB `subsurface_radius`/`radius_scale` (Burley profile). Compose
+  `diffuseTransmission` as the diffuse BTDF under the volume surface.
+
+Status: **diffuse-transmission half landed, browser-UNTESTED (2026-09); the
+diffusion half still open.** §3.5 splits cleanly in two and only one half needs
+a new pass.
+
+The **thin-walled** case is a BRDF-level change and is done. A sheet with no
+interior to diffuse through scatters light straight out the far side, which is
+exactly `KHR_materials_diffuse_transmission`, so OpenPBR `subsurface_weight` /
+`subsurface_color` map onto that carrier when `geometry_thin_walled` is set.
+Behind `USE_DIFFUSE_TRANSMISSION` the diffuse lobe is *split* rather than
+extended - the transmitted share is taken out of the reflected one, so a fully
+translucent sheet reflects nothing diffusely and an opaque one is untouched -
+and the transmitted half is Lambertian about the flipped normal. Two
+consequences worth naming: the light loops stop skipping back-facing lights,
+since a translucent surface is lit by what is behind it ( the reflective terms
+zero themselves there anyway, their `dotNL` being clamped at 0 ), and the IBL
+path reads the irradiance probe along `-N`. The lobe is plain `1 / pi` rather
+than the Burley term the reflected share uses, because the extension specifies
+a Lambertian BTDF and Burley’s retro-reflection has no meaning for light
+leaving the far side.
+
+The **thick** case is what remains, and it is the part that needs the pass: a
+screen-space or texture-space diffusion profile over scattered irradiance with
+per-RGB `subsurface_radius` / `subsurface_radius_scale` ( Burley ). A thick
+subsurface surface is deliberately left *unmapped* rather than approximated by
+the diffuse-transmission lobe - that lobe puts the light straight out the back,
+which is not what a solid volume does with it, so borrowing it would make skin
+and marble look like paper. `subsurface_scatter_anisotropy` rides with it.
+
+### 3.6 Dispersion (on top of 3.3)
+- Per-channel IOR from Abbe (`20/Vd`, default 20), 3 transmission samples
+  (R/G/B) — the transmission pass executed per channel, or an analytic
+  approximation.
+
+Status: **landed, browser-UNTESTED (2026-09)**. The Abbe number runs backwards
+to the effect — it is the refractive power divided by the spread between the F
+and C Fraunhofer lines, so a *high* `Vd` means a *low* spread. The glTF
+`KHR_materials_dispersion` carrier wants the spread itself, normalised so that
+`1.0` is an Abbe number of 20, hence `dispersion = scale * 20 / Vd`
+( `material::dispersion_from_abbe` ); crown glass at `Vd = 64` arrives as
+`0.3125`. `material::dispersion_iors` spreads the base index into the R/G/B
+triple by `( ior - 1 ) * 0.025 * dispersion`, red refracted least and blue most.
+That `0.025` is the carrier’s own `1 / ( 2 * 20 )`, not a fudge factor:
+substituting `dispersion = 20 / Vd` recovers the optical half-spread
+`( n_d - 1 ) / ( 2 Vd )`, so the shader and the spec agree by construction.
+
+The tap, occluder rejection included, is factored into the shader’s
+`transmissionRefractedUv` so the dispersive and plain paths share one
+implementation; `USE_TRANSMISSION_DISPERSION` runs it three times and keeps one
+channel of each. Every index is floored just above 1 — the refraction uses
+`1 / ior` as its eta and a medium thinner than air would bend the ray the wrong
+way, which a wide spread on a low IOR would otherwise produce.
+
+Open here: it costs three taps on dispersive pixels, where an analytic
+approximation or a two-tap variant would cost less; and a thin-walled shell is
+excluded entirely, since it has no refraction offset for the spread to act on.
+
+### 3.7 Kulla–Conty multi-scatter energy compensation (LUT)
+Single-scatter GGX loses energy on rough surfaces (light bouncing between
+microfacets is uncounted); the current code only applies the Fdez-Agüera /
+three.js approximation to IBL (§1.2). Implement the spec-sanctioned Kulla–Conty
+compensation (OpenPBR spec § Microfacet model cites Kulla 2017):
+
+- **Background**: Kulla & Conty, *Revisiting Physically Based Shading at
+  Imageworks*, SIGGRAPH 2017 course
+  ( <https://blog.selfshadow.com/publications/s2017-shading-course/> ); real-time
+  adaptation: Fdez-Agüera, *A Multiple-Scattering Microfacet Model for Real-Time
+  Image Based Lighting*, JCGT 8(1):3
+  ( <https://jcgt.org/published/0008/01/03/> ).
+- **Data**: directional-albedo LUT `E(μ, α)` (2D) and hemisphere average
+  `E_avg(α)` (store as a second channel / row) — precompute once at startup
+  exactly like the existing `integrateBRDF` (no closed form for GGX). Both are
+  Fresnel-free; color is applied analytically at runtime.
+- **Application**: `f_ms = (1−E(μ_o))·(1−E(μ_i)) / (π(1−E_avg))` added to
+  `f_single`; per-bounce average-Fresnel weighting for tinted (metal) surfaces.
+  Compensates **both** direct punctual lights (sample `E(μ_o)` once, `E(μ_i)`
+  per light) and IBL — replacing the IBL-only approximation. New sampler
+  uniform + texture unit (headroom 13–15).
+- **Independent** of §3.1–3.6 — can land anytime, benefits rough metals /
+  dielectrics immediately.
+
+Status: **landed for direct lights** — `loaders::kulla_conty` generates
+`E(μ,α)`/`E_avg` (GGX VNDF importance sampling, native-tested), the `Renderer`
+binds the LUT to `USE_OPENPBR` programs (`USE_KULLA_CONTY`), and `main.frag`
+adds `f_ms = (1−E(μ_o))·(1−E(μ_i))/(π(1−E_avg))` Fresnel-averaged per direct
+light. IBL keeps its existing Fdez-Agüera split-sum compensation (also a
+multi-scatter approximation); unifying IBL onto this LUT is a possible follow-up.
+
+### Sequencing
+1. 3.7 Kulla–Conty LUT is independent — land before/along 3.1–3.6 (energy
+   correctness is a prerequisite for meaningful visual comparisons).
+2. 3.1 textured carriers + 3.2 iridescence (no new passes).
+3. 3.3 transmission pass → unblocks 3.4 volume and 3.6 dispersion.
+4. 3.5 subsurface (diffusion pass) last.
+
+The §2 native-format workstream (N1–N4) is parallel and off-GPU; its
+`OpenPbrSurface` output feeds the same material/shader path these passes consume.
+
+Optional structural note: once the transmission pass lands, graduate the
+`USE_OPENPBR`-guarded blocks in `main.frag` into a dedicated `OpenPbrMaterial`
++ shader if the define-count/`main()` complexity warrants it.
+
+---
+
+## 4. Testing plan
+
+### 4.1 Native / unit (no GPU)
+- Extend `gltf_material_extensions_test.rs` for texture-carrier parsing once 3.1
+  lands (index/texCoord/default semantics).
+- Add `.mtlx` / `.usda` parse fixtures (embedded + vendored ASWF `open_pbr_*.mtlx`
+  samples) once N2/N3 land, plus **cross-format equivalence**: the same material
+  authored as `.mtlx`, `.usda`, and glTF `KHR_materials_*` must yield one
+  `OpenPbrSurface`.
+- Lift the pure math out of the shader into Rust where cheap (roughness→`αt/αb`
+  mapping, Schlick dielectric F0, Beer–Lambert) and native-test it — same
+  off-GPU pattern as `attribute_descriptor_make` / `required_extensions_check`.
+- Unit-test the Kulla–Conty LUT generator once §3.7 lands: `E(μ, α) ∈ [0, 1]`,
+  `E_avg(α)` monotonic in α, and a white-furnace (`∫ BRDF ≤ 1`) converging to
+  1 with compensation applied (direct and IBL).
+
+### 4.2 Shader compile (headless browser, CI-only)
+- Add `USE_OPENPBR` (and later per-lobe define) compile cases to
+  `clearcoat_anisotropy_shader_tests.rs` / `legacy_glsl_shader_compile_test.rs`.
+  These run via `cargo test --target wasm32-unknown-unknown` (browser driver) —
+  the environment here cannot run them locally, so treat CI as the gate.
+
+### 4.3 Visual / pixel (browser)
+- One `examples/minwebgl/*` per lobe (or one combined viewer) rendering the
+  sample assets below; verify via the repo's `browsee` pixel-verification flow
+  (see prior tasks e.g. 191/197/251).
+
+### 4.4 Reference models & visual comparison
+
+OpenPBR has **no official glTF export**, so compare in tiers; once the §2 native
+lane (N2/N3) lands, `.mtlx`/`.usda` are also importable for direct round-trips:
+
+**glTF transport correctness** — Khronos `glTF-Sample-Assets`
+( <https://github.com/KhronosGroup/glTF-Sample-Assets> , `Models/`). These are
+the canonical `KHR_materials_*` test assets; each folder ships a `screenshot/`
+reference image. Purpose-built side-by-side grids exist exactly for
+golden/comparison checks:
+
+- `CompareIridescence`, `CompareSheen`, `CompareTransmission`, `CompareVolume`,
+  `CompareDispersion`, `CompareAnisotropy`, `CompareEmissiveStrength`,
+  `CompareClearcoat`.
+- Iridescence: `IridescenceLamp`, `IridescenceSuzanne`, `IridescenceAbalone`,
+  `IridescenceMetallicSpheres`, `IridescenceDielectricSpheres`,
+  `IridescentDishWithOlives`.
+- Sheen/fuzz: `SheenChair`, `SheenCloth`, `SheenTestGrid`, `GlamVelvetSofa`,
+  `SheenWoodLeatherSofa`.
+- Transmission/volume: `TransmissionTest`, `TransmissionRoughnessTest`,
+  `TransmissionOrderTest`, `TransmissionThinwallTestGrid`, `AttenuationTest`,
+  `DragonAttenuation`, `GlassVaseFlowers`, `StainedGlassLamp`,
+  `SunglassesKhronos`.
+- Dispersion: `DispersionTest`, `DragonDispersion`.
+- Diffuse transmission: `DiffuseTransmissionTest`, `DiffuseTransmissionPlant`,
+  `DiffuseTransmissionTeacup`.
+- Anisotropy: `CarbonFibre`, `AnisotropyStrengthTest`, `AnisotropyRotationTest`,
+  `AnisotropyBarnLamp`.
+- Emissive strength: `EmissiveStrengthTest`.
+
+**OpenPBR ground truth** (the model itself, not the glTF subset) —
+`AcademySoftwareFoundation/OpenPBR` repo ships `examples/open_pbr_*.mtlx`
+(~100 materials: metals, dielectrics, glass, skin, cloth, velvet) plus the
+`reference/open_pbr_surface.mtlx` implementation. Before N2 these render offline
+for comparison; after N2 they are native import fixtures too:
+
+- **Ideal offline reference**: Arnold (Autodesk, the OpenPBR reference renderer),
+  Adobe Substance 3D, MaterialX Viewer, or NVIDIA Omniverse's OpenPBR material.
+- **Ideal real-time reference**: Khronos `glTF-Sample-Viewer`
+  ( <https://github.com/KhronosGroup/glTF-Sample-Viewer> ) — the canonical
+  implementation of the `KHR_materials_*` extensions — and three.js examples
+  (`webgl_materials_transmission`, `webgl_materials_sheen`,
+  `webgl_loader_gltf_iridescence`, `webgl_materials_physical*`).
+- **USD/MaterialX content libraries**: the Omniverse OpenPBR material library
+  and Physically Based `.mtlx` libraries — consumed directly by N2/N3 or through
+  the N4 offline converter for the browser path.
+
+Workflow: per lobe, load the glTF-Sample-Assets model in this renderer
+side-by-side with the Sample Viewer (real-time parity) and its `screenshot/`
+reference; for pure-OpenPBR parity, import/render the matching `.mtlx`/`.usda`
+(the renderer once N2/N3 land; otherwise Arnold) and eyeball the same
+camera/lighting.
+
+---
+
+## 5. Definition of done (per phase)
+
+- Loader phase: every listed carrier read + native-tested + docs in sync.
+- Native-format lane (N1–N4): `OpenPbrSurface` canonical type in place; `.mtlx`
+  and text `.usda` subset readers converge fixtures + cross-format equivalence to
+  one `OpenPbrSurface`; runtime-vs-offline split recorded in an ADR; `.usdc`/
+  `.usdz` and full USD/MaterialX runtimes explicitly out of scope for wasm, with
+  the N4 converter path as the documented route for such content.
+- Shading (opaque): `USE_OPENPBR` compiles in CI, energy conservation holds
+  (white-furnace spot check), no regression for extension-free assets.
+- Transmission phase: refractive sample matches Sample Viewer + `screenshot/`
+  within tolerance; volume Beer–Lambert verified on `DragonAttenuation`.
+- Subsurface phase: diffusion radius matches profile; `DiffuseTransmission*`
+  assets match reference.
+- Final: the whole OpenPBR carrier set renders on `Compare*` grids within the
+  real-time reference's tolerance, with energy + numerical-stability spot checks
+  (roughness 0, grazing angles, `NoV→0`/`NoL→0`). §3.7 closes the direct-light
+  energy gap: white-furnace total ≈ 1 for rough white surfaces, and rough-metal
+  brightness/saturation matches offline Arnold renders of the ASWF metal `.mtlx`
+  (gold/copper) rather than reading too dark.
+
+---
+
+## 6. Deferred / skipped — register (do not lose)
+
+Work consciously set aside during the current pass. Revisit when the item's
+prerequisite (named in brackets) is in place.
+
+### Spec-fidelity audit of the shipped lobes ( 2026-09 )
+
+Read against the ASWF spec while landing 3.3b. Two defects were fixed in place
+( see the changelog: the coat's doubled Fresnel factor, and thin-film
+interference evaluated at `N.V` instead of `V.H` ); the rest are conscious
+approximations, listed so they are not re-derived every time a render looks off.
+
+- **Matches the spec.** The roughness-to-alpha mapping
+  ( `alpha = r^2`; anisotropic `alpha_t = r^2 sqrt( 2 / ( 1 + ( 1 - a )^2 ) )`,
+  `alpha_b = ( 1 - a ) alpha_t` ), the dielectric Fresnel
+  `F_s = |( 1 - ior ) / ( 1 + ior )|^2`, the Beer's-law extinction
+  `mu_t = -ln( T ) / lambda` and its `lambda = 0` constant-tint degenerate case,
+  and the thin-film thickness unit conversion ( spec micrometres -> glTF-carrier
+  nanometres ) all follow the spec's own equations.
+- **`specular_weight` — closed as equivalent ( 2026-09 ), no code change.** The
+  spec adjusts the index of refraction rather than the reflectance:
+  `eps = sgn( eta - 1 ) sqrt( xi F_s )`, `eta’ = ( 1 + eps ) / ( 1 - eps )`. That
+  reads as a different model from the shader’s `F0 *= xi`, and this bullet
+  carried it as a fidelity gap for that reason. It is not one. Substituting
+  gives `( 1 - eta’ ) / ( 1 + eta’ ) = -eps`, so
+  `F0’ = eps^2 = xi F_s` — exactly, for every `eta` and every `xi`. Since the
+  shader’s Fresnel is parameterised by `( F0, F90 = 1 )`, the factor form *is*
+  the adjusted-IOR curve. The residual difference is Schlick versus the exact
+  dielectric Fresnel at mid angles, which is a universal approximation and has
+  nothing to do with `specular_weight`. Pinned by
+  `tests/openpbr_specular_weight_test.rs`, which implements both constructions
+  and asserts they agree, so the equivalence is not re-litigated and nobody
+  "fixes" the shader by adding a redundant adjusted-IOR path.
+- **Fuzz uses the glTF sheen model, not the spec's microflake one.** OpenPBR
+  specifies a volumetric microflake sheen ( Heitz 2015 lineage, i.e. the
+  Zeltner et al. practical model ); the shader evaluates `KHR_materials_sheen`'s
+  Charlie NDF + Ashikhmin-Premoze visibility. Two further gaps ride along:
+  the roughness-to-alpha mapping is now the reference one ( `alpha = r^2`,
+  floored at `FUZZ_ALPHA_MIN = 0.02` so the Charlie NDF’s `1 / alpha` exponent
+  cannot collapse the rim into a sub-pixel spike; the floor bites below an
+  authored roughness of about 0.14 ). It used to pass the roughness straight
+  through as alpha, which made the lobe far wider than the reference at the
+  same authored value and flattened the grazing rim across the upper half of
+  the range. The **albedo scaling is
+  now closed** ( 2026-09 ): `loaders::sheen_albedo` integrates the lobe’s
+  directional albedo `E( mu, alpha )` off-GPU with the same Charlie / Ashikhmin
+  pair and the same 0.1 floor the shader uses, the renderer binds it as a LUT
+  ( `USE_SHEEN_ALBEDO`, unit 25 ), and `main.frag` scales the substrate by
+  `1 - max3( fuzz_color ) * E( NoV, alpha )` before adding the lobe - the glTF
+  spelling of the spec’s `layer( base, fuzz, w )`. The environment fuzz term is
+  scaled by the same `E`, so the layer adds exactly what the scaling removes.
+  The LUT is optional; without it the renderer keeps the older additive
+  behaviour. Still open: the microflake model itself, and the `E` table is
+  clamped to `[ 0, 1 ]` because the Ashikhmin visibility fit integrates to
+  marginally above one at exact grazing.
+- **Thin film under IBL — closed ( 2026-09 ).** `sampleEnvIrradiance` now
+  substitutes the interference reflectance for the substrate F0 in the
+  split-sum, evaluated at `dot( N, V )`. That is the same choice the direct
+  paths make with `dot( V, H )`, not a different one: the split-sum gathers its
+  prefiltered reflection about `R = reflect( -V, N )`, whose reflecting
+  microfacet is `N`, so the two cosines coincide. `Favg` follows the
+  substituted F0 so the multi-scatter term carries the same tint as the
+  single-scatter one; `f90` stays the substrate’s, since at grazing the
+  interference washes out towards total reflection. The design question that
+  was open here resolves rather than disappears: a prefiltered environment is
+  one RGB radiance sample per pixel, so the film can only tint it per channel,
+  and `evalIridescence` returns exactly such a tint. Interference against the
+  environment’s real spectrum would need a spectrum the prefiltered map has
+  already integrated away - that needs a different environment representation,
+  not a different formula.
+- **Kulla-Conty — closed ( 2026-09 ).** Three things were wrong here and all
+  three are fixed. `f_ms` was weighted by a single `F_avg` rather than the
+  per-bounce series `F_avg^2 E_avg / ( 1 - F_avg ( 1 - E_avg ) )`, which
+  over-brightened the term and washed the tint out of coloured rough metals
+  ( `kulla_fms`, `loaders::kulla_conty::multi_scatter_fresnel` ). The table was
+  indexed by `material.roughness`, which is not the effective roughness of an
+  anisotropic surface; it is now indexed by the isotropic lobe of equal
+  projected slope area, `( alpha_t * alpha_b ) ^ ( 1 / 4 )`
+  ( `kulla_roughness`, `loaders::kulla_conty::effective_roughness`, which
+  recovers `r` exactly for an isotropic surface and is therefore applied
+  unconditionally ). And the IBL term rode the older Fdez-Agüera split-sum while
+  the direct lights used the table, so one surface compensated two different
+  ways depending on what lit it; `sampleEnvIrradiance` now reads `E` and
+  `E_avg` from the same table and weights them with the same series.
+  `FssEss` deliberately keeps the split-sum DFG pair : that answers how to split
+  the reflectance between `F0` and `F90`, a question the Kulla-Conty table does
+  not, while the table answers the white BRDF’s directional albedo, which is
+  exactly what the compensation needs. Without an uploaded table the shader
+  falls back to the Fdez-Agüera form, so the LUT stays optional.
+  Remaining, and a perf note rather than a correctness gap: the compensation is
+  applied whenever `USE_OPENPBR` is on rather than gated on roughness — it costs
+  a lookup on smooth surfaces, where the term vanishes on its own as `E -> 1`.
+- **Direct specular grazing fade — removed ( 2026-09 ).** Sub-pixel highlight
+  aliasing had four mitigations layered on it. Three preserve energy: the
+  Smith-visibility clamp that kills `1/0` fireflies, a minimum-roughness floor
+  that keeps lobes a few pixels wide, and Tokuyoshi & Kaplanyan GSAA, which
+  widens roughness from the screen-space normal variance. The fourth multiplied
+  direct specular by `smoothstep( 0, 0.25, dot( N, V ) )`, which fixed the
+  symptom by deleting the grazing rim outright — a visible darkening at every
+  silhouette and a departure from every reference renderer. It predated GSAA,
+  which addresses the same aliasing properly, so it is gone. Residual
+  single-pixel sparkle is accepted; removing sub-pixel highlights at the source
+  needs a soft area light, not a post-fade.
+
+### Formats & ingestion
+- **Full `openusd` Stage reader (N3 full)** — **mostly done**: the scene slice
+  reads real composed USD via `openusd` + `openusd-schemas` ( `native-formats`
+  feature ), and both material lanes work — `UsdPreviewSurface` and the native
+  `.mtlx`-bound `Material` ( references read from `references` metadata, the
+  asset fetched through `UsdAssetProvider`, parsed by N2 `openpbr_surfaces_from_mtlx`,
+  captured as `UsdMaterialData::surface` ). Still missing: inline/embedded
+  MaterialX nodegraphs authored as USD shader primitives. Wasm spike passed (§2.2).
+- **`usd_scene_load` GL half: browser-verified (2026-09)** — the viewer's USD
+  mode (six-object set scene) ran through composition → triangulation → both
+  material lanes → VAO/`Scene` and looked correct after three runtime-caught
+  fixes (changelog Fixed: interpolation Token, xformOp-in-metadata, quad counts),
+  each regression-guarded natively. The `usd_scene_load_http` fetch path itself
+  still rides embedded strings in the viewer; a served-files run (trunk
+  `copy-dir` + real URLs) would close that last gap.
+- **USD textures** — `UsdUVTexture` inputs surface in
+  `shade::Channel::Texture( path )` today but are ignored by
+  `usd_preview_surface_to_material`; routing them into `PbrMaterial`
+  `TextureInfo` slots ( with the browser resolver feed for image bytes ) is
+  open.
+- **USD scene metadata / extras** — `metersPerUnit` scaling, non-`Y` `upAxis`
+  flip, `def`-group prims carrying `xformOp:*` ( untyped groups contribute
+  identity — author scenes as `def Xform` ), analytic gprims ( `Cube`/`Sphere`
+  … not tessellated ), subdivision-surface meshes ( coarse cage only ),
+  instancing ( `PointInstancer` / instanceable prototypes ) and cameras /
+  lights are all unhandled.
+- **`mtlx_target` prim selection** — both the N3-lite resolver and the USD scene
+  lane read the `</…>` target path, but the loader still takes the *first*
+  `open_pbr_surface` in the referenced `.mtlx` (doc order) rather than selecting
+  the surface named by that target. Affects multi-surface `.mtlx` only ( the
+  OpenPBR corpora use one surface per file, so it is latent ).
+- **`.usdc` / `.usdz` runtime** — binary layers and USDZ archives are handled by
+  `openusd` through the same `UsdInMemoryResolver` feed ( `ar::Asset` is seekable
+  `Cursor< Vec< u8 > >` ), but only `.usda` text fixtures are exercised in tests;
+  real binary/USDZ assets need a browser run to confirm ( [Prereq: viewer glue] ).
+- **N4 authoring converter** — glTF+`KHR_materials_*` export (with the private
+  `OPENPBR_materials` JSON extension for non-KHR parameters) for DCC round-trips.
+
+### Shading / pipeline (from §3)
+- **Texture maps for the lobes** (§3.1) — sheen color/roughness + iridescence
+  weight landed 2026-09 ( browser verification pending ). Still deferred:
+  `transmissionTexture`, `thicknessTexture`, `iridescenceThicknessTexture`,
+  diffuse-transmission textures; also `geometry_normal`/`coat`/`tangent` map
+  inputs encountered in real `.mtlx` are skipped today (kept at defaults).
+- **Transmission 3.3c+** — 3.3a ( pass ) and 3.3b ( blur, depth rejection,
+  Beer–Lambert, thin-walled, Fresnel split ) landed; 3.3c ( back-surface
+  refraction ) was implemented and reverted - see the §3.3 / §3.4 status blocks,
+  it needs a capture wider than the frame to be worth having. Open : second-layer
+  handling, backface depth, per-pixel thickness from a backface-depth
+  prepass or a `thicknessTexture` ( the per-primitive object-sized fallback
+  landed, see §3.4 ), true parallax ray-marching against the
+  captured depth instead of the current occluder *rejection*, transmissive
+  surfaces seeing each other ( the capture holds the opaque pass only, so glass
+  behind glass reads as background ), half-resolution transmission target ( the
+  three.js bandwidth trick ), per-material `transmissionTexture` map, and
+  `transmission_scatter` in-scattering.
+- **Thin-film iridescence** (§3.2) and **dispersion** (§3.6) **landed**;
+  **§3.5** — the diffuse-transmission ( thin-walled ) half landed, the
+  diffusion ( thick ) half still needs its own pass, as described in that
+  section.
+- **Kulla–Conty LUT** (§3.7) — **landed for direct lights and IBL**, weighted by
+  the per-bounce Fresnel series and indexed by the anisotropic effective
+  roughness. Open: gate the compensation on actual roughness rather than
+  always-on for `USE_OPENPBR` — a lookup saved on smooth surfaces, not a
+  correctness gap.
+- **Thin-film on mirror metals** — per the reference model, a film on a
+  near-perfect mirror ( gold f0 ≈ 0.93 ) collapses to `F_s ≈ 1` with no
+  visible color ( interference `Cm` terms cancel ). Faithful to Khronos;
+  departing from it ( tinted film over metal ) is an open shader-design item.
+- **Emission luminance** — glTF/KHR has no photometric carrier, so
+  `emission_luminance` is not mapped from glTF (OpenPBR spec default kept);
+  `KHR_materials_emissive_strength` only scales existing emission.
+- **Colour-space metadata** — `.mtlx` `colorspace="acescg"`/`lin_rec709`/
+  `Raw` attributes are parsed-and-ignored; no gamut conversion is applied
+  (values pass through as authored).
+- **OpenPBR lobes beyond the current shader subset** — the `USE_OPENPBR` shader
+  consumes glTF-shaped factors (base/MR + ior + fuzz + coat + emissive strength);
+  `OpenPbrSurface` fields without a glTF-shaped sink (subsurface, transmission
+  depth/scatter, thin-film, dispersion, `coat_darkening`, `base_diffuse_roughness`,
+  `geometry_thin_walled`) are parsed/stored but not yet evaluated.
+
+### Runtime / consumption
+- **`OpenPbrSurface → PbrMaterial` runtime mapping — DONE**:
+  `openpbr_to_runtime` (pure reduction, `tests/openpbr_runtime_mapping_test.rs`)
+  + `PbrMaterial::openpbr_surface_apply`, so a surface loaded from `.mtlx`/
+  `.usda` can render through the existing `USE_OPENPBR` path. **Still open**: a
+  browser-visible example/loader that brings a real geometry + material onto
+  the screen (asset or procedural-geometry decision pending).
+- **Browser/CI shader + visual gates** — `USE_OPENPBR` compile cases and
+  `browsee` pixel checks are not runnable in this environment; CI is the gate.

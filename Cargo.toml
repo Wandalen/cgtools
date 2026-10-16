@@ -527,6 +527,16 @@ version = "0.6.5"
 [workspace.dependencies.quick-xml]
 version = "0.41"
 
+# Pure-Rust USD ( .usda / .usdc / .usdz ) reader + typed schema views, powering
+# the OpenPBR adoption plan's USD scene lane ( `renderer` feature `native-formats` ).
+# < https://github.com/mxpv/openusd > ; sub-1.0, no API stability promises.
+[workspace.dependencies.openusd]
+version = "0.7"
+
+[workspace.dependencies.openusd-schemas]
+version = "0.7"
+features = [ "geom", "shade" ]
+
 [workspace.dependencies.serde_json]
 version = "1.0.151"
 

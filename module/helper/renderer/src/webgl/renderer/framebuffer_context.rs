@@ -47,6 +47,18 @@ mod private
     pub transparent_accumulate_texture : Option< gl::web_sys::WebGlTexture >,
     /// The 2D texture that calculates total revealage during blending pass.
     pub transparent_revealage_texture : Option< gl::web_sys::WebGlTexture >,
+    /// Transmission target color : a non-multisampled copy of the resolved
+    /// opaque scene image ( color attachment 0 + skybox ), captured after the
+    /// opaque pass so transmissive materials can sample "the scene behind them"
+    /// ( OpenPBR adoption plan §3.3 ). Screen-space; linear filtering for the
+    /// refracted offset fetch.
+    pub transmission_color_texture : Option< gl::web_sys::WebGlTexture >,
+    /// Transmission target depth ( DEPTH24_STENCIL8 sampled as `sampler2D`,
+    /// `.r` in [0, 1 ] ), for the depth-guided parallax correction of the
+    /// refracted sample. Nearest filtering ( depth textures are unfilterable ).
+    pub transmission_depth_texture : Option< gl::web_sys::WebGlTexture >,
+    /// FBO the opaque MSAA buffers are resolved into for the transmission pass.
+    pub transmission_framebuffer : Option< gl::web_sys::WebGlFramebuffer >,
     /// The depth-stencil renderbuffer attached to the resolved framebuffer.
     #[ allow( dead_code, reason = "never read back after attachment; held so the GPU resource outlives the framebuffer" ) ]
     pub depth_renderbuffer : Option< gl::web_sys::WebGlRenderbuffer >,
@@ -94,6 +106,49 @@ mod private
     texture
   }
 
+  /// Creates a 2D texture with a full mip chain, trilinear minification and
+  /// clamped wrap - the transmission target's color attachment, whose coarser
+  /// levels stand in for the roughness blur of a refracted ray ( adoption plan
+  /// §3.3b ). Only level 0 is ever rendered/blitted into; the rest are filled by
+  /// `generate_mipmap` in `transmission_capture`.
+  fn texture_2d_mipped_create
+  (
+    gl : &gl::WebGl2RenderingContext,
+    format : u32,
+    width : u32,
+    height : u32
+  )
+  -> Option< gl::web_sys::WebGlTexture >
+  {
+    let texture = gl.create_texture();
+    gl.bind_texture( gl::TEXTURE_2D, texture.as_ref() );
+    let levels = gl::texture::d2::mip_levels_for_dimensions( width, height );
+    gl.tex_storage_2d( gl::TEXTURE_2D, levels as i32, format, width as i32, height as i32 );
+    gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
+    gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
+    gl::texture::d2::wrap_clamp( gl );
+    texture
+  }
+
+  /// Creates a depth/stencil texture ( `DEPTH24_STENCIL8` ) with the nearest
+  /// filtering depth sampling requires, for the transmission target's
+  /// occluder-rejection test.
+  fn depth_texture_create
+  (
+    gl : &gl::WebGl2RenderingContext,
+    width : u32,
+    height : u32
+  )
+  -> Option< gl::web_sys::WebGlTexture >
+  {
+    let texture = gl.create_texture();
+    gl.bind_texture( gl::TEXTURE_2D, texture.as_ref() );
+    gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::DEPTH24_STENCIL8, width as i32, height as i32 );
+    gl::texture::d2::filter_nearest( gl );
+    gl::texture::d2::wrap_clamp( gl );
+    texture
+  }
+
   impl FramebufferContext
   {
     /// Creates a new `FramebufferContext` instance, initializing all necessary
@@ -137,6 +192,16 @@ mod private
       let emission_texture = texture_2d_create( gl, gl::RGBA16F, width, height );
       let transparent_accumulate_texture = texture_2d_create( gl, gl::RGBA16F, width, height );
       let transparent_revealage_texture = texture_2d_create( gl, gl::R16F, width, height );
+
+      // Transmission target ( §3.3 ) : non-multisampled copies of the opaque
+      // color + depth, captured mid-frame for transmissive materials to sample.
+      let transmission_framebuffer = gl.create_framebuffer();
+      let transmission_color_texture = texture_2d_mipped_create( gl, gl::RGBA16F, width, height );
+      let transmission_depth_texture = depth_texture_create( gl, width, height );
+      gl.bind_framebuffer( gl::FRAMEBUFFER, transmission_framebuffer.as_ref() );
+      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, transmission_color_texture.as_ref(), 0 );
+      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::DEPTH_STENCIL_ATTACHMENT, gl::TEXTURE_2D, transmission_depth_texture.as_ref(), 0 );
+      gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
 
       // --- Attach Renderbuffers to Multisample Framebuffer ---
       // Bind the multisample framebuffer to configure its attachments.
@@ -188,6 +253,9 @@ mod private
         transparent_accumulate_texture,
         transparent_revealage_texture,
         depth_renderbuffer,
+        transmission_framebuffer,
+        transmission_color_texture,
+        transmission_depth_texture,
       }
     }
 
@@ -266,6 +334,57 @@ mod private
       gl.bind_framebuffer( gl::DRAW_FRAMEBUFFER, None );
       self.multisample_unbind( gl );
       self.resolved_unbind( gl );
+    }
+
+    /// Captures the current opaque-scene image + depth from the multisample
+    /// framebuffer into the transmission target ( §3.3 ). Called after the
+    /// opaque pass and before the transmission pass, so transmissive materials
+    /// can sample "the scene behind them" screen-space, with depth-guided
+    /// parallax. Restores the multisample FBO binding afterwards.
+    pub fn transmission_capture( &self, gl : &gl::WebGl2RenderingContext )
+    {
+      gl.bind_framebuffer( gl::READ_FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
+      gl.bind_framebuffer( gl::DRAW_FRAMEBUFFER, self.transmission_framebuffer.as_ref() );
+
+      // Depth/stencil first ( nearest, format-matched DEPTH24_STENCIL8 resolve ),
+      // then the MSAA color resolve into the sampleable RGBA16F texture. The
+      // destination defaults are the right blit targets ( depth attachment /
+      // COLOR_ATTACHMENT0 ), so no draw-buffer selection is needed.
+      //
+      // No `read_buffer` call guards the depth blit : `readBuffer` selects the
+      // *color* source and only accepts `BACK`, `NONE` or `COLOR_ATTACHMENT<i>`,
+      // so naming `DEPTH_STENCIL` there raised `INVALID_ENUM` every frame. The
+      // depth/stencil blit reads the read-framebuffer's depth attachment
+      // implicitly and needs no selection at all.
+      gl.blit_framebuffer
+      (
+        0, 0, self.texture_width as i32, self.texture_height as i32,
+        0, 0, self.texture_width as i32, self.texture_height as i32,
+        gl::DEPTH_BUFFER_BIT | gl::STENCIL_BUFFER_BIT, gl::NEAREST
+      );
+
+      gl.read_buffer( gl::COLOR_ATTACHMENT0 );
+      gl.blit_framebuffer
+      (
+        0, 0, self.texture_width as i32, self.texture_height as i32,
+        0, 0, self.texture_width as i32, self.texture_height as i32,
+        gl::COLOR_BUFFER_BIT, gl::LINEAR
+      );
+
+      gl.bind_framebuffer( gl::READ_FRAMEBUFFER, None );
+      gl.bind_framebuffer( gl::DRAW_FRAMEBUFFER, None );
+
+      // Filter the freshly captured level 0 down the chain : the transmission
+      // shader reads a coarser level the rougher the surface is ( §3.3b ), which
+      // is what stands in for a multi-tap blur of the refracted ray. `RGBA16F`
+      // is both color-renderable ( via `EXT_color_buffer_float`, which this
+      // crate already requires ) and texture-filterable in core WebGL2, so
+      // `generate_mipmap` is legal on it - unlike `RGBA32F`.
+      gl.bind_texture( gl::TEXTURE_2D, self.transmission_color_texture.as_ref() );
+      gl.generate_mipmap( gl::TEXTURE_2D );
+      gl.bind_texture( gl::TEXTURE_2D, None );
+
+      self.multisample_bind( gl );
     }
 
     /// Clears the resolved transparent targets to their empty state : revealage 1, no
@@ -355,6 +474,9 @@ mod private
       gl.delete_texture( self.emission_texture.as_ref() );
       gl.delete_texture( self.transparent_accumulate_texture.as_ref() );
       gl.delete_texture( self.transparent_revealage_texture.as_ref() );
+      gl.delete_framebuffer( self.transmission_framebuffer.as_ref() );
+      gl.delete_texture( self.transmission_color_texture.as_ref() );
+      gl.delete_texture( self.transmission_depth_texture.as_ref() );
     }
   }
 }

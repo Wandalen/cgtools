@@ -33,7 +33,8 @@ mod private
     let load_d2 = async | name, mip_level, texture : Option< &gl::web_sys::WebGlTexture > |
     {
       let file_path = format!( "{path}/{name}.hdr" );
-      hdr_texture::load_to_mip_d2( gl, texture, mip_level, &file_path ).await;
+      // Precomputed maps are consumed in the orientation they were baked in.
+      hdr_texture::load_to_mip_d2( gl, texture, mip_level, &file_path, false ).await;
     };
 
     let diffuse_texture = gl.create_texture();
