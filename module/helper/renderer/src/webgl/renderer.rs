@@ -43,9 +43,21 @@ mod private
   /// A transparent-pass draw-queue entry :
   /// ( node, primitive, primitive index, program UUID ).
   type TransparentNodeEntry = ( Rc< RefCell< Node > >, Rc< RefCell< Primitive > >, usize, uuid::Uuid );
-  /// An opaque-pass draw-queue entry :
-  /// ( node, primitive, primitive index, program UUID, has emission ).
-  type OpaqueNodeEntry = ( Rc< RefCell< Node > >, Rc< RefCell< Primitive > >, usize, uuid::Uuid, bool );
+  /// An opaque-pass draw-queue entry. Named fields, not a tuple: `opaque_draw`
+  /// sorts on two of the flags, and positional access would let a reordered field
+  /// silently swap them.
+  struct OpaqueNodeEntry
+  {
+    node : Rc< RefCell< Node > >,
+    primitive : Rc< RefCell< Primitive > >,
+    primitive_index : usize,
+    program_id : uuid::Uuid,
+    /// The material writes emission, so the draw needs the second draw buffer.
+    has_emission : bool,
+    /// A depth-only occluder ( `Material::is_occluder` ), drawn before everything
+    /// it has to hide.
+    is_occluder : bool,
+  }
 
   /// Manages the rendering process, including program management, IBL setup, and drawing objects in the scene.
   pub struct Renderer
@@ -62,7 +74,7 @@ mod private
     material_program_map : FxHashMap< uuid::Uuid, ( uuid::Uuid, bool ) >,
     /// (node, primitive, primitive_index, program_uuid)
     transparent_nodes : Vec< TransparentNodeEntry >,
-    /// (node, primitive, primitive_index, program_uuid, has_emission)
+    /// (node, primitive, primitive_index, program_uuid, has_emission, is_occluder)
     opaque_nodes : Vec< OpaqueNodeEntry >,
 
     /// Holds the precomputed textures used for Image-Based Lighting.
@@ -591,7 +603,15 @@ mod private
       {
         AlphaMode::Blend
         => self.transparent_nodes.push( ( node.clone(), primitive_rc.clone(), primitive_index, program_uuid ) ),
-        _ => self.opaque_nodes.push( ( node.clone(), primitive_rc.clone(), primitive_index, program_uuid, material.has_emission() ) ),
+        _ => self.opaque_nodes.push( OpaqueNodeEntry
+        {
+          node : node.clone(),
+          primitive : primitive_rc.clone(),
+          primitive_index,
+          program_id : program_uuid,
+          has_emission : material.has_emission(),
+          is_occluder : material.is_occluder(),
+        } ),
       }
 
       Ok( () )
@@ -607,9 +627,9 @@ mod private
     ) -> Result< (), gl::WebglError >
     {
       let mut active_program_ids : FxHashSet< uuid::Uuid > = FxHashSet::default();
-      for ( _, _, _, pid, _ ) in &self.opaque_nodes
+      for entry in &self.opaque_nodes
       {
-        active_program_ids.insert( *pid );
+        active_program_ids.insert( entry.program_id );
       }
       for ( _, _, _, pid ) in &self.transparent_nodes
       {
@@ -641,14 +661,19 @@ mod private
       camera : &Camera
     ) -> Result< (), gl::WebglError >
     {
-      self.opaque_nodes.sort_by_key( | ( _, _, _, pid, has_em ) | ( *has_em, *pid ) );
+      // Occluders (depth-only, no color output) MUST draw before anything they should
+      // hide — a later depth-only draw can't retract color a prior draw already wrote.
+      // Sorting `!is_occluder` first (so occluders land in the `false` bucket) makes
+      // that ordering guaranteed rather than an accident of the has_emission bucketing
+      // below (which is what non-occluder materials still fall back to).
+      self.opaque_nodes.sort_by_key( | e | ( !e.is_occluder, e.has_emission, e.program_id ) );
 
       let mut current_program_id : Option< uuid::Uuid > = None;
       let mut last_material_id : Option< uuid::Uuid > = None;
       let mut current_emission = false;
       gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
 
-      for ( node_rc, primitive_rc, prim_idx, program_id, has_em ) in &self.opaque_nodes
+      for OpaqueNodeEntry { node : node_rc, primitive : primitive_rc, primitive_index : prim_idx, program_id, has_emission : has_em, .. } in &self.opaque_nodes
       {
         let need_emission = self.use_emission && *has_em;
         if need_emission != current_emission
@@ -716,6 +741,10 @@ mod private
       }
 
       gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
+      // The colour mask is per-material state. An occluder drawn last (one with nothing
+      // else in the queue) would leave it off for the skybox, the post-processing passes
+      // and next frame's clear.
+      gl.color_mask( true, true, true, true );
 
       // A sourceless skybox would bind no texture, and the shader would write the
       // unbound sampler's black at alpha 1 over the whole background.
@@ -813,6 +842,7 @@ mod private
         primitive.draw( gl );
       }
 
+      gl.color_mask( true, true, true, true );
       gl.disable( gl::CULL_FACE );
       gl.depth_mask( true );
 

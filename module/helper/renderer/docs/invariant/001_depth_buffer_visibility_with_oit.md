@@ -25,6 +25,13 @@ bucketing, or traversal-order discipline is required for correctness.
 
 - **Opaque path**: standard depth-tested rendering into the multisampled
   HDR color target.
+- **Depth-only occluders**: a material whose `Material::is_occluder` is true
+  writes depth but no colour (an AR occluder standing in for a real object).
+  It is the one opaque case where order would show: a later depth-only draw
+  cannot take back colour an earlier draw already wrote. `Renderer`'s opaque
+  pass therefore sorts on `!is_occluder` first, so every occluder draws before
+  the colour-writing geometry it has to hide, whatever order the scene lists
+  them in.
 - **Transparent path**: materials with a blending alpha mode render into two
   dedicated targets — a weighted color *accumulation* buffer and a
   *revealage* buffer (`src/webgl/renderer/framebuffer_context.rs`: the
@@ -63,10 +70,12 @@ bucketing, or traversal-order discipline is required for correctness.
 | File | Relationship |
 |------|--------------|
 | `src/webgl/renderer/framebuffer_context.rs` | Depth-tested opaque target; accumulate/revealage transparent targets; `resolve` composite |
+| `src/webgl/renderer.rs` | `opaque_draw`'s occluder-first sort key |
 | `src/webgl/shaders/` | Shader side of the opaque and transparent passes |
 
 ### Tests
 
 | File | Relationship |
 |------|--------------|
-| — | No dedicated order-permutation test pins this yet; the property currently rests on the framebuffer structure above |
+| `tests/ar_alpha_readback_test.rs` | `occluder_hides_the_opaque_geometry_behind_it`: an occluder listed after the opaque geometry it stands in front of still hides it; `an_occluder_drawn_last_does_not_leave_the_colour_mask_off` |
+| — | No order-permutation test covers the other opaque or the transparent geometry yet; that part rests on the framebuffer structure above |

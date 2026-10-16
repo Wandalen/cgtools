@@ -13,7 +13,9 @@ mod private
     /// A boolean flag indicating whether the output of this pass should be
     /// rendered directly to the screen's default framebuffer or
     /// to an offscreen `output_texture`.
-    render_to_screen : bool
+    render_to_screen : bool,
+    /// Whether the output keeps the input's alpha (see `alpha_forward_set`).
+    alpha_forward : bool,
   }
 
   impl ToSrgbPass
@@ -24,23 +26,85 @@ mod private
       self.render_to_screen = render_to_screen;
     }
 
-    /// Creates a new `ToSrgbPass` instance.
+    /// Whether the output keeps the input's alpha instead of being opaque.
+    ///
+    /// Off by default: the output is opaque, as a page expects of a canvas that
+    /// paints its own background. On, background pixels keep the alpha the scene
+    /// cleared them with (0 for a transparent clear), so the canvas can be
+    /// alpha-composited over other content — a photo or video behind it.
+    ///
+    /// The output is premultiplied alpha, for a canvas created with
+    /// `premultipliedAlpha: true` (the WebGL default): the pass treats its input as
+    /// premultiplied, sRGB-encodes the straight colour and multiplies alpha back in,
+    /// so `rgb <= alpha` holds on every pixel. The input is premultiplied only when
+    /// the scene is cleared with colour 0: with any other clear colour, the MSAA edge
+    /// pixels carry that colour blended in, and the background itself comes out
+    /// fully transparent.
+    ///
+    /// The alpha only arrives here if every pass between the scene and this one
+    /// passes it through. `ToneMappingPass< ToneMappingAces >` and
+    /// `ColorGradingPass` do; a custom pass that writes alpha 1 makes the whole
+    /// canvas opaque again. `ColorGradingPass` grades the premultiplied colour, so
+    /// at partially covered edge pixels its result is approximate.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if the shader variant fails to compile or link.
+    pub fn alpha_forward_set( &mut self, gl : &gl::WebGl2RenderingContext, alpha_forward : bool ) -> Result< (), gl::WebglError >
+    {
+      if alpha_forward != self.alpha_forward
+      {
+        self.material = Self::program( gl, alpha_forward )?;
+        self.alpha_forward = alpha_forward;
+      }
+      Ok( () )
+    }
+
+    /// Whether the output keeps the input's alpha (see `alpha_forward_set`).
+    #[ must_use ]
+    pub fn alpha_forward( &self ) -> bool
+    {
+      self.alpha_forward
+    }
+
+    /// The fragment shader source the pass compiles: `to_srgb.frag`, with
+    /// `#define FORWARD_ALPHA` inserted after its `#version` line when
+    /// `alpha_forward` is set ( see [`Self::alpha_forward_set`] ).
+    #[ must_use ]
+    pub fn fragment_source( alpha_forward : bool ) -> String
+    {
+      let fs_shader = include_str!( "../shaders/post_processing/to_srgb.frag" );
+      if alpha_forward
+      {
+        // Defines must follow the `#version` line.
+        fs_shader.replacen( "precision highp float;", "#define FORWARD_ALPHA\nprecision highp float;", 1 )
+      }
+      else
+      {
+        fs_shader.to_string()
+      }
+    }
+
+    fn program( gl : &gl::WebGl2RenderingContext, alpha_forward : bool ) -> Result< EmptyShader, gl::WebglError >
+    {
+      let program = gl::ProgramFromSources::new( VS_TRIANGLE, &Self::fragment_source( alpha_forward ) ).compile_and_link( gl )?;
+      Ok( EmptyShader::new( gl, &program ) )
+    }
+
+    /// Creates a new `ToSrgbPass` instance with opaque output.
     ///
     /// # Errors
     ///
     /// Returns `WebglError` if the shader fails to compile or link.
     pub fn new( gl : &gl::WebGl2RenderingContext, render_to_screen : bool ) -> Result< Self, gl::WebglError >
     {
-      let fs_shader = include_str!( "../shaders/post_processing/to_srgb.frag" );
-      let material = gl::ProgramFromSources::new( VS_TRIANGLE, fs_shader ).compile_and_link( gl )?;
-      let material = EmptyShader::new( gl, &material );
-
       Ok
       (
         Self
         {
-          material,
-          render_to_screen
+          material : Self::program( gl, false )?,
+          render_to_screen,
+          alpha_forward : false,
         }
       )
     }

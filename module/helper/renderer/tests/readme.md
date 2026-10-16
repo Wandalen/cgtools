@@ -44,6 +44,7 @@
 | animation_graph_tests.rs | Tests animation graph stuff |
 | mirror_tests.rs | Tests animation mirroring stuff |
 | pbr_shading_readback_test.rs | Pixel readback of the real PBR program on a lit quad: clearcoat, anisotropy and normal-map shading properties (`test_internals`) |
+| ar_alpha_readback_test.rs | Pixel readback of the AR alpha path: `ToSrgbPass` alpha forwarding stays premultiplied, `ColorGradingPass` passes alpha through, an `is_occluder` material hides the opaque geometry behind it in `Renderer::render` and in `ScenePicker`'s id buffer, and the colour mask is restored after the frame |
 | tonemapping_edge_readback_test.rs | Pixel readback of the ACES `ToneMappingPass` over real `Renderer` frames: no light fringe on an opaque MSAA silhouette, no ring around a transparent quad's edge |
 | tangent_frame_test.rs | Pixel readback of `main.frag`'s tangent-less `getTBN`: frame columns point along glTF's tangent space |
 | clearcoat_anisotropy_shader_tests.rs | Headless-browser shader-compilation tests for KHR_materials_clearcoat / KHR_materials_anisotropy, from the renderer's own source assembly (`test_internals`) |
@@ -59,7 +60,7 @@
 | gltf_meshopt_browser_test.rs | Browser tests for meshopt glTF: `views_decode` through meshoptimizer's JS decoder, and `gltf::load`'s buffer-index rules (fallback buffer allocated not fetched, GLB chunk only for `buffers[ 0 ]`, uri-less buffer without a chunk refused, oversized fallback refused) |
 | tests.rs | Connects test modules into root |
 | shader_validation_tests.rs | Validates WGSL shader sources offline via naga |
-| legacy_glsl_shader_compile_test.rs | Compiles all 28 shipped legacy GLSL ES 3.00 `.vert`/`.frag` shaders through a real headless WebGL2 context |
+| legacy_glsl_shader_compile_test.rs | Compiles all 28 shipped legacy GLSL ES 3.00 `.vert`/`.frag` shaders, plus `to_srgb.frag`'s `FORWARD_ALPHA` variant, through a real headless WebGL2 context |
 | native_render_test.rs | Pixel-asserted opaque path render on the native backend |
 | webgpu_geometry_test.rs | Tests `webgpu::Geometry::new` attribute-length cross-validation |
 | webgpu_light_test.rs | Tests `webgpu::Lights::spot_push` cone-angle validation |

@@ -24,10 +24,12 @@ baseline (`../invariant/002`), shaded by the main shader pair in
 multisampled `RGBA16F` attachments (`../invariant/003`):
 
 1. **Opaque pass** — depth-tested draw of opaque meshes into the main color
-   (+ emission) targets.
+   (+ emission) targets. Occluders (`Material::is_occluder`, depth only, colour
+   mask off) draw first, so their depth hides the geometry behind them; the
+   rest is grouped by emission and then by program to limit state changes.
 2. **Transparent pass** — blending-alpha materials draw into the weighted
    accumulation + revealage targets (weighted-blended OIT,
-   `../invariant/001`); no CPU-side sorting exists anywhere in the frame.
+   `../invariant/001`); nothing in the frame is depth-sorted.
 3. **Resolve + composite** — `resolve( gl, use_emission, has_transparent )`
    resolves multisampled targets to textures and composites the transparent
    result over the opaque image.
@@ -51,6 +53,7 @@ HAL once one exists.
 | [../invariant/002_pbr_metallic_roughness_baseline.md](../invariant/002_pbr_metallic_roughness_baseline.md) | Material contract realized by the scene side |
 | [../invariant/003_hdr_internal_tone_mapped_output.md](../invariant/003_hdr_internal_tone_mapped_output.md) | Range contract realized by the target topology and pass 5 |
 | [../invariant/004_gpu_resource_ownership.md](../invariant/004_gpu_resource_ownership.md) | Ownership contract for the scene graph's geometries, textures and skins |
+| [../invariant/005_canvas_alpha_forwarding.md](../invariant/005_canvas_alpha_forwarding.md) | Alpha contract every post pass keeps for an AR canvas |
 
 ### Pitfalls
 
@@ -82,3 +85,6 @@ HAL once one exists.
 | `tests/animation_tests.rs` | Animation tracks driving the scene graph |
 | `tests/skeleton_tests.rs` | Skinning path of the scene side |
 | `tests/tests.rs` | Test aggregator for the crate |
+| `tests/pbr_shading_readback_test.rs` | Pixel readback of the PBR program: clearcoat, anisotropy, normal map, highlight |
+| `tests/tonemapping_edge_readback_test.rs` | Pixel readback of the ACES pass over real frames: MSAA edges and transparent coverage |
+| `tests/ar_alpha_readback_test.rs` | Pixel readback of the AR path: `ToSrgbPass` and `ColorGradingPass` alpha forwarding, occluders drawn first in the opaque pass, and occluders picked instead of what they hide |
