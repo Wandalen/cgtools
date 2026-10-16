@@ -2,7 +2,24 @@
 name = "minwgpu"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.88"
+authors = ["Kostiantyn Mysnyk <wandalen@obox.systems>"]
+license = "MIT"
 description = "Minimal, opinionated wgpu toolkit — builders and helpers for context, buffer, and pipeline setup"
+readme = "readme.md"
+keywords = ["wgpu", "graphics", "minimal", "gpu", "rendering"]
+categories = ["graphics", "rendering"]
+repository = "https://github.com/Wandalen/cgtools"
+homepage = "https://github.com/Wandalen/cgtools/tree/master/module/min/minwgpu"
+documentation = "https://docs.rs/minwgpu"
+include = [
+    "src/**/*",
+    "tests/**/*",
+    "Cargo.toml",
+    "readme*",
+    "license*",
+    "changelog*",
+]
 
 [dependencies]
 wgpu.workspace = true

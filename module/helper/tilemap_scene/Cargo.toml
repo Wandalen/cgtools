@@ -2,10 +2,24 @@
 name = "tilemap_scene"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.89"
 authors = ["cgtools contributors"]
 license = "MIT"
 description = "Compositional declarative scene format for 2D tile-based games — compile to tilemap_renderer commands"
+readme = "readme.md"
+keywords = ["tilemap", "scene", "2d", "gamedev", "tiles"]
+categories = ["game-development", "rendering"]
 repository = "https://github.com/Wandalen/cgtools"
+homepage = "https://github.com/Wandalen/cgtools/tree/master/module/helper/tilemap_scene"
+documentation = "https://docs.rs/tilemap_scene"
+include = [
+    "src/**/*",
+    "tests/**/*",
+    "Cargo.toml",
+    "readme.md",
+    "license*",
+    "changelog*",
+]
 
 [dependencies]
 error_tools = { workspace = true }
