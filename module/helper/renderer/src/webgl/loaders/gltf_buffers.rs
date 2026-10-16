@@ -75,50 +75,67 @@ mod private
         continue;
       }
 
-      match gltf_buffer.source()
+      let bytes = match gltf_buffer.source()
       {
-        gltf::buffer::Source::Bin =>
-        {
-          // GLB stores its binary chunk as `buffers[ 0 ]`, the only buffer allowed to omit
-          // its uri. Handing the chunk to a later uri-less buffer would hide a malformed file
-          // behind misplaced data.
-          if gltf_buffer.index() != 0
-          {
-            gl::browser::error!( "glTF buffer {} has no uri; only buffer 0 may omit it", gltf_buffer.index() );
-            return Err( gl::WebglError::Other( "glTF buffer has no data" ) );
-          }
-          let blob = blob.take().ok_or_else( ||
-          {
-            gl::browser::error!( "glTF buffer 0 has no uri and the file has no GLB binary chunk" );
-            gl::WebglError::Other( "glTF buffer has no data" )
-          } )?;
-          gl::debug!( "The gltf binary payload is present: {}", blob.len() );
-          buffers.push( blob.as_slice().into() );
-        },
-        gltf::buffer::Source::Uri( uri ) =>
-        {
-          let path = asset_uri_resolve( folder_path, uri );
-          let buffer = gl::file::load( &path ).await
-          .map_err( | e |
-          {
-            gl::browser::error!( "Failed to load gltf buffer '{path}': {e:?}" );
-            gl::WebglError::Other( "Failed to load a buffer" )
-          } )?;
-
-          gl::debug!
-          (
-            "Buffer path: {}\n
-            \tBuffer length: {}",
-            path,
-            buffer.len()
-          );
-
-          buffers.push( buffer.as_slice().into() );
-        }
-      }
+        gltf::buffer::Source::Bin => glb_chunk_take( &gltf_buffer, &mut blob )?,
+        gltf::buffer::Source::Uri( uri ) => uri_buffer_fetch( folder_path, uri ).await?,
+      };
+      buffers.push( bytes );
     }
 
     Ok( buffers )
+  }
+
+  /// The GLB binary chunk, as the data of the uri-less `gltf_buffer`. GLB stores its
+  /// binary chunk as `buffers[ 0 ]`, the only buffer allowed to omit its uri. Handing
+  /// the chunk to a later uri-less buffer would hide a malformed file behind misplaced
+  /// data. Takes the chunk out of `blob`, so a second claim on it fails.
+  ///
+  /// # Errors
+  ///
+  /// Returns `WebglError::Other` when `gltf_buffer` is not buffer 0, or the file has
+  /// no binary chunk.
+  fn glb_chunk_take( gltf_buffer : &gltf::Buffer< '_ >, blob : &mut Option< Vec< u8 > > ) -> Result< gl::js_sys::Uint8Array, gl::WebglError >
+  {
+    if gltf_buffer.index() != 0
+    {
+      gl::browser::error!( "glTF buffer {} has no uri; only buffer 0 may omit it", gltf_buffer.index() );
+      return Err( gl::WebglError::Other( "glTF buffer has no data" ) );
+    }
+    let blob = blob.take().ok_or_else( ||
+    {
+      gl::browser::error!( "glTF buffer 0 has no uri and the file has no GLB binary chunk" );
+      gl::WebglError::Other( "glTF buffer has no data" )
+    } )?;
+    gl::debug!( "The gltf binary payload is present: {}", blob.len() );
+    Ok( blob.as_slice().into() )
+  }
+
+  /// Fetches a uri-addressed glTF buffer, resolved against `folder_path` as
+  /// [`asset_uri_resolve`] does.
+  ///
+  /// # Errors
+  ///
+  /// Returns `WebglError::Other` when the fetch fails.
+  async fn uri_buffer_fetch( folder_path : &str, uri : &str ) -> Result< gl::js_sys::Uint8Array, gl::WebglError >
+  {
+    let path = asset_uri_resolve( folder_path, uri );
+    let buffer = gl::file::load( &path ).await
+    .map_err( | e |
+    {
+      gl::browser::error!( "Failed to load gltf buffer '{path}': {e:?}" );
+      gl::WebglError::Other( "Failed to load a buffer" )
+    } )?;
+
+    gl::debug!
+    (
+      "Buffer path: {}\n
+      \tBuffer length: {}",
+      path,
+      buffer.len()
+    );
+
+    Ok( buffer.as_slice().into() )
   }
 }
 
