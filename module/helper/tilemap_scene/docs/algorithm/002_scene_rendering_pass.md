@@ -37,7 +37,7 @@ A layer whose `sprite_source` is a composite source (`NeighborCondition`, `Verte
 
 1. Sampled sprite pixels (the raw texture read).
 2. Layer behaviour tint (`TintBehaviour::Flat`, see `format/006`; `::Masked` is declared but currently rejected at load and compile).
-3. Layer-level `effects` producing color modulations (see `format/004`). *Not applied yet* — compilation passes effect references through without reading them (`roadmap.md`, polish item 2).
+3. Layer-level `effects` producing color modulations (see `format/004`). Only `AlphaPulse` and `FadeGate` are applied, and only on `VertexCorners` layers, as a multiplier on the tint alpha at projection time; every other effect, and effects on other layer types, are passed through without being read (`roadmap.md`, polish item 2).
 4. The bucket's own `PipelineLayer.tint_mask`, if set (see `format/007`). *Not applied yet* — the reference is checked at load, but no compile pass reads it, so a set `tint_mask` has no visible effect (`roadmap.md`, polish item 14).
 5. `RenderPipeline.global_tint` (see `format/007`), applied last, uniformly across every draw call in the frame regardless of which bucket or object it came from.
 
@@ -49,7 +49,7 @@ A layer whose `sprite_source` is a composite source (`NeighborCondition`, `Verte
 
 Both this walk and `format/004`'s load-time frame lookup therefore fail hard on an unresolvable reference; the only deliberate leniency anywhere is the unset-`External` skip.
 
-**Cache replay** (an optimization layered on top of the walk above, not part of the format's own contract): `Renderer::render` computes a signature from `(scene_revision, clock, camera_signature)` before doing any of the above; if the signature exactly matches the previous call's, the previously-built command buffer is returned unchanged (an idle-frame replay, counted via `cache_hits()`) and the gather/sort/compose walk above is skipped entirely for that call. Any scene mutation (`spawn`, `set_state`, `set_tint`, `tick` advancing the clock, etc. — see `api/001`) changes `scene_revision` or `clock` and invalidates the cache for the next call.
+**Cache replay** (an optimization layered on top of the walk above, not part of the format's own contract): `Renderer::render` computes a signature from `(scene_revision, clock, camera_signature)` before doing any of the above; if the signature exactly matches the previous call's, the previously-built command buffer is returned unchanged (an idle-frame replay, counted via `cache_hits()`) and the gather/sort/compose walk above is skipped entirely for that call. Any scene mutation (`spawn`, `set_state`, `set_tint`, `tick` advancing the clock, etc. — see `api/001`) changes `scene_revision` or `clock` and invalidates the cache for the next call. `camera_signature` holds the camera's `zoom` and `viewport_size` but not its `world_center`. A pan is therefore a cache hit, and that is safe because world draws carry world coordinates: the pan reaches the GPU through the view matrix (`Camera::to_view_mat3`), which the caller passes to the backend every frame, outside the command stream. Zoom and viewport size still invalidate, because viewport-anchored draws are laid out against the viewport, and the repeating ones are scaled by zoom in the command stream itself.
 
 ### APIs
 

@@ -24,7 +24,8 @@ Two levels coexist:
 | hash_test.rs | Known-answer determinism pins for normative SPEC §13 hashes |
 | hex_config_test.rs | HexConfig::from_hex_size grid-stride arithmetic |
 | layer_tint_compile_test.rs | LayerBehaviour.tint (None pass-through, Flat composition, Masked and non-Multiply tint rejection) through every sprite-emitting compile pass |
-| renderer_cache_test.rs | Renderer per-frame idle-replay cache acceptance |
+| opaque_pass_test.rs | Opaque/transparent bucket split, per-bucket depth pinning, and single coverage across batches and under opaque layers |
+| renderer_cache_test.rs | Renderer per-frame idle-replay and camera-pan cache-hit acceptance |
 | renderer_test.rs | Renderer asset-compile-once and per-instance override contract |
 | ron_syntax_error_test.rs | Invalid RON reported as `LoadError::Ron`, kept distinct from validation failures |
 | scene_events_test.rs | Scene::tick event-stream semantics |
@@ -33,6 +34,7 @@ Two levels coexist:
 | scene_state_test.rs | Retained-mode Scene mutation API |
 | sorted_batching_test.rs | Sorted-bucket DrawBatch collapsing |
 | vertex_corners_compile_test.rs | VertexCorners through the compile pipeline: pattern matching, orient_to_grid frame selection, corner_source channels, offset |
+| vertex_resolve_cache_test.rs | Revision-keyed VertexCorners resolve cache (`Scene::tiles_revision`, re-resolve only on hex-cell changes, re-enabling a disabled layer), the `FadeGate` effect (easing, idle-replay invalidation) and `AlphaPulse.restart_on_spawn` (wave restarts at a spawn, free-running one does not) |
 
 ## Adding tests
 

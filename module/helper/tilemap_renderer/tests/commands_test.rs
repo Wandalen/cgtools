@@ -109,6 +109,8 @@ fn batch_params_defaults()
     sheet : ResourceId::new( 0 ),
     blend : BlendMode::Normal,
     clip : None,
+    alpha_clip : 0.0,
+    occlude_overlap : false,
   };
   assert_eq!( sp.sheet.inner(), 0 );
 

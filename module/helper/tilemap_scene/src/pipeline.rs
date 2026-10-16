@@ -48,6 +48,69 @@ mod private
     /// applied by compilation yet (`roadmap.md`, polish item 14).
     #[ serde( default ) ]
     pub tint_mask : Option< TintRef >,
+    /// Coverage cut-off for this bucket's sprites: fragments whose sampled
+    /// texture alpha is below `alpha_clip` are `discard`ed (no colour, no
+    /// depth write). `0.0` (the default) disables the test, so every
+    /// fragment is kept exactly as before.
+    ///
+    /// Combined with [`occlude_overlap`](Self::occlude_overlap) this turns a
+    /// bucket of overlapping translucent tiles (e.g. a bled dual-grid drop
+    /// shadow) into a single-coverage mask: the clip removes the soft AA
+    /// fringe so the depth test can reject the overlap cleanly. Edges become
+    /// hard at the clip contour — that is the intended trade for not
+    /// double-blending the overlap.
+    ///
+    /// **Batched draws only.** `alpha_clip` and `occlude_overlap` ride the
+    /// sprite-batch params; a sprite the renderer draws on its own ignores
+    /// both. That covers viewport-anchored sprites and every sprite of a
+    /// sorted bucket that mixes sheets, blend modes or clip masks in a frame
+    /// (only a single-key sorted bucket batches). Keep a coverage-controlled
+    /// layer on `SortMode::None`, or on one sheet / blend / clip, and free of
+    /// viewport sprites.
+    #[ serde( default ) ]
+    pub alpha_clip : f32,
+    /// When `true`, this bucket draws with depth writes on and the depth test
+    /// switched to `LESS` (the default `LEQUAL` is restored afterwards). The
+    /// first fragment to cover a pixel wins; later overlapping fragments of
+    /// the same bucket (from a sibling tile's bleed, in any batch of the
+    /// bucket) are rejected, so a translucent bucket composites each pixel
+    /// exactly once — no double-blend on the overlap.
+    ///
+    /// To make that work without a mid-frame depth clear, a pipeline with any
+    /// `occlude_overlap` (or [`opaque`](Self::opaque)) layer pins every
+    /// bucket to its own depth, `pipeline_index / bucket_count`: a bucket sits
+    /// strictly nearer than all the layers under it, so their depth never
+    /// blocks it, while a nearer opaque layer still hides it. Pair with a
+    /// non-zero [`alpha_clip`](Self::alpha_clip) so the AA fringe doesn't
+    /// write depth and block a neighbour. Ignored on an `opaque` layer.
+    /// Default `false` = unchanged.
+    #[ serde( default ) ]
+    pub occlude_overlap : bool,
+    /// Marks this bucket as **fully opaque** (after `alpha_clip` coverage), so
+    /// it joins the opaque depth-culling pass. When ANY layer in the pipeline
+    /// sets this, the renderer splits the frame in two: opaque buckets draw
+    /// first, **front-to-back** (topmost layer first) with depth writes on, so
+    /// a nearer opaque layer early-Z rejects the covered fragments of farther
+    /// ones — cutting the multi-layer overdraw of a flat tilemap (background
+    /// under terrain under region). Transparent buckets (`false`, the default)
+    /// then draw in painter's order with depth writes off, so blending is
+    /// unaffected.
+    ///
+    /// Correctness requirements for an opaque layer:
+    /// - It must be visually opaque where it covers (alpha ≈ 1); a translucent
+    ///   layer meant to show what is beneath it must stay `false`.
+    /// - Pair with a non-zero [`alpha_clip`](Self::alpha_clip) so transparent
+    ///   texels `discard` (no depth write) and lower layers show through gaps.
+    /// - Keep it fully batched (see [`alpha_clip`](Self::alpha_clip)). In a
+    ///   frame where it has to draw any sprite on its own, that sprite would
+    ///   write depth over its whole quad, so the renderer draws the bucket in
+    ///   the transparent pass for that frame instead: still correct, but
+    ///   without the overdraw saving or the clip.
+    ///
+    /// When no layer is opaque the renderer takes the single painter's-order
+    /// pass, so this is inert for existing specs.
+    #[ serde( default ) ]
+    pub opaque : bool,
   }
 
   /// Sort mode for a [`PipelineLayer`]. See SPEC §8.2.

@@ -525,6 +525,8 @@ fn batch_sprite_draw_composes_parent_transform()
         sheet : ResourceId::new( 0 ),
         blend : BlendMode::default(),
         clip : None,
+        alpha_clip : 0.0,
+        occlude_overlap : false,
       },
     }),
     RenderCommand::BindBatch( BindBatch { batch } ),
@@ -612,7 +614,7 @@ fn set_sprite_instance_out_of_bounds_returns_error()
     RenderCommand::CreateSpriteBatch( CreateSpriteBatch
     {
       batch,
-      params : SpriteBatchParams { transform : Transform::default(), sheet : ResourceId::new( 0 ), blend : BlendMode::default(), clip : None },
+      params : SpriteBatchParams { transform : Transform::default(), sheet : ResourceId::new( 0 ), blend : BlendMode::default(), clip : None, alpha_clip : 0.0, occlude_overlap : false },
     }),
     RenderCommand::BindBatch( BindBatch { batch } ),
     RenderCommand::AddSpriteInstance( AddSpriteInstance { transform : Transform::default(), sprite : ResourceId::new( 0 ), tint : [ 1.0, 1.0, 1.0, 1.0 ] } ),
@@ -643,7 +645,7 @@ fn remove_instance_drops_target_and_keeps_remaining()
     RenderCommand::CreateSpriteBatch( CreateSpriteBatch
     {
       batch,
-      params : SpriteBatchParams { transform : Transform::default(), sheet : ResourceId::new( 0 ), blend : BlendMode::default(), clip : None },
+      params : SpriteBatchParams { transform : Transform::default(), sheet : ResourceId::new( 0 ), blend : BlendMode::default(), clip : None, alpha_clip : 0.0, occlude_overlap : false },
     }),
     RenderCommand::BindBatch( BindBatch { batch } ),
     RenderCommand::AddSpriteInstance( AddSpriteInstance { transform : Transform { position : [ 0.0, 600.0 ], ..Default::default() }, sprite : ResourceId::new( 0 ), tint : red } ),
@@ -689,7 +691,7 @@ fn assets_load_destroys_existing_batches()
     RenderCommand::CreateSpriteBatch( CreateSpriteBatch
     {
       batch,
-      params : SpriteBatchParams { transform : Transform::default(), sheet : ResourceId::new( 0 ), blend : BlendMode::default(), clip : None },
+      params : SpriteBatchParams { transform : Transform::default(), sheet : ResourceId::new( 0 ), blend : BlendMode::default(), clip : None, alpha_clip : 0.0, occlude_overlap : false },
     }),
     RenderCommand::BindBatch( BindBatch { batch } ),
     RenderCommand::AddSpriteInstance( AddSpriteInstance { transform : Transform { position : [ 0.0, 600.0 ], ..Default::default() }, sprite : ResourceId::new( 0 ), tint : [ 1.0, 0.0, 0.0, 1.0 ] } ),

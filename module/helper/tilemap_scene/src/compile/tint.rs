@@ -155,8 +155,7 @@ mod private
       inst : Option< [ f32; 4 ] >,
     ) -> Result< [ f32; 4 ], CompileError >
     {
-      let [ r, g, b, a ] = self.layer_base_tint( object, behaviour )?;
-      let composed = [ r, g, b, a * behaviour.alpha ];
+      let composed = self.layer_tint_compose( self.layer_multiplier( object, behaviour )?, behaviour.alpha );
       Ok( match inst
       {
         None => composed,
@@ -170,47 +169,43 @@ mod private
       })
     }
 
-    /// Resolve a layer's [`TintBehaviour`] into its base RGBA multiplier.
-    /// Private on purpose: an emit site that took it directly would skip the
-    /// layer alpha and instance tint that [`Self::sprite_tint`] folds in.
-    ///
-    /// - `None` → the global tint unchanged.
-    /// - `Flat(ref)` → global tint multiplied by the named tint, so each layer
-    ///   (e.g. a per-player region overlay) can be coloured independently.
-    /// - `Masked` → rejected with [`CompileError::UnsupportedBehaviour`]; it is
-    ///   not yet implemented and must not silently degrade to the global tint.
+    /// A layer's own [`TintBehaviour`] multiplier, WITHOUT the global tint:
+    /// identity for `None`, the named tint for `Flat`. The vertex pass caches
+    /// it across frames — the global tint can change every frame, so it is
+    /// folded in later by [`Self::layer_tint_compose`]. Every other emit site
+    /// goes through [`Self::sprite_tint`].
     ///
     /// # Errors
     ///
-    /// [`CompileError::UnsupportedBehaviour`] for `Masked`; otherwise the
-    /// errors of [`resolve_tint_ref`].
-    fn layer_base_tint( &self, object : &Object, behaviour : &LayerBehaviour ) -> Result< [ f32; 4 ], CompileError >
+    /// [`CompileError::UnsupportedBehaviour`] for `Masked`, which is not yet
+    /// implemented and must not silently degrade to the global tint; otherwise
+    /// the errors of [`resolve_tint_ref`].
+    pub fn layer_multiplier( &self, object : &Object, behaviour : &LayerBehaviour ) -> Result< [ f32; 4 ], CompileError >
     {
-      let global = self.global;
       match &behaviour.tint
       {
-        TintBehaviour::None => Ok( global ),
-        TintBehaviour::Flat( tref ) =>
+        TintBehaviour::None => Ok( [ 1.0, 1.0, 1.0, 1.0 ] ),
+        TintBehaviour::Flat( tref ) => match self.resolved.get( tref.0.as_str() )
         {
-          let c = match self.resolved.get( tref.0.as_str() )
-          {
-            Some( Some( c ) ) => *c,
-            _ => resolve_tint_ref( self.spec, tref, || format!( "object {:?} layer tint", object.id ) )?,
-          };
-          Ok(
-          [
-            global[ 0 ] * c[ 0 ],
-            global[ 1 ] * c[ 1 ],
-            global[ 2 ] * c[ 2 ],
-            global[ 3 ] * c[ 3 ],
-          ])
-        }
+          Some( Some( c ) ) => Ok( *c ),
+          _ => resolve_tint_ref( self.spec, tref, || format!( "object {:?} layer tint", object.id ) ),
+        },
         TintBehaviour::Masked { .. } => Err( CompileError::UnsupportedBehaviour
         {
           object : object.id.clone(),
           behaviour : "Masked tint",
         }),
       }
+    }
+
+    /// The layer's base tint — the global tint times `multiplier` (from
+    /// [`Self::layer_multiplier`]) — with the layer `alpha` folded into the
+    /// alpha channel.
+    #[ must_use ]
+    pub fn layer_tint_compose( &self, multiplier : [ f32; 4 ], alpha : f32 ) -> [ f32; 4 ]
+    {
+      let g = self.global;
+      [ g[ 0 ] * multiplier[ 0 ], g[ 1 ] * multiplier[ 1 ], g[ 2 ] * multiplier[ 2 ], g[ 3 ] * multiplier[ 3 ] * alpha ]
     }
   }
 

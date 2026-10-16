@@ -27,7 +27,8 @@ Game code drives a `Scene` — an in-memory, mutable instantiation of a loaded `
 | `tick` / `tick_into` | `(dt) -> Vec<SceneEvent>` | Advances the shared clock; returns events including `OneShot` animation completions (see `algorithm/001`). |
 | `instances`, `instances_at_hex`, `hex_instances`, `edge_instances`, `free_instances`, `viewport_instances`, `multihex_instances`, `len`, `is_empty` | queries | Read-only instance enumeration, whole-scene or filtered by anchor kind / position. |
 | `Renderer::render` | `(&mut self, &Scene, &Camera) -> Result<&[RenderCommand], CompileError>` | Produces this frame's draw commands (see `algorithm/002`); cached and replayed on an unchanged `(scene_revision, clock, camera_signature)` triple. |
-| `Camera::project` | `(world: (f32, f32)) -> (f32, f32)` | `screen = (world - camera.world_center) * camera.zoom + viewport_size / 2`. |
+| `Camera::to_view_mat3` | `() -> [f32; 9]` | The world→screen projection as a column-major 3×3 matrix. World-space commands carry world coordinates; the caller hands this matrix to the backend each frame (`WebGlBackend::set_camera(camera.to_view_mat3())`) and the GPU applies it, so a pan changes one uniform and never the command stream. |
+| `Camera::project` | `(world: (f32, f32)) -> (f32, f32)` | `screen = (world - camera.world_center) * camera.zoom + viewport_size / 2` — the same projection as `to_view_mat3`, on the CPU, for a caller that needs one point on screen (UI anchored to a unit). `Renderer::render` does not call it. |
 
 ### Error Handling
 
@@ -47,7 +48,7 @@ The renderer treats instance state as opaque and game-owned by design — it nev
 | File | Relationship |
 |------|--------------|
 | [algorithm/001_animation_phase_and_frame_selection.md](../algorithm/001_animation_phase_and_frame_selection.md) | `tick`'s returned `SceneEvent`s include `OneShot` completion |
-| [algorithm/002_scene_rendering_pass.md](../algorithm/002_scene_rendering_pass.md) | `Renderer::render` triggers this algorithm; `Camera::project` feeds its culling/screen-position step |
+| [algorithm/002_scene_rendering_pass.md](../algorithm/002_scene_rendering_pass.md) | `Renderer::render` triggers this algorithm; `Camera`'s zoom and viewport size lay out its viewport-anchored draws, while world draws stay in world space for `Camera::to_view_mat3` |
 
 ### Formats
 
@@ -70,7 +71,7 @@ The renderer treats instance state as opaque and game-owned by design — it nev
 |------|--------------|
 | `src/scene.rs` | `Scene` — full method surface |
 | `src/renderer.rs` | `Renderer::render`, `cache_hits`, `cleanup`, `assets` |
-| `src/compile/camera.rs` | `Camera`, `Camera::project` |
+| `src/compile/camera.rs` | `Camera`, `Camera::to_view_mat3`, `Camera::project` |
 
 ### Tests
 
