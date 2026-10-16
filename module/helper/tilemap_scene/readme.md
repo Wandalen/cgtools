@@ -40,6 +40,7 @@ crosstalk.
 | `src/error.rs` | `LoadError`, `ValidationError`, `SnapshotLoadError`. |
 | `src/compile/` | Internal lowering passes called by `Renderer`. See sub-table. |
 | `tests/` | Unit and integration test suite — the per-file responsibilities live in [`tests/readme.md`](tests/readme.md). |
+| `benches/` | `frame_render.rs` — criterion benchmark of `Renderer::render` on a 469-hex dual-grid board with free-moving units: a hex-cell change, a movers-only frame, a clock-only frame and an idle replay. `cargo bench -p tilemap_scene --bench frame_render`. |
 | `docs/` | Design documentation as typed doc definitions — see [docs/definition/readme.md](docs/definition/readme.md) |
 | `roadmap.md` | Open work and design sketches. |
 
