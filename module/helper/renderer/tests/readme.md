@@ -55,7 +55,7 @@
 | pbr_material_live_test.rs | Live-context tests for `PbrMaterial` defines/IBL-flag/emission/clone logic |
 | pbr_texture_units_test.rs | `PbrMaterial` texture-unit layout: disjoint units, fragment samplers within WebGL2's guaranteed 16 |
 | gltf_material_extensions_test.rs | Native parsing of `KHR_materials_clearcoat` / `KHR_materials_anisotropy` JSON: defaults, `texCoord`, coat normal `scale`, rotation |
-| gltf_meshopt_test.rs | Native checks for meshopt-compressed, quantized glTF: parsing and validating each view's `EXT_meshopt_compression` / `KHR_meshopt_compression` object, the pre-decode range and overlap checks, fallback-buffer detection, validation letting both extensions through, and dequantized position bounds |
+| gltf_meshopt_test.rs | Native checks for meshopt-compressed, quantized glTF: parsing and validating each view's `EXT_meshopt_compression` / `KHR_meshopt_compression` object, the pre-decode range and overlap checks, fallback-buffer detection, validation letting both extensions through, dequantized position bounds, and `accessor_vec3_read` over every component type |
 | gltf_meshopt_browser_test.rs | Browser tests for meshopt glTF: `views_decode` through meshoptimizer's JS decoder, and `gltf::load`'s buffer-index rules (fallback buffer allocated not fetched, GLB chunk only for `buffers[ 0 ]`, uri-less buffer without a chunk refused, oversized fallback refused) |
 | tests.rs | Connects test modules into root |
 | shader_validation_tests.rs | Validates WGSL shader sources offline via naga |
