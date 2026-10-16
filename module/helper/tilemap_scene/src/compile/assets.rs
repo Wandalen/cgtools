@@ -72,6 +72,7 @@ mod private
         filter : asset.filter,
         mipmap : asset.mipmap,
         wrap : asset.wrap,
+        premultiplied : asset.premultiplied,
       });
     }
 

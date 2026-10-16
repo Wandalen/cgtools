@@ -7,14 +7,15 @@ uniform vec4 u_color;         // solid fill color
 uniform sampler2D u_texture;  // optional texture
 uniform bool u_use_texture;   // whether to sample texture
 
+#include "tint.glsl"
+
 out vec4 frag_color;
 
 void main()
 {
   if ( u_use_texture )
   {
-    vec4 tex = texture( u_texture, v_uv );
-    frag_color = tex * u_color;
+    frag_color = tinted( texture( u_texture, v_uv ), u_color );
   }
   else
   {

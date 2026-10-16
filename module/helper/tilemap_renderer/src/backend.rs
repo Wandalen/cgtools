@@ -121,6 +121,16 @@ mod private
     pub supported_blend_modes : &'static [ BlendMode ],
     /// Supports text on a path.
     pub text_on_path : bool,
+    /// Honours [`crate::assets::ImageAsset::premultiplied`]: a premultiplied
+    /// image composites as premultiplied colour. Under [`BlendMode::Normal`],
+    /// [`BlendMode::Add`] and a mode that falls back to `Normal` it draws like
+    /// its straight-alpha twin; under [`BlendMode::Multiply`] and
+    /// [`BlendMode::Screen`] it composites the reference formula, which its
+    /// straight twin only approximates below full alpha, so there the two
+    /// differ. `false` means the flag is ignored and the pixels are
+    /// used as stored, which draws a premultiplied image's semi-transparent
+    /// texels differently ( the readme's capability table says how, per adapter ).
+    pub premultiplied_images : bool,
     /// Maximum texture/image dimension. 0 = unlimited (e.g. SVG).
     pub max_texture_size : u32,
   }
