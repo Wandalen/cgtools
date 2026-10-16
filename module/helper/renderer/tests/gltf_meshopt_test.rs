@@ -5,7 +5,7 @@
 //! dequantized position bounds. The decode itself runs meshoptimizer's JS decoder, so
 //! its tests, and those of `load`'s buffer-index rules, are in `gltf_meshopt_browser_test.rs`.
 
-use renderer::webgl::loaders::gltf::position_bounds_dequantize;
+use renderer::webgl::loaders::gltf_quantization::position_bounds_dequantize;
 use renderer::webgl::loaders::gltf_extensions::{ document_validate, required_extensions_check };
 use renderer::webgl::loaders::meshopt::{ buffer_is_fallback, MeshoptFilter, MeshoptMode, MeshoptView };
 use serde_json::json;
