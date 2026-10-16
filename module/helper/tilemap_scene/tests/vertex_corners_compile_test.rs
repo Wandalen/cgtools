@@ -60,6 +60,7 @@ fn vertex_corners_three_way_blend()
       filter : SamplerFilter::default(),
       mipmap : MipmapMode::default(),
       wrap : WrapMode::default(),
+      premultiplied : false,
     }
   );
 
@@ -200,6 +201,7 @@ fn vertex_corners_wildcard_edge_fade()
       filter : SamplerFilter::default(),
       mipmap : MipmapMode::default(),
       wrap : WrapMode::default(),
+      premultiplied : false,
     }
   );
   spec.objects.push( Object
@@ -304,6 +306,7 @@ fn dual_orient_spec() -> RenderSpec
       filter : SamplerFilter::default(),
       mipmap : MipmapMode::default(),
       wrap : WrapMode::default(),
+      premultiplied : false,
     }
   );
   spec.objects.push( Object
@@ -579,6 +582,7 @@ fn vertex_corners_orient_to_grid_triple_wildcard_allocates_six()
     filter : SamplerFilter::default(),
     mipmap : MipmapMode::default(),
     wrap : WrapMode::default(),
+    premultiplied : false,
   });
   spec.objects.push( Object
   {
@@ -755,6 +759,7 @@ fn vertex_corners_corner_source_isolates_channels()
     filter : SamplerFilter::default(),
     mipmap : MipmapMode::default(),
     wrap : WrapMode::default(),
+    premultiplied : false,
   });
   spec.objects.push( Object
   {
@@ -947,11 +952,13 @@ fn region_boundary_spec() -> RenderSpec
   {
     id : "region".into(), path : "region.png".into(), kind : atlas_with_frames( 4, &region_frames ),
     filter : SamplerFilter::default(), mipmap : MipmapMode::default(), wrap : WrapMode::default(),
+    premultiplied : false,
   });
   spec.assets.push( Asset
   {
     id : "marker".into(), path : "marker.png".into(), kind : atlas_with_frames( 1, &[ ( "0", ( 0, 0 ) ) ] ),
     filter : SamplerFilter::default(), mipmap : MipmapMode::default(), wrap : WrapMode::default(),
+    premultiplied : false,
   });
 
   spec.objects.push( Object
