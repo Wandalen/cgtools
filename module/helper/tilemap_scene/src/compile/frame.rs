@@ -1035,10 +1035,6 @@ mod private
   /// `emit_neighbor_condition` variant that composes the per-instance
   /// tint into each emitted sprite.
   #[ allow( clippy::too_many_arguments, reason = "each parameter is a distinct input needed to resolve and place a neighbor-conditioned sprite variant with per-instance tint; grouping into a struct would add indirection without reducing call-site complexity" ) ]
-  // `raw_sx` / `raw_sy` denote one (x, y) screen-space pair produced together by
-  // `ctx.camera.project`; splitting the names further apart would obscure that
-  // pairing rather than reduce confusion.
-  #[ allow( clippy::similar_names, reason = "raw_sx/raw_sy denote one (x, y) screen-space pair produced together by ctx.camera.project; the shared prefix reflects that pairing" ) ]
   fn neighbor_condition_with_overrides_emit
   (
     object : &Object,
