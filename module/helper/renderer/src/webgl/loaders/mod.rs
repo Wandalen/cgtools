@@ -11,6 +11,12 @@ crate::mod_interface!
   /// meshopt-compressed buffer views ( EXT_meshopt_compression )
   layer meshopt;
 
+  /// glTF buffer bytes : GLB chunk, fetched uris, meshopt fallbacks
+  layer gltf_buffers;
+
+  /// KHR_mesh_quantization : integer accessor values and bounds to floats
+  layer gltf_quantization;
+
   /// glTF material extensions read from raw extension JSON
   layer gltf_extensions;
 

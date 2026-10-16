@@ -157,6 +157,55 @@ required-features = ["native"]
 name = "gltf_skeleton_displacements_test"
 required-features = ["native"]
 
+# The meshopt / quantization loader tests import `renderer::webgl::loaders`
+# and the `gltf` / `serde_json` crates, all of which exist only with `webgl`
+# ( part of `default` ). Under `--no-default-features` they are skipped with
+# a reason instead of failing to compile.
+[[test]]
+name = "gltf_meshopt_test"
+required-features = ["webgl"]
+
+[[test]]
+name = "gltf_meshopt_browser_test"
+required-features = ["webgl"]
+
+# The same holds for these, which reach `renderer::webgl` too.
+[[test]]
+name = "tests"
+required-features = ["webgl"]
+
+[[test]]
+name = "color_grading_tests"
+required-features = ["webgl"]
+
+[[test]]
+name = "engraving_config_tests"
+required-features = ["webgl"]
+
+[[test]]
+name = "gltf_extensions_required_test"
+required-features = ["webgl"]
+
+[[test]]
+name = "gltf_light_parsing_test"
+required-features = ["webgl"]
+
+[[test]]
+name = "gltf_loader_tests"
+required-features = ["webgl"]
+
+[[test]]
+name = "gltf_material_variation_test"
+required-features = ["webgl"]
+
+[[test]]
+name = "pbr_texture_units_test"
+required-features = ["webgl"]
+
+[[test]]
+name = "webgl_frame_orchestration_test"
+required-features = ["webgl"]
+
 # Build-time-only WGSL→GLSL ES 300 translation for the `webgpu` feature's
 # WebGL override pair ( `build.rs` ) — never becomes part of the compiled
 # artifact, native or wasm32; independent of the runtime `gpu_hal` dependency
