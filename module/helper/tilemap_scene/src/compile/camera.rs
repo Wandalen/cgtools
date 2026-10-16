@@ -44,6 +44,12 @@ mod private
   impl Camera
   {
     /// Project a world-space pixel position onto the viewport.
+    ///
+    /// The renderer itself no longer calls this: it uploads
+    /// [`Self::to_view_mat3`] and projects on the GPU. This stays the CPU form
+    /// for a caller that needs one point on screen, such as anchoring UI to a
+    /// unit, and `compile_units_test`'s `view_mat3_matches_project` keeps the
+    /// two in agreement.
     #[ inline ]
     #[ must_use ]
     pub fn project( &self, world : ( f32, f32 ) ) -> ( f32, f32 )
