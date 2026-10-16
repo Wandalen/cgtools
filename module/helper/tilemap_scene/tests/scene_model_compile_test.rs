@@ -87,6 +87,27 @@ fn compile_assets_allocates_one_image_and_one_sprite()
   assert_eq!( sprite.region, [ 0.0, 0.0, 72.0, 64.0 ], "frame 0 occupies top-left tile" );
 }
 
+/// `premultiplied` reaches the compiled `ImageAsset` from what a scene author
+/// writes. The asset is parsed from RON, as scene files are, so the serde side
+/// is pinned too: a rename or `skip_deserializing` on the field would read
+/// `premultiplied: true` as `false`, and a non-`false` default would flip every
+/// asset that omits it.
+#[ test ]
+fn compile_assets_propagates_premultiplied()
+{
+  let compiled = | premultiplied_field : &str |
+  {
+    let ron = format!( r#"Asset( id: "terrain", path: "terrain.png", kind: Atlas( tile_size: ( 72, 64 ), columns: 2 ){premultiplied_field} )"# );
+    let mut spec = minimal_spec();
+    spec.assets[ 0 ] = ron::from_str( &ron ).expect( "asset parses" );
+    assets_compile( &spec, &PathResolver ).expect( "compile" ).assets.images[ 0 ].premultiplied
+  };
+
+  assert!( !compiled( "" ), "an asset that omits premultiplied compiles straight" );
+  assert!( compiled( ", premultiplied: true" ), "premultiplied: true must reach the ImageAsset" );
+  assert!( !compiled( ", premultiplied: false" ), "premultiplied: false must reach the ImageAsset" );
+}
+
 #[ test ]
 fn compile_assets_atlas_region_indexing()
 {
@@ -970,6 +991,7 @@ fn wall_spec() -> RenderSpec
       filter : SamplerFilter::default(),
       mipmap : MipmapMode::default(),
       wrap : WrapMode::default(),
+      premultiplied : false,
     }
   );
   let wall = Object
@@ -1110,6 +1132,7 @@ fn neighbor_condition_skirt_on_water_side()
       filter : SamplerFilter::default(),
       mipmap : MipmapMode::default(),
       wrap : WrapMode::default(),
+      premultiplied : false,
     }
   );
   // Add a water object.
@@ -1215,6 +1238,7 @@ fn neighbor_condition_priority_lower_blends_grass_over_sand()
       filter : SamplerFilter::default(),
       mipmap : MipmapMode::default(),
       wrap : WrapMode::default(),
+      premultiplied : false,
     }
   );
   // Grass prio 10 (already in grass_object).

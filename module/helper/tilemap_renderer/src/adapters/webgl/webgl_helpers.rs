@@ -303,6 +303,18 @@ mod private
       self.textures.get( &id )
     }
 
+    /// Resolves the premultiplied-alpha flag for a (possibly untextured) mesh
+    /// or mesh batch: a textured mesh inherits its texture's `premultiplied`
+    /// flag, an untextured one is straight-alpha (`false`). Both the single-mesh
+    /// (`cmd_mesh`) and batched (`cmd_draw_batch`) paths route through here so
+    /// the two cannot drift — e.g. a refactor re-hardcoding `false` in one path
+    /// would have to do it in both, or (preferably) neither.
+    #[ must_use ]
+    pub fn mesh_premultiplied( &self, texture : Option< ResourceId< asset::Image > > ) -> bool
+    {
+      texture.and_then( | id | self.texture( id ) ).is_some_and( | t | t.premultiplied )
+    }
+
     /// Looks up a sprite by sprite asset id.
     #[ must_use ]
     pub fn sprite( &self, id : ResourceId< asset::Sprite > ) -> Option< &GpuSprite >
@@ -372,6 +384,10 @@ mod private
     pub mipmap : MipmapMode,
     /// Wrap mode recorded at creation time; kept for parity with future re-applies.
     pub wrap : WrapMode,
+    /// Premultiplied-alpha flag recorded at creation time. Every draw path reads
+    /// it to pick the premultiplied vs straight "over" blend in `blend_apply`
+    /// and uploads the same value as the shaders' `u_premultiplied` uniform.
+    pub premultiplied : bool,
   }
 
   impl Drop for GpuTexture
@@ -671,16 +687,38 @@ mod private
   /// the RGB factors on the alpha channel would produce wrong framebuffer alpha
   /// (e.g. `src_a^2` under `Normal`) and break readPixels / compositing onto a
   /// transparent canvas background.
-  pub fn blend_apply( gl : &gl::GL, blend : &BlendMode )
+  ///
+  /// `premultiplied` selects the source colour factor for the alpha-compositing
+  /// modes: a premultiplied texture already carries `rgb·a`, so its source factor
+  /// is `ONE` (premultiplied "over"); a straight texture uses `SRC_ALPHA`. Without
+  /// this, a premultiplied texture drawn under `SRC_ALPHA` would be scaled by alpha
+  /// twice (`a²`), darkening every antialiased edge. The `ONE` factor is only
+  /// correct because the fragment shaders keep the output premultiplied: under
+  /// `u_premultiplied`, `shaders/tint.glsl` returns the colour and alpha the
+  /// straight twin would write, clamped the same way, with the colour multiplied
+  /// by that alpha. A layer / instance alpha below 1 then fades colour and
+  /// coverage together, and a tint outside 0..1 saturates as it does straight.
+  pub fn blend_apply( gl : &gl::GL, blend : &BlendMode, premultiplied : bool )
   {
+    // For premultiplied sources the colour is pre-scaled by alpha, so the "src·a"
+    // factor becomes plain `ONE`. Affects the alpha-weighted modes: Normal, Add
+    // and the Overlay fallback.
+    let src_a = if premultiplied { gl::ONE } else { gl::SRC_ALPHA };
     match blend
     {
-      // Color: src*src_a + dst. Alpha: standard over.
-      BlendMode::Add => gl.blend_func_separate( gl::SRC_ALPHA, gl::ONE, gl::ONE, gl::ONE_MINUS_SRC_ALPHA ),
-      // Approximation: diverges from Photoshop Multiply when src_alpha < 1 — the
-      // DST_COLOR factor multiplies dst by raw src.rgb (not src.rgb*src_a), so
-      // partially transparent sources darken the destination more than the
-      // reference formula prescribes. Exact only when src_alpha = 1.
+      // Color: src*src_a + dst (straight) or src + dst (premultiplied). Alpha: standard over.
+      BlendMode::Add => gl.blend_func_separate( src_a, gl::ONE, gl::ONE, gl::ONE_MINUS_SRC_ALPHA ),
+      // `DST_COLOR` is the defining source factor for Multiply (src.rgb*dst.rgb)
+      // and is independent of `premultiplied`: the flag only swaps the
+      // alpha-compositing source factor (ONE vs SRC_ALPHA), which Multiply does
+      // not use. Approximation: diverges from Photoshop Multiply for *straight*
+      // sources when src_alpha < 1 — the DST_COLOR factor multiplies dst by raw
+      // src.rgb (not src.rgb*src_a), so the result is dst*(src + 1 - a) against
+      // the reference dst*(src*a + 1 - a): partially transparent straight sources
+      // darken the destination less than the reference, by dst*src*(1 - a), and
+      // brighten it wherever src > a. Exact
+      // when src_alpha = 1, or for premultiplied sources at any alpha (there
+      // src.rgb already carries rgb*a, so dst*(rgb*a + 1 - a) is the reference).
       // An FBO / custom-shader pass would be needed for the Photoshop-accurate
       // formula — see the BlendMode::Multiply doc.
       // Color: src*dst + dst*(1-src_a). Alpha: standard over.
@@ -708,10 +746,10 @@ mod private
             &"BlendMode::Overlay is not supported in WebGL2 without an FBO pass; falling back to Normal".into()
           );
         }
-        gl.blend_func_separate( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA, gl::ONE, gl::ONE_MINUS_SRC_ALPHA );
+        gl.blend_func_separate( src_a, gl::ONE_MINUS_SRC_ALPHA, gl::ONE, gl::ONE_MINUS_SRC_ALPHA );
       }
-      // Color: src*src_a + dst*(1-src_a). Alpha: standard over.
-      BlendMode::Normal => gl.blend_func_separate( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA, gl::ONE, gl::ONE_MINUS_SRC_ALPHA ),
+      // Color: src*src_a + dst*(1-src_a)  (straight), or src + dst*(1-src_a)  (premultiplied).
+      BlendMode::Normal => gl.blend_func_separate( src_a, gl::ONE_MINUS_SRC_ALPHA, gl::ONE, gl::ONE_MINUS_SRC_ALPHA ),
     }
   }
 

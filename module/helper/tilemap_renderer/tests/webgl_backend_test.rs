@@ -11,8 +11,8 @@
 use tilemap_renderer::adapters::webgl::WebGlBackend;
 use tilemap_renderer::types::BlendMode;
 
-/// T01 -- honest-subset pin: `meshes`/`sprites`/`batches` true, every other
-/// boolean false, `supported_blend_modes` exactly `[Normal, Add, Multiply,
+/// T01 -- honest-subset pin: `meshes`/`sprites`/`batches`/`premultiplied_images`
+/// true, every other boolean false, `supported_blend_modes` exactly `[Normal, Add, Multiply,
 /// Screen]`.
 #[ test ]
 fn declared_capabilities_honest_subset()
@@ -30,6 +30,7 @@ fn declared_capabilities_honest_subset()
   assert!( !caps.effects );
   assert!( !caps.blend_modes );
   assert!( !caps.text_on_path );
+  assert!( caps.premultiplied_images );
   assert_eq!( caps.max_texture_size, 4096 );
   assert!
   (

@@ -88,6 +88,7 @@ fn spec_build() -> RenderSpec
         filter : SamplerFilter::Linear,
         mipmap : MipmapMode::Off,
         wrap : WrapMode::Clamp,
+        premultiplied : false,
       },
     ],
     tints : Vec::new(),
