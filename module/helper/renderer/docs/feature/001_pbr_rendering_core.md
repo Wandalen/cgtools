@@ -53,6 +53,7 @@ HAL once one exists.
 | [../invariant/002_pbr_metallic_roughness_baseline.md](../invariant/002_pbr_metallic_roughness_baseline.md) | Material contract realized by the scene side |
 | [../invariant/003_hdr_internal_tone_mapped_output.md](../invariant/003_hdr_internal_tone_mapped_output.md) | Range contract realized by the target topology and pass 5 |
 | [../invariant/004_gpu_resource_ownership.md](../invariant/004_gpu_resource_ownership.md) | Ownership contract for the scene graph's geometries, textures and skins |
+| [../invariant/005_canvas_alpha_forwarding.md](../invariant/005_canvas_alpha_forwarding.md) | Alpha contract every post pass keeps for an AR canvas |
 
 ### Pitfalls
 
