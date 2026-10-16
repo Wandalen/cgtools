@@ -34,7 +34,7 @@ Two levels coexist:
 | scene_state_test.rs | Retained-mode Scene mutation API |
 | sorted_batching_test.rs | Sorted-bucket DrawBatch collapsing |
 | vertex_corners_compile_test.rs | VertexCorners through the compile pipeline: pattern matching, orient_to_grid frame selection, corner_source channels, offset |
-| vertex_resolve_cache_test.rs | Revision-keyed VertexCorners resolve cache (`Scene::tiles_revision`, re-resolve only on hex-cell changes, re-enabling a disabled layer) and the `FadeGate` effect (easing, idle-replay invalidation) |
+| vertex_resolve_cache_test.rs | Revision-keyed VertexCorners resolve cache (`Scene::tiles_revision`, re-resolve only on hex-cell changes, re-enabling a disabled layer), the `FadeGate` effect (easing, idle-replay invalidation) and `AlphaPulse.restart_on_spawn` (wave restarts at a spawn, free-running one does not) |
 
 ## Adding tests
 

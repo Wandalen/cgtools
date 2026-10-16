@@ -1,7 +1,8 @@
 //! The revision-keyed vertex resolve cache and the per-frame vertex effects:
 //! `Scene::tiles_revision`, re-resolving `VertexCorners` only when hex cells
-//! change, re-enabling a disabled layer, and `EffectKind::FadeGate` easing and
-//! idle-replay invalidation.
+//! change, re-enabling a disabled layer, `EffectKind::FadeGate` easing and
+//! idle-replay invalidation, and `AlphaPulse.restart_on_spawn` restarting the
+//! wave at a spawn.
 
 extern crate alloc;
 
@@ -401,4 +402,71 @@ fn vertex_resolve_reruns_only_when_hex_cells_change()
   scene.placement_move( sand, Placement::Hex { q : 2, r : 2 } );
   assert!( !render( &scene, &mut renderer ), "moving a corner tile away breaks the blend" );
   assert_eq!( renderer.vertex_resolves(), 4 );
+}
+
+/// Renders `scene` through a long-lived `renderer` (the vertex resolve cache
+/// and the pulse anchor it keeps live there) and returns every sprite's alpha.
+fn pulse_alphas( renderer : &mut Renderer, flattener : &mut common::BatchFlattener, scene : &Scene ) -> Vec< f32 >
+{
+  let cmds = flattener.apply( renderer.render( scene, &Camera::default() ).expect( "render" ) );
+  sprite_commands( &cmds ).iter().map( | s | s.tint[ 3 ] ).collect()
+}
+
+/// `AlphaPulse.restart_on_spawn`: a 1 Hz pulse from 0.2 to 1.0 on a lone hex,
+/// a second hex spawned at t = 0.25 s, then a look at t = 0.25 s and 0.5 s.
+/// Restarting, the wave goes back to `min` at the spawn and is half-way up a
+/// quarter period later. Free-running, it ignores the spawn: half-way at the
+/// spawn, at `max` a quarter period later.
+#[ test ]
+fn alpha_pulse_restart_on_spawn_restarts_the_wave_at_a_spawn()
+{
+  let run = | restart_on_spawn : bool | -> ( Vec< f32 >, Vec< f32 >, Vec< f32 > )
+  {
+    let mut spec = dual_orient_spec();
+    spec.effects.push( Effect
+    {
+      id : "pulse".into(),
+      kind : EffectKind::AlphaPulse { min : 0.2, max : 1.0, frequency : 1.0, restart_on_spawn },
+      phase_offset : PhaseOffset::None,
+    });
+    let stack = spec.objects[ 0 ].states.get_mut( "default" ).expect( "default state" );
+    stack[ 0 ].behaviour.effects.push( EffectRef( "pulse".into() ) );
+
+    let scene_snap = SceneSnapshot
+    {
+      tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "hexagon".into() ] } ],
+      ..minimal_scene_3x3()
+    };
+    let mut scene = Scene::from_snapshot( &scene_snap, Arc::new( spec.clone() ) ).expect( "scene" );
+    let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
+    let mut flattener = common::BatchFlattener::new();
+
+    let start = pulse_alphas( &mut renderer, &mut flattener, &scene );
+    scene.tick( 0.25 );
+    let hexagon = scene.object( "hexagon" ).expect( "hexagon object" );
+    scene.spawn( hexagon, Placement::Hex { q : 1, r : 0 } );
+    let at_spawn = pulse_alphas( &mut renderer, &mut flattener, &scene );
+    scene.tick( 0.25 );
+    let after = pulse_alphas( &mut renderer, &mut flattener, &scene );
+    assert_eq!( renderer.vertex_resolves(), 2, "the spawn re-resolves once, the tick after it does not" );
+    ( start, at_spawn, after )
+  };
+  let all_near = | alphas : &[ f32 ], want : f32, what : &str |
+  {
+    assert!( !alphas.is_empty(), "{what}: the hexes must emit corner sprites" );
+    for &a in alphas
+    {
+      assert!( ( a - want ).abs() < 1e-3, "{what}: alpha {want} expected, got {a} in {alphas:?}" );
+    }
+  };
+
+  let ( start, at_spawn, after ) = run( true );
+  all_near( &start, 0.2, "restart: first frame" );
+  all_near( &at_spawn, 0.2, "restart: the spawn sends the wave back to min" );
+  all_near( &after, 0.6, "restart: a quarter period after the spawn" );
+
+  let ( start, at_spawn, after ) = run( false );
+  all_near( &start, 0.2, "free-running: first frame" );
+  all_near( &at_spawn, 0.6, "free-running: the spawn does not touch the wave" );
+  all_near( &after, 1.0, "free-running: half a period on the scene clock" );
 }
