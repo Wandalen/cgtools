@@ -108,6 +108,7 @@ pub fn minimal_spec() -> RenderSpec
         filter : SamplerFilter::Linear,
         mipmap : MipmapMode::Off,
         wrap : WrapMode::Clamp,
+        premultiplied : false,
       },
     ],
     tints : Vec::new(),

@@ -754,6 +754,7 @@ fn capabilities_reports_coarse_support()
   assert!( !caps.blend_modes );
   assert_eq!( caps.supported_blend_modes, &[ BlendMode::Normal ] );
   assert!( !caps.text_on_path );
+  assert!( !caps.premultiplied_images );
   assert_eq!( caps.max_texture_size, 0 );
 }
 

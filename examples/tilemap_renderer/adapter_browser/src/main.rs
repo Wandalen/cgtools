@@ -85,6 +85,7 @@ fn solid_sprite_assets() -> Assets
         filter : SamplerFilter::default(),
         mipmap : MipmapMode::default(),
         wrap : WrapMode::default(),
+        premultiplied : false,
       }
     ],
     sprites : vec![ SpriteAsset { id : ResourceId::new( 0 ), sheet : ResourceId::new( 0 ), region : [ 0.0, 0.0, 8.0, 8.0 ] } ],
