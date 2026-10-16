@@ -63,6 +63,11 @@ cargo nextest run -p orrery_flexible --no-default-features --features vulkan
 printf '=== native: cargo clippy -p orrery_flexible --all-targets --no-default-features --features vulkan ===\n'
 cargo clippy -p orrery_flexible --all-targets --no-default-features --features vulkan -- -D warnings
 
+# The wasm32 test stage below runs every suite through this shim; check the
+# timeout and cwd it hands the runner first, without a browser.
+printf '=== script: wasm_test_runner_test.sh ===\n'
+"$_REPO_ROOT/script/wasm_test_runner_test.sh"
+
 printf '=== wasm32: rustup target add wasm32-unknown-unknown ===\n'
 rustup target add wasm32-unknown-unknown
 
