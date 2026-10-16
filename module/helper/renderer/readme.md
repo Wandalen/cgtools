@@ -207,6 +207,8 @@ async fn load_assets
 # fn main() { let _ = load_assets; }
 ```
 
+> **KTX2 / Basis Universal textures** (`KHR_texture_basisu`) load automatically when the `ktx2` feature is enabled — no API change. Produce a UASTC-encoded `.glb` with [`gltf-transform`](https://gltf-transform.dev): `gltf-transform uastc in.glb out.glb` (requires KTX-Software's `ktx` CLI on `PATH`). ETC1S / BasisLZ payloads are not supported.
+
 ### Features
 
 Enable specific functionality:
@@ -217,6 +219,7 @@ renderer = { workspace = true, features = ["webgl", "full"] }
 - `webgl` - WebGL rendering backend
 - `webgpu` - Canonical `gpu_hal` opaque path ( browser targets )
 - `native` - The same canonical path on the native wgpu backend ( terminal pixel tests, no browser )
+- `ktx2` - Decode `KHR_texture_basisu` (KTX2 / Basis Universal) textures in the glTF loader. **UASTC payloads only** — ETC1S / BasisLZ is rejected with an actionable error. Blocks are transcoded per-device to ASTC 4×4, BC7 or ETC2, or to uncompressed RGBA8 as a fallback, and uploaded as linear formats (the shader performs sRGB→linear). Off by default.
 - `full` - All features enabled
 
 ## 🎯 Use Cases

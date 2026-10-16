@@ -143,7 +143,10 @@ web-sys = { workspace = true, optional = true, features = [
   'ResizeObserver',
   "BlobPropertyBag",
   "Blob",
-  "Url"
+  "Url",
+  # Needed by `texture::compressed` to detect drivers that advertise compressed-texture
+  # formats they only emulate in software.
+  "Navigator"
 ]}
 
 [dev-dependencies]
