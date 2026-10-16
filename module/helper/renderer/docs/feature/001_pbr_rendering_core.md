@@ -53,6 +53,7 @@ HAL once one exists.
 | [../invariant/002_pbr_metallic_roughness_baseline.md](../invariant/002_pbr_metallic_roughness_baseline.md) | Material contract realized by the scene side |
 | [../invariant/003_hdr_internal_tone_mapped_output.md](../invariant/003_hdr_internal_tone_mapped_output.md) | Range contract realized by the target topology and pass 5 |
 | [../invariant/004_gpu_resource_ownership.md](../invariant/004_gpu_resource_ownership.md) | Ownership contract for the scene graph's geometries, textures and skins |
+| [../invariant/005_canvas_alpha_forwarding.md](../invariant/005_canvas_alpha_forwarding.md) | Alpha contract every post pass keeps for an AR canvas |
 
 ### Pitfalls
 
@@ -86,4 +87,4 @@ HAL once one exists.
 | `tests/tests.rs` | Test aggregator for the crate |
 | `tests/pbr_shading_readback_test.rs` | Pixel readback of the PBR program: clearcoat, anisotropy, normal map, highlight |
 | `tests/tonemapping_edge_readback_test.rs` | Pixel readback of the ACES pass over real frames: MSAA edges and transparent coverage |
-| `tests/ar_alpha_readback_test.rs` | Pixel readback of the AR path: `ToSrgbPass` and `ColorGradingPass` alpha forwarding, and occluders drawn first in the opaque pass |
+| `tests/ar_alpha_readback_test.rs` | Pixel readback of the AR path: `ToSrgbPass` and `ColorGradingPass` alpha forwarding, occluders drawn first in the opaque pass, and occluders picked instead of what they hide |

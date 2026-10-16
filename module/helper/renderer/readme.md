@@ -170,7 +170,7 @@ To composite the canvas over other content, such as a camera photo or video behi
 
 - Call `to_srgb.alpha_forward_set( &gl, true )?`. The canvas then keeps the scene's coverage alpha instead of being opaque. The output is premultiplied, which matches the WebGL default `premultipliedAlpha: true` canvas.
 - Clear to colour 0: `renderer.clear_color_set( F32x3::from_array( [ 0.0, 0.0, 0.0 ] ) )`. With any other clear colour, silhouette edges carry it blended in.
-- Every pass between the renderer and `ToSrgbPass` must pass alpha through. ACES tone mapping and `ColorGradingPass` do.
+- Every pass between the renderer and `ToSrgbPass` must pass alpha through. ACES tone mapping and `ColorGradingPass` do. A pass of your own must write its input alpha too ([`docs/invariant/005`](docs/invariant/005_canvas_alpha_forwarding.md)).
 - For real-world objects that hide part of the model (a finger through a ring), give an invisible stand-in mesh a material whose `is_occluder()` returns `true` and whose `color_write_mask()` is all `false`. The opaque pass draws occluders first, so their depth hides the geometry behind them and the photo shows through.
 
 ## 📖 API Reference
