@@ -15,7 +15,7 @@ A comprehensive 3D rendering system built specifically for WebAssembly and WebGL
 ### 🏗️ **Scene Management**
 - **glTF 2.0 Support** - Industry-standard 3D asset loading
 - **Hierarchical Scenes** - Node-based scene graph with transformations
-- **KHR Extensions** - Support for material extensions and advanced features
+- **glTF Extensions** - Material extensions, plus meshopt-compressed and quantized geometry
 - **Asset Streaming** - Efficient loading of 3D models and textures
 - **GPU Object Picking** - Id-buffer picking of scene nodes (`webgl::picking`), with a per-material highlight multiplier for hover / selection feedback
 
@@ -207,6 +207,22 @@ async fn load_assets
 # fn main() { let _ = load_assets; }
 ```
 
+#### Compressed glTF
+
+The loader reads meshopt-compressed ( [EXT_meshopt_compression], [KHR_meshopt_compression] )
+and quantized ( [KHR_mesh_quantization] ) assets, such as gltfpack or glTF-Transform output.
+Compressed buffer views are decoded with meshoptimizer's own decoder, vendored as
+`src/webgl/loaders/meshopt_decoder.js`, which wasm-bindgen imports as a JS snippet. That has
+two consequences for the page that hosts the wasm module :
+
+- **Ship `pkg/snippets/`.** The generated glue imports the decoder from
+  `snippets/renderer-<hash>/src/webgl/loaders/meshopt_decoder.js`, so the `snippets/` folder
+  has to be served next to the glue file. `wasm-pack` and `trunk` output already include it; a
+  custom pipeline that copies only the `.js` and `.wasm` files breaks the module at import.
+- **Allow `wasm-unsafe-eval`.** The decoder carries its own small wasm module and compiles it
+  with `WebAssembly.instantiate`. A page with a Content Security Policy needs
+  `'wasm-unsafe-eval'` in `script-src`, the same permission the crate's own wasm needs.
+
 ### Features
 
 Enable specific functionality:
@@ -281,10 +297,13 @@ feature hubs for the PBR core, image-based lighting, and shadow mapping.
 - [Normals and the Inverse Transpose, Part 2: Dual Spaces]
 - [Normal Mapping Without Precomputed Tangents]
 
-#### KHR Extensions
+#### glTF Extensions
 - [KHR_materials_specular]
 - [KHR_materials_clearcoat]
 - [KHR_materials_anisotropy]
+- [EXT_meshopt_compression]
+- [KHR_meshopt_compression]
+- [KHR_mesh_quantization]
 
 [Real Shading in Unreal Engine 4]: https://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
 [Background: Physics and Math of Shading]: https://blog.selfshadow.com/publications/s2013-shading-course/hoffman/s2013_pbs_physics_math_notes.pdf
@@ -306,5 +325,8 @@ feature hubs for the PBR core, image-based lighting, and shadow mapping.
 [KHR_materials_specular]:  https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_specular/README.md
 [KHR_materials_clearcoat]:  https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_clearcoat/README.md
 [KHR_materials_anisotropy]:  https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_anisotropy/README.md
+[EXT_meshopt_compression]:  https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Vendor/EXT_meshopt_compression/README.md
+[KHR_meshopt_compression]:  https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_meshopt_compression/README.md
+[KHR_mesh_quantization]:  https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_mesh_quantization/README.md
 [Vulkan-glTF-PBR]: https://github.com/SaschaWillems/Vulkan-glTF-PBR/blob/master/data/shaders/genbrdflut.frag
 [Image Based Lighting with Multiple Scattering]: https://bruop.github.io/ibl/

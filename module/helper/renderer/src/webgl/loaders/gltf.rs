@@ -3,6 +3,8 @@ mod private
   use std::{ cell::RefCell, rc::Rc };
   use gltf::mesh::iter::MorphTargets;
   use crate::webgl::loaders::gltf_extensions::{ document_validate, material_layer_extensions_apply };
+  use crate::webgl::loaders::gltf_buffers::buffers_load;
+  use crate::webgl::loaders::gltf_quantization::{ accessor_vec3_read, position_bounds_dequantize };
   use mingl::F32x3;
   use minwebgl as gl;
   use gl::
@@ -185,15 +187,7 @@ mod private
       packed_array
     }
 
-    let get_target_array = | acc : gltf::Accessor< '_ > |
-    {
-      gltf::mesh::util::ReadPositionDisplacements::new
-      (
-        acc,
-        | buffer | buffers.get( buffer.index() ).map( std::vec::Vec::as_slice )
-      )
-      .map( std::iter::Iterator::collect::< Vec< _ > > )
-    };
+    let get_target_array = | acc : gltf::Accessor< '_ > | accessor_vec3_read( acc, buffers );
 
     let skin_vertices_count = primitives_vertices_count.iter().sum::< usize >();
     let ( positions, normals, tangents ) =
@@ -473,53 +467,6 @@ mod private
     {
       format!( "{folder_path}/{uri}" )
     }
-  }
-
-  /// Collects the raw byte payload of every glTF buffer : the embedded GLB
-  /// binary chunk first ( when present ), then each URI-addressed buffer
-  /// fetched relative to `folder_path`.
-  async fn buffers_load
-  (
-    gltf_file : &mut gltf::Gltf,
-    folder_path : &str
-  )
-  -> Result< Vec< gl::js_sys::Uint8Array >, gl::WebglError >
-  {
-    let mut buffers : Vec< gl::js_sys::Uint8Array > = Vec::new();
-
-    // Move the GLB bin into buffers
-    if let Some( blob ) = gltf_file.blob.as_mut()
-    {
-      let blob = std::mem::take( blob );
-      gl::debug!( "The gltf binary payload is present: {}", blob.len() );
-      buffers.push( blob.as_slice().into() );
-    }
-
-    for gltf_buffer in gltf_file.buffers()
-    {
-      if let gltf::buffer::Source::Uri( uri ) = gltf_buffer.source()
-      {
-        let path = asset_uri_resolve( folder_path, uri );
-        let buffer = gl::file::load( &path ).await
-        .map_err( | e |
-        {
-          gl::browser::error!( "Failed to load gltf buffer '{path}': {e:?}" );
-          gl::WebglError::Other( "Failed to load a buffer" )
-        } )?;
-
-        gl::debug!
-        (
-          "Buffer path: {}\n
-          \tBuffer length: {}",
-          path,
-          buffer.len()
-        );
-
-        buffers.push( buffer.as_slice().into() );
-      }
-    }
-
-    Ok( buffers )
   }
 
   std::thread_local!
@@ -942,7 +889,12 @@ mod private
         gltf::Semantic::Positions =>
         {
           geometry.vertex_count = acc.count() as u32;
-          let gltf_box = gltf_primitive.bounding_box();
+          let gltf_box = position_bounds_dequantize
+          (
+            gltf_primitive.bounding_box(),
+            acc.data_type(),
+            acc.normalized()
+          );
 
           let mut attr_info = attribute_info_make( gl_buffers, &acc, 0 );
           attr_info.bounding_box = BoundingBox::new( gltf_box.min, gltf_box.max );
@@ -1417,10 +1369,25 @@ mod private
     .inspect_err( | _ | gl::browser::error!( "Invalid gltf file '{gltf_path}'" ) )?;
 
     let buffers = buffers_load( &mut gltf_file, folder_path ).await?;
+    crate::webgl::loaders::meshopt::views_decode( &gltf_file, &buffers ).await?;
 
-    let bin_buffers = buffers.iter()
-    .map( minwebgl::js_sys::Uint8Array::to_vec )
-    .collect::< Vec< _ > >();
+    // Only skins, morph targets and animations are read on the CPU. Everything else goes
+    // straight from the JS buffers to the GPU, so skip the copy into wasm memory when
+    // nothing needs it : it costs as much as the decoded model again, and the wasm heap
+    // never shrinks afterwards.
+    let cpu_buffers_needed = gltf_file.skins().next().is_some()
+    || gltf_file.animations().next().is_some()
+    || gltf_file.meshes().any( | m | m.primitives().any( | p | p.morph_targets().next().is_some() ) );
+    let bin_buffers = if cpu_buffers_needed
+    {
+      buffers.iter()
+      .map( minwebgl::js_sys::Uint8Array::to_vec )
+      .collect::< Vec< _ > >()
+    }
+    else
+    {
+      Vec::new()
+    };
 
     gl::debug!( "Buffers: {}", buffers.len() );
 

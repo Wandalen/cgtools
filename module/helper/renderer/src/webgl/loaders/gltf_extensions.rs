@@ -23,12 +23,21 @@ mod private
   /// `KHR_materials_clearcoat` / `KHR_materials_anisotropy` have no typed accessor
   /// or Cargo feature in the `gltf` crate; [`material_layer_extensions_apply`] in
   /// this file reads their JSON through `extension_value`.
+  /// The meshopt extensions are decoded by [`crate::webgl::loaders::meshopt::views_decode`]
+  /// before any buffer is used. For `KHR_mesh_quantization`, GPU attributes reach
+  /// `vertexAttribPointer` with their integer type and `normalized` flag intact
+  /// ( `loaders/gltf.rs`'s `attribute_descriptor_make` ). Values read on the CPU are
+  /// dequantized there: normalized position bounds in `position_bounds_dequantize`, and
+  /// morph target displacements in `accessor_vec3_read`.
   const SUPPORTED_EXTENSIONS : &[ &str ] =
   &[
     "KHR_lights_punctual",
     "KHR_materials_specular",
     "KHR_materials_clearcoat",
     "KHR_materials_anisotropy",
+    "EXT_meshopt_compression",
+    "KHR_meshopt_compression",
+    "KHR_mesh_quantization",
   ];
 
   /// Validates a parsed glTF document's `extensionsRequired` against
@@ -71,7 +80,7 @@ mod private
   ///
   /// That upstream rule checks against `gltf-json`'s compile-time list of extensions it has typed
   /// support for, which lacks extensions this loader reads by hand ( `KHR_materials_clearcoat`,
-  /// `KHR_materials_anisotropy` ) and even `KHR_materials_specular`, so a valid asset requiring
+  /// `KHR_materials_anisotropy`, meshopt, `KHR_mesh_quantization` ) and even `KHR_materials_specular`, so a valid asset requiring
   /// one of them could never load. This function replaces it with the same glTF rule against
   /// `SUPPORTED_EXTENSIONS`, so it is complete on its own.
   ///
