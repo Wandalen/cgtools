@@ -82,7 +82,8 @@ mod private
   ///
   /// That upstream rule checks against `gltf-json`'s compile-time list of extensions it has typed
   /// support for, which lacks extensions this loader reads by hand ( `KHR_materials_clearcoat`,
-  /// `KHR_materials_anisotropy`, meshopt, `KHR_mesh_quantization` ) and even `KHR_materials_specular`, so a valid asset requiring
+  /// `KHR_materials_anisotropy`, `EXT_meshopt_compression`, `KHR_meshopt_compression`,
+  /// `KHR_mesh_quantization` ) and even `KHR_materials_specular`, so a valid asset requiring
   /// one of them could never load. This function replaces it with the same glTF rule against
   /// `SUPPORTED_EXTENSIONS`, so it is complete on its own.
   ///
