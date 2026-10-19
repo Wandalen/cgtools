@@ -7,7 +7,7 @@
 
 use renderer::webgl::loaders::gltf_quantization::position_bounds_dequantize;
 use renderer::webgl::loaders::gltf_extensions::{ document_validate, required_extensions_check };
-use renderer::webgl::loaders::meshopt::{ buffer_is_fallback, MeshoptFilter, MeshoptMode, MeshoptViewSpec };
+use renderer::webgl::loaders::meshopt::{ buffer_is_fallback, decodes_overlap_check, MeshoptFilter, MeshoptMode, MeshoptViewSpec };
 use serde_json::json;
 
 /// The layout glTF-Transform writes : compressed bytes in buffer 0, and a data-less
@@ -203,6 +203,45 @@ fn rejects_a_decode_target_overlapping_its_source()
   let after = attributes_spec( 0, 20, 12, 4 );
   assert!( after.ranges_check( &lengths, 0, 8, 16 ).is_err(), "the decoded bytes run into compressed bytes after them" );
   assert!( after.ranges_check( &lengths, 0, 4, 16 ).is_ok(), "the decoded bytes end where the compressed bytes start" );
+}
+
+/// The fixture's three views decode side by side into the fallback buffer from disjoint
+/// compressed bytes, so no view can corrupt another.
+#[ test ]
+fn decodes_overlap_check_accepts_the_fixture_layout()
+{
+  let gltf = fixture();
+  let specs = gltf.views().map( | v | MeshoptViewSpec::from_view( &v ).unwrap().unwrap() ).collect::< Vec< _ > >();
+  let placed = gltf.views().zip( &specs )
+  .map( | ( v, spec ) | ( v.index(), spec, v.buffer().index(), v.offset() ) )
+  .collect::< Vec< _ > >();
+  assert!( decodes_overlap_check( &placed ).is_ok() );
+}
+
+/// Two views sharing a fallback buffer : each passes `ranges_check` alone, but a
+/// decoded range that overlaps another view's would overwrite its output, and one that
+/// overlaps another view's compressed bytes would overwrite its input. Ranges that only
+/// touch, and compressed ranges shared between views ( they are only read ), are fine.
+#[ test ]
+fn decodes_overlap_check_rejects_views_corrupting_each_other()
+{
+  // Each decodes 16 bytes ( 4 x 4 ) from 12 compressed bytes.
+  let a = attributes_spec( 0, 0, 12, 4 );
+  let b = attributes_spec( 0, 12, 12, 4 );
+
+  assert!( decodes_overlap_check( &[ ( 0, &a, 1, 0 ), ( 1, &b, 1, 16 ) ] ).is_ok(), "decoded ranges touch end to start" );
+  assert!( decodes_overlap_check( &[ ( 0, &a, 1, 0 ), ( 1, &b, 1, 8 ) ] ).is_err(), "decoded ranges overlap" );
+  assert!( decodes_overlap_check( &[ ( 0, &a, 1, 0 ), ( 1, &b, 2, 0 ) ] ).is_ok(), "the same offset in different buffers" );
+
+  // View 1 decodes into buffer 0 at 4..20, over view 0's compressed 0..12 and its own
+  // compressed 12..24 : its own overlap is `ranges_check`'s case, so move its source away.
+  let b_far = attributes_spec( 0, 40, 12, 4 );
+  assert!( decodes_overlap_check( &[ ( 0, &a, 1, 0 ), ( 1, &b_far, 0, 4 ) ] ).is_err(), "a later view decodes over an earlier view's compressed bytes" );
+  assert!( decodes_overlap_check( &[ ( 1, &b_far, 0, 4 ), ( 0, &a, 1, 0 ) ] ).is_err(), "an earlier view decodes over a later view's compressed bytes" );
+  assert!( decodes_overlap_check( &[ ( 0, &a, 1, 0 ), ( 1, &b_far, 0, 12 ) ] ).is_ok(), "the decoded range starts where the other view's compressed bytes end" );
+
+  let a_again = attributes_spec( 0, 0, 12, 4 );
+  assert!( decodes_overlap_check( &[ ( 0, &a, 1, 0 ), ( 1, &a_again, 1, 16 ) ] ).is_ok(), "two views may read the same compressed bytes" );
 }
 
 #[ test ]

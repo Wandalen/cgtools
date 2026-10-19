@@ -366,6 +366,46 @@ mod private
     .any( | ext | ext.get( "fallback" ).and_then( Value::as_bool ).unwrap_or( false ) )
   }
 
+  /// Checks that the compressed views of one document cannot corrupt each other. Every
+  /// view is decoded in turn into its own range, so no view's decoded range may overlap
+  /// another's ( the later decode would overwrite the earlier one's output ), nor another
+  /// view's compressed bytes ( a decode would overwrite input another view still reads,
+  /// or has read ). Compressed bytes may overlap each other : they are only read.
+  /// [`MeshoptViewSpec::ranges_check`] covers one view against itself.
+  ///
+  /// `decodes` holds, per compressed view : its index, its checked spec, and the buffer
+  /// and offset of the range it decodes into.
+  ///
+  /// # Errors
+  ///
+  /// Returns a description of the first pair of views that overlap.
+  pub fn decodes_overlap_check( decodes : &[ ( usize, &MeshoptViewSpec, usize, usize ) ] ) -> Result< (), String >
+  {
+    // `ranges_check` bounded every range by its buffer's length, so no end overflows.
+    let target = | &( _, spec, buffer, offset ) : &( usize, &MeshoptViewSpec, usize, usize ) |
+      ( buffer, offset, offset + spec.count * spec.byte_stride );
+    let source = | &( _, spec, _, _ ) : &( usize, &MeshoptViewSpec, usize, usize ) |
+      ( spec.buffer, spec.byte_offset, spec.byte_offset + spec.byte_length );
+    let overlap = | ( a_buffer, a_start, a_end ) : ( usize, usize, usize ), ( b_buffer, b_start, b_end ) : ( usize, usize, usize ) |
+      a_buffer == b_buffer && a_start < b_end && b_start < a_end;
+
+    for ( i, a ) in decodes.iter().enumerate()
+    {
+      for b in &decodes[ i + 1 .. ]
+      {
+        if overlap( target( a ), target( b ) )
+        {
+          return Err( format!( "bufferViews {} and {} decode into overlapping ranges", a.0, b.0 ) );
+        }
+        if overlap( target( a ), source( b ) ) || overlap( target( b ), source( a ) )
+        {
+          return Err( format!( "bufferViews {} and {}: one decodes over the other's compressed bytes", a.0, b.0 ) );
+        }
+      }
+    }
+    Ok( () )
+  }
+
   /// Decodes every meshopt-compressed buffer view into its own range of `buffers`, so the
   /// rest of the loader reads plain glTF data. Loads nothing and waits for nothing when no
   /// view is compressed.
@@ -373,7 +413,9 @@ mod private
   /// # Errors
   ///
   /// Returns `WebglError::Other` when an extension object is malformed, a range does not
-  /// fit its buffer, or the decoder rejects the data; the details go to the console.
+  /// fit its buffer, two views overlap ( [`decodes_overlap_check`] ), or the decoder
+  /// rejects the data; the details go to the console. Every view is checked before the
+  /// first one is decoded.
   pub async fn views_decode
   (
     gltf_file : &gltf::Gltf,
@@ -382,15 +424,44 @@ mod private
   -> Result< (), gl::WebglError >
   {
     let buffer_lengths = buffers.iter().map( | b | b.length() as usize ).collect::< Vec< _ > >();
-    let mut decoder_ready = false;
+    let decodes = decodes_collect( gltf_file, &buffer_lengths )?;
+    if decodes.is_empty()
+    {
+      return Ok( () );
+    }
 
+    JsFuture::from( DECODER.with( Decoder::ready ) ).await
+    .map_err( | e |
+    {
+      gl::browser::error!( "meshopt decoder failed to initialise: {e:?}" );
+      gl::WebglError::Other( "meshopt decoder failed to initialise" )
+    } )?;
+
+    for ( view, spec ) in &decodes
+    {
+      view_decode( spec, view, buffers )?;
+    }
+
+    Ok( () )
+  }
+
+  /// Every compressed view of `gltf_file` with its spec, each checked against
+  /// `buffer_lengths` and all of them against each other, in document order.
+  fn decodes_collect< 'a >
+  (
+    gltf_file : &'a gltf::Gltf,
+    buffer_lengths : &[ usize ]
+  )
+  -> Result< Vec< ( gltf::buffer::View< 'a >, MeshoptViewSpec ) >, gl::WebglError >
+  {
+    let mut decodes = Vec::new();
     for view in gltf_file.views()
     {
       let Some( spec ) = MeshoptViewSpec::from_view( &view ) else { continue };
       let spec = spec
       .and_then( | spec |
       {
-        spec.ranges_check( &buffer_lengths, view.buffer().index(), view.offset(), view.length() )?;
+        spec.ranges_check( buffer_lengths, view.buffer().index(), view.offset(), view.length() )?;
         Ok( spec )
       } )
       .map_err( | e |
@@ -398,22 +469,19 @@ mod private
         gl::browser::error!( "glTF bufferView {}: invalid meshopt compression: {e}", view.index() );
         gl::WebglError::Other( "Invalid meshopt-compressed buffer view" )
       } )?;
-
-      if !decoder_ready
-      {
-        JsFuture::from( DECODER.with( Decoder::ready ) ).await
-        .map_err( | e |
-        {
-          gl::browser::error!( "meshopt decoder failed to initialise: {e:?}" );
-          gl::WebglError::Other( "meshopt decoder failed to initialise" )
-        } )?;
-        decoder_ready = true;
-      }
-
-      view_decode( &spec, &view, buffers )?;
+      decodes.push( ( view, spec ) );
     }
 
-    Ok( () )
+    let placed = decodes.iter()
+    .map( | ( view, spec ) | ( view.index(), spec, view.buffer().index(), view.offset() ) )
+    .collect::< Vec< _ > >();
+    decodes_overlap_check( &placed ).map_err( | e |
+    {
+      gl::browser::error!( "glTF meshopt compression: {e}" );
+      gl::WebglError::Other( "Overlapping meshopt-compressed buffer views" )
+    } )?;
+
+    Ok( decodes )
   }
 
   /// Decodes one checked view's compressed bytes into its own range of `buffers`.
@@ -463,6 +531,7 @@ crate::mod_interface!
     MeshoptFilter,
     MeshoptViewSpec,
     buffer_is_fallback,
+    decodes_overlap_check,
     views_decode
   };
 }
