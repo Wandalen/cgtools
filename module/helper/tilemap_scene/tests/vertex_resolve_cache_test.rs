@@ -4,6 +4,8 @@
 //! idle-replay invalidation, and `AlphaPulse.restart_on_spawn` restarting the
 //! wave at a spawn.
 
+#![ allow( clippy::float_cmp, reason = "the tint assertions check exact pass-through of constant tints and alphas the fade reaches exactly; epsilon comparison would weaken them" ) ]
+
 extern crate alloc;
 
 use alloc::sync::Arc;
