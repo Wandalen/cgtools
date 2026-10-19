@@ -7,10 +7,11 @@ mod private
   use wasm_bindgen_futures::JsFuture;
 
   // meshoptimizer's own decoder ( MIT, vendored unchanged from the `meshoptimizer` npm
-  // package 1.2.0 ). Its `meshopt_decoder.mjs` is renamed to `.js` so that every server
-  // sends it with a JavaScript MIME type; module scripts refuse anything else. It carries
-  // its decoder as an inlined, SIMD-enabled wasm module, so the host page needs
-  // `wasm-unsafe-eval` in its CSP -- the same permission this crate's own wasm already needs.
+  // package; its header says "Built from meshoptimizer 1.2" ). Its `meshopt_decoder.mjs` is
+  // renamed to `.js` so that every server sends it with a JavaScript MIME type; module
+  // scripts refuse anything else. It carries its decoder as an inlined, SIMD-enabled wasm
+  // module, so the host page needs `wasm-unsafe-eval` in its CSP -- the same permission this
+  // crate's own wasm already needs.
   #[ wasm_bindgen( module = "/src/webgl/loaders/meshopt_decoder.js" ) ]
   extern "C"
   {
