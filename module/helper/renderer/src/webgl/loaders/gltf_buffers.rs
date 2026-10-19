@@ -105,12 +105,12 @@ mod private
     if gltf_buffer.index() != 0
     {
       gl::browser::error!( "glTF buffer {} has no uri; only buffer 0 may omit it", gltf_buffer.index() );
-      return Err( gl::WebglError::Other( "glTF buffer has no data" ) );
+      return Err( gl::WebglError::Other( "glTF buffer other than buffer 0 has no uri" ) );
     }
     let blob = blob.take().ok_or_else( ||
     {
       gl::browser::error!( "glTF buffer 0 has no uri and the file has no GLB binary chunk" );
-      gl::WebglError::Other( "glTF buffer has no data" )
+      gl::WebglError::Other( "glTF buffer 0 has no uri and no GLB binary chunk" )
     } )?;
     gl::debug!( "The gltf binary payload is present: {}", blob.len() );
     Ok( blob.as_slice().into() )

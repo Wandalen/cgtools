@@ -247,7 +247,6 @@ mod tests
   #[ wasm_bindgen_test( async ) ]
   async fn load_refuses_a_uri_less_buffer_after_the_first()
   {
-    let gl = gl_init();
     let buffers = format!
     (
       r#"{{ "byteLength" : 36, "uri" : "{}" }}, {{ "byteLength" : 36 }}"#,
@@ -256,18 +255,17 @@ mod tests
     let json = triangle_gltf( &[], &buffers, r#"{ "buffer" : 0, "byteLength" : 36, "target" : 34962 }"# );
     let uri = data_uri( "model/gltf-binary", &glb( &json, &triangle_bytes() ) );
 
-    assert!( gltf::load( &document(), &uri, &gl ).await.is_err() );
+    assert_eq!( load_refusal( &uri ).await, "glTF buffer other than buffer 0 has no uri" );
   }
 
   /// A uri-less buffer in a file with no binary chunk has no data to load.
   #[ wasm_bindgen_test( async ) ]
   async fn load_refuses_a_uri_less_buffer_without_a_glb_chunk()
   {
-    let gl = gl_init();
     let json = triangle_gltf( &[], r#"{ "byteLength" : 36 }"#, r#"{ "buffer" : 0, "byteLength" : 36, "target" : 34962 }"# );
     let uri = data_uri( "model/gltf+json", json.as_bytes() );
 
-    assert!( gltf::load( &document(), &uri, &gl ).await.is_err() );
+    assert_eq!( load_refusal( &uri ).await, "glTF buffer 0 has no uri and no GLB binary chunk" );
   }
 
   /// A fallback buffer's size comes only from its declared `byteLength`, so a huge declaration
@@ -275,7 +273,6 @@ mod tests
   #[ wasm_bindgen_test( async ) ]
   async fn load_refuses_an_oversized_fallback_buffer()
   {
-    let gl = gl_init();
     let buffers = format!
     (
       r#"{{ "byteLength" : 36, "uri" : "{}" }},
@@ -285,7 +282,7 @@ mod tests
     let json = triangle_gltf( &[ "EXT_meshopt_compression" ], &buffers, r#"{ "buffer" : 0, "byteLength" : 36, "target" : 34962 }"# );
     let uri = data_uri( "model/gltf+json", json.as_bytes() );
 
-    assert!( gltf::load( &document(), &uri, &gl ).await.is_err() );
+    assert_eq!( load_refusal( &uri ).await, "glTF meshopt fallback buffers are too large" );
   }
 
   /// The fallback limit holds for the document, not per buffer : two fallbacks that each fit
