@@ -64,6 +64,6 @@ premultiplied on input only when the scene is cleared to colour 0.
 
 | File | Relationship |
 |------|--------------|
-| `tests/ar_alpha_readback_test.rs` | `alpha_forward_output_is_premultiplied`, `default_output_is_opaque`, `color_grading_forwards_alpha` |
-| `tests/tonemapping_edge_readback_test.rs` | The ACES pass over real frames: MSAA edges and transparent coverage |
-| `tests/legacy_glsl_shader_compile_test.rs` | Compiles the `FORWARD_ALPHA` variant from `ToSrgbPass::fragment_source` |
+| `tests/ar_alpha_readback_test.rs` | `alpha_forward_output_is_premultiplied` ( alpha 0, 0.25, 0.5 and 1 ), `default_output_is_opaque`, `color_grading_forwards_alpha`, and `the_ar_chain_keeps_the_occluder_transparent_on_the_canvas`: the four stages composed on a real frame |
+| `tests/tonemapping_edge_readback_test.rs` | `alpha_is_forwarded_on_every_path`: the ACES pass over a real frame keeps alpha 0 on the background, 1 inside an opaque quad, and the partial coverage on its silhouette ( reconstructed or plainly blended ) and on glass |
+| `tests/legacy_glsl_shader_compile_test.rs` | Compiles the `FORWARD_ALPHA` variant from `to_srgb::fragment_source`, reached under `test_internals` |

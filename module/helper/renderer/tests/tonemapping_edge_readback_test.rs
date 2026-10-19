@@ -5,7 +5,8 @@
 //! pixels from their background neighbours. The tests check the two kinds of partial coverage it
 //! sees: an MSAA silhouette of an opaque quad, whose edge must not turn into a light fringe, and a
 //! transparent ( WBOIT ) quad, whose outline must not be tone mapped differently from its
-//! interior; and that without the texture the pass keeps the plain blend. The quad is unlit apart
+//! interior; that without the texture the pass keeps the plain blend; and that every path
+//! forwards the coverage alpha. The quad is unlit apart
 //! from the PBR shader's ambient term ( 0.1 of its white base colour ), which the exposure scales
 //! to an HDR value, so the comparisons only depend on how the pass treats each pixel, not on the
 //! shading.
@@ -125,6 +126,12 @@ mod tests
   /// texture, and returns the red channel of the middle row.
   fn tone_mapped_row( gl : &GL, renderer : &Renderer, coverage : Option< gl::web_sys::WebGlTexture > ) -> Vec< u8 >
   {
+    tone_mapped_pixels( gl, renderer, coverage ).iter().map( | pixel | pixel[ 0 ] ).collect()
+  }
+
+  /// [`tone_mapped_row`]'s middle row, every RGBA channel of it.
+  fn tone_mapped_pixels( gl : &GL, renderer : &Renderer, coverage : Option< gl::web_sys::WebGlTexture > ) -> Vec< [ u8; 4 ] >
+  {
     let mut pass = ToneMappingPass::< ToneMappingAces >::new( gl ).expect( "tone mapping program compiles" );
     pass.transparent_coverage_texture_set( coverage );
 
@@ -145,7 +152,7 @@ mod tests
     gl.bind_framebuffer( gl::FRAMEBUFFER, None );
     gl.delete_framebuffer( framebuffer.as_ref() );
     gl.delete_texture( output.as_ref() );
-    row.chunks( 4 ).map( | pixel | pixel[ 0 ] ).collect()
+    row.chunks_exact( 4 ).map( | pixel | [ pixel[ 0 ], pixel[ 1 ], pixel[ 2 ], pixel[ 3 ] ] ).collect()
   }
 
   /// An opaque silhouette pixel is half quad, half background. With the coverage texture
@@ -204,5 +211,33 @@ mod tests
 
     let unwired = tone_mapped_row( &gl, &renderer, None );
     assert_eq!( unwired, row, "unwired, the glass takes the same plain blend: {unwired:?}" );
+  }
+
+  /// The pass forwards the frame's coverage alpha on every path instead of writing 1, so an
+  /// AR canvas composites with real per-pixel coverage: 0 on the background, 1 inside an
+  /// opaque quad, and the partial coverage on its MSAA silhouette, whether that pixel is
+  /// reconstructed ( wired ) or plainly blended ( unwired ). Inside glass the alpha is the
+  /// glass's own coverage, the same on its outline as in its interior.
+  #[ wasm_bindgen_test ]
+  fn alpha_is_forwarded_on_every_path()
+  {
+    let gl = gl_init();
+    let mut renderer = renderer_make( &gl, 0.5, 5.0 );
+    draw( &gl, &mut renderer, quad_node( &gl, half_pixel_left(), AlphaMode::Opaque, 1.0 ) );
+
+    let wired = tone_mapped_pixels( &gl, &renderer, renderer.transparent_coverage_texture() );
+    assert_eq!( wired[ BACKGROUND ][ 3 ], 0, "the background keeps alpha 0: {wired:?}" );
+    assert_eq!( wired[ INTERIOR ][ 3 ], 255, "a fully covered pixel keeps alpha 1: {wired:?}" );
+    let edge = wired[ EDGE ][ 3 ];
+    assert!( edge > 0 && edge < 255, "the reconstructed silhouette keeps its partial coverage: {wired:?}" );
+    let unwired = tone_mapped_pixels( &gl, &renderer, None );
+    assert_eq!( unwired[ EDGE ][ 3 ], edge, "the plain blend keeps the same coverage: {unwired:?}" );
+
+    let mut renderer = renderer_make( &gl, 0.2, 4.0 );
+    draw( &gl, &mut renderer, quad_node( &gl, 0.0, AlphaMode::Blend, 0.5 ) );
+    let glass = tone_mapped_pixels( &gl, &renderer, renderer.transparent_coverage_texture() );
+    let interior = glass[ INTERIOR ][ 3 ];
+    assert!( interior > 0 && interior < 255, "glass over the background is partially covered: {glass:?}" );
+    assert_eq!( glass[ EDGE ][ 3 ], interior, "the glass outline keeps the interior's coverage: {glass:?}" );
   }
 }

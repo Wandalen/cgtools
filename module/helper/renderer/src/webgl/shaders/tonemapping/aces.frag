@@ -71,7 +71,7 @@ void main()
   // The coverage alpha is forwarded (not hardcoded to 1) so a caller can composite
   // the canvas over other content (e.g. AR over a photo) with real per-pixel coverage.
   if( src.a <= 0.0 ) { frag_color = vec4( src.rgb, src.a ); return; }
-  if( src.a >= 1.0 ) { frag_color = vec4( aces_tone_map( src.rgb ), 1.0 ); return; }
+  if( src.a >= 1.0 ) { frag_color = vec4( aces_tone_map( src.rgb ), src.a ); return; }
 
   // Partially covered: an MSAA-resolved silhouette pixel holds the coverage-weighted
   // average of its samples, src.rgb = a * geometry + ( 1 - a ) * background, with

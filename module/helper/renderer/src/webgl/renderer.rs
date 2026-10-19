@@ -836,9 +836,12 @@ mod private
       }
 
       gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
-      // The colour mask is per-material state. An occluder drawn last (one with nothing
-      // else in the queue) would leave it off for the skybox, the post-processing passes
-      // and next frame's clear.
+      // Fix(BUG-539): colour writes are turned back on after the opaque pass.
+      // Root cause: the colour mask is per-material state ( `material_color_mask_enable` )
+      // that nothing reset, so an occluder drawn last ( one with nothing else in the queue )
+      // left it off for the skybox, the post-processing passes and next frame's clear.
+      // Pitfall: a `?` in the loop above returns before this reset, as it does before the
+      // depth and face state are reset; a failed upload aborts the frame either way.
       gl.color_mask( true, true, true, true );
 
       // A sourceless skybox would bind no texture, and the shader would write the
@@ -1047,6 +1050,9 @@ mod private
         primitive.draw( gl );
       }
 
+      // Fix(BUG-539): the transparent pass applies each material's colour mask too, so it
+      // is reset here as well, with the pass's own depth and face state.
+      // Root cause and pitfall: see the reset after the opaque pass.
       gl.color_mask( true, true, true, true );
       gl.disable( gl::CULL_FACE );
       gl.depth_mask( true );

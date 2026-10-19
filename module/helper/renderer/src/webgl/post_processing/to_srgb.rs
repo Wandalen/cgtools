@@ -54,7 +54,10 @@ mod private
     {
       if alpha_forward != self.alpha_forward
       {
-        self.material = Self::program( gl, alpha_forward )?;
+        let replaced = core::mem::replace( &mut self.material, Self::program( gl, alpha_forward )? );
+        // `EmptyShader` has no `Drop`: its clones share one program. This pass never clones
+        // its own, so the replaced program has no other user and is deleted here.
+        gl.delete_program( Some( replaced.program() ) );
         self.alpha_forward = alpha_forward;
       }
       Ok( () )
@@ -67,27 +70,9 @@ mod private
       self.alpha_forward
     }
 
-    /// The fragment shader source the pass compiles: `to_srgb.frag`, with
-    /// `#define FORWARD_ALPHA` inserted after its `#version` line when
-    /// `alpha_forward` is set ( see [`Self::alpha_forward_set`] ).
-    #[ must_use ]
-    pub fn fragment_source( alpha_forward : bool ) -> String
-    {
-      let fs_shader = include_str!( "../shaders/post_processing/to_srgb.frag" );
-      if alpha_forward
-      {
-        // Defines must follow the `#version` line.
-        fs_shader.replacen( "precision highp float;", "#define FORWARD_ALPHA\nprecision highp float;", 1 )
-      }
-      else
-      {
-        fs_shader.to_string()
-      }
-    }
-
     fn program( gl : &gl::WebGl2RenderingContext, alpha_forward : bool ) -> Result< EmptyShader, gl::WebglError >
     {
-      let program = gl::ProgramFromSources::new( VS_TRIANGLE, &Self::fragment_source( alpha_forward ) ).compile_and_link( gl )?;
+      let program = gl::ProgramFromSources::new( VS_TRIANGLE, &fragment_source( alpha_forward ) ).compile_and_link( gl )?;
       Ok( EmptyShader::new( gl, &program ) )
     }
 
@@ -108,6 +93,42 @@ mod private
         }
       )
     }
+  }
+
+  /// The program the pass draws with, reachable from `tests/` under `test_internals`, so a
+  /// test can check that `alpha_forward_set` deletes the one it replaces.
+  #[ cfg( feature = "test_internals" ) ]
+  impl ToSrgbPass
+  {
+    #[ doc( hidden ) ]
+    #[ must_use ]
+    pub fn program_for_test( &self ) -> gl::WebGlProgram
+    {
+      self.material.program().clone()
+    }
+  }
+
+  /// The fragment shader source [`ToSrgbPass`] compiles: `to_srgb.frag`, with
+  /// `#define FORWARD_ALPHA` inserted after its `#version` line when `alpha_forward` is set
+  /// ( see [`ToSrgbPass::alpha_forward_set`] ). Reachable from `tests/` under `test_internals`.
+  ///
+  /// # Panics
+  ///
+  /// Panics if `to_srgb.frag` does not start with its `#version` line, which GLSL ES 3.0
+  /// requires anyway. The file is compiled in, so `legacy_glsl_shader_compile_test`'s
+  /// `FORWARD_ALPHA` case catches that before a release.
+  #[ must_use ]
+  pub fn fragment_source( alpha_forward : bool ) -> String
+  {
+    let fs_shader = include_str!( "../shaders/post_processing/to_srgb.frag" );
+    if !alpha_forward
+    {
+      return fs_shader.to_string();
+    }
+    // Defines must follow the `#version` line, so the define goes right after it.
+    let ( version, rest ) = fs_shader.split_once( '\n' ).unwrap_or( ( fs_shader, "" ) );
+    assert!( version.starts_with( "#version" ), "to_srgb.frag must start with its #version line, got `{version}`" );
+    format!( "{version}\n#define FORWARD_ALPHA\n{rest}" )
   }
 
   impl Pass for ToSrgbPass
@@ -181,4 +202,15 @@ crate::mod_interface!
   {
     ToSrgbPass
   };
+}
+
+/// The internals `tests/` reaches, exposed only under `test_internals`.
+///
+/// Not part of the surface: with the feature off, the default and what every dependent gets,
+/// this module does not exist.
+#[ cfg( feature = "test_internals" ) ]
+#[ doc( hidden ) ]
+pub mod internal
+{
+  pub use super::private::fragment_source;
 }

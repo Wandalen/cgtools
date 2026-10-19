@@ -3,7 +3,8 @@
 //! `Material::is_occluder` material drawn by the real `Renderer::render`, which must leave the
 //! background showing where it stands in front of opaque geometry. `ColorGradingPass`, which
 //! sits between them in an AR chain, must pass the coverage alpha through, and `ScenePicker`
-//! must report the occluder, not what it hides.
+//! must report the occluder, not what it hides. The whole chain, from `Renderer::render`
+//! through ACES and colour grading to `ToSrgbPass`, is checked on the canvas too.
 
 #[ cfg( target_arch = "wasm32" ) ]
 #[ cfg( test ) ]
@@ -16,7 +17,7 @@ mod tests
   use gl::{ GL, JsCast };
   use renderer::webgl::
   {
-    post_processing::{ ColorGradingPass, Pass, ToSrgbPass },
+    post_processing::{ ColorGradingPass, Pass, ToSrgbPass, ToneMappingAces, ToneMappingPass },
     picking::{ IdBuffer, PickId, ScenePicker },
     material::PbrMaterial,
     AttributeInfo,
@@ -29,8 +30,10 @@ mod tests
     Object3D,
     Primitive,
     Renderer,
+    Sampler,
     Scene,
     ShaderProgram,
+    Texture,
   };
 
   const SIZE : u32 = 64;
@@ -112,6 +115,11 @@ mod tests
     assert_near( grey[ 0 ], 62, "grey, a = 0.5, red" );
     assert_near( grey[ 3 ], 128, "grey, a = 0.5, alpha" );
 
+    // A fully covered pixel is opaque, its colour the plain sRGB encoding: srgb( 0.25 ) = 0.537.
+    let covered = to_srgb_pixel( &gl, &pass, [ 0.25, 0.25, 0.25, 1.0 ] );
+    assert_near( covered[ 0 ], 137, "a = 1, red" );
+    assert_eq!( covered[ 3 ], 255, "a = 1, alpha: {covered:?}" );
+
     // An uncovered pixel is fully transparent, whatever colour a pass left in it.
     assert_eq!( to_srgb_pixel( &gl, &pass, [ 0.3, 0.3, 0.3, 0.0 ] ), [ 0, 0, 0, 0 ] );
   }
@@ -127,6 +135,37 @@ mod tests
     let pixel = to_srgb_pixel( &gl, &pass, [ 0.25, 0.25, 0.25, 0.25 ] );
     assert_eq!( pixel[ 3 ], 255, "opaque output, got {pixel:?}" );
     assert_near( pixel[ 0 ], 137, "srgb( 0.25 )" );
+  }
+
+  /// Toggling alpha forwarding compiles the other variant and deletes the program it
+  /// replaces, so a page that switches AR on and off does not pile up programs. The new
+  /// program must be the one drawing: the output follows the toggle each time.
+  #[ cfg( feature = "test_internals" ) ]
+  #[ wasm_bindgen_test ]
+  fn alpha_forward_set_deletes_the_replaced_program()
+  {
+    let gl = gl_init();
+    let mut pass = ToSrgbPass::new( &gl, true ).expect( "ToSrgbPass compiles" );
+    let quarter = [ 0.25, 0.25, 0.25, 0.25 ];
+
+    for alpha_forward in [ true, false, true ]
+    {
+      let replaced = pass.program_for_test();
+      pass.alpha_forward_set( &gl, alpha_forward ).expect( "the variant compiles" );
+      // The previous draw left the replaced program current, and GL defers deleting a
+      // current program until it is unbound, as the next pass or frame does.
+      gl.use_program( None );
+      assert!( !gl.is_program( Some( &replaced ) ), "alpha_forward = {alpha_forward}: the replaced program is deleted" );
+      assert!( gl.is_program( Some( &pass.program_for_test() ) ), "alpha_forward = {alpha_forward}: the new program is live" );
+
+      let alpha = to_srgb_pixel( &gl, &pass, quarter )[ 3 ];
+      let expected = if alpha_forward { 64 } else { 255 };
+      assert_near( alpha, expected, &format!( "alpha_forward = {alpha_forward}: the new variant draws" ) );
+    }
+
+    let kept = pass.program_for_test();
+    pass.alpha_forward_set( &gl, true ).expect( "setting the same value succeeds" );
+    assert!( gl.is_program( Some( &kept ) ), "setting the current value keeps the program" );
   }
 
   // --- ColorGradingPass ---
@@ -320,21 +359,176 @@ mod tests
     }
   }
 
+  /// A 1x1 opaque red `RGBA8` texture, for a skybox that draws red in every direction.
+  fn red_skybox( gl : &GL ) -> Texture
+  {
+    let source = gl.create_texture().expect( "create_texture succeeds" );
+    gl.bind_texture( gl::TEXTURE_2D, Some( &source ) );
+    gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array
+    (
+      gl::TEXTURE_2D, 0, gl::RGBA8 as i32, 1, 1, 0, gl::RGBA, gl::UNSIGNED_BYTE, Some( &[ 255, 0, 0, 255 ] )
+    ).expect( "tex_image_2d succeeds" );
+    // The skybox is drawn with the GL texture's own parameters, and the default minifying
+    // filter needs mipmaps this texture does not have.
+    gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::NEAREST as i32 );
+    gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as i32 );
+    Texture::owning( gl, gl::TEXTURE_2D, source, Sampler::default() )
+  }
+
   /// A frame whose opaque queue holds only an occluder must not leave its colour mask
-  /// behind, or the post-processing passes and the next frame's clear write nothing.
+  /// behind, or the skybox, the post-processing passes and the next frame's clear write
+  /// nothing.
+  ///
+  /// ## Root Cause
+  /// The colour mask is per-material state, and the opaque pass left the last material's in
+  /// place. An occluder's mask is all off.
+  ///
+  /// ## Why Not Caught
+  /// No test drew an occluder last, and the depth tests read depth, not colour.
+  ///
+  /// ## Fix Applied
+  /// `Renderer::render` turns colour writes back on after the opaque pass, before the
+  /// skybox, and again after the transparent pass.
+  ///
+  /// ## Prevention
+  /// The skybox draws right after the opaque pass, so only the first restoration can make
+  /// it show: beside the occluder the background must be the skybox's red, not the clear
+  /// colour. The mask must also be on once the frame is done.
+  ///
+  /// ## Pitfall
+  /// Any per-material GL state the opaque pass applies has to be reset before a pass that
+  /// does not set it itself.
+  // test_kind: bug_reproducer(BUG-539)
   #[ wasm_bindgen_test ]
   fn an_occluder_drawn_last_does_not_leave_the_colour_mask_off()
   {
     let gl = gl_init();
     let mut renderer = Renderer::new( &gl, SIZE, SIZE, 4 ).expect( "Renderer::new succeeds" );
+    renderer.clear_color_set( gl::F32x3::from_array( [ 0.2, 0.4, 0.6 ] ) );
+    renderer.skybox_set( Some( red_skybox( &gl ) ) );
     let mut scene = Scene::new();
-    scene.add( rect_node( &gl, [ -5.0, -5.0, 5.0, 5.0 ], 0.0, Box::new( Occluder( PbrMaterial::new( &gl ) ) ) ) );
+    // The left half only, so the skybox shows on the right.
+    scene.add( rect_node( &gl, [ -5.0, -5.0, 0.0, 5.0 ], 1.0, Box::new( Occluder( PbrMaterial::new( &gl ) ) ) ) );
     renderer.render( &gl, &mut scene, &camera() ).expect( "render succeeds" );
+    assert_eq!( gl.get_error(), gl::NO_ERROR, "the frame raises no GL error" );
+
+    let mid = ( SIZE / 2 ) as i32;
+    let sky = main_pixel( &gl, &renderer, mid + 16, mid );
+    assert!( sky[ 0 ] > 0.9 && sky[ 1 ] < 0.05 && sky[ 2 ] < 0.05 && ( sky[ 3 ] - 1.0 ).abs() < 1e-3, "the skybox draws after the occluder: {sky:?}" );
+    let occluded = main_pixel( &gl, &renderer, mid - 16, mid );
+    assert!( occluded[ 3 ].abs() < 1e-3, "the occluder hides the skybox too, alpha 0: {occluded:?}" );
 
     let mask = gl.get_parameter( GL::COLOR_WRITEMASK ).expect( "get_parameter succeeds" )
     .dyn_into::< gl::js_sys::Array >().expect( "COLOR_WRITEMASK is an array" );
     let mask : Vec< bool > = mask.iter().map( | v | v.as_bool().expect( "a bool" ) ).collect();
     assert_eq!( mask, [ true; 4 ], "colour writes are on after the frame" );
+  }
+
+  /// Several occluders in one scene each hide the geometry behind them, wherever the scene
+  /// lists them relative to it: before it, after it, or one on each side. Between them the
+  /// geometry still draws.
+  #[ wasm_bindgen_test ]
+  fn every_occluder_hides_the_geometry_behind_it_in_any_order()
+  {
+    let gl = gl_init();
+    let mut renderer = Renderer::new( &gl, SIZE, SIZE, 4 ).expect( "Renderer::new succeeds" );
+    let mid = ( SIZE / 2 ) as i32;
+
+    // 0: quad, occluders left and right; 1: occluders, then quad; 2: one on each side.
+    for order in 0..3
+    {
+      let quad = rect_node( &gl, [ -5.0, -5.0, 5.0, 5.0 ], 0.0, Box::new( PbrMaterial::new( &gl ) ) );
+      // At z = 1 the view spans [ -1, 1 ]: the occluders cover all of it but a band at x = 0.
+      let left = rect_node( &gl, [ -5.0, -5.0, -0.25, 5.0 ], 1.0, Box::new( Occluder( PbrMaterial::new( &gl ) ) ) );
+      let right = rect_node( &gl, [ 0.25, -5.0, 5.0, 5.0 ], 1.0, Box::new( Occluder( PbrMaterial::new( &gl ) ) ) );
+      let nodes = match order
+      {
+        0 => [ quad, left, right ],
+        1 => [ left, right, quad ],
+        _ => [ left, quad, right ],
+      };
+      let mut scene = Scene::new();
+      for node in nodes { scene.add( node ); }
+      renderer.render( &gl, &mut scene, &camera() ).expect( "render succeeds" );
+
+      for x in [ mid - 20, mid + 20 ]
+      {
+        let occluded = main_pixel( &gl, &renderer, x, mid );
+        assert!( occluded[ 3 ].abs() < 1e-3, "order {order}, x = {x}: no colour behind an occluder: {occluded:?}" );
+      }
+      let between = main_pixel( &gl, &renderer, mid, mid );
+      assert!( ( between[ 3 ] - 1.0 ).abs() < 1e-3, "order {order}: the quad draws between the occluders: {between:?}" );
+    }
+  }
+
+  /// A `SIZE` x `SIZE` `RGBA16F` texture for one post-processing stage to write and the next
+  /// to read.
+  fn stage_texture( gl : &GL ) -> gl::web_sys::WebGlTexture
+  {
+    let texture = gl.create_texture().expect( "create_texture succeeds" );
+    gl.bind_texture( gl::TEXTURE_2D, Some( &texture ) );
+    gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::RGBA16F, SIZE as i32, SIZE as i32 );
+    gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::NEAREST as i32 );
+    gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as i32 );
+    texture
+  }
+
+  /// The whole AR chain on a real frame: `Renderer::render` with a 0 clear, then
+  /// `ToneMappingPass< ToneMappingAces >`, `ColorGradingPass` and an alpha-forwarding
+  /// `ToSrgbPass` onto the canvas. Each stage is tested alone above; this one checks that
+  /// they compose: where an occluder stands the canvas is fully transparent, so the camera
+  /// image shows, and beside it the quad is opaque, premultiplied and not black.
+  #[ wasm_bindgen_test ]
+  fn the_ar_chain_keeps_the_occluder_transparent_on_the_canvas()
+  {
+    let gl = gl_init();
+    let canvas = gl.canvas().expect( "the context has a canvas" ).dyn_into::< gl::web_sys::HtmlCanvasElement >().expect( "an HTML canvas" );
+    canvas.set_width( SIZE );
+    canvas.set_height( SIZE );
+
+    let mut renderer = Renderer::new( &gl, SIZE, SIZE, 4 ).expect( "Renderer::new succeeds" );
+    renderer.clear_color_set( gl::F32x3::from_array( [ 0.0, 0.0, 0.0 ] ) );
+    // A dielectric shows the PBR shader's ambient term without lights; the default metal is black.
+    let mut quad_material = PbrMaterial::new( &gl );
+    quad_material.metallic_factor = 0.0;
+    let mut scene = Scene::new();
+    scene.add( rect_node( &gl, [ -5.0, -5.0, 5.0, 5.0 ], 0.0, Box::new( quad_material ) ) );
+    scene.add( rect_node( &gl, [ -5.0, -5.0, 0.0, 5.0 ], 1.0, Box::new( Occluder( PbrMaterial::new( &gl ) ) ) ) );
+    renderer.render( &gl, &mut scene, &camera() ).expect( "render succeeds" );
+
+    let tone_mapping = ToneMappingPass::< ToneMappingAces >::new( &gl ).expect( "tone mapping compiles" );
+    let color_grading = ColorGradingPass::new( &gl ).expect( "ColorGradingPass compiles" );
+    let mut to_srgb = ToSrgbPass::new( &gl, true ).expect( "ToSrgbPass compiles" );
+    to_srgb.alpha_forward_set( &gl, true ).expect( "the FORWARD_ALPHA variant compiles" );
+
+    let ( tone_mapped, graded ) = ( stage_texture( &gl ), stage_texture( &gl ) );
+    let framebuffer = gl.create_framebuffer().expect( "create_framebuffer succeeds" );
+    gl.bind_framebuffer( gl::FRAMEBUFFER, Some( &framebuffer ) );
+    gl.viewport( 0, 0, SIZE as i32, SIZE as i32 );
+    tone_mapping.render( &gl, renderer.main_texture(), Some( tone_mapped.clone() ) ).expect( "tone mapping renders" );
+    color_grading.render( &gl, Some( tone_mapped.clone() ), Some( graded.clone() ) ).expect( "colour grading renders" );
+    gl.bind_framebuffer( gl::FRAMEBUFFER, None );
+    gl.delete_framebuffer( Some( &framebuffer ) );
+    gl.viewport( 0, 0, SIZE as i32, SIZE as i32 );
+    to_srgb.render( &gl, Some( graded.clone() ), None ).expect( "ToSrgbPass renders" );
+    assert_eq!( gl.get_error(), gl::NO_ERROR, "the chain raises no GL error" );
+
+    let canvas_pixel = | x : i32 |
+    {
+      let mut pixel = [ 0_u8; 4 ];
+      gl.read_pixels_with_opt_u8_array( x, ( SIZE / 2 ) as i32, 1, 1, gl::RGBA, gl::UNSIGNED_BYTE, Some( &mut pixel ) )
+      .expect( "read_pixels succeeds" );
+      pixel
+    };
+    let mid = ( SIZE / 2 ) as i32;
+    assert_eq!( canvas_pixel( mid - 16 ), [ 0, 0, 0, 0 ], "the occluder leaves the canvas fully transparent" );
+    let quad = canvas_pixel( mid + 16 );
+    assert_eq!( quad[ 3 ], 255, "the quad is opaque on the canvas: {quad:?}" );
+    assert!( quad[ 0 ] > 0, "the quad is not black: {quad:?}" );
+    assert_premultiplied( quad, "the quad" );
+
+    gl.delete_texture( Some( &tone_mapped ) );
+    gl.delete_texture( Some( &graded ) );
   }
 
   // --- Occluders in ScenePicker ---
