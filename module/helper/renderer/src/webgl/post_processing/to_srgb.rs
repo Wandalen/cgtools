@@ -54,7 +54,10 @@ mod private
     {
       if alpha_forward != self.alpha_forward
       {
-        self.material = Self::program( gl, alpha_forward )?;
+        let replaced = core::mem::replace( &mut self.material, Self::program( gl, alpha_forward )? );
+        // `EmptyShader` has no `Drop`: its clones share one program. This pass never clones
+        // its own, so the replaced program has no other user and is deleted here.
+        gl.delete_program( Some( replaced.program() ) );
         self.alpha_forward = alpha_forward;
       }
       Ok( () )
@@ -89,6 +92,19 @@ mod private
           alpha_forward : false,
         }
       )
+    }
+  }
+
+  /// The program the pass draws with, reachable from `tests/` under `test_internals`, so a
+  /// test can check that `alpha_forward_set` deletes the one it replaces.
+  #[ cfg( feature = "test_internals" ) ]
+  impl ToSrgbPass
+  {
+    #[ doc( hidden ) ]
+    #[ must_use ]
+    pub fn program_for_test( &self ) -> gl::WebGlProgram
+    {
+      self.material.program().clone()
     }
   }
 
