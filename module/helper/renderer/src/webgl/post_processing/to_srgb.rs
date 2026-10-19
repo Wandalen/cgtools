@@ -67,27 +67,9 @@ mod private
       self.alpha_forward
     }
 
-    /// The fragment shader source the pass compiles: `to_srgb.frag`, with
-    /// `#define FORWARD_ALPHA` inserted after its `#version` line when
-    /// `alpha_forward` is set ( see [`Self::alpha_forward_set`] ).
-    #[ must_use ]
-    pub fn fragment_source( alpha_forward : bool ) -> String
-    {
-      let fs_shader = include_str!( "../shaders/post_processing/to_srgb.frag" );
-      if alpha_forward
-      {
-        // Defines must follow the `#version` line.
-        fs_shader.replacen( "precision highp float;", "#define FORWARD_ALPHA\nprecision highp float;", 1 )
-      }
-      else
-      {
-        fs_shader.to_string()
-      }
-    }
-
     fn program( gl : &gl::WebGl2RenderingContext, alpha_forward : bool ) -> Result< EmptyShader, gl::WebglError >
     {
-      let program = gl::ProgramFromSources::new( VS_TRIANGLE, &Self::fragment_source( alpha_forward ) ).compile_and_link( gl )?;
+      let program = gl::ProgramFromSources::new( VS_TRIANGLE, &fragment_source( alpha_forward ) ).compile_and_link( gl )?;
       Ok( EmptyShader::new( gl, &program ) )
     }
 
@@ -107,6 +89,24 @@ mod private
           alpha_forward : false,
         }
       )
+    }
+  }
+
+  /// The fragment shader source [`ToSrgbPass`] compiles: `to_srgb.frag`, with
+  /// `#define FORWARD_ALPHA` inserted after its `#version` line when `alpha_forward` is set
+  /// ( see [`ToSrgbPass::alpha_forward_set`] ). Reachable from `tests/` under `test_internals`.
+  #[ must_use ]
+  pub fn fragment_source( alpha_forward : bool ) -> String
+  {
+    let fs_shader = include_str!( "../shaders/post_processing/to_srgb.frag" );
+    if alpha_forward
+    {
+      // Defines must follow the `#version` line.
+      fs_shader.replacen( "precision highp float;", "#define FORWARD_ALPHA\nprecision highp float;", 1 )
+    }
+    else
+    {
+      fs_shader.to_string()
     }
   }
 
@@ -181,4 +181,15 @@ crate::mod_interface!
   {
     ToSrgbPass
   };
+}
+
+/// The internals `tests/` reaches, exposed only under `test_internals`.
+///
+/// Not part of the surface: with the feature off, the default and what every dependent gets,
+/// this module does not exist.
+#[ cfg( feature = "test_internals" ) ]
+#[ doc( hidden ) ]
+pub mod internal
+{
+  pub use super::private::fragment_source;
 }

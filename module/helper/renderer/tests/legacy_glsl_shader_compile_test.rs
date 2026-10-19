@@ -252,11 +252,12 @@ mod tests
   }
 
   /// The `FORWARD_ALPHA` variant ( `ToSrgbPass::alpha_forward_set` ), from the same
-  /// `ToSrgbPass::fragment_source` the pass compiles.
+  /// `to_srgb::fragment_source` the pass compiles ( reachable under `test_internals` ).
+  #[ cfg( feature = "test_internals" ) ]
   #[ wasm_bindgen_test( async ) ]
   async fn post_processing_to_srgb_forward_alpha_frag_compiles()
   {
-    let source = renderer::webgl::post_processing::ToSrgbPass::fragment_source( true );
+    let source = renderer::webgl::post_processing::to_srgb::internal::fragment_source( true );
     assert!( source.contains( "#define FORWARD_ALPHA" ), "the define must be inserted" );
     glsl_validate( &gl_init(), "post_processing/to_srgb.frag ( FORWARD_ALPHA )", GL::FRAGMENT_SHADER, &source );
   }
