@@ -1,6 +1,7 @@
 //! [`RenderTargetId`] and the slot table behind it: the generation-checked
 //! handles [`WebGlBackend`]( crate::adapters::webgl::WebGlBackend ) hands out for its offscreen cache surfaces.
-//! GL-free, so the stale-handle rule is tested on the host.
+//! GL-free, so the stale-handle rule is tested on the host
+//! ( `tests/webgl_render_target_test.rs` ).
 
 mod private
 {
@@ -74,31 +75,3 @@ mod_interface::mod_interface!
   own use TargetSlots;
 }
 
-#[ cfg( test ) ]
-mod target_slots_tests
-{
-  use super::private::TargetSlots;
-
-  #[ test ]
-  fn handle_resolves_until_reset()
-  {
-    let mut slots = TargetSlots::new();
-    let a = slots.push( "a" ).expect( "slot" );
-    let b = slots.push( "b" ).expect( "slot" );
-    assert_ne!( a, b );
-    assert_eq!( slots.get( a ), Some( &"a" ) );
-    assert_eq!( slots.get( b ), Some( &"b" ) );
-  }
-
-  #[ test ]
-  fn stale_handle_is_rejected_after_slot_reuse()
-  {
-    let mut slots = TargetSlots::new();
-    let old = slots.push( "old" ).expect( "slot" );
-    slots.clear();
-    let new = slots.push( "new" ).expect( "slot" );
-    assert_ne!( old, new, "same slot, new generation" );
-    assert_eq!( slots.get( old ), None, "a handle from before the reset must not reach the new surface" );
-    assert_eq!( slots.get( new ), Some( &"new" ) );
-  }
-}
