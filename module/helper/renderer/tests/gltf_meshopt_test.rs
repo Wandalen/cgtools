@@ -240,6 +240,7 @@ fn draco_is_still_refused()
 }
 
 #[ test ]
+#[ allow( clippy::float_cmp, reason = "each expected value is the same single f32 division the dequantization does ( or an exact 0, ±1 or pass-through literal ), so the results are bit-identical" ) ]
 fn normalized_position_bounds_are_dequantized()
 {
   use gltf::accessor::DataType;
