@@ -1,11 +1,14 @@
 //! The GL-free helpers of the WebGL adapter: `StagedVec`, the CPU staging that
-//! decides which part of an instance buffer each frame re-uploads.
+//! decides which part of an instance buffer each frame re-uploads, and
+//! `mat3_mul`, which folds the `WebGlBackend::set_camera` view matrix into each
+//! draw's transform.
 //!
 //! These run on the host: nothing here touches a WebGL2 context.
 
 #![ cfg( feature = "adapter-webgl" ) ]
 
-use tilemap_renderer::adapters::webgl::webgl_helpers::{ StagedUpload, StagedVec };
+use tilemap_renderer::adapters::webgl::webgl_helpers::{ mat3_mul, StagedUpload, StagedVec };
+use tilemap_renderer::types::Transform;
 
 /// Pushes that stay within the GPU capacity upload as one range, and once
 /// taken the upload is not repeated. A repeat would re-send the buffer every
@@ -75,4 +78,63 @@ fn staged_vec_take_upload_drops_a_set_truncated_away()
   v.set( 7, 70 );
   v.swap_remove( 7 );
   assert_eq!( v.take_upload(), StagedUpload::None );
+}
+
+// --- mat3_mul ---
+
+/// Column-major identity.
+const IDENTITY : [ f32; 9 ] = [ 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0 ];
+
+/// A view matrix that zooms by 2, then pans by `( 200, 120 )` pixels.
+const CAMERA : [ f32; 9 ] = [ 2.0, 0.0, 0.0, 0.0, 2.0, 0.0, 200.0, 120.0, 1.0 ];
+
+/// A quad transform: 40×30 at `( 100, 50 )`.
+fn quad() -> Transform
+{
+  Transform { position : [ 100.0, 50.0 ], scale : [ 40.0, 30.0 ], ..Transform::default() }
+}
+
+/// The identity is neutral on either side, so an identity camera (the
+/// backend's default) leaves every draw where its transform puts it.
+#[ test ]
+fn mat3_mul_identity_is_neutral()
+{
+  let m = quad().to_mat3();
+  assert_eq!( mat3_mul( &IDENTITY, &m ), m );
+  assert_eq!( mat3_mul( &m, &IDENTITY ), m );
+}
+
+/// `mat3_mul( camera, transform )` applies the transform first, then the
+/// camera: the quad lands at `2 · ( 100, 50 ) + ( 200, 120 )` at twice its
+/// size. This is the order every world-space draw uses.
+#[ test ]
+fn mat3_mul_applies_the_right_operand_first()
+{
+  let expected = Transform { position : [ 400.0, 220.0 ], scale : [ 80.0, 60.0 ], ..Transform::default() }.to_mat3();
+  assert_eq!( mat3_mul( &CAMERA, &quad().to_mat3() ), expected );
+}
+
+/// Swapping the operands gives a different matrix: the pan would be scaled by
+/// the quad's size. So a call site that passed the camera second would fail
+/// [`mat3_mul_applies_the_right_operand_first`]'s expectation.
+#[ test ]
+fn mat3_mul_operand_order_matters()
+{
+  let m = quad().to_mat3();
+  assert_ne!( mat3_mul( &m, &CAMERA ), mat3_mul( &CAMERA, &m ) );
+}
+
+/// A full product with every entry in play, checked against the product
+/// written out by hand. Neither operand is an affine transform or symmetric,
+/// so a swapped row and column index in the multiply shows.
+#[ test ]
+fn mat3_mul_matches_the_written_out_product()
+{
+  // Column-major: a = [ [ 1, 2, 3 ], [ 4, 5, 6 ], [ 7, 8, 9 ] ] by rows.
+  let a = [ 1.0, 4.0, 7.0, 2.0, 5.0, 8.0, 3.0, 6.0, 9.0 ];
+  // b = [ [ 9, 8, 7 ], [ 6, 5, 4 ], [ 3, 2, 1 ] ] by rows.
+  let b = [ 9.0, 6.0, 3.0, 8.0, 5.0, 2.0, 7.0, 4.0, 1.0 ];
+  // a · b = [ [ 30, 24, 18 ], [ 84, 69, 54 ], [ 138, 114, 90 ] ] by rows.
+  let expected = [ 30.0, 84.0, 138.0, 24.0, 69.0, 114.0, 18.0, 54.0, 90.0 ];
+  assert_eq!( mat3_mul( &a, &b ), expected );
 }
