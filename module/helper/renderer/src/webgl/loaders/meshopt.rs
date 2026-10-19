@@ -165,10 +165,11 @@ mod private
     }
   }
 
-  /// One buffer view's meshopt extension object : where its compressed bytes live and
-  /// what they decode into. The decoded bytes land in the view's own `buffer` range.
+  /// The decode spec parsed from one buffer view's meshopt extension object : where the
+  /// view's compressed bytes live and what they decode into. It is not a view itself;
+  /// the decoded bytes land in the range of the `gltf::buffer::View` it was read from.
   #[ derive( Debug, Clone, PartialEq, Eq ) ]
-  pub struct MeshoptView
+  pub struct MeshoptViewSpec
   {
     /// Buffer holding the compressed bytes.
     pub buffer : usize,
@@ -186,7 +187,7 @@ mod private
     pub filter : MeshoptFilter,
   }
 
-  impl MeshoptView
+  impl MeshoptViewSpec
   {
     /// Reads `view`'s meshopt extension. `None` when the view is not compressed.
     #[ must_use ]
@@ -326,7 +327,7 @@ mod private
 
     for view in gltf_file.views()
     {
-      let Some( spec ) = MeshoptView::from_view( &view ) else { continue };
+      let Some( spec ) = MeshoptViewSpec::from_view( &view ) else { continue };
       let spec = spec
       .and_then( | spec |
       {
@@ -357,7 +358,7 @@ mod private
   }
 
   /// Decodes one checked view's compressed bytes into its own range of `buffers`.
-  fn view_decode( spec : &MeshoptView, view : &gltf::buffer::View< '_ >, buffers : &[ js_sys::Uint8Array ] ) -> Result< (), gl::WebglError >
+  fn view_decode( spec : &MeshoptViewSpec, view : &gltf::buffer::View< '_ >, buffers : &[ js_sys::Uint8Array ] ) -> Result< (), gl::WebglError >
   {
     // `ranges_check` bounded every value below by a JS array length, so none overflows.
     let as_u32 = | v : usize | u32::try_from( v ).unwrap_or( u32::MAX );
@@ -401,7 +402,7 @@ crate::mod_interface!
     MESHOPT_EXTENSIONS,
     MeshoptMode,
     MeshoptFilter,
-    MeshoptView,
+    MeshoptViewSpec,
     buffer_is_fallback,
     views_decode
   };
