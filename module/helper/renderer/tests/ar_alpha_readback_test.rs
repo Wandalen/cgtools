@@ -29,8 +29,10 @@ mod tests
     Object3D,
     Primitive,
     Renderer,
+    Sampler,
     Scene,
     ShaderProgram,
+    Texture,
   };
 
   const SIZE : u32 = 64;
@@ -320,16 +322,64 @@ mod tests
     }
   }
 
+  /// A 1x1 opaque red `RGBA8` texture, for a skybox that draws red in every direction.
+  fn red_skybox( gl : &GL ) -> Texture
+  {
+    let source = gl.create_texture().expect( "create_texture succeeds" );
+    gl.bind_texture( gl::TEXTURE_2D, Some( &source ) );
+    gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array
+    (
+      gl::TEXTURE_2D, 0, gl::RGBA8 as i32, 1, 1, 0, gl::RGBA, gl::UNSIGNED_BYTE, Some( &[ 255, 0, 0, 255 ] )
+    ).expect( "tex_image_2d succeeds" );
+    // The skybox is drawn with the GL texture's own parameters, and the default minifying
+    // filter needs mipmaps this texture does not have.
+    gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::NEAREST as i32 );
+    gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as i32 );
+    Texture::owning( gl, gl::TEXTURE_2D, source, Sampler::default() )
+  }
+
   /// A frame whose opaque queue holds only an occluder must not leave its colour mask
-  /// behind, or the post-processing passes and the next frame's clear write nothing.
+  /// behind, or the skybox, the post-processing passes and the next frame's clear write
+  /// nothing.
+  ///
+  /// ## Root Cause
+  /// The colour mask is per-material state, and the opaque pass left the last material's in
+  /// place. An occluder's mask is all off.
+  ///
+  /// ## Why Not Caught
+  /// No test drew an occluder last, and the depth tests read depth, not colour.
+  ///
+  /// ## Fix Applied
+  /// `Renderer::render` turns colour writes back on after the opaque pass, before the
+  /// skybox, and again after the transparent pass.
+  ///
+  /// ## Prevention
+  /// The skybox draws right after the opaque pass, so only the first restoration can make
+  /// it show: beside the occluder the background must be the skybox's red, not the clear
+  /// colour. The mask must also be on once the frame is done.
+  ///
+  /// ## Pitfall
+  /// Any per-material GL state the opaque pass applies has to be reset before a pass that
+  /// does not set it itself.
+  // test_kind: bug_reproducer(BUG-539)
   #[ wasm_bindgen_test ]
   fn an_occluder_drawn_last_does_not_leave_the_colour_mask_off()
   {
     let gl = gl_init();
     let mut renderer = Renderer::new( &gl, SIZE, SIZE, 4 ).expect( "Renderer::new succeeds" );
+    renderer.clear_color_set( gl::F32x3::from_array( [ 0.2, 0.4, 0.6 ] ) );
+    renderer.skybox_set( Some( red_skybox( &gl ) ) );
     let mut scene = Scene::new();
-    scene.add( rect_node( &gl, [ -5.0, -5.0, 5.0, 5.0 ], 0.0, Box::new( Occluder( PbrMaterial::new( &gl ) ) ) ) );
+    // The left half only, so the skybox shows on the right.
+    scene.add( rect_node( &gl, [ -5.0, -5.0, 0.0, 5.0 ], 1.0, Box::new( Occluder( PbrMaterial::new( &gl ) ) ) ) );
     renderer.render( &gl, &mut scene, &camera() ).expect( "render succeeds" );
+    assert_eq!( gl.get_error(), gl::NO_ERROR, "the frame raises no GL error" );
+
+    let mid = ( SIZE / 2 ) as i32;
+    let sky = main_pixel( &gl, &renderer, mid + 16, mid );
+    assert!( sky[ 0 ] > 0.9 && sky[ 1 ] < 0.05 && sky[ 2 ] < 0.05 && ( sky[ 3 ] - 1.0 ).abs() < 1e-3, "the skybox draws after the occluder: {sky:?}" );
+    let occluded = main_pixel( &gl, &renderer, mid - 16, mid );
+    assert!( occluded[ 3 ].abs() < 1e-3, "the occluder hides the skybox too, alpha 0: {occluded:?}" );
 
     let mask = gl.get_parameter( GL::COLOR_WRITEMASK ).expect( "get_parameter succeeds" )
     .dyn_into::< gl::js_sys::Array >().expect( "COLOR_WRITEMASK is an array" );
