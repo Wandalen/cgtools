@@ -169,6 +169,10 @@ required-features = ["webgl"]
 name = "gltf_meshopt_browser_test"
 required-features = ["webgl"]
 
+[[test]]
+name = "gltf_buffers_test"
+required-features = ["webgl"]
+
 # The same holds for these, which reach `renderer::webgl` too.
 [[test]]
 name = "tests"

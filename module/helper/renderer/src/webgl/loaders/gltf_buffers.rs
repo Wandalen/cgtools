@@ -91,6 +91,18 @@ mod private
     Ok( buffers )
   }
 
+  /// Whether the loader needs a copy of the buffers in wasm memory. Only skins, morph
+  /// targets and animations are read on the CPU. Everything else goes straight from the JS
+  /// buffers to the GPU, so the copy is skipped when nothing needs it : it costs as much as
+  /// the decoded model again, and the wasm heap never shrinks afterwards.
+  #[ must_use ]
+  pub fn cpu_buffers_needed( gltf_file : &gltf::Gltf ) -> bool
+  {
+    gltf_file.skins().next().is_some()
+    || gltf_file.animations().next().is_some()
+    || gltf_file.meshes().any( | m | m.primitives().any( | p | p.morph_targets().next().is_some() ) )
+  }
+
   /// The GLB binary chunk, as the data of the uri-less `gltf_buffer`. GLB stores its
   /// binary chunk as `buffers[ 0 ]`, the only buffer allowed to omit its uri. Handing
   /// the chunk to a later uri-less buffer would hide a malformed file behind misplaced
@@ -147,4 +159,5 @@ mod private
 crate::mod_interface!
 {
   own use buffers_load;
+  own use cpu_buffers_needed;
 }
