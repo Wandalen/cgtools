@@ -1,6 +1,6 @@
 outs:
-- md5: cf70afa1dff04285edaa3aadb9753917.dir
-  size: 199312191
-  nfiles: 52
+- md5: 0ae4fb2efb7d1ccccd8aabfb16b62bc7.dir
+  size: 204105883
+  nfiles: 53
   hash: md5
   path: gltf

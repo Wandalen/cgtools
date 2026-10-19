@@ -71,4 +71,6 @@
 | webgl_renderer_pass_cycle_test.rs | Live-context test: legacy `Renderer::render()` completes on an opaque PBR primitive and an empty scene |
 | gltf_tangent_defines_test.rs | Live `gltf::load` of a `data:` URI asset: a TANGENT attribute turns on `USE_TANGENTS` in the fragment stage; `load` rejects an unsupported `extensionsRequired` entry and accepts the supported ones |
 | gltf_extensions_required_test.rs | Tests glTF loader rejects assets requiring unsupported extensions |
+| ktx2_tests.rs | Tests the KTX2 container reader (`ktx2` feature): header and shape refusals, UASTC payload checks, per-format transcoding and the RGBA fallback, on the committed `fixtures/*.ktx2` files |
+| ktx2_oracle_tests.rs | Correctness oracle for KTX2 loading (`ktx2` feature): transcodes `assets/gltf/gambeson-uastc.glb` and diffs it per material slot against its PNG twin `gambeson.glb`; both are DVC assets and the test fails loudly when either is missing |
 | unreal_bloom_tests.rs | Structural browser tests: `UnrealBloomPass` renders via the real `SwapFramebuffer`-bound pass cycle |

@@ -1,0 +1,49 @@
+[package]
+name = "uastc_tools"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75.0"
+authors = [
+  "Jakub Valtar <jakub.valtar@gmail.com>",
+  "Kostiantyn Mysnyk <wandalen@obox.systems>",
+]
+# Inherited from the vendored upstream (`basisu_rs`), which is dual-licensed.
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Wandalen/cgtools"
+homepage = "https://github.com/Wandalen/cgtools/tree/master/module/helper/uastc_tools"
+documentation = "https://docs.rs/uastc_tools"
+description = "Pure-Rust UASTC (Basis Universal) block transcoder: UASTC -> BC7 / ASTC / ETC / RGBA"
+readme = "readme.md"
+keywords = ["uastc", "basis", "ktx2", "texture", "transcoder"]
+categories = ["graphics", "rendering", "compression", "no-std"]
+include = [
+    "src/**/*",
+    "tests/**/*",
+    "Cargo.toml",
+    "readme.md",
+    "license*",
+    "changelog*",
+]
+
+[lints]
+workspace = true
+
+[features]
+default = [ "enabled" ]
+enabled = [ "std" ]
+# The BC7 / ETC transcoders need `std` for inherent `f32` math ( `powi`, `round` ).
+# Kept separable, as upstream does, so the crate can still be built `no_std`.
+std = []
+
+# No dependencies. The vendored subset needs none: upstream's only dependency
+# (`byteorder`) was used solely by the `.basis` container reader, which is not vendored.
+[dependencies]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+default-target = "wasm32-unknown-unknown"
+targets = [
+    "wasm32-unknown-unknown",
+    "x86_64-unknown-linux-gnu",
+]

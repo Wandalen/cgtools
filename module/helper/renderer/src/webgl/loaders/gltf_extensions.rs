@@ -23,12 +23,18 @@ mod private
   /// `KHR_materials_clearcoat` / `KHR_materials_anisotropy` have no typed accessor
   /// or Cargo feature in the `gltf` crate; [`material_layer_extensions_apply`] in
   /// this file reads their JSON through `extension_value`.
+  /// `KHR_texture_basisu` is listed only with the `ktx2` feature, which is what decodes its
+  /// KTX2 images ( `loaders/gltf.rs`'s `effective_image_source` and `images_upload` ). A build
+  /// without it cannot draw a single texture of an asset that requires the extension, so such an
+  /// asset is refused here rather than loaded with blank surfaces.
   const SUPPORTED_EXTENSIONS : &[ &str ] =
   &[
     "KHR_lights_punctual",
     "KHR_materials_specular",
     "KHR_materials_clearcoat",
     "KHR_materials_anisotropy",
+    #[ cfg( feature = "ktx2" ) ]
+    "KHR_texture_basisu",
   ];
 
   /// Validates a parsed glTF document's `extensionsRequired` against

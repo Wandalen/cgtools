@@ -2249,6 +2249,80 @@ mod private
   #[ cfg( feature = "constants" ) ]
   pub use constants::*;
 
+  /// Internal formats accepted by `compressedTexImage2D`.
+  ///
+  /// Unlike the constants above, these are **not** on the core `WebGl2RenderingContext`:
+  /// each is contributed by an extension, and is only a legal `internalformat` once
+  /// `get_extension( .. )` for the owning extension has returned successfully. The values
+  /// themselves are fixed by the specs, so they are plain `u32` here — there is no need to
+  /// enable the corresponding `web-sys` extension features just to name them.
+  ///
+  /// Every format is 4x4-block based: a mip level of `w` x `h` texels occupies
+  /// `ceil( w / 4 ) * ceil( h / 4 ) * block_bytes` bytes, where `block_bytes` is 8 for
+  /// DXT1 / ETC2-RGB8 and 16 for the rest.
+  #[ cfg( feature = "constants" ) ]
+  mod compressed_formats
+  {
+
+    // `EXT_texture_compression_bptc` -- BC6H / BC7. The desktop target for transcoded UASTC.
+
+    /// BC7, linear. 16 bytes per 4x4 block.
+    pub const COMPRESSED_RGBA_BPTC_UNORM : u32 = 0x8E8C;
+    /// BC7, sRGB. 16 bytes per 4x4 block.
+    pub const COMPRESSED_SRGB_ALPHA_BPTC_UNORM : u32 = 0x8E8D;
+    /// BC6H, signed float ( HDR ). 16 bytes per 4x4 block.
+    pub const COMPRESSED_RGB_BPTC_SIGNED_FLOAT : u32 = 0x8E8E;
+    /// BC6H, unsigned float ( HDR ). 16 bytes per 4x4 block.
+    pub const COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT : u32 = 0x8E8F;
+
+    // `WEBGL_compressed_texture_s3tc` -- BC1 / BC2 / BC3.
+
+    /// BC1 without alpha. 8 bytes per 4x4 block.
+    pub const COMPRESSED_RGB_S3TC_DXT1 : u32 = 0x83F0;
+    /// BC1 with 1-bit alpha. 8 bytes per 4x4 block.
+    pub const COMPRESSED_RGBA_S3TC_DXT1 : u32 = 0x83F1;
+    /// BC2. 16 bytes per 4x4 block.
+    pub const COMPRESSED_RGBA_S3TC_DXT3 : u32 = 0x83F2;
+    /// BC3. 16 bytes per 4x4 block.
+    pub const COMPRESSED_RGBA_S3TC_DXT5 : u32 = 0x83F3;
+
+    // `WEBGL_compressed_texture_etc` -- ETC2 / EAC. The older-mobile target.
+
+    /// EAC, one channel. 8 bytes per 4x4 block.
+    pub const COMPRESSED_R11_EAC : u32 = 0x9270;
+    /// EAC, one signed channel. 8 bytes per 4x4 block.
+    pub const COMPRESSED_SIGNED_R11_EAC : u32 = 0x9271;
+    /// EAC, two channels. 16 bytes per 4x4 block.
+    pub const COMPRESSED_RG11_EAC : u32 = 0x9272;
+    /// EAC, two signed channels. 16 bytes per 4x4 block.
+    pub const COMPRESSED_SIGNED_RG11_EAC : u32 = 0x9273;
+    /// ETC2 RGB, linear. 8 bytes per 4x4 block.
+    pub const COMPRESSED_RGB8_ETC2 : u32 = 0x9274;
+    /// ETC2 RGB, sRGB. 8 bytes per 4x4 block.
+    pub const COMPRESSED_SRGB8_ETC2 : u32 = 0x9275;
+    /// ETC2 RGB with 1-bit alpha, linear. 8 bytes per 4x4 block.
+    pub const COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2 : u32 = 0x9276;
+    /// ETC2 RGB with 1-bit alpha, sRGB. 8 bytes per 4x4 block.
+    pub const COMPRESSED_SRGB8_PUNCHTHROUGH_ALPHA1_ETC2 : u32 = 0x9277;
+    /// ETC2 RGBA, linear. 16 bytes per 4x4 block.
+    pub const COMPRESSED_RGBA8_ETC2_EAC : u32 = 0x9278;
+    /// ETC2 RGBA, sRGB. 16 bytes per 4x4 block.
+    pub const COMPRESSED_SRGB8_ALPHA8_ETC2_EAC : u32 = 0x9279;
+
+    // `WEBGL_compressed_texture_astc` -- the mobile target. Only the 4x4 footprint is
+    // listed: UASTC is defined on a 4x4 block, so the wider ASTC footprints ( 5x4 .. 12x12 )
+    // are unreachable from a transcode and would only be needed for natively-authored ASTC.
+
+    /// ASTC 4x4, linear. 16 bytes per 4x4 block.
+    pub const COMPRESSED_RGBA_ASTC_4X4 : u32 = 0x93B0;
+    /// ASTC 4x4, sRGB. 16 bytes per 4x4 block.
+    pub const COMPRESSED_SRGB8_ALPHA8_ASTC_4X4 : u32 = 0x93D0;
+
+  }
+
+  #[ cfg( feature = "constants" ) ]
+  pub use compressed_formats::*;
+
 }
 
 crate::mod_interface!
