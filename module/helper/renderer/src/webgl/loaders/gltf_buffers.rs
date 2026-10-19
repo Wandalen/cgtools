@@ -124,7 +124,7 @@ mod private
       gl::browser::error!( "glTF buffer 0 has no uri and the file has no GLB binary chunk" );
       gl::WebglError::Other( "glTF buffer 0 has no uri and no GLB binary chunk" )
     } )?;
-    gl::debug!( "The gltf binary payload is present: {}", blob.len() );
+    gl::debug!( "The glTF binary payload is present: {}", blob.len() );
     Ok( blob.as_slice().into() )
   }
 
@@ -140,7 +140,7 @@ mod private
     let buffer = gl::file::load( &path ).await
     .map_err( | e |
     {
-      gl::browser::error!( "Failed to load gltf buffer '{path}': {e:?}" );
+      gl::browser::error!( "Failed to load glTF buffer '{path}': {e:?}" );
       gl::WebglError::Other( "Failed to load a buffer" )
     } )?;
 
