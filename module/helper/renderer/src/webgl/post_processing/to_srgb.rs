@@ -95,19 +95,24 @@ mod private
   /// The fragment shader source [`ToSrgbPass`] compiles: `to_srgb.frag`, with
   /// `#define FORWARD_ALPHA` inserted after its `#version` line when `alpha_forward` is set
   /// ( see [`ToSrgbPass::alpha_forward_set`] ). Reachable from `tests/` under `test_internals`.
+  ///
+  /// # Panics
+  ///
+  /// Panics if `to_srgb.frag` does not start with its `#version` line, which GLSL ES 3.0
+  /// requires anyway. The file is compiled in, so `legacy_glsl_shader_compile_test`'s
+  /// `FORWARD_ALPHA` case catches that before a release.
   #[ must_use ]
   pub fn fragment_source( alpha_forward : bool ) -> String
   {
     let fs_shader = include_str!( "../shaders/post_processing/to_srgb.frag" );
-    if alpha_forward
+    if !alpha_forward
     {
-      // Defines must follow the `#version` line.
-      fs_shader.replacen( "precision highp float;", "#define FORWARD_ALPHA\nprecision highp float;", 1 )
+      return fs_shader.to_string();
     }
-    else
-    {
-      fs_shader.to_string()
-    }
+    // Defines must follow the `#version` line, so the define goes right after it.
+    let ( version, rest ) = fs_shader.split_once( '\n' ).unwrap_or( ( fs_shader, "" ) );
+    assert!( version.starts_with( "#version" ), "to_srgb.frag must start with its #version line, got `{version}`" );
+    format!( "{version}\n#define FORWARD_ALPHA\n{rest}" )
   }
 
   impl Pass for ToSrgbPass
