@@ -53,6 +53,15 @@ fn fixture() -> gltf::Gltf
   gltf::Gltf::from_slice_without_validation( MESHOPT_FIXTURE.as_bytes() ).expect( "fixture is well-formed JSON" )
 }
 
+/// An unfiltered `ATTRIBUTES` spec with a 4-byte stride, built through
+/// `MeshoptViewSpec::parse` : its fields are private, so a test reaches a spec the way the
+/// loader does.
+fn attributes_spec( buffer : u64, byte_offset : u64, byte_length : u64, count : u64 ) -> MeshoptViewSpec
+{
+  let value = json!( { "buffer": buffer, "byteOffset": byte_offset, "byteLength": byte_length, "byteStride": 4, "count": count, "mode": "ATTRIBUTES" } );
+  MeshoptViewSpec::parse( EXT, &value ).expect( "a well-formed ATTRIBUTES spec" )
+}
+
 #[ test ]
 fn reads_each_views_extension()
 {
@@ -61,17 +70,15 @@ fn reads_each_views_extension()
   .map( | v | MeshoptViewSpec::from_view( &v ).expect( "every fixture view is compressed" ).unwrap() )
   .collect::< Vec< _ > >();
 
+  let first = &specs[ 0 ];
   assert_eq!
   (
-    specs[ 0 ],
-    MeshoptViewSpec
-    {
-      buffer : 0, byte_offset : 0, byte_length : 10, byte_stride : 4, count : 6,
-      mode : MeshoptMode::Triangles, filter : MeshoptFilter::None
-    }
+    ( first.buffer(), first.byte_offset(), first.byte_length(), first.byte_stride(), first.count() ),
+    ( 0, 0, 10, 4, 6 )
   );
-  assert_eq!( specs[ 1 ].filter, MeshoptFilter::Octahedral );
-  assert_eq!( specs[ 2 ].byte_stride, 8 );
+  assert_eq!( ( first.mode(), first.filter() ), ( MeshoptMode::Triangles, MeshoptFilter::None ) );
+  assert_eq!( specs[ 1 ].filter(), MeshoptFilter::Octahedral );
+  assert_eq!( specs[ 2 ].byte_stride(), 8 );
   assert_eq!( specs[ 2 ].decoded_length(), Some( 32 ) );
 }
 
@@ -97,8 +104,8 @@ fn the_khr_name_is_read_too()
       "buffers": [ { "byteLength": 16, "uri": "a.bin", "extensions": { "KHR_meshopt_compression": { "fallback": true } } } ] }"#
   ).unwrap();
   let spec = MeshoptViewSpec::from_view( &gltf.views().next().unwrap() ).unwrap().unwrap();
-  assert_eq!( spec.filter, MeshoptFilter::Color );
-  assert_eq!( spec.byte_offset, 0, "byteOffset defaults to 0" );
+  assert_eq!( spec.filter(), MeshoptFilter::Color );
+  assert_eq!( spec.byte_offset(), 0, "byteOffset defaults to 0" );
   assert!( buffer_is_fallback( &gltf.buffers().next().unwrap() ), "a fallback with a uri is still not fetched" );
 }
 
@@ -160,18 +167,14 @@ fn rejects_malformed_extension_objects()
 fn the_color_filter_is_khr_only()
 {
   let color = json!( { "buffer": 0, "byteLength": 8, "byteStride": 4, "count": 4, "mode": "ATTRIBUTES", "filter": "COLOR" } );
-  assert_eq!( MeshoptViewSpec::parse( "KHR_meshopt_compression", &color ).unwrap().filter, MeshoptFilter::Color );
+  assert_eq!( MeshoptViewSpec::parse( "KHR_meshopt_compression", &color ).unwrap().filter(), MeshoptFilter::Color );
   assert!( MeshoptViewSpec::parse( EXT, &color ).is_err(), "EXT_meshopt_compression defines no COLOR filter" );
 }
 
 #[ test ]
 fn checks_ranges_against_the_loaded_buffers()
 {
-  let spec = MeshoptViewSpec
-  {
-    buffer : 0, byte_offset : 12, byte_length : 12, byte_stride : 4, count : 4,
-    mode : MeshoptMode::Attributes, filter : MeshoptFilter::None
-  };
+  let spec = attributes_spec( 0, 12, 12, 4 );
   let lengths = [ 44, 72 ];
 
   assert!( spec.ranges_check( &lengths, 1, 24, 16 ).is_ok() );
@@ -179,9 +182,9 @@ fn checks_ranges_against_the_loaded_buffers()
   assert!( spec.ranges_check( &lengths, 1, 64, 16 ).is_err(), "view runs past buffer 1" );
   assert!( spec.ranges_check( &lengths, 1, 24, 12 ).is_err(), "decoded 16 bytes do not fit a 12-byte view" );
   assert!( spec.ranges_check( &lengths, 2, 0, 16 ).is_err(), "view names a missing buffer" );
-  assert!( MeshoptViewSpec { buffer : 5, ..spec.clone() }.ranges_check( &lengths, 1, 24, 16 ).is_err(), "source names a missing buffer" );
-  assert!( MeshoptViewSpec { byte_offset : usize::MAX, ..spec.clone() }.ranges_check( &lengths, 1, 24, 16 ).is_err(), "overflow" );
-  assert!( MeshoptViewSpec { count : usize::MAX, ..spec }.ranges_check( &lengths, 1, 24, 16 ).is_err(), "overflow" );
+  assert!( attributes_spec( 5, 12, 12, 4 ).ranges_check( &lengths, 1, 24, 16 ).is_err(), "source names a missing buffer" );
+  assert!( attributes_spec( 0, u64::MAX, 12, 4 ).ranges_check( &lengths, 1, 24, 16 ).is_err(), "overflow" );
+  assert!( attributes_spec( 0, 12, 12, u64::MAX ).ranges_check( &lengths, 1, 24, 16 ).is_err(), "overflow" );
 }
 
 /// The decoder writes the view while reading the compressed bytes, so the two may share a
@@ -190,23 +193,14 @@ fn checks_ranges_against_the_loaded_buffers()
 fn rejects_a_decode_target_overlapping_its_source()
 {
   // 12 compressed bytes at 0..12 of buffer 0, decoding 16 bytes.
-  let spec = MeshoptViewSpec
-  {
-    buffer : 0,
-    byte_offset : 0,
-    byte_length : 12,
-    byte_stride : 4,
-    count : 4,
-    mode : MeshoptMode::Attributes,
-    filter : MeshoptFilter::None,
-  };
+  let spec = attributes_spec( 0, 0, 12, 4 );
   let lengths = [ 64 ];
 
   assert!( spec.ranges_check( &lengths, 0, 12, 16 ).is_ok(), "the view starts where the compressed bytes end" );
   assert!( spec.ranges_check( &lengths, 0, 32, 16 ).is_ok(), "disjoint ranges in one buffer" );
   assert!( spec.ranges_check( &lengths, 0, 8, 16 ).is_err(), "the view starts inside the compressed bytes" );
   assert!( spec.ranges_check( &lengths, 0, 0, 16 ).is_err(), "the view starts where the compressed bytes start" );
-  let after = MeshoptViewSpec { byte_offset : 20, ..spec.clone() };
+  let after = attributes_spec( 0, 20, 12, 4 );
   assert!( after.ranges_check( &lengths, 0, 8, 16 ).is_err(), "the decoded bytes run into compressed bytes after them" );
   assert!( after.ranges_check( &lengths, 0, 4, 16 ).is_ok(), "the decoded bytes end where the compressed bytes start" );
 }

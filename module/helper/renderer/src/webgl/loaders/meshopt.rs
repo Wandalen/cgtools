@@ -168,23 +168,26 @@ mod private
   /// The decode spec parsed from one buffer view's meshopt extension object : where the
   /// view's compressed bytes live and what they decode into. It is not a view itself;
   /// the decoded bytes land in the range of the `gltf::buffer::View` it was read from.
+  ///
+  /// Its fields are private, so every spec has passed [`Self::parse`]'s checks; the
+  /// accessors below only read them.
   #[ derive( Debug, Clone, PartialEq, Eq ) ]
   pub struct MeshoptViewSpec
   {
     /// Buffer holding the compressed bytes.
-    pub buffer : usize,
+    buffer : usize,
     /// Offset of the compressed bytes in `buffer`.
-    pub byte_offset : usize,
+    byte_offset : usize,
     /// Length of the compressed bytes.
-    pub byte_length : usize,
+    byte_length : usize,
     /// Size of one decoded element.
-    pub byte_stride : usize,
+    byte_stride : usize,
     /// Number of decoded elements.
-    pub count : usize,
+    count : usize,
     /// Encoding.
-    pub mode : MeshoptMode,
+    mode : MeshoptMode,
     /// Post-decode transform.
-    pub filter : MeshoptFilter,
+    filter : MeshoptFilter,
   }
 
   impl MeshoptViewSpec
@@ -232,6 +235,62 @@ mod private
       spec.filter.stride_check( spec.byte_stride )?;
 
       Ok( spec )
+    }
+
+    /// Buffer holding the compressed bytes.
+    #[ inline ]
+    #[ must_use ]
+    pub fn buffer( &self ) -> usize
+    {
+      self.buffer
+    }
+
+    /// Offset of the compressed bytes in [`Self::buffer`].
+    #[ inline ]
+    #[ must_use ]
+    pub fn byte_offset( &self ) -> usize
+    {
+      self.byte_offset
+    }
+
+    /// Length of the compressed bytes.
+    #[ inline ]
+    #[ must_use ]
+    pub fn byte_length( &self ) -> usize
+    {
+      self.byte_length
+    }
+
+    /// Size of one decoded element.
+    #[ inline ]
+    #[ must_use ]
+    pub fn byte_stride( &self ) -> usize
+    {
+      self.byte_stride
+    }
+
+    /// Number of decoded elements.
+    #[ inline ]
+    #[ must_use ]
+    pub fn count( &self ) -> usize
+    {
+      self.count
+    }
+
+    /// Encoding.
+    #[ inline ]
+    #[ must_use ]
+    pub fn mode( &self ) -> MeshoptMode
+    {
+      self.mode
+    }
+
+    /// Post-decode transform.
+    #[ inline ]
+    #[ must_use ]
+    pub fn filter( &self ) -> MeshoptFilter
+    {
+      self.filter
     }
 
     /// Size of the decoded data in bytes.
