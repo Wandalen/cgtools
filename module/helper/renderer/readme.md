@@ -212,8 +212,8 @@ async fn load_assets
 The loader reads meshopt-compressed ( [EXT_meshopt_compression], [KHR_meshopt_compression] )
 and quantized ( [KHR_mesh_quantization] ) assets, such as gltfpack or glTF-Transform output.
 Compressed buffer views are decoded with meshoptimizer's own decoder, vendored as
-`src/webgl/loaders/meshopt_decoder.js`, which wasm-bindgen imports as a JS snippet. That has
-two consequences for the page that hosts the wasm module :
+`src/webgl/loaders/meshopt_decoder.js` ( MIT, see `license_third_party` ), which wasm-bindgen
+imports as a JS snippet. That has two consequences for the page that hosts the wasm module :
 
 - **Ship `pkg/snippets/`.** The generated glue imports the decoder from
   `snippets/renderer-<hash>/src/webgl/loaders/meshopt_decoder.js`, so the `snippets/` folder
