@@ -4,7 +4,7 @@ mod private
   use gltf::mesh::iter::MorphTargets;
   use gltf::json::Value;
   use crate::webgl::loaders::gltf_extensions::{ document_validate, material_layer_extensions_apply };
-  use crate::webgl::loaders::gltf_buffers::buffers_load;
+  use crate::webgl::loaders::gltf_buffers::{ buffers_load, cpu_buffers_needed };
   use crate::webgl::loaders::gltf_quantization::{ accessor_vec3_read, position_bounds_dequantize };
   use mingl::F32x3;
   use minwebgl as gl;
@@ -1484,14 +1484,7 @@ mod private
     let buffers = buffers_load( &mut gltf_file, folder_path ).await?;
     crate::webgl::loaders::meshopt::views_decode( &gltf_file, &buffers ).await?;
 
-    // Only skins, morph targets and animations are read on the CPU. Everything else goes
-    // straight from the JS buffers to the GPU, so skip the copy into wasm memory when
-    // nothing needs it : it costs as much as the decoded model again, and the wasm heap
-    // never shrinks afterwards.
-    let cpu_buffers_needed = gltf_file.skins().next().is_some()
-    || gltf_file.animations().next().is_some()
-    || gltf_file.meshes().any( | m | m.primitives().any( | p | p.morph_targets().next().is_some() ) );
-    let bin_buffers = if cpu_buffers_needed
+    let bin_buffers = if cpu_buffers_needed( &gltf_file )
     {
       buffers.iter()
       .map( minwebgl::js_sys::Uint8Array::to_vec )

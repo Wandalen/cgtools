@@ -26,7 +26,7 @@ crate::mod_interface!
   #[ cfg( feature = "native-formats" ) ]
   layer usd;
 
-  /// meshopt-compressed buffer views ( EXT_meshopt_compression )
+  /// meshopt-compressed buffer views ( `EXT_meshopt_compression`, `KHR_meshopt_compression` )
   layer meshopt;
 
   /// glTF buffer bytes : GLB chunk, fetched uris, meshopt fallbacks
