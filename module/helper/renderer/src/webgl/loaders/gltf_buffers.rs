@@ -8,37 +8,41 @@ mod private
   use gl::JsCast;
   use crate::webgl::loaders::gltf::asset_uri_resolve;
 
-  /// Largest meshopt fallback buffer [`buffers_load`] allocates. A fallback holds no data of its
-  /// own, so its size is only the `byteLength` the JSON declares : without a limit a few
-  /// bytes of JSON could commit gigabytes, and copying such a buffer into wasm memory for
-  /// skins or animations would abort the module. Decoded web geometry is far below this.
-  const FALLBACK_BUFFER_MAX : usize = 1 << 30;
+  /// Most meshopt fallback bytes [`buffers_load`] allocates for one document, all its fallback
+  /// buffers together. A fallback holds no data of its own, so its size is only the
+  /// `byteLength` the JSON declares : without a limit a few bytes of JSON could commit
+  /// gigabytes, in one buffer or spread over many, and copying such buffers into wasm memory
+  /// for skins or animations would abort the module. Decoded web geometry is far below this.
+  const FALLBACK_BYTES_MAX : usize = 1 << 30;
 
-  /// Allocates the zeroed buffer a meshopt fallback's views decode into.
+  /// Allocates the zeroed buffer a meshopt fallback's views decode into, and adds its length
+  /// to `allocated`, the fallback bytes this document has allocated so far.
   ///
   /// # Errors
   ///
-  /// Returns `WebglError::Other` when the declared length exceeds [`FALLBACK_BUFFER_MAX`]
-  /// or the browser refuses the allocation. `Uint8Array::new_with_length` would throw that
+  /// Returns `WebglError::Other` when the declared length would take `allocated` past
+  /// [`FALLBACK_BYTES_MAX`], or the browser refuses the allocation. `Uint8Array::new_with_length` would throw that
   /// `RangeError` straight through the wasm frames, so the array is built through
   /// `Reflect.construct`, which hands the exception back as a value.
-  fn fallback_buffer_allocate( gltf_buffer : &gltf::Buffer< '_ > ) -> Result< gl::js_sys::Uint8Array, gl::WebglError >
+  fn fallback_buffer_allocate( gltf_buffer : &gltf::Buffer< '_ >, allocated : &mut usize ) -> Result< gl::js_sys::Uint8Array, gl::WebglError >
   {
     use gl::js_sys::{ Array, Reflect, Uint8Array };
 
     let length = gltf_buffer.length();
-    let Some( length ) = u32::try_from( length ).ok().filter( | _ | length <= FALLBACK_BUFFER_MAX ) else
+    let within = length <= FALLBACK_BYTES_MAX - *allocated;
+    let Some( length_u32 ) = u32::try_from( length ).ok().filter( | _ | within ) else
     {
       gl::browser::error!
       (
-        "glTF meshopt fallback buffer {} declares {length} bytes, more than the {FALLBACK_BUFFER_MAX} this loader allocates",
+        "glTF meshopt fallback buffer {} declares {length} bytes; with the {allocated} bytes of the document's earlier         fallback buffers that is more than the {FALLBACK_BYTES_MAX} this loader allocates",
         gltf_buffer.index()
       );
-      return Err( gl::WebglError::Other( "glTF meshopt fallback buffer is too large" ) );
+      return Err( gl::WebglError::Other( "glTF meshopt fallback buffers are too large" ) );
     };
+    *allocated += length;
 
     let constructor = Uint8Array::new_with_length( 0 ).constructor();
-    Reflect::construct( &constructor, &Array::of1( &length.into() ) )
+    Reflect::construct( &constructor, &Array::of1( &length_u32.into() ) )
     .map( JsCast::unchecked_into )
     .map_err( | e |
     {
@@ -66,12 +70,13 @@ mod private
   {
     let mut buffers : Vec< gl::js_sys::Uint8Array > = Vec::new();
     let mut blob = gltf_file.blob.take();
+    let mut fallback_allocated = 0;
 
     for gltf_buffer in gltf_file.buffers()
     {
       if crate::webgl::loaders::meshopt::buffer_is_fallback( &gltf_buffer )
       {
-        buffers.push( fallback_buffer_allocate( &gltf_buffer )? );
+        buffers.push( fallback_buffer_allocate( &gltf_buffer, &mut fallback_allocated )? );
         continue;
       }
 
