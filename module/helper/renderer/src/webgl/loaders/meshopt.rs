@@ -35,10 +35,17 @@ mod private
     ) -> Result< (), JsValue >;
   }
 
-  /// Extension names that mark a buffer view as meshopt-compressed : the original
-  /// `EXT_meshopt_compression` and its Khronos ratification, which keeps the same
-  /// schema and adds the `COLOR` filter.
-  pub const MESHOPT_EXTENSIONS : &[ &str ] = &[ "EXT_meshopt_compression", "KHR_meshopt_compression" ];
+  /// The original meshopt extension name.
+  pub const EXT_MESHOPT_COMPRESSION : &str = "EXT_meshopt_compression";
+
+  /// The Khronos ratification of [`EXT_MESHOPT_COMPRESSION`] : the same schema, plus the
+  /// `COLOR` filter.
+  pub const KHR_MESHOPT_COMPRESSION : &str = "KHR_meshopt_compression";
+
+  /// Extension names that mark a buffer view as meshopt-compressed. The one list of
+  /// them : `gltf_extensions`' supported-extensions list takes its meshopt entries from
+  /// here.
+  pub const MESHOPT_EXTENSIONS : [ &str; 2 ] = [ EXT_MESHOPT_COMPRESSION, KHR_MESHOPT_COMPRESSION ];
 
   /// How a compressed buffer view was encoded.
   #[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
@@ -140,7 +147,7 @@ mod private
         Some( "OCTAHEDRAL" ) => Ok( Self::Octahedral ),
         Some( "QUATERNION" ) => Ok( Self::Quaternion ),
         Some( "EXPONENTIAL" ) => Ok( Self::Exponential ),
-        Some( "COLOR" ) if extension == "KHR_meshopt_compression" => Ok( Self::Color ),
+        Some( "COLOR" ) if extension == KHR_MESHOPT_COMPRESSION => Ok( Self::Color ),
         Some( other ) => Err( format!( "unknown {extension} filter `{other}`" ) ),
       }
     }
@@ -389,6 +396,8 @@ crate::mod_interface!
 {
   own use
   {
+    EXT_MESHOPT_COMPRESSION,
+    KHR_MESHOPT_COMPRESSION,
     MESHOPT_EXTENSIONS,
     MeshoptMode,
     MeshoptFilter,

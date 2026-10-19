@@ -10,6 +10,7 @@ mod private
   use gltf::json::Value;
   use minwebgl as gl;
   use crate::webgl::{ Texture, TextureInfo, material::PbrMaterial };
+  use crate::webgl::loaders::meshopt::{ EXT_MESHOPT_COMPRESSION, KHR_MESHOPT_COMPRESSION };
 
   /// glTF extensions this loader actually implements support for. Kept in sync
   /// with the `gltf`-crate extension Cargo features this crate enables in
@@ -24,8 +25,9 @@ mod private
   /// or Cargo feature in the `gltf` crate; [`material_layer_extensions_apply`] in
   /// this file reads their JSON through `extension_value`.
   /// The meshopt extensions are decoded by [`crate::webgl::loaders::meshopt::views_decode`]
-  /// before any buffer is used. For `KHR_mesh_quantization`, GPU attributes reach
-  /// `vertexAttribPointer` with their integer type and `normalized` flag intact
+  /// before any buffer is used. Their names are `meshopt`'s own constants, the ones its
+  /// `MESHOPT_EXTENSIONS` lists, so the two lists name them identically.
+  /// For `KHR_mesh_quantization`, GPU attributes reach `vertexAttribPointer` with their integer type and `normalized` flag intact
   /// ( `loaders/gltf.rs`'s `attribute_descriptor_make` ). Values read on the CPU are
   /// dequantized there: normalized position bounds in `position_bounds_dequantize`, and
   /// morph target displacements in `accessor_vec3_read`.
@@ -35,8 +37,8 @@ mod private
     "KHR_materials_specular",
     "KHR_materials_clearcoat",
     "KHR_materials_anisotropy",
-    "EXT_meshopt_compression",
-    "KHR_meshopt_compression",
+    EXT_MESHOPT_COMPRESSION,
+    KHR_MESHOPT_COMPRESSION,
     "KHR_mesh_quantization",
   ];
 
