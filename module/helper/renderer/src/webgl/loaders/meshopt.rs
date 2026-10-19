@@ -6,11 +6,12 @@ mod private
   use wasm_bindgen::prelude::*;
   use wasm_bindgen_futures::JsFuture;
 
-  // meshoptimizer's own decoder ( MIT, vendored unchanged from the `meshoptimizer` npm
-  // package 1.2.0 ). Its `meshopt_decoder.mjs` is renamed to `.js` so that every server
-  // sends it with a JavaScript MIME type; module scripts refuse anything else. It carries
-  // its decoder as an inlined, SIMD-enabled wasm module, so the host page needs
-  // `wasm-unsafe-eval` in its CSP -- the same permission this crate's own wasm already needs.
+  // meshoptimizer's own decoder ( MIT, see the crate's `license_third_party` ), vendored
+  // unchanged from the `meshoptimizer` npm package; its header says "Built from meshoptimizer
+  // 1.2". Its `meshopt_decoder.mjs` is renamed to `.js` so that every server sends it with a
+  // JavaScript MIME type; module scripts refuse anything else. It carries its decoder as an inlined, SIMD-enabled wasm
+  // module, so the host page needs `wasm-unsafe-eval` in its CSP -- the same permission this
+  // crate's own wasm already needs.
   #[ wasm_bindgen( module = "/src/webgl/loaders/meshopt_decoder.js" ) ]
   extern "C"
   {
@@ -35,10 +36,17 @@ mod private
     ) -> Result< (), JsValue >;
   }
 
-  /// Extension names that mark a buffer view as meshopt-compressed : the original
-  /// `EXT_meshopt_compression` and its Khronos ratification, which keeps the same
-  /// schema and adds the `COLOR` filter.
-  pub const MESHOPT_EXTENSIONS : &[ &str ] = &[ "EXT_meshopt_compression", "KHR_meshopt_compression" ];
+  /// The original meshopt extension name.
+  pub const EXT_MESHOPT_COMPRESSION : &str = "EXT_meshopt_compression";
+
+  /// The Khronos ratification of [`EXT_MESHOPT_COMPRESSION`] : the same schema, plus the
+  /// `COLOR` filter.
+  pub const KHR_MESHOPT_COMPRESSION : &str = "KHR_meshopt_compression";
+
+  /// Extension names that mark a buffer view as meshopt-compressed. The one list of
+  /// them : `gltf_extensions`' supported-extensions list takes its meshopt entries from
+  /// here.
+  pub const MESHOPT_EXTENSIONS : [ &str; 2 ] = [ EXT_MESHOPT_COMPRESSION, KHR_MESHOPT_COMPRESSION ];
 
   /// How a compressed buffer view was encoded.
   #[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
@@ -140,7 +148,7 @@ mod private
         Some( "OCTAHEDRAL" ) => Ok( Self::Octahedral ),
         Some( "QUATERNION" ) => Ok( Self::Quaternion ),
         Some( "EXPONENTIAL" ) => Ok( Self::Exponential ),
-        Some( "COLOR" ) if extension == "KHR_meshopt_compression" => Ok( Self::Color ),
+        Some( "COLOR" ) if extension == KHR_MESHOPT_COMPRESSION => Ok( Self::Color ),
         Some( other ) => Err( format!( "unknown {extension} filter `{other}`" ) ),
       }
     }
@@ -158,28 +166,32 @@ mod private
     }
   }
 
-  /// One buffer view's meshopt extension object : where its compressed bytes live and
-  /// what they decode into. The decoded bytes land in the view's own `buffer` range.
+  /// The decode spec parsed from one buffer view's meshopt extension object : where the
+  /// view's compressed bytes live and what they decode into. It is not a view itself;
+  /// the decoded bytes land in the range of the `gltf::buffer::View` it was read from.
+  ///
+  /// Its fields are private, so every spec has passed [`Self::parse`]'s checks; the
+  /// accessors below only read them.
   #[ derive( Debug, Clone, PartialEq, Eq ) ]
-  pub struct MeshoptView
+  pub struct MeshoptViewSpec
   {
     /// Buffer holding the compressed bytes.
-    pub buffer : usize,
+    buffer : usize,
     /// Offset of the compressed bytes in `buffer`.
-    pub byte_offset : usize,
+    byte_offset : usize,
     /// Length of the compressed bytes.
-    pub byte_length : usize,
+    byte_length : usize,
     /// Size of one decoded element.
-    pub byte_stride : usize,
+    byte_stride : usize,
     /// Number of decoded elements.
-    pub count : usize,
+    count : usize,
     /// Encoding.
-    pub mode : MeshoptMode,
+    mode : MeshoptMode,
     /// Post-decode transform.
-    pub filter : MeshoptFilter,
+    filter : MeshoptFilter,
   }
 
-  impl MeshoptView
+  impl MeshoptViewSpec
   {
     /// Reads `view`'s meshopt extension. `None` when the view is not compressed.
     #[ must_use ]
@@ -224,6 +236,62 @@ mod private
       spec.filter.stride_check( spec.byte_stride )?;
 
       Ok( spec )
+    }
+
+    /// Buffer holding the compressed bytes.
+    #[ inline ]
+    #[ must_use ]
+    pub fn buffer( &self ) -> usize
+    {
+      self.buffer
+    }
+
+    /// Offset of the compressed bytes in [`Self::buffer`].
+    #[ inline ]
+    #[ must_use ]
+    pub fn byte_offset( &self ) -> usize
+    {
+      self.byte_offset
+    }
+
+    /// Length of the compressed bytes.
+    #[ inline ]
+    #[ must_use ]
+    pub fn byte_length( &self ) -> usize
+    {
+      self.byte_length
+    }
+
+    /// Size of one decoded element.
+    #[ inline ]
+    #[ must_use ]
+    pub fn byte_stride( &self ) -> usize
+    {
+      self.byte_stride
+    }
+
+    /// Number of decoded elements.
+    #[ inline ]
+    #[ must_use ]
+    pub fn count( &self ) -> usize
+    {
+      self.count
+    }
+
+    /// Encoding.
+    #[ inline ]
+    #[ must_use ]
+    pub fn mode( &self ) -> MeshoptMode
+    {
+      self.mode
+    }
+
+    /// Post-decode transform.
+    #[ inline ]
+    #[ must_use ]
+    pub fn filter( &self ) -> MeshoptFilter
+    {
+      self.filter
     }
 
     /// Size of the decoded data in bytes.
@@ -299,6 +367,46 @@ mod private
     .any( | ext | ext.get( "fallback" ).and_then( Value::as_bool ).unwrap_or( false ) )
   }
 
+  /// Checks that the compressed views of one document cannot corrupt each other. Every
+  /// view is decoded in turn into its own range, so no view's decoded range may overlap
+  /// another's ( the later decode would overwrite the earlier one's output ), nor another
+  /// view's compressed bytes ( a decode would overwrite input another view still reads,
+  /// or has read ). Compressed bytes may overlap each other : they are only read.
+  /// [`MeshoptViewSpec::ranges_check`] covers one view against itself.
+  ///
+  /// `decodes` holds, per compressed view : its index, its checked spec, and the buffer
+  /// and offset of the range it decodes into.
+  ///
+  /// # Errors
+  ///
+  /// Returns a description of the first pair of views that overlap.
+  pub fn decodes_overlap_check( decodes : &[ ( usize, &MeshoptViewSpec, usize, usize ) ] ) -> Result< (), String >
+  {
+    // `ranges_check` bounded every range by its buffer's length, so no end overflows.
+    let target = | &( _, spec, buffer, offset ) : &( usize, &MeshoptViewSpec, usize, usize ) |
+      ( buffer, offset, offset + spec.count * spec.byte_stride );
+    let source = | &( _, spec, _, _ ) : &( usize, &MeshoptViewSpec, usize, usize ) |
+      ( spec.buffer, spec.byte_offset, spec.byte_offset + spec.byte_length );
+    let overlap = | ( a_buffer, a_start, a_end ) : ( usize, usize, usize ), ( b_buffer, b_start, b_end ) : ( usize, usize, usize ) |
+      a_buffer == b_buffer && a_start < b_end && b_start < a_end;
+
+    for ( i, a ) in decodes.iter().enumerate()
+    {
+      for b in &decodes[ i + 1 .. ]
+      {
+        if overlap( target( a ), target( b ) )
+        {
+          return Err( format!( "bufferViews {} and {} decode into overlapping ranges", a.0, b.0 ) );
+        }
+        if overlap( target( a ), source( b ) ) || overlap( target( b ), source( a ) )
+        {
+          return Err( format!( "bufferViews {} and {}: one decodes over the other's compressed bytes", a.0, b.0 ) );
+        }
+      }
+    }
+    Ok( () )
+  }
+
   /// Decodes every meshopt-compressed buffer view into its own range of `buffers`, so the
   /// rest of the loader reads plain glTF data. Loads nothing and waits for nothing when no
   /// view is compressed.
@@ -306,7 +414,9 @@ mod private
   /// # Errors
   ///
   /// Returns `WebglError::Other` when an extension object is malformed, a range does not
-  /// fit its buffer, or the decoder rejects the data; the details go to the console.
+  /// fit its buffer, two views overlap ( [`decodes_overlap_check`] ), or the decoder
+  /// rejects the data; the details go to the console. Every view is checked before the
+  /// first one is decoded.
   pub async fn views_decode
   (
     gltf_file : &gltf::Gltf,
@@ -315,15 +425,44 @@ mod private
   -> Result< (), gl::WebglError >
   {
     let buffer_lengths = buffers.iter().map( | b | b.length() as usize ).collect::< Vec< _ > >();
-    let mut decoder_ready = false;
+    let decodes = decodes_collect( gltf_file, &buffer_lengths )?;
+    if decodes.is_empty()
+    {
+      return Ok( () );
+    }
 
+    JsFuture::from( DECODER.with( Decoder::ready ) ).await
+    .map_err( | e |
+    {
+      gl::browser::error!( "meshopt decoder failed to initialise: {e:?}" );
+      gl::WebglError::Other( "meshopt decoder failed to initialise" )
+    } )?;
+
+    for ( view, spec ) in &decodes
+    {
+      view_decode( spec, view, buffers )?;
+    }
+
+    Ok( () )
+  }
+
+  /// Every compressed view of `gltf_file` with its spec, each checked against
+  /// `buffer_lengths` and all of them against each other, in document order.
+  fn decodes_collect< 'a >
+  (
+    gltf_file : &'a gltf::Gltf,
+    buffer_lengths : &[ usize ]
+  )
+  -> Result< Vec< ( gltf::buffer::View< 'a >, MeshoptViewSpec ) >, gl::WebglError >
+  {
+    let mut decodes = Vec::new();
     for view in gltf_file.views()
     {
-      let Some( spec ) = MeshoptView::from_view( &view ) else { continue };
+      let Some( spec ) = MeshoptViewSpec::from_view( &view ) else { continue };
       let spec = spec
       .and_then( | spec |
       {
-        spec.ranges_check( &buffer_lengths, view.buffer().index(), view.offset(), view.length() )?;
+        spec.ranges_check( buffer_lengths, view.buffer().index(), view.offset(), view.length() )?;
         Ok( spec )
       } )
       .map_err( | e |
@@ -331,26 +470,23 @@ mod private
         gl::browser::error!( "glTF bufferView {}: invalid meshopt compression: {e}", view.index() );
         gl::WebglError::Other( "Invalid meshopt-compressed buffer view" )
       } )?;
-
-      if !decoder_ready
-      {
-        JsFuture::from( DECODER.with( Decoder::ready ) ).await
-        .map_err( | e |
-        {
-          gl::browser::error!( "meshopt decoder failed to initialise: {e:?}" );
-          gl::WebglError::Other( "meshopt decoder failed to initialise" )
-        } )?;
-        decoder_ready = true;
-      }
-
-      view_decode( &spec, &view, buffers )?;
+      decodes.push( ( view, spec ) );
     }
 
-    Ok( () )
+    let placed = decodes.iter()
+    .map( | ( view, spec ) | ( view.index(), spec, view.buffer().index(), view.offset() ) )
+    .collect::< Vec< _ > >();
+    decodes_overlap_check( &placed ).map_err( | e |
+    {
+      gl::browser::error!( "glTF meshopt compression: {e}" );
+      gl::WebglError::Other( "Overlapping meshopt-compressed buffer views" )
+    } )?;
+
+    Ok( decodes )
   }
 
   /// Decodes one checked view's compressed bytes into its own range of `buffers`.
-  fn view_decode( spec : &MeshoptView, view : &gltf::buffer::View< '_ >, buffers : &[ js_sys::Uint8Array ] ) -> Result< (), gl::WebglError >
+  fn view_decode( spec : &MeshoptViewSpec, view : &gltf::buffer::View< '_ >, buffers : &[ js_sys::Uint8Array ] ) -> Result< (), gl::WebglError >
   {
     // `ranges_check` bounded every value below by a JS array length, so none overflows.
     let as_u32 = | v : usize | u32::try_from( v ).unwrap_or( u32::MAX );
@@ -389,11 +525,14 @@ crate::mod_interface!
 {
   own use
   {
+    EXT_MESHOPT_COMPRESSION,
+    KHR_MESHOPT_COMPRESSION,
     MESHOPT_EXTENSIONS,
     MeshoptMode,
     MeshoptFilter,
-    MeshoptView,
+    MeshoptViewSpec,
     buffer_is_fallback,
+    decodes_overlap_check,
     views_decode
   };
 }

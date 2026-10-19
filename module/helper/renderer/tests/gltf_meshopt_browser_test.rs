@@ -4,7 +4,8 @@
 //!   which needs a browser, on bytes encoded by a minimal vertex-codec encoder below.
 //! - The buffer-index rules of `gltf::load` : a meshopt fallback buffer is allocated rather
 //!   than fetched, the GLB binary chunk can only be `buffers[ 0 ]`, a uri-less buffer with no
-//!   chunk to take is an error, and an oversized fallback is refused instead of allocated.
+//!   chunk to take is an error, and oversized fallbacks, alone or together, are refused
+//!   instead of allocated.
 
 #[ cfg( target_arch = "wasm32" ) ]
 #[ cfg( test ) ]
@@ -82,6 +83,18 @@ mod tests
     out.resize( out.len() + 32_usize.saturating_sub( stride ), 0 );
     out.extend_from_slice( &data[ ..stride ] );
     out
+  }
+
+  /// The reason `gltf::load` refuses `uri` : the static message of its `WebglError::Other`,
+  /// so a test can tell its intended rejection from any other failure.
+  async fn load_refusal( uri : &str ) -> &'static str
+  {
+    match gltf::load( &document(), uri, &gl_init() ).await
+    {
+      Ok( _ ) => panic!( "the file must be refused" ),
+      Err( gl::WebglError::Other( reason ) ) => reason,
+      Err( other ) => panic!( "refused for an unexpected reason: {other:?}" ),
+    }
   }
 
   fn data_uri( mime : &str, bytes : &[ u8 ] ) -> String
@@ -234,7 +247,6 @@ mod tests
   #[ wasm_bindgen_test( async ) ]
   async fn load_refuses_a_uri_less_buffer_after_the_first()
   {
-    let gl = gl_init();
     let buffers = format!
     (
       r#"{{ "byteLength" : 36, "uri" : "{}" }}, {{ "byteLength" : 36 }}"#,
@@ -243,18 +255,17 @@ mod tests
     let json = triangle_gltf( &[], &buffers, r#"{ "buffer" : 0, "byteLength" : 36, "target" : 34962 }"# );
     let uri = data_uri( "model/gltf-binary", &glb( &json, &triangle_bytes() ) );
 
-    assert!( gltf::load( &document(), &uri, &gl ).await.is_err() );
+    assert_eq!( load_refusal( &uri ).await, "glTF buffer other than buffer 0 has no uri" );
   }
 
   /// A uri-less buffer in a file with no binary chunk has no data to load.
   #[ wasm_bindgen_test( async ) ]
   async fn load_refuses_a_uri_less_buffer_without_a_glb_chunk()
   {
-    let gl = gl_init();
     let json = triangle_gltf( &[], r#"{ "byteLength" : 36 }"#, r#"{ "buffer" : 0, "byteLength" : 36, "target" : 34962 }"# );
     let uri = data_uri( "model/gltf+json", json.as_bytes() );
 
-    assert!( gltf::load( &document(), &uri, &gl ).await.is_err() );
+    assert_eq!( load_refusal( &uri ).await, "glTF buffer 0 has no uri and no GLB binary chunk" );
   }
 
   /// A fallback buffer's size comes only from its declared `byteLength`, so a huge declaration
@@ -262,7 +273,6 @@ mod tests
   #[ wasm_bindgen_test( async ) ]
   async fn load_refuses_an_oversized_fallback_buffer()
   {
-    let gl = gl_init();
     let buffers = format!
     (
       r#"{{ "byteLength" : 36, "uri" : "{}" }},
@@ -272,6 +282,23 @@ mod tests
     let json = triangle_gltf( &[ "EXT_meshopt_compression" ], &buffers, r#"{ "buffer" : 0, "byteLength" : 36, "target" : 34962 }"# );
     let uri = data_uri( "model/gltf+json", json.as_bytes() );
 
-    assert!( gltf::load( &document(), &uri, &gl ).await.is_err() );
+    assert_eq!( load_refusal( &uri ).await, "glTF meshopt fallback buffers are too large" );
+  }
+
+  /// The fallback limit holds for the document, not per buffer : two fallbacks that each fit
+  /// alone but not together are refused, so a file cannot reach gigabytes by declaring many.
+  #[ wasm_bindgen_test( async ) ]
+  async fn load_refuses_fallback_buffers_too_large_together()
+  {
+    let fallback = r#"{ "byteLength" : 600000000, "extensions" : { "EXT_meshopt_compression" : { "fallback" : true } } }"#;
+    let buffers = format!
+    (
+      r#"{{ "byteLength" : 36, "uri" : "{}" }}, {fallback}, {fallback}"#,
+      data_uri( "application/octet-stream", &triangle_bytes() )
+    );
+    let json = triangle_gltf( &[ "EXT_meshopt_compression" ], &buffers, r#"{ "buffer" : 0, "byteLength" : 36, "target" : 34962 }"# );
+    let uri = data_uri( "model/gltf+json", json.as_bytes() );
+
+    assert_eq!( load_refusal( &uri ).await, "glTF meshopt fallback buffers are too large" );
   }
 }
