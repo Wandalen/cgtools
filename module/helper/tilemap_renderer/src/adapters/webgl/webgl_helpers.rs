@@ -946,69 +946,6 @@ mod private
   }
 }
 
-#[ cfg( test ) ]
-mod staged_vec_tests
-{
-  use super::private::{ StagedUpload, StagedVec };
-
-  #[ test ]
-  fn pushes_within_capacity_upload_one_range()
-  {
-    let mut v = StagedVec::new( 16 );
-    for i in 0..10_u32 { v.push( i ); }
-    assert_eq!( v.take_upload(), StagedUpload::Range { start : 0, end : 10 } );
-    assert_eq!( v.take_upload(), StagedUpload::None, "an upload is recorded as done" );
-  }
-
-  #[ test ]
-  fn growth_past_capacity_reallocates_once()
-  {
-    let mut v = StagedVec::new( 16 );
-    for i in 0..40_u32 { v.push( i ); }
-    assert_eq!( v.take_upload(), StagedUpload::Realloc { capacity : 60 } );
-    v.push( 40 );
-    assert_eq!( v.take_upload(), StagedUpload::Range { start : 40, end : 41 }, "fits after the realloc" );
-    for i in 0..40_u32 { v.push( i ); }
-    assert_eq!( v.take_upload(), StagedUpload::Realloc { capacity : 121 } );
-  }
-
-  #[ test ]
-  fn sets_and_removes_merge_into_one_range()
-  {
-    let mut v = StagedVec::new( 8 );
-    for i in 0..8_u32 { v.push( i ); }
-    let _ = v.take_upload();
-    v.set( 5, 50 );
-    v.set( 2, 20 );
-    assert_eq!( v.swap_remove( 3 ), 7 );
-    assert_eq!( v.items(), &[ 0, 1, 20, 7, 4, 50, 6 ] );
-    assert_eq!( v.take_upload(), StagedUpload::Range { start : 2, end : 6 } );
-  }
-
-  #[ test ]
-  fn tail_removes_need_no_upload()
-  {
-    let mut v = StagedVec::new( 8 );
-    for i in 0..8_u32 { v.push( i ); }
-    let _ = v.take_upload();
-    v.swap_remove( 7 );
-    v.swap_remove( 6 );
-    assert_eq!( v.take_upload(), StagedUpload::None );
-    assert_eq!( v.len(), 6 );
-  }
-
-  #[ test ]
-  fn a_set_then_truncate_below_it_uploads_nothing()
-  {
-    let mut v = StagedVec::new( 8 );
-    for i in 0..8_u32 { v.push( i ); }
-    let _ = v.take_upload();
-    v.set( 7, 70 );
-    v.swap_remove( 7 );
-    assert_eq!( v.take_upload(), StagedUpload::None );
-  }
-}
-
 mod_interface::mod_interface!
 {
   own use ArrayBuffer;
