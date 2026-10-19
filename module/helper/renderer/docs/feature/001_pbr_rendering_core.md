@@ -87,4 +87,4 @@ HAL once one exists.
 | `tests/tests.rs` | Test aggregator for the crate |
 | `tests/pbr_shading_readback_test.rs` | Pixel readback of the PBR program: clearcoat, anisotropy, normal map, highlight |
 | `tests/tonemapping_edge_readback_test.rs` | Pixel readback of the ACES pass over real frames: MSAA edges and transparent coverage |
-| `tests/ar_alpha_readback_test.rs` | Pixel readback of the AR path: `ToSrgbPass` and `ColorGradingPass` alpha forwarding, occluders drawn first in the opaque pass, and occluders picked instead of what they hide |
+| `tests/ar_alpha_readback_test.rs` | Pixel readback of the AR path: `ToSrgbPass` and `ColorGradingPass` alpha forwarding, occluders drawn first in the opaque pass, occluders picked instead of what they hide, and the whole AR chain on the canvas |
