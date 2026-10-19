@@ -11,6 +11,17 @@
 //! Run with `cargo bench -p tilemap_scene --bench frame_render`. The board is
 //! built the same way on every run, so successive runs are comparable;
 //! criterion reports the change against the previous run.
+//!
+//! These timings are not the PR's 7.0 ms → 1.2 ms / 0.39 ms figures and do not
+//! reproduce them. Both measure CPU-side command generation in a native release
+//! build, with no GPU submission, but on different boards. The PR figures come
+//! from the game this crate serves, on its own 469-hex board with about 18
+//! layer buckets and a large dim overlay across the board. This board has one
+//! dual-grid layer and one object layer, so each frame does far less work
+//! (locally about 0.43 ms and 51 µs for the same two frames). It has no
+//! "before" either: the pre-PR renderer is gone. What it tracks is the shape the
+//! PR gave these frames — a movers-only or clock-only frame costs a fraction of
+//! a hex-cell change, and an idle replay next to nothing.
 
 use std::hint::black_box;
 use std::sync::Arc;
