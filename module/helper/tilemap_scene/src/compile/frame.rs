@@ -258,7 +258,7 @@ mod private
   ///
   /// Dispatches over all non-vertex sources: `Static`, `Animation`,
   /// `Variant`, `NeighborBitmask`. `NeighborCondition` is handled by
-  /// [`emit_neighbor_condition`] directly (emits multiple sprites).
+  /// [`neighbor_condition_with_overrides_emit`] directly (emits multiple sprites).
   /// `VertexCorners` is handled by [`resolve_vertex_pass_all`].
   fn sprite_source_resolve
   (
@@ -1032,8 +1032,8 @@ mod private
     }
   }
 
-  /// `emit_neighbor_condition` variant that composes the per-instance
-  /// tint into each emitted sprite.
+  /// Emits a `NeighborCondition` source's sprites, composing the
+  /// per-instance tint into each.
   #[ allow( clippy::too_many_arguments, reason = "each parameter is a distinct input needed to resolve and place a neighbor-conditioned sprite variant with per-instance tint; grouping into a struct would add indirection without reducing call-site complexity" ) ]
   fn neighbor_condition_with_overrides_emit
   (

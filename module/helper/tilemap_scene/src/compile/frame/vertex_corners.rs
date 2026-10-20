@@ -453,7 +453,7 @@ fn layer_statics( ctx : &FrameContext< '_ >, object : &Object, layer : &ObjectLa
 }
 
 /// Each occupied cell's id in one `VertexCorners` corner channel — exactly
-/// what [`tile_corner_id`] answers per cell (`source = None`: the first object
+/// what [`tile_corner_id`]( crate::compile::neighbors::tile_corner_id ) answers per cell (`source = None`: the first object
 /// with a `priority`; `Some( layer )`: the first whose `global_layer` is
 /// `layer`), with `object_of` resolving each object in one lookup. Cells with
 /// no such object are left out (they read as [`VOID_ID`]).
