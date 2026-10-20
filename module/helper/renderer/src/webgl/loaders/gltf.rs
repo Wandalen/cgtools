@@ -1288,9 +1288,16 @@ mod private
   ///
   /// # Errors
   ///
-  /// Returns `WebglError` if fetching or parsing the glTF file or its buffers fails, or if the
-  /// glTF asset fails validation, including an `extensionsRequired` entry this loader doesn't
-  /// support ( see [`document_validate`] ).
+  /// Returns `WebglError`, with the details on the console, when :
+  /// - fetching or parsing the glTF file fails;
+  /// - the asset fails validation, including an `extensionsRequired` entry this loader doesn't
+  ///   support ( see [`document_validate`] );
+  /// - a buffer cannot be loaded : a fetch fails, a buffer other than buffer 0 has no uri,
+  ///   buffer 0 has no uri and the file no GLB binary chunk, or the meshopt fallback buffers
+  ///   declare more bytes together than the loader allocates for one document;
+  /// - meshopt decoding fails, for any reason `meshopt::views_decode` lists : a buffer view or
+  ///   buffer breaking a meshopt rule, overlapping views, the decoder failing to initialise, or
+  ///   the decoder rejecting the data.
   ///
   /// # Panics
   ///
