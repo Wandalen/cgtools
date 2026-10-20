@@ -527,3 +527,93 @@ fn alpha_pulse_restart_on_spawn_restarts_the_wave_at_a_spawn()
   all_near( &at_spawn, 0.6, "free-running: the spawn does not touch the wave" );
   all_near( &after, 1.0, "free-running: half a period on the scene clock" );
 }
+
+/// `AlphaPulse.restart_on_spawn` restarts the wave only when the pulsing
+/// layer's own vertex content changes. A spawn elsewhere still re-resolves the
+/// vertex pass, since it changes the hex cells, but the pulsing bucket resolves
+/// to the same sprites, so its wave keeps its anchor and runs on as if nothing
+/// happened: half-way at the spawn, at `max` a quarter period later. A resolve
+/// that restarted on any re-resolve would put it back at `min` instead.
+#[ test ]
+fn alpha_pulse_restart_on_spawn_carries_the_wave_across_an_unrelated_spawn()
+{
+  let mut spec = dual_orient_spec();
+  spec.effects.push( Effect
+  {
+    id : "pulse".into(),
+    kind : EffectKind::AlphaPulse { min : 0.2, max : 1.0, frequency : 1.0, restart_on_spawn : true },
+    phase_offset : PhaseOffset::None,
+  });
+  let stack = spec.objects[ 0 ].states.get_mut( "default" ).expect( "default state" );
+  stack[ 0 ].behaviour.effects.push( EffectRef( "pulse".into() ) );
+  // A plain sprite with no corner `priority`, so it never takes part in the
+  // dual-grid resolve.
+  spec.objects.push( Object
+  {
+    id : "marker".into(),
+    anchor : Anchor::Hex,
+    global_layer : "terrain".into(),
+    priority : None,
+    sort_y_source : SortYSource::default(),
+    pivot : ( 0.5, 0.5 ),
+    default_state : "default".into(),
+    states :
+    {
+      let mut m = HashMap::default();
+      m.insert
+      (
+        "default".into(),
+        vec!
+        [
+          ObjectLayer
+          {
+            id : None,
+            sprite_source : SpriteSource::Static( SpriteRef { asset : "terrain".into(), frame : "0".into() } ),
+            behaviour : LayerBehaviour::default(),
+            z_in_object : 0,
+            pipeline_layer : None,
+          },
+        ],
+      );
+      m
+    },
+  });
+
+  let scene_snap = SceneSnapshot
+  {
+    tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "hexagon".into() ] } ],
+    ..minimal_scene_3x3()
+  };
+  let mut scene = Scene::from_snapshot( &scene_snap, Arc::new( spec.clone() ) ).expect( "scene" );
+  let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
+  let mut flattener = common::BatchFlattener::new();
+  let pulse = | renderer : &mut Renderer, flattener : &mut common::BatchFlattener, scene : &Scene |
+  {
+    // The marker's sprite has no pulse: keep only the hexagon's corner sprites,
+    // which are the ones drawn from the `dual` atlas.
+    let compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
+    let cmds = flattener.apply( renderer.render( scene, &Camera::default() ).expect( "render" ) );
+    sprite_commands( &cmds ).iter()
+      .filter( | s | compiled.ids.sprite( "terrain", "0" ) != Some( s.sprite ) )
+      .map( | s | s.tint[ 3 ] )
+      .collect::< Vec< f32 > >()
+  };
+
+  let start = pulse( &mut renderer, &mut flattener, &scene );
+  scene.tick( 0.25 );
+  let marker = scene.object( "marker" ).expect( "marker object" );
+  scene.spawn( marker, Placement::Hex { q : 5, r : 5 } );
+  let at_spawn = pulse( &mut renderer, &mut flattener, &scene );
+  scene.tick( 0.25 );
+  let after = pulse( &mut renderer, &mut flattener, &scene );
+  assert_eq!( renderer.vertex_resolves(), 2, "the spawn changes the hex cells, so it re-resolves" );
+
+  for ( alphas, want, what ) in [ ( &start, 0.2, "first frame" ), ( &at_spawn, 0.6, "the spawn leaves the wave alone" ), ( &after, 1.0, "half a period after the first frame" ) ]
+  {
+    assert!( !alphas.is_empty(), "{what}: the hexagon must emit corner sprites" );
+    for &a in alphas
+    {
+      assert!( ( a - want ).abs() < 1e-3, "{what}: alpha {want} expected, got {a} in {alphas:?}" );
+    }
+  }
+}
