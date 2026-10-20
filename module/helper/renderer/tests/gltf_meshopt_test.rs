@@ -140,7 +140,9 @@ fn rejects_malformed_extension_objects()
   assert!( without( "byteLength" ).is_err() );
   assert!( without( "byteStride" ).is_err() );
   assert!( without( "count" ).is_err() );
-  assert!( without( "mode" ).is_err() );
+  assert_eq!( without( "mode" ), Err( "missing `mode`".to_owned() ) );
+  assert_eq!( with( "mode", json!( 1 ) ), Err( "`mode` is not a string".to_owned() ), "a mode that is there is not reported missing" );
+  assert_eq!( with( "filter", json!( 2 ) ), Err( "`filter` is not a string".to_owned() ), "a non-string filter is not read as no filter" );
   assert!( with( "count", json!( -1 ) ).is_err(), "negative count" );
   assert!( with( "count", json!( 1.5 ) ).is_err(), "fractional count" );
   assert!( with( "mode", json!( "STRIPS" ) ).is_err() );

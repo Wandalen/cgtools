@@ -218,8 +218,14 @@ mod private
         usize_read( v ).ok_or_else( || format!( "`{name}` is not a non-negative integer" ) )
       };
 
-      let mode = MeshoptMode::from_name( value.get( "mode" ).and_then( Value::as_str ).ok_or( "missing `mode`" )? )?;
-      let filter = MeshoptFilter::from_name( value.get( "filter" ).and_then( Value::as_str ), extension )?;
+      // A present but non-string `mode` or `filter` is malformed, not absent : reading it as
+      // absent would decode with no filter, or report a `mode` that is there as missing.
+      let string = | name : &str | -> Result< Option< &str >, String >
+      {
+        value.get( name ).map( | v | v.as_str().ok_or_else( || format!( "`{name}` is not a string" ) ) ).transpose()
+      };
+      let mode = MeshoptMode::from_name( string( "mode" )?.ok_or( "missing `mode`" )? )?;
+      let filter = MeshoptFilter::from_name( string( "filter" )?, extension )?;
 
       let spec = Self
       {
@@ -434,7 +440,7 @@ mod private
     .map_err( | e |
     {
       gl::browser::error!( "meshopt decoder failed to initialise: {e:?}" );
-      gl::WebglError::Other( "meshopt decoder failed to initialise" )
+      gl::WebglError::Other( "glTF meshopt decoder failed to initialise" )
     } )?;
 
     for ( view, spec ) in &decodes
@@ -467,7 +473,7 @@ mod private
       .map_err( | e |
       {
         gl::browser::error!( "glTF bufferView {}: invalid meshopt compression: {e}", view.index() );
-        gl::WebglError::Other( "Invalid meshopt-compressed buffer view" )
+        gl::WebglError::Other( "glTF meshopt bufferView is invalid" )
       } )?;
       decodes.push( ( view, spec ) );
     }
@@ -478,7 +484,7 @@ mod private
     decodes_overlap_check( &placed ).map_err( | e |
     {
       gl::browser::error!( "glTF meshopt compression: {e}" );
-      gl::WebglError::Other( "Overlapping meshopt-compressed buffer views" )
+      gl::WebglError::Other( "glTF meshopt bufferViews overlap" )
     } )?;
 
     Ok( decodes )
@@ -515,7 +521,7 @@ mod private
     .map_err( | e |
     {
       gl::browser::error!( "glTF bufferView {}: meshopt decode failed: {e:?}", view.index() );
-      gl::WebglError::Other( "meshopt decode failed" )
+      gl::WebglError::Other( "glTF meshopt decode failed" )
     } )
   }
 }
