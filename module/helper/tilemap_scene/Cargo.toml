@@ -18,7 +18,7 @@ slotmap = { workspace = true }
 tilemap_renderer = { workspace = true, default-features = true, features = ["scene-model"] }
 
 [dev-dependencies]
-criterion = "0.8"
+criterion = { workspace = true }
 
 # Renderer::render on a 469-hex dual-grid board (the frames #207 optimised).
 [[bench]]
