@@ -439,37 +439,9 @@ mod private
     )
   }
 
-  /// Resolves a glTF asset `uri` (buffer or image) against the model's `folder_path`.
-  ///
-  /// URIs that already carry their own location are returned unchanged, because
-  /// prefixing `folder_path` would corrupt them:
-  /// * absolute / protocol-relative URLs (`http://`, `https://`, `//`),
-  /// * self-contained URIs (`blob:`, `data:`),
-  /// * origin-absolute paths (leading `/`).
-  ///
-  /// Everything else is treated as folder-relative and joined with a single `/`.
-  ///
-  /// When `folder_path` is empty (the glTF was loaded from a bare filename, so it
-  /// sits at the origin root) a folder-relative `uri` resolves to `"/{uri}"`. This
-  /// is intentional and harmless: `url_resolve` joins both `"/buffer.bin"` and
-  /// `"buffer.bin"` against the origin to the same `"{origin}/buffer.bin"`. A glTF
-  /// served from a subdirectory must be loaded with that directory in `gltf_path`
-  /// (e.g. `"assets/scene.gltf"`), otherwise the glTF fetch itself fails first.
-  #[ must_use ]
-  pub fn asset_uri_resolve( folder_path : &str, uri : &str ) -> String
-  {
-    // `gl::file::load` already resolves self-contained URLs and origin-absolute
-    // paths against the window origin; only genuinely folder-relative URIs need
-    // the model's folder prefix folded in.
-    if gl::file::is_self_contained_url( uri ) || uri.starts_with( '/' )
-    {
-      uri.to_string()
-    }
-    else
-    {
-      format!( "{folder_path}/{uri}" )
-    }
-  }
+  // Lives in `gltf_uri` so that `gltf_buffers` can use it without importing this module, which
+  // imports `gltf_buffers`; re-exported here, where it has always been.
+  pub use crate::webgl::loaders::gltf_uri::asset_uri_resolve;
 
   std::thread_local!
   {
@@ -1429,9 +1401,16 @@ mod private
   ///
   /// # Errors
   ///
-  /// Returns `WebglError` if fetching or parsing the glTF file or its buffers fails, or if the
-  /// glTF asset fails validation, including an `extensionsRequired` entry this loader doesn't
-  /// support ( see [`document_validate`] ).
+  /// Returns `WebglError`, with the details on the console, when :
+  /// - fetching or parsing the glTF file fails;
+  /// - the asset fails validation, including an `extensionsRequired` entry this loader doesn't
+  ///   support ( see [`document_validate`] );
+  /// - a buffer cannot be loaded : a fetch fails, a buffer other than buffer 0 has no uri,
+  ///   buffer 0 has no uri and the file no GLB binary chunk, or the meshopt fallback buffers
+  ///   declare more bytes together than the loader allocates for one document;
+  /// - meshopt decoding fails, for any reason `meshopt::views_decode` lists : a buffer view or
+  ///   buffer breaking a meshopt rule, overlapping views, the decoder failing to initialise, or
+  ///   the decoder rejecting the data.
   ///
   /// # Panics
   ///

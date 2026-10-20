@@ -51,9 +51,9 @@ mod private
   }
 
   /// Reads a `VEC3` accessor as floats, whatever its component type. `KHR_mesh_quantization`
-  /// lets morph target `POSITION` / `NORMAL` / `TANGENT` be `i8` or `i16`, normalized or not,
-  /// but the `gltf` crate's `ReadPositionDisplacements` and its siblings always read `f32`
-  /// without checking the type. Reading by the declared type keeps the view's `byteStride`
+  /// lets a morph target `POSITION` be `i8` or `i16`, normalized or not, and a `NORMAL` or
+  /// `TANGENT` be normalized `i8` or `i16`, but the `gltf` crate's `ReadPositionDisplacements`
+  /// and its siblings always read `f32` without checking the type. Reading by the declared type keeps the view's `byteStride`
   /// and sparse substitution, which `gltf::accessor::Iter` already handles.
   ///
   /// `None` when the accessor is not `VEC3` or its data is missing from `buffers`.
@@ -78,7 +78,8 @@ mod private
       DataType::U8 => Iter::< [ u8; 3 ] >::new( acc, get )?.map( | v | scale( v.map( f32::from ) ) ).collect(),
       DataType::I16 => Iter::< [ i16; 3 ] >::new( acc, get )?.map( | v | scale( v.map( f32::from ) ) ).collect(),
       DataType::U16 => Iter::< [ u16; 3 ] >::new( acc, get )?.map( | v | scale( v.map( f32::from ) ) ).collect(),
-      #[ allow( clippy::cast_precision_loss, reason = "glTF allows no `u32` displacements, so values past 2^24 losing precision does not matter" ) ]
+      // `cast_precision_loss` is allowed workspace-wide; here it is also harmless, since glTF
+      // allows no `u32` displacements.
       DataType::U32 => Iter::< [ u32; 3 ] >::new( acc, get )?.map( | v | v.map( | c | c as f32 ) ).collect(),
     };
     Some( values )
@@ -87,9 +88,17 @@ mod private
 
 crate::mod_interface!
 {
-  own use
-  {
-    position_bounds_dequantize,
-    accessor_vec3_read
-  };
+  own use position_bounds_dequantize;
+}
+
+// Only `gltf.rs`'s morph target reader calls it.
+pub( crate ) use private::accessor_vec3_read;
+
+/// `accessor_vec3_read`, reachable from `tests/` under `test_internals`. Without the feature
+/// this module does not exist.
+#[ cfg( feature = "test_internals" ) ]
+#[ doc( hidden ) ]
+pub mod internal
+{
+  pub use super::private::accessor_vec3_read;
 }

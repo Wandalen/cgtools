@@ -10,27 +10,28 @@ mod private
   use gltf::json::Value;
   use minwebgl as gl;
   use crate::webgl::{ Texture, TextureInfo, material::PbrMaterial };
+  use crate::webgl::loaders::gltf_json::{ f32_get, usize_read };
   use crate::webgl::loaders::meshopt::{ EXT_MESHOPT_COMPRESSION, KHR_MESHOPT_COMPRESSION };
 
-  /// glTF extensions this loader actually implements support for. Kept in sync
-  /// with the `gltf`-crate extension Cargo features this crate enables in
-  /// `Cargo.toml` ( `[dependencies.gltf].features` ) -- an extension whose
-  /// Cargo feature isn't turned on has no typed accessor exposed by the `gltf`
-  /// crate at all, so this loader could not act on it even if it were listed
-  /// here. Cross-checked against the code that reads each one, not just the
-  /// feature list: `KHR_lights_punctual` is read in `loaders/gltf.rs`'s
-  /// `light_list_get` / `light_get`, and `KHR_materials_specular` in its
-  /// `materials_create` ( the `gltf_m.specular()` branch ).
-  /// `KHR_materials_clearcoat` / `KHR_materials_anisotropy` have no typed accessor
-  /// or Cargo feature in the `gltf` crate; [`material_layer_extensions_apply`] in
-  /// this file reads their JSON through `extension_value`.
-  /// The meshopt extensions are decoded by [`crate::webgl::loaders::meshopt::views_decode`]
-  /// before any buffer is used. Their names are `meshopt`'s own constants, the ones its
-  /// `MESHOPT_EXTENSIONS` lists, so the two lists name them identically.
-  /// For `KHR_mesh_quantization`, GPU attributes reach `vertexAttribPointer` with their integer type and `normalized` flag intact
-  /// ( `loaders/gltf.rs`'s `attribute_descriptor_make` ). Values read on the CPU are
-  /// dequantized there: normalized position bounds in `position_bounds_dequantize`, and
-  /// morph target displacements in `accessor_vec3_read`.
+  /// glTF extensions this loader implements, each checked against the code that reads it.
+  /// They reach the loader by three routes :
+  /// - **Typed `gltf` accessors**, behind the `gltf`-crate Cargo features this crate enables
+  ///   ( `[dependencies.gltf].features` in `Cargo.toml` ) : `KHR_lights_punctual`, read in
+  ///   `loaders/gltf.rs`'s `light_list_get` / `light_get`, and `KHR_materials_specular`, in its
+  ///   `materials_create` ( the `gltf_m.specular()` branch ). Only these two have such a
+  ///   feature; listing another extension that needs one would promise what the crate cannot
+  ///   read.
+  /// - **Hand-read extension JSON**, for extensions the `gltf` crate has no accessor or
+  ///   feature for : `KHR_materials_clearcoat` / `KHR_materials_anisotropy`, read by
+  ///   [`material_layer_extensions_apply`] in this file, and the two meshopt extensions, decoded
+  ///   by [`crate::webgl::loaders::meshopt::views_decode`] before any buffer is used. The
+  ///   meshopt entries are `meshopt`'s own name constants; this list is written out by hand,
+  ///   so `gltf_meshopt_test` checks that every name `meshopt` decodes may be required.
+  /// - **No reader of its own** : `KHR_mesh_quantization` only widens the accessor types
+  ///   allowed. GPU attributes reach `vertexAttribPointer` with their integer type and
+  ///   `normalized` flag intact ( `loaders/gltf.rs`'s `attribute_descriptor_make` ); values
+  ///   read on the CPU are dequantized there : normalized position bounds in
+  ///   `position_bounds_dequantize`, and morph target displacements in `accessor_vec3_read`.
   const SUPPORTED_EXTENSIONS : &[ &str ] =
   &[
     "KHR_lights_punctual",
@@ -89,9 +90,10 @@ mod private
   ///
   /// # Errors
   ///
-  /// Returns `WebglError::Other` if the asset requires an unsupported extension or any other
-  /// validation error is reported; each one is logged via `gl::browser::error!`, with its JSON
-  /// path for structural errors.
+  /// Returns `WebglError::Other` if the asset requires an unsupported extension, any other
+  /// validation error is reported, or its quantized texture coordinates need a texture
+  /// transform the loader cannot apply ( [`texture_transform_check`] ); each one is logged via
+  /// `gl::browser::error!`, with its JSON path for structural errors.
   pub fn document_validate( gltf_file : &gltf::Gltf ) -> Result< (), gl::WebglError >
   {
     use gltf::json::validation::Validate;
@@ -111,13 +113,57 @@ mod private
 
     if errors.is_empty()
     {
-      return Ok( () );
+      // Only now are the accessor indices known to be valid, so they can be followed.
+      return texture_transform_check( gltf_file );
     }
     for ( path, error ) in &errors
     {
       gl::browser::error!( "invalid glTF at '{path}': {error:?}" );
     }
     Err( gl::WebglError::Other( "glTF document failed validation" ) )
+  }
+
+  /// The extension that maps texture coordinates with an offset, rotation and scale.
+  const TEXTURE_TRANSFORM : &str = "KHR_texture_transform";
+
+  /// Checks an asset's use of `KHR_texture_transform`, which this loader does not apply.
+  ///
+  /// `KHR_mesh_quantization` "depends on `KHR_texture_transform` for texture coordinate
+  /// dequantization" : an encoder that stores texture coordinates as integers may put them in
+  /// a range only a texture transform maps back. So an asset with integer texture coordinates
+  /// that uses `KHR_texture_transform` would draw its textures at the wrong place and scale,
+  /// and is refused. Elsewhere a transform only moves a texture, so the asset loads with a
+  /// warning that its transforms are ignored. glTF-Transform's quantization keeps texture
+  /// coordinates normalized to 0..1 and uses no transform, so its output passes; an asset that
+  /// lists the extension as required is already refused by [`required_extensions_check`].
+  ///
+  /// Expects a structurally valid document : it follows accessor indices.
+  ///
+  /// # Errors
+  ///
+  /// Returns `WebglError::Other` for integer texture coordinates in an asset that uses
+  /// `KHR_texture_transform`.
+  pub fn texture_transform_check( gltf_file : &gltf::Gltf ) -> Result< (), gl::WebglError >
+  {
+    if !gltf_file.extensions_used().any( | name | name == TEXTURE_TRANSFORM )
+    {
+      return Ok( () );
+    }
+    let quantized = gltf_file.meshes()
+    .flat_map( | mesh | mesh.primitives() )
+    .flat_map( | primitive | primitive.attributes() )
+    .any( | ( semantic, accessor ) |
+      matches!( semantic, gltf::Semantic::TexCoords( _ ) ) && accessor.data_type() != gltf::accessor::DataType::F32 );
+    if quantized
+    {
+      gl::browser::error!
+      (
+        "glTF asset has integer texture coordinates and uses {TEXTURE_TRANSFORM}, which this loader does not apply, so its textures would be misplaced"
+      );
+      return Err( gl::WebglError::Other( "glTF asset needs KHR_texture_transform for its quantized texture coordinates" ) );
+    }
+    gl::warn!( "glTF asset uses {TEXTURE_TRANSFORM}, which this loader does not apply; its textures are drawn untransformed" );
+    Ok( () )
   }
 
   /// A texture reference inside a material extension object: an index into the asset's
@@ -161,16 +207,11 @@ mod private
     pub texture : Option< ExtensionTextureRef >,
   }
 
-  fn number_get( json : &Value, key : &str, default : f32 ) -> f32
-  {
-    json.get( key ).and_then( Value::as_f64 ).map_or( default, | v | v as f32 )
-  }
-
   /// Reads a glTF `textureInfo` object; `None` when it has no integer `index`. A `texCoord`
   /// that isn't a non-negative integer reads as the default UV set 0. Both cases are logged.
   fn texture_ref_parse( json : &Value ) -> Option< ExtensionTextureRef >
   {
-    let Some( index ) = json.get( "index" ).and_then( Value::as_u64 ).and_then( | v | usize::try_from( v ).ok() )
+    let Some( index ) = json.get( "index" ).and_then( usize_read )
     else
     {
       gl::warn!( "glTF material extension textureInfo {json} has no valid index, ignoring it" );
@@ -195,12 +236,12 @@ mod private
     let normal = json.get( "clearcoatNormalTexture" );
     ClearcoatParams
     {
-      factor : number_get( json, "clearcoatFactor", 0.0 ),
-      roughness_factor : number_get( json, "clearcoatRoughnessFactor", 0.0 ),
+      factor : f32_get( json, "clearcoatFactor", 0.0 ),
+      roughness_factor : f32_get( json, "clearcoatRoughnessFactor", 0.0 ),
       texture : json.get( "clearcoatTexture" ).and_then( texture_ref_parse ),
       roughness_texture : json.get( "clearcoatRoughnessTexture" ).and_then( texture_ref_parse ),
       normal_texture : normal.and_then( texture_ref_parse ),
-      normal_scale : normal.map_or( 1.0, | n | number_get( n, "scale", 1.0 ) ),
+      normal_scale : normal.map_or( 1.0, | n | f32_get( n, "scale", 1.0 ) ),
     }
   }
 
@@ -210,8 +251,8 @@ mod private
   {
     AnisotropyParams
     {
-      strength : number_get( json, "anisotropyStrength", 0.0 ),
-      rotation : number_get( json, "anisotropyRotation", 0.0 ),
+      strength : f32_get( json, "anisotropyStrength", 0.0 ),
+      rotation : f32_get( json, "anisotropyRotation", 0.0 ),
       texture : json.get( "anisotropyTexture" ).and_then( texture_ref_parse ),
     }
   }
@@ -279,6 +320,7 @@ crate::mod_interface!
   own use material_layer_extensions_apply;
   own use required_extensions_check;
   own use document_validate;
+  own use texture_transform_check;
 }
 
 /// The extension JSON parsing `tests/` reaches, exposed only under `test_internals`.

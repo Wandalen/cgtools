@@ -19,8 +19,11 @@ to an L3/L5 consumer produces pixels.
   in-memory object graph.
 - **Validate-able without a GPU**: model loading and validation must work
   headless — this is what makes L4 testable and toolable. This is the
-  invariant `tilemap_scene` meets; the d3 occupant below does not (its
-  loader requires a live GPU context just to parse).
+  invariant `tilemap_scene` meets; the d3 occupant below does not, for two
+  independent reasons: its loader requires a live GPU context just to parse,
+  and decoding meshopt-compressed buffers needs a JS host to run
+  meshoptimizer's vendored decoder, which the crate's wasm imports
+  statically.
 
 ### Occupants per Stack
 
@@ -47,7 +50,7 @@ scene model + script, gated on a committed scene-file requirement.
 | `module/blank/d3_scene/` | Reserved d3 scene-layer slot |
 | `module/helper/renderer/src/webgl/loaders/gltf.rs` | glTF ingestion — the de facto d3 model boundary; now enforces `extensionsRequired` (`document_validate` in `loaders/gltf_extensions.rs`, run right after parse) against the extensions the loader actually implements (`KHR_lights_punctual`, `KHR_materials_specular`, `KHR_materials_clearcoat`, `KHR_materials_anisotropy`, `EXT_meshopt_compression`, `KHR_meshopt_compression`, `KHR_mesh_quantization`), refusing to silently produce incomplete output for assets requiring anything else — tested by `tests/gltf_extensions_required_test.rs` |
 | `module/helper/renderer/src/webgl/loaders/meshopt.rs` | `EXT_meshopt_compression` / `KHR_meshopt_compression`: parses and range-checks each compressed buffer view, then decodes it with meshoptimizer's vendored JS decoder into its fallback buffer, so the rest of the loader sees plain glTF |
-| `module/helper/renderer/src/webgl/loaders/gltf_buffers.rs` | `buffers_load`: every buffer's bytes by index — the GLB chunk (buffer 0 only), fetched uris, and zeroed meshopt fallback buffers capped at 1 GiB |
+| `module/helper/renderer/src/webgl/loaders/gltf_buffers.rs` | `buffers_load`: every buffer's bytes by index — the GLB chunk (buffer 0 only), fetched uris, and zeroed meshopt fallback buffers, capped at 1 GiB per document, all fallbacks together, and checked before anything is fetched; `cpu_buffers_needed`: whether the CPU-side readers need a copy in wasm memory |
 | `module/helper/renderer/src/webgl/loaders/gltf_quantization.rs` | `KHR_mesh_quantization`: `position_bounds_dequantize` for normalized `POSITION` bounds, and `accessor_vec3_read` for integer morph-target displacements |
 | `module/helper/renderer/src/webgl/animation/loaders/gltf.rs` | Animation-specific glTF ingestion, alongside the main loader above |
 | `module/helper/renderer/tests/gltf_loader_tests.rs` | Native, off-GPU coverage for `asset_uri_resolve`'s pure URI-resolution sub-surface |
@@ -56,8 +59,10 @@ scene model + script, gated on a committed scene-file requirement.
 | `module/helper/renderer/tests/gltf_attribute_descriptor_test.rs` | Native, off-GPU coverage for `attribute_descriptor_make`'s pure vertex-attribute-descriptor sub-surface (task 299) |
 | `module/helper/renderer/tests/gltf_node_scene_test.rs` | Native, off-GPU coverage for `nodes_create`/`skeletons_attach`/`scenes_create`'s pure node/skeleton/scene-assembly sub-surfaces (task 299) |
 | `module/helper/renderer/tests/gltf_skeleton_displacements_test.rs` | Native, off-GPU coverage for `skeleton_displacements_data_load`'s pure morph-target displacement-packing sub-surface (task 299) |
-| `module/helper/renderer/tests/gltf_meshopt_test.rs` | Native, off-GPU coverage for the meshopt / quantization sub-surfaces: per-view extension parsing and validation, the pre-decode range and overlap checks, fallback-buffer detection, `document_validate` accepting the three extensions, `position_bounds_dequantize`, and `accessor_vec3_read` over every component type |
-| `module/helper/renderer/tests/gltf_meshopt_browser_test.rs` | Browser (wasm32) coverage for the decode itself through meshoptimizer's JS decoder, and `load`'s buffer-index rules |
+| `module/helper/renderer/tests/gltf_meshopt_test.rs` | Native, off-GPU coverage for the meshopt sub-surface: per-view extension parsing and validation, the pre-decode layout, range and overlap checks, fallback-buffer detection, and `required_extensions_check` / `document_validate` accepting each of `EXT_meshopt_compression`, `KHR_meshopt_compression` and `KHR_mesh_quantization` in `extensionsRequired`, one at a time (`every_decoded_extension_may_be_required`) |
+| `module/helper/renderer/tests/gltf_meshopt_browser_test.rs` | Browser (wasm32) coverage for the decode itself through meshoptimizer's JS decoder, a filter included, and `load`'s meshopt rules for fallback buffers |
+| `module/helper/renderer/tests/gltf_buffers_test.rs`, `gltf_buffers_browser_test.rs` | `cpu_buffers_needed` natively; in the browser, the buffer rules every asset follows (the GLB chunk is buffer 0 only, uri-less buffers otherwise refused) |
+| `module/helper/renderer/tests/gltf_quantization_test.rs`, `gltf_quantization_browser_test.rs` | `position_bounds_dequantize` and `accessor_vec3_read` over every component type natively; in the browser, a quantized mesh loaded end to end with dequantized bounds |
 | `module/helper/renderer/tests/skeleton_tests.rs` | Native, off-GPU (`pure_tests` module) coverage for `skeleton_transforms_data_load`'s pure transform-resolution sub-surface; also carries wasm/browser-context skeleton-loading tests |
 | `module/helper/renderer/tests/gltf_material_variation_test.rs` | Native, off-GPU coverage for `material_variation_resolve`'s pure material-variant-caching sub-surface (BUG-245 regression) |
 | `module/helper/renderer/tests/gltf_material_extensions_test.rs` | Native, off-GPU coverage for `loaders/gltf_extensions.rs`'s pure extension-JSON sub-surface: `clearcoat_parse` / `anisotropy_parse` defaults, factors, `texCoord`, the coat normal `scale`, rotation and index-less textures (7 tests, reachable under `test_internals`) |
