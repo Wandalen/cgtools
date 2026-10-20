@@ -160,6 +160,10 @@ mod private
     /// buffers stay identical, so panning costs one uniform per batch, not a
     /// scene re-upload). `ScreenSpaceSprite`s are unaffected. Identity leaves
     /// world coordinates mapped straight to viewport pixels.
+    ///
+    /// The camera is WebGL only: this is an inherent method, not part of
+    /// [`Backend`], and no [`crate::commands::RenderCommand`] carries a camera,
+    /// so the other adapters draw world coordinates as viewport pixels.
     #[ inline ]
     pub fn set_camera( &mut self, camera : [ f32; 9 ] )
     {

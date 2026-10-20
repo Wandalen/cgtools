@@ -98,6 +98,7 @@ let Output::String( doc ) = svg.output()? else { unreachable!() };
 | Blend modes | yes | partial² | partial⁷ | — | —⁵ | —⁵ |
 | Premultiplied images | —⁸ | yes | —⁸ | — | —⁸ | —⁸ |
 | Depth buffer | — | yes | — | — | — | — |
+| GPU camera | — | yes⁹ | — | — | — | — |
 | Viewport pan/zoom | yes | partial | — | — | — | — |
 
 > **Terminal** adapter downsamples world coordinates onto a fixed character-cell grid
@@ -176,6 +177,14 @@ let Output::String( doc ) = svg.output()? else { unreachable!() };
 > `Transform::depth` and a batch's `occlude_overlap`. Without it every draw lands in
 > command order, so a caller that orders draws by depth must keep painter's order itself;
 > `tilemap_scene`'s `Renderer::set_depth_buffer( false )` does.
+>
+> ⁹ The GPU camera is WebGL only: `WebGlBackend::set_camera` is an inherent method, not
+> part of `Backend`, and no command carries a camera. The other adapters draw world
+> coordinates as viewport pixels. `tilemap_scene` emits world draws in world coordinates
+> and leaves the view matrix to `set_camera`, so on another adapter its camera does not
+> move world draws. SVG's `viewport_offset_set` / `viewport_scale_set`
+> transform the whole document, `ScreenSpaceSprite`s included, so they are not a
+> replacement.
 
 ## known issues / TODO
 
