@@ -219,15 +219,20 @@ texture coordinates by default. glTF-Transform normalizes them to 0..1 instead a
 transform. Elsewhere a texture transform is ignored with a warning.
 Compressed buffer views are decoded with meshoptimizer's own decoder, vendored as
 `src/webgl/loaders/meshopt_decoder.js` ( MIT, see `license_third_party` ), which wasm-bindgen
-imports as a JS snippet. That has two consequences for the page that hosts the wasm module :
+imports as a JS snippet. The import is static : it is part of the generated glue, so the
+notes below apply to every page that links the crate's glTF loader, whether or not its assets
+are compressed ( `docs/pitfall/004` ) :
 
 - **Ship `pkg/snippets/`.** The generated glue imports the decoder from
   `snippets/renderer-<hash>/src/webgl/loaders/meshopt_decoder.js`, so the `snippets/` folder
   has to be served next to the glue file. `wasm-pack` and `trunk` output already include it; a
   custom pipeline that copies only the `.js` and `.wasm` files breaks the module at import.
-- **Allow `wasm-unsafe-eval`.** The decoder carries its own small wasm module and compiles it
-  with `WebAssembly.instantiate`. A page with a Content Security Policy needs
-  `'wasm-unsafe-eval'` in `script-src`, the same permission the crate's own wasm needs.
+- **Allow `wasm-unsafe-eval`.** The decoder inlines two builds of its wasm, with and without
+  SIMD, picks one with `WebAssembly.validate` and compiles it with `WebAssembly.instantiate`
+  as soon as it is imported. A page with a Content Security Policy needs `'wasm-unsafe-eval'`
+  in `script-src`, the same permission the crate's own wasm needs.
+- **Use a JS-module target.** wasm-bindgen's `--target no-modules` cannot import JS snippets,
+  so it cannot build the crate; `web` and `bundler` can.
 
 ### Features
 

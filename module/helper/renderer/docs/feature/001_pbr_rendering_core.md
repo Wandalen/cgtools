@@ -58,6 +58,7 @@ HAL once one exists.
 |------|--------------|
 | [../pitfall/001_requires_ext_color_buffer_float.md](../pitfall/001_requires_ext_color_buffer_float.md) | Environment requirement every consumer of this pipeline inherits |
 | [../pitfall/002_gltf_images_upload_after_load.md](../pitfall/002_gltf_images_upload_after_load.md) | Loaded material textures reach the GPU after `load` returns |
+| [../pitfall/004_meshopt_decoder_snippet_deployment.md](../pitfall/004_meshopt_decoder_snippet_deployment.md) | Deployment requirement every consumer of the glTF loader inherits : the meshopt decoder snippet |
 
 ### Sources
 
