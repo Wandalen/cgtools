@@ -496,7 +496,9 @@ mod private
 
     /// Move an existing instance to a new placement. The new placement
     /// MAY use a different variant than the previous one (e.g. `Hex` →
-    /// `FreePos`); spatial indexes are updated accordingly.
+    /// `FreePos`); spatial indexes are updated accordingly. A move onto the
+    /// hex cell the instance already stands in keeps its place in that cell's
+    /// stack.
     pub fn placement_move( &mut self, h : InstanceHandle, placement : Placement )
     {
       let Some( inst ) = self.instances.get_mut( h )
@@ -508,8 +510,22 @@ mod private
       let old = inst.placement;
       let visible = inst.visible;
       inst.placement = placement;
-      self.index_remove( h, old );
-      self.index_insert( h, placement );
+      // Fix(BUG-540): a move onto the hex cell the instance already stands in
+      // keeps its place in the spatial indexes. `Placement::Hex` carries only
+      // the cell, so nothing else changed.
+      // Root cause: re-indexing pushed it to the end of `hex_instances`, so a
+      // same-cell move reordered the cell's stack. The first corner terrain in
+      // that stack owns the cell's corner, yet `tiles_revision` (correctly) did
+      // not move, so the cached vertex resolve kept the old owner while a fresh
+      // resolve picked the new one.
+      // Pitfall: any other path that reorders a cell's stack must bump
+      // `tiles_revision` too.
+      let same_cell = hex_cell( old ).is_some() && hex_cell( old ) == hex_cell( placement );
+      if !same_cell
+      {
+        self.index_remove( h, old );
+        self.index_insert( h, placement );
+      }
       self.revision += 1;
       if visible && hex_cell( old ) != hex_cell( placement )
       {

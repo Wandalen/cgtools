@@ -1,6 +1,7 @@
 //! The revision-keyed vertex resolve cache and the per-frame vertex effects:
 //! `Scene::tiles_revision`, re-resolving `VertexCorners` only when hex cells
-//! change, re-enabling a disabled layer, `EffectKind::FadeGate` easing and
+//! change and keeping a same-cell move from reordering a cell (BUG-540),
+//! re-enabling a disabled layer, `EffectKind::FadeGate` easing and
 //! idle-replay invalidation, and `AlphaPulse.restart_on_spawn` restarting the
 //! wave at a spawn.
 
@@ -404,6 +405,60 @@ fn vertex_resolve_reruns_only_when_hex_cells_change()
   scene.placement_move( sand, Placement::Hex { q : 2, r : 2 } );
   assert!( !render( &scene, &mut renderer ), "moving a corner tile away breaks the blend" );
   assert_eq!( renderer.vertex_resolves(), 4 );
+}
+
+/// A cell holding two corner terrains gives its corner to the first one in its
+/// stack. Moving that first one onto the cell it already stands in must leave
+/// the stack order alone: the move does not change `tiles_revision`, so a
+/// reorder would make the cached resolve disagree with a fresh one. Here grass
+/// then sand share `( 0, 0 )`; grass's corner makes the grass/sand/water blend,
+/// sand's would not.
+///
+/// ## Root Cause
+/// `Scene::placement_move` always re-indexed the instance, pushing it to the
+/// end of `hex_instances`, which reordered the cell's stack. The first corner
+/// terrain in the stack owns the corner, but a same-cell move does not change
+/// `tiles_revision`, so the cached resolve kept the old owner.
+///
+/// ## Why Not Caught
+/// `tiles_revision_tracks_only_hex_cell_changes` checks that a same-cell move
+/// leaves the revision alone, which is right, but no test put two corner
+/// terrains in one cell and compared the cached resolve with a fresh one.
+///
+/// ## Fix Applied
+/// `placement_move` leaves the spatial indexes alone when the instance stays
+/// in the hex cell it stands in.
+///
+/// ## Prevention
+/// Compares a fresh resolve and the cached one after a same-cell move, on a
+/// cell whose corner owner depends on the stack order.
+///
+/// ## Pitfall
+/// The cache is keyed on `tiles_revision` alone, so anything that changes a
+/// cell's stack order, not just its membership, must bump it.
+// test_kind: bug_reproducer(BUG-540)
+#[ test ]
+fn vertex_resolve_cache_matches_a_fresh_resolve_after_a_same_cell_move()
+{
+  let ( spec, mut snap ) = three_way_blend_fixture();
+  snap.tiles[ 0 ].objects = vec![ "grass".into(), "sand".into(), "blend".into() ];
+  let mut scene = Scene::from_snapshot( &snap, Arc::new( spec.clone() ) ).expect( "scene" );
+  let camera = Camera::default();
+  let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
+  let mut flat = common::BatchFlattener::new();
+  let mut cached = | scene : &Scene |
+    has_three_way_blend( &spec, &flat.apply( renderer.render( scene, &camera ).expect( "render" ) ) );
+  let fresh = | scene : &Scene |
+  {
+    let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
+    has_three_way_blend( &spec, &common::commands_to_sprites( renderer.render( scene, &camera ).expect( "render" ) ) )
+  };
+
+  assert!( cached( &scene ), "grass is first at ( 0, 0 ), so its corner makes the blend" );
+  let grass = scene.instances_at_hex( 0, 0 ).next().expect( "grass instance" );
+  scene.placement_move( grass, Placement::Hex { q : 0, r : 0 } );
+  assert!( fresh( &scene ), "a same-cell move keeps grass first in its cell" );
+  assert!( cached( &scene ), "and the cached resolve agrees" );
 }
 
 /// Renders `scene` through a long-lived `renderer` (the vertex resolve cache
