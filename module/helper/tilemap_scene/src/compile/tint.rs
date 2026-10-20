@@ -180,7 +180,7 @@ mod private
     /// [`CompileError::UnsupportedBehaviour`] for `Masked`, which is not yet
     /// implemented and must not silently degrade to the global tint; otherwise
     /// the errors of [`resolve_tint_ref`].
-    pub fn layer_multiplier( &self, object : &Object, behaviour : &LayerBehaviour ) -> Result< [ f32; 4 ], CompileError >
+    pub( crate ) fn layer_multiplier( &self, object : &Object, behaviour : &LayerBehaviour ) -> Result< [ f32; 4 ], CompileError >
     {
       match &behaviour.tint
       {
@@ -202,7 +202,7 @@ mod private
     /// [`Self::layer_multiplier`]) — with the layer `alpha` folded into the
     /// alpha channel.
     #[ must_use ]
-    pub fn layer_tint_compose( &self, multiplier : [ f32; 4 ], alpha : f32 ) -> [ f32; 4 ]
+    pub( crate ) fn layer_tint_compose( &self, multiplier : [ f32; 4 ], alpha : f32 ) -> [ f32; 4 ]
     {
       let g = self.global;
       [ g[ 0 ] * multiplier[ 0 ], g[ 1 ] * multiplier[ 1 ], g[ 2 ] * multiplier[ 2 ], g[ 3 ] * multiplier[ 3 ] * alpha ]

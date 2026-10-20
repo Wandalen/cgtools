@@ -124,7 +124,7 @@ mod private
   /// [`canonicalize`] over borrowed ids — same order and `rotation`, no
   /// allocation. The hot dual-grid resolve uses this form.
   #[ must_use ]
-  pub fn canonicalize_strs< 'a >( raw : &[ &'a str; 3 ] ) -> ( [ &'a str; 3 ], u8 )
+  pub( crate ) fn canonicalize_strs< 'a >( raw : &[ &'a str; 3 ] ) -> ( [ &'a str; 3 ], u8 )
   {
     canonicalize_any( raw )
   }
@@ -196,7 +196,7 @@ mod private
   /// [`matching_pattern_find`] over a borrowed canonical triple (from
   /// [`canonicalize_strs`]) — same resolution rules, no allocation.
   #[ must_use ]
-  pub fn matching_pattern_find_strs< 'p >
+  pub( crate ) fn matching_pattern_find_strs< 'p >
   (
     patterns : &'p [ TriBlendPattern ],
     canonical : &[ &str; 3 ],
@@ -287,7 +287,9 @@ mod_interface::mod_interface!
   exposed use triangles_enumerate;
   exposed use corners_resolve;
   exposed use canonicalize;
-  exposed use canonicalize_strs;
   exposed use matching_pattern_find;
-  exposed use matching_pattern_find_strs;
 }
+
+// The borrowed-id forms serve only the crate's own dual-grid resolve
+// ( `compile/frame/vertex_corners.rs` ); the public API keeps the owned ones.
+pub( crate ) use private::{ canonicalize_strs, matching_pattern_find_strs };
