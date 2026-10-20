@@ -352,4 +352,17 @@ mod tests
 
     assert_eq!( load_refusal( &uri ).await, "glTF meshopt bufferView is invalid" );
   }
+
+  /// The fallback limit is checked from the JSON before any buffer is fetched : buffer 0 here
+  /// names a file that does not exist, so a loader that fetched first would fail on it instead.
+  #[ wasm_bindgen_test( async ) ]
+  async fn load_refuses_oversized_fallbacks_before_fetching_any_buffer()
+  {
+    let buffers = r#"{ "byteLength" : 36, "uri" : "no_such_buffer_is_ever_fetched.bin" },
+      { "byteLength" : 3000000000, "extensions" : { "EXT_meshopt_compression" : { "fallback" : true } } }"#;
+    let json = triangle_gltf( &[ "EXT_meshopt_compression" ], buffers, r#"{ "buffer" : 0, "byteLength" : 36, "target" : 34962 }"# );
+    let uri = data_uri( "model/gltf+json", json.as_bytes() );
+
+    assert_eq!( load_refusal( &uri ).await, "glTF meshopt fallback buffers are too large" );
+  }
 }

@@ -15,32 +15,49 @@ mod private
   /// for skins or animations would abort the module. Decoded web geometry is far below this.
   const FALLBACK_BYTES_MAX : usize = 1 << 30;
 
-  /// Allocates the zeroed buffer a meshopt fallback's views decode into, and adds its length
-  /// to `allocated`, the fallback bytes this document has allocated so far.
+  /// Checks, before anything is fetched or allocated, that the meshopt fallback buffers of
+  /// `gltf_file` declare at most [`FALLBACK_BYTES_MAX`] bytes together. Their sizes are known
+  /// from the JSON alone, so a document over the limit is refused before it downloads its
+  /// other buffers.
   ///
   /// # Errors
   ///
-  /// Returns `WebglError::Other` when the declared length would take `allocated` past
-  /// [`FALLBACK_BYTES_MAX`], or the browser refuses the allocation. `Uint8Array::new_with_length` would throw that
-  /// `RangeError` straight through the wasm frames, so the array is built through
-  /// `Reflect.construct`, which hands the exception back as a value.
-  fn fallback_buffer_allocate( gltf_buffer : &gltf::Buffer< '_ >, allocated : &mut usize ) -> Result< gl::js_sys::Uint8Array, gl::WebglError >
+  /// Returns `WebglError::Other` when the fallback buffers declare more than
+  /// [`FALLBACK_BYTES_MAX`] bytes together.
+  fn fallback_bytes_check( gltf_file : &gltf::Gltf ) -> Result< (), gl::WebglError >
+  {
+    let mut total = 0_usize;
+    for buffer in gltf_file.buffers().filter( crate::webgl::loaders::meshopt::buffer_is_fallback )
+    {
+      total = total.saturating_add( buffer.length() );
+      if total > FALLBACK_BYTES_MAX
+      {
+        gl::browser::error!
+        (
+          "glTF meshopt fallback buffers declare {total} bytes up to buffer {}, more than the {FALLBACK_BYTES_MAX} this loader allocates for one document",
+          buffer.index()
+        );
+        return Err( gl::WebglError::Other( "glTF meshopt fallback buffers are too large" ) );
+      }
+    }
+    Ok( () )
+  }
+
+  /// Allocates the zeroed buffer a meshopt fallback's views decode into.
+  /// [`fallback_bytes_check`] has already bounded its length.
+  ///
+  /// # Errors
+  ///
+  /// Returns `WebglError::Other` when the browser refuses the allocation.
+  /// `Uint8Array::new_with_length` would throw that `RangeError` straight through the wasm
+  /// frames, so the array is built through `Reflect.construct`, which hands the exception back
+  /// as a value.
+  fn fallback_buffer_allocate( gltf_buffer : &gltf::Buffer< '_ > ) -> Result< gl::js_sys::Uint8Array, gl::WebglError >
   {
     use gl::js_sys::{ Array, Reflect, Uint8Array };
 
-    let length = gltf_buffer.length();
-    let within = length <= FALLBACK_BYTES_MAX - *allocated;
-    let Some( length_u32 ) = u32::try_from( length ).ok().filter( | _ | within ) else
-    {
-      gl::browser::error!
-      (
-        "glTF meshopt fallback buffer {} declares {length} bytes; with the {allocated} bytes of the document's earlier         fallback buffers that is more than the {FALLBACK_BYTES_MAX} this loader allocates",
-        gltf_buffer.index()
-      );
-      return Err( gl::WebglError::Other( "glTF meshopt fallback buffers are too large" ) );
-    };
-    *allocated += length;
-
+    // At most `FALLBACK_BYTES_MAX`, which fits a `u32`.
+    let length_u32 = u32::try_from( gltf_buffer.length() ).unwrap_or( u32::MAX );
     let constructor = Uint8Array::new_with_length( 0 ).constructor();
     Reflect::construct( &constructor, &Array::of1( &length_u32.into() ) )
     .map( JsCast::unchecked_into )
@@ -68,15 +85,16 @@ mod private
   )
   -> Result< Vec< gl::js_sys::Uint8Array >, gl::WebglError >
   {
+    fallback_bytes_check( gltf_file )?;
+
     let mut buffers : Vec< gl::js_sys::Uint8Array > = Vec::new();
     let mut blob = gltf_file.blob.take();
-    let mut fallback_allocated = 0;
 
     for gltf_buffer in gltf_file.buffers()
     {
       if crate::webgl::loaders::meshopt::buffer_is_fallback( &gltf_buffer )
       {
-        buffers.push( fallback_buffer_allocate( &gltf_buffer, &mut fallback_allocated )? );
+        buffers.push( fallback_buffer_allocate( &gltf_buffer )? );
         continue;
       }
 
