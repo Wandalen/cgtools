@@ -13,6 +13,12 @@ mod private
   /// `byteLength` the JSON declares : without a limit a few bytes of JSON could commit
   /// gigabytes, in one buffer or spread over many, and copying such buffers into wasm memory
   /// for skins or animations would abort the module. Decoded web geometry is far below this.
+  ///
+  /// The cap bounds what is allocated, and with the rules `meshopt::views_decode` enforces
+  /// also what is read from it : only compressed views may reference a fallback, and their
+  /// decoded ranges may not overlap, so together they cover each fallback byte at most once
+  /// and upload it to the GPU once. The one way to read a range more than once is an image
+  /// naming the same view as another, as in any glTF : each such image decodes it again.
   const FALLBACK_BYTES_MAX : usize = 1 << 30;
 
   /// Checks, before anything is fetched or allocated, that the meshopt fallback buffers of
