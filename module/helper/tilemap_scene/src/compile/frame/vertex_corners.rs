@@ -3,6 +3,13 @@
 //! cached across frames by [`VertexResolveCache`], keyed on
 //! [`Scene::tiles_revision`]( crate::Scene::tiles_revision ) — and a cheap per-frame projection that folds in
 //! the global tint and the `AlphaPulse` / `FadeGate` effects.
+//!
+//! No `mod private` / `mod_interface!` here, unlike the `compile/` layers: this
+//! is a plain child module of `frame`, split out for size, not a layer of its
+//! own. `frame` imports what it needs and re-exports only
+//! [`VertexResolveCache`], so nothing here widens the crate's surface, and as a
+//! child it reaches `frame`'s crate-internal `FrameContext` and placement
+//! helpers without making them public.
 
 use tilemap_renderer::commands::Sprite;
 use tilemap_renderer::types::{ asset, BlendMode, ResourceId };
