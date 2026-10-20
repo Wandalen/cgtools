@@ -483,7 +483,7 @@ mod private
   ///   meshopt extensions on one view or buffer, a parent layout that does not match the
   ///   decoded data, a range outside its buffer, compressed bytes in a fallback buffer, or an
   ///   uncompressed view reading a fallback buffer;
-  /// - two views overlap ( [`decodes_overlap_check`] );
+  /// - two views overlap ( `decodes_overlap_check` );
   /// - the decoder fails to initialise;
   /// - the decoder rejects the data.
   pub async fn views_decode
