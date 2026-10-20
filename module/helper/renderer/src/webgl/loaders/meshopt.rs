@@ -397,39 +397,64 @@ mod private
 
   /// Checks that the compressed views of one document cannot corrupt each other. Every
   /// view is decoded in turn into its own range, so no view's decoded range may overlap
-  /// another's ( the later decode would overwrite the earlier one's output ), nor another
-  /// view's compressed bytes ( a decode would overwrite input another view still reads,
-  /// or has read ). Compressed bytes may overlap each other : they are only read.
-  /// [`MeshoptViewSpec::ranges_check`] covers one view against itself.
+  /// another's ( the later decode would overwrite the earlier one's output ), nor any
+  /// view's compressed bytes ( a decode would overwrite input a view still reads, or has
+  /// read ). Compressed bytes may overlap each other : they are only read.
   ///
   /// `decodes` holds, per compressed view : its index, its checked spec, and the buffer
   /// and offset of the range it decodes into.
   ///
+  /// Sorts every range by buffer and start, then sweeps each buffer once, keeping the
+  /// decoded and the compressed range that reach furthest so far : a range that starts
+  /// before one of them ends overlaps it. `O( n log n )` in the number of views, so a file
+  /// declaring many small views cannot make the check itself the expensive part.
+  ///
   /// # Errors
   ///
-  /// Returns a description of the first pair of views that overlap.
+  /// Returns a description of the first overlap found, or of a range whose end overflows.
   pub fn decodes_overlap_check( decodes : &[ ( usize, &MeshoptViewSpec, usize, usize ) ] ) -> Result< (), String >
   {
-    // `ranges_check` bounded every range by its buffer's length, so no end overflows.
-    let target = | &( _, spec, buffer, offset ) : &( usize, &MeshoptViewSpec, usize, usize ) |
-      ( buffer, offset, offset + spec.count * spec.byte_stride );
-    let source = | &( _, spec, _, _ ) : &( usize, &MeshoptViewSpec, usize, usize ) |
-      ( spec.buffer, spec.byte_offset, spec.byte_offset + spec.byte_length );
-    let overlap = | ( a_buffer, a_start, a_end ) : ( usize, usize, usize ), ( b_buffer, b_start, b_end ) : ( usize, usize, usize ) |
-      a_buffer == b_buffer && a_start < b_end && b_start < a_end;
+    /// One range : buffer, start, end, whether the decode writes it ( or reads it ), view.
+    type Range = ( usize, usize, usize, bool, usize );
 
-    for ( i, a ) in decodes.iter().enumerate()
+    let mut ranges : Vec< Range > = Vec::with_capacity( decodes.len() * 2 );
+    for &( view, spec, buffer, offset ) in decodes
     {
-      for b in &decodes[ i + 1 .. ]
+      let decoded_end = spec.decoded_length().and_then( | length | offset.checked_add( length ) )
+      .ok_or_else( || format!( "bufferView {view}: the decoded range overflows" ) )?;
+      let source_end = spec.byte_offset().checked_add( spec.byte_length() )
+      .ok_or_else( || format!( "bufferView {view}: the compressed range overflows" ) )?;
+      ranges.push( ( buffer, offset, decoded_end, true, view ) );
+      ranges.push( ( spec.buffer(), spec.byte_offset(), source_end, false, view ) );
+    }
+    ranges.sort_unstable_by_key( | &( buffer, start, .. ) | ( buffer, start ) );
+
+    let mut reach_decoded : Option< Range > = None;
+    let mut reach_compressed : Option< Range > = None;
+    for range in ranges
+    {
+      let ( buffer, start, end, writes, view ) = range;
+      let reaching = | furthest : Option< Range > | furthest.filter( | f | f.0 == buffer && f.2 > start );
+      if let Some( other ) = reaching( reach_decoded )
       {
-        if overlap( target( a ), target( b ) )
+        return Err( if writes
         {
-          return Err( format!( "bufferViews {} and {} decode into overlapping ranges", a.0, b.0 ) );
+          format!( "bufferViews {} and {view} decode into overlapping ranges", other.4 )
         }
-        if overlap( target( a ), source( b ) ) || overlap( target( b ), source( a ) )
+        else
         {
-          return Err( format!( "bufferViews {} and {}: one decodes over the other's compressed bytes", a.0, b.0 ) );
-        }
+          format!( "bufferView {} decodes over the compressed bytes of bufferView {view}", other.4 )
+        } );
+      }
+      if let Some( other ) = reaching( reach_compressed ).filter( | _ | writes )
+      {
+        return Err( format!( "bufferView {view} decodes over the compressed bytes of bufferView {}", other.4 ) );
+      }
+
+      let furthest = if writes { &mut reach_decoded } else { &mut reach_compressed };
+      if furthest.map_or( true, | f | f.0 != buffer || f.2 < end )
+      {
+        *furthest = Some( range );
       }
     }
     Ok( () )

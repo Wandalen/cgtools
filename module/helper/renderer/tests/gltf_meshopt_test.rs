@@ -292,6 +292,57 @@ fn decodes_overlap_check_rejects_views_corrupting_each_other()
   assert!( decodes_overlap_check( &[ ( 0, &a, 1, 0 ), ( 1, &a_again, 1, 16 ) ] ).is_ok(), "two views may read the same compressed bytes" );
 }
 
+/// The sweep in `decodes_overlap_check` agrees with the plain pairwise rule on many small
+/// random layouts : a decoded range may overlap no other range, a compressed range may
+/// overlap other compressed ranges. Ranges lie in two buffers, so both same-buffer and
+/// cross-buffer pairs occur.
+#[ test ]
+fn decodes_overlap_check_matches_the_pairwise_rule()
+{
+  // A small LCG, so the layouts are random but the same on every run.
+  let mut state = 0x2545_f491_u64;
+  let mut next = | bound : u64 | { state = state.wrapping_mul( 6_364_136_223_846_793_005 ).wrapping_add( 1 ); ( state >> 33 ) % bound };
+
+  let overlap = | a : ( u64, u64, u64 ), b : ( u64, u64, u64 ) | a.0 == b.0 && a.1 < b.2 && b.1 < a.2;
+  let ( mut accepted, mut refused ) = ( 0, 0 );
+  for _ in 0..2000
+  {
+    let views = 1 + next( 4 );
+    let layout = ( 0..views ).map( | _ |
+    {
+      // ( compressed buffer, compressed offset, compressed length, element count, target buffer, target offset )
+      ( next( 2 ), next( 64 ), 1 + next( 8 ), 1 + next( 4 ), next( 2 ), next( 64 ) )
+    } ).collect::< Vec< _ > >();
+
+    let specs = layout.iter().map( | &( b, o, l, c, _, _ ) | attributes_spec( b, o, l, c ) ).collect::< Vec< _ > >();
+    let placed = layout.iter().zip( &specs ).enumerate()
+    .map( | ( i, ( &( .., tb, to ), spec ) ) | ( i, spec, usize::try_from( tb ).unwrap(), usize::try_from( to ).unwrap() ) )
+    .collect::< Vec< _ > >();
+
+    let ranges = layout.iter().flat_map( | &( b, o, l, c, tb, to ) | [ ( ( tb, to, to + c * 4 ), true ), ( ( b, o, o + l ), false ) ] ).collect::< Vec< _ > >();
+    let pairwise_ok = ranges.iter().enumerate().all( | ( i, &( a, a_decoded ) ) |
+      ranges[ i + 1 .. ].iter().all( | &( b, b_decoded ) | !( a_decoded || b_decoded ) || !overlap( a, b ) ) );
+
+    let swept = decodes_overlap_check( &placed );
+    assert_eq!( swept.is_ok(), pairwise_ok, "layout {layout:?}: sweep says {swept:?}" );
+    if pairwise_ok { accepted += 1; } else { refused += 1; }
+  }
+  assert!( accepted > 100 && refused > 100, "both outcomes are exercised: {accepted} accepted, {refused} refused" );
+}
+
+/// Many views cost the check `O( n log n )`, not `O( n^2 )` : 100 000 disjoint views, which
+/// the pairwise check would compare five billion times, go through at once.
+#[ test ]
+fn decodes_overlap_check_scales_to_many_views()
+{
+  let n = 100_000_u64;
+  let specs = ( 0..n ).map( | i | attributes_spec( 0, i * 4, 4, 1 ) ).collect::< Vec< _ > >();
+  let placed = specs.iter().enumerate().map( | ( i, spec ) | ( i, spec, 1, i * 4 ) ).collect::< Vec< _ > >();
+  let start = std::time::Instant::now();
+  assert!( decodes_overlap_check( &placed ).is_ok() );
+  assert!( start.elapsed() < std::time::Duration::from_secs( 2 ), "took {:?}", start.elapsed() );
+}
+
 #[ test ]
 fn meshopt_and_quantization_pass_validation()
 {
