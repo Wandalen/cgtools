@@ -110,14 +110,15 @@ mod private
   }
 
   /// Whether the loader needs a copy of the buffers in wasm memory. Only skins, morph
-  /// targets and animations are read on the CPU. Everything else goes straight from the JS
-  /// buffers to the GPU, so the copy is skipped when nothing needs it : it costs as much as
-  /// the decoded model again, and the wasm heap never shrinks afterwards.
+  /// targets and animations are read on the CPU, animations only with the `animation`
+  /// feature, which builds their reader. Everything else goes straight from the JS buffers to
+  /// the GPU, so the copy is skipped when nothing needs it : it costs as much as the decoded
+  /// model again, and the wasm heap never shrinks afterwards.
   #[ must_use ]
   pub fn cpu_buffers_needed( gltf_file : &gltf::Gltf ) -> bool
   {
     gltf_file.skins().next().is_some()
-    || gltf_file.animations().next().is_some()
+    || ( cfg!( feature = "animation" ) && gltf_file.animations().next().is_some() )
     || gltf_file.meshes().any( | m | m.primitives().any( | p | p.morph_targets().next().is_some() ) )
   }
 

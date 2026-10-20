@@ -42,15 +42,16 @@ fn cpu_buffers_needed_for_a_skin()
   assert!( cpu_buffers_needed( &document( r#", "skins" : [ { "joints" : [ 0 ] } ]"#, "" ) ) );
 }
 
-/// Animation keyframes are read on the CPU.
+/// Animation keyframes are read on the CPU, by a reader that exists only with the
+/// `animation` feature : without it nothing would read the copy.
 #[ test ]
-fn cpu_buffers_needed_for_an_animation()
+fn cpu_buffers_needed_for_an_animation_only_with_the_animation_feature()
 {
   let animation = r#", "animations" : [ {
     "channels" : [ { "sampler" : 0, "target" : { "node" : 0, "path" : "translation" } } ],
     "samplers" : [ { "input" : 0, "output" : 0 } ]
   } ]"#;
-  assert!( cpu_buffers_needed( &document( animation, "" ) ) );
+  assert_eq!( cpu_buffers_needed( &document( animation, "" ) ), cfg!( feature = "animation" ) );
 }
 
 /// Morph target displacements are read on the CPU.
