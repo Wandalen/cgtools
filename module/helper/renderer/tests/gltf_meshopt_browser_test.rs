@@ -123,6 +123,61 @@ mod tests
     }
   }
 
+  /// A document whose bufferView 0 decodes `count` elements of 4 bytes from `compressed`
+  /// ( buffer 0 ) into fallback buffer 1, with `filter` spliced into the extension object.
+  fn filtered_document( compressed : &[ u8 ], count : usize, filter : &str ) -> ::gltf::Gltf
+  {
+    let len = compressed.len();
+    let decoded = count * 4;
+    let json = format!
+    (
+      r#"{{ "asset" : {{ "version" : "2.0" }},
+        "extensionsUsed" : [ "EXT_meshopt_compression" ], "extensionsRequired" : [ "EXT_meshopt_compression" ],
+        "buffers" : [ {{ "byteLength" : {len}, "uri" : "compressed.bin" }},
+          {{ "byteLength" : {decoded}, "extensions" : {{ "EXT_meshopt_compression" : {{ "fallback" : true }} }} }} ],
+        "bufferViews" : [ {{ "buffer" : 1, "byteLength" : {decoded}, "byteStride" : 4,
+          "extensions" : {{ "EXT_meshopt_compression" :
+            {{ "buffer" : 0, "byteLength" : {len}, "byteStride" : 4, "count" : {count}, "mode" : "ATTRIBUTES", "filter" : "{filter}" }} }} }} ] }}"#
+    );
+    ::gltf::Gltf::from_slice_without_validation( json.as_bytes() ).unwrap()
+  }
+
+  /// The decoder applies a view's filter after decoding. `EXPONENTIAL` stores each float as
+  /// a signed 8-bit exponent over a signed 24-bit mantissa : 3 * 2^0, 1 * 2^-1 and -5 * 2^2
+  /// must come out as the floats 3, 0.5 and -20. Without the filter the raw integers would.
+  #[ wasm_bindgen_test( async ) ]
+  async fn views_decode_applies_the_exponential_filter()
+  {
+    let words = [ 0x0000_0003_u32, 0xff00_0001, 0x02ff_fffb ];
+    let raw : Vec< u8 > = words.iter().flat_map( | w | w.to_le_bytes() ).collect();
+    let compressed = meshopt_attributes_encode( &raw, 4 );
+    let document = filtered_document( &compressed, 3, "EXPONENTIAL" );
+    let buffers = [ gl::js_sys::Uint8Array::from( compressed.as_slice() ), gl::js_sys::Uint8Array::new_with_length( 12 ) ];
+
+    meshopt::views_decode( &document, &buffers ).await.expect( "the filtered data decodes" );
+
+    let floats = buffers[ 1 ].to_vec().as_chunks::< 4 >().0.iter().map( | b | f32::from_le_bytes( *b ) ).collect::< Vec< _ > >();
+    assert_eq!( floats, [ 3.0, 0.5, -20.0 ] );
+  }
+
+  /// A filter name the extension does not define is refused before anything is decoded,
+  /// rather than passed to the decoder or read as no filter.
+  #[ wasm_bindgen_test( async ) ]
+  async fn views_decode_refuses_an_unknown_filter()
+  {
+    let raw = [ 0_u8; 12 ];
+    let compressed = meshopt_attributes_encode( &raw, 4 );
+    let document = filtered_document( &compressed, 3, "WAVELET" );
+    let buffers = [ gl::js_sys::Uint8Array::from( compressed.as_slice() ), gl::js_sys::Uint8Array::new_with_length( 12 ) ];
+
+    match meshopt::views_decode( &document, &buffers ).await
+    {
+      Err( gl::WebglError::Other( reason ) ) => assert_eq!( reason, "glTF meshopt bufferView is invalid" ),
+      other => panic!( "an unknown filter must be refused, got {other:?}" ),
+    }
+    assert_eq!( buffers[ 1 ].to_vec(), [ 0_u8; 12 ], "nothing is decoded" );
+  }
+
   /// `load` allocates the fallback buffer instead of fetching it, decodes into it, and uploads
   /// the decoded positions.
   #[ wasm_bindgen_test( async ) ]
