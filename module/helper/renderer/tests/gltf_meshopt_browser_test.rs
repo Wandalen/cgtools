@@ -116,7 +116,11 @@ mod tests
     let document = ::gltf::Gltf::from_slice_without_validation( compressed_triangle_gltf( &compressed ).as_bytes() ).unwrap();
     let buffers = [ gl::js_sys::Uint8Array::from( compressed.as_slice() ), gl::js_sys::Uint8Array::new_with_length( 36 ) ];
 
-    assert!( meshopt::views_decode( &document, &buffers ).await.is_err(), "an unknown codec header must not decode" );
+    match meshopt::views_decode( &document, &buffers ).await
+    {
+      Err( gl::WebglError::Other( reason ) ) => assert_eq!( reason, "glTF meshopt decode failed", "an unknown codec header must not decode" ),
+      other => panic!( "the decoder must reject the data, got {other:?}" ),
+    }
   }
 
   /// `load` allocates the fallback buffer instead of fetching it, decodes into it, and uploads
