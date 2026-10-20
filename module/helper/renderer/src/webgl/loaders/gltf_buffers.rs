@@ -1,6 +1,8 @@
 //! The glTF loader's buffer stage : the raw bytes of every buffer a document names,
 //! from its GLB binary chunk, from a fetched uri, or zeroed for a meshopt fallback
-//! that `meshopt::views_decode` fills afterwards.
+//! that `meshopt::views_decode` fills afterwards ( `buffers_load` ), and whether `gltf::load`
+//! also needs them copied into wasm memory for the readers that run on the CPU
+//! ( `cpu_buffers_needed` ).
 
 mod private
 {
