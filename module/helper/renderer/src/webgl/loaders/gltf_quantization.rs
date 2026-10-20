@@ -51,9 +51,9 @@ mod private
   }
 
   /// Reads a `VEC3` accessor as floats, whatever its component type. `KHR_mesh_quantization`
-  /// lets morph target `POSITION` / `NORMAL` / `TANGENT` be `i8` or `i16`, normalized or not,
-  /// but the `gltf` crate's `ReadPositionDisplacements` and its siblings always read `f32`
-  /// without checking the type. Reading by the declared type keeps the view's `byteStride`
+  /// lets a morph target `POSITION` be `i8` or `i16`, normalized or not, and a `NORMAL` or
+  /// `TANGENT` be normalized `i8` or `i16`, but the `gltf` crate's `ReadPositionDisplacements`
+  /// and its siblings always read `f32` without checking the type. Reading by the declared type keeps the view's `byteStride`
   /// and sparse substitution, which `gltf::accessor::Iter` already handles.
   ///
   /// `None` when the accessor is not `VEC3` or its data is missing from `buffers`.
