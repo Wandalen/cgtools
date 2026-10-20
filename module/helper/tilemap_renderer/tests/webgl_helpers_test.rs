@@ -96,6 +96,7 @@ fn quad() -> Transform
 
 /// The identity is neutral on either side, so an identity camera (the
 /// backend's default) leaves every draw where its transform puts it.
+#[ allow( clippy::float_cmp, reason = "every entry is a small integer or a product of small integers, exact in f32, so exact comparison is the test intent" ) ]
 #[ test ]
 fn mat3_mul_identity_is_neutral()
 {
@@ -107,6 +108,7 @@ fn mat3_mul_identity_is_neutral()
 /// `mat3_mul( camera, transform )` applies the transform first, then the
 /// camera: the quad lands at `2 · ( 100, 50 ) + ( 200, 120 )` at twice its
 /// size. This is the order every world-space draw uses.
+#[ allow( clippy::float_cmp, reason = "every entry is a small integer or a product of small integers, exact in f32, so exact comparison is the test intent" ) ]
 #[ test ]
 fn mat3_mul_applies_the_right_operand_first()
 {
@@ -117,6 +119,7 @@ fn mat3_mul_applies_the_right_operand_first()
 /// Swapping the operands gives a different matrix: the pan would be scaled by
 /// the quad's size. So a call site that passed the camera second would fail
 /// [`mat3_mul_applies_the_right_operand_first`]'s expectation.
+#[ allow( clippy::float_cmp, reason = "every entry is a small integer or a product of small integers, exact in f32, so exact comparison is the test intent" ) ]
 #[ test ]
 fn mat3_mul_operand_order_matters()
 {
@@ -127,6 +130,7 @@ fn mat3_mul_operand_order_matters()
 /// A full product with every entry in play, checked against the product
 /// written out by hand. Neither operand is an affine transform or symmetric,
 /// so a swapped row and column index in the multiply shows.
+#[ allow( clippy::float_cmp, reason = "every entry is a small integer or a product of small integers, exact in f32, so exact comparison is the test intent" ) ]
 #[ test ]
 fn mat3_mul_matches_the_written_out_product()
 {
