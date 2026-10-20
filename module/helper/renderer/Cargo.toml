@@ -182,6 +182,10 @@ required-features = ["webgl"]
 name = "gltf_quantization_test"
 required-features = ["webgl", "test_internals"]
 
+[[test]]
+name = "gltf_quantization_browser_test"
+required-features = ["webgl"]
+
 # The same holds for these, which reach `renderer::webgl` too.
 [[test]]
 name = "tests"

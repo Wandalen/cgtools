@@ -60,6 +60,7 @@
 | gltf_buffers_test.rs | Native checks for the loader's buffer stage: `cpu_buffers_needed` is false for a static mesh and true for a skin, a morph target, or an animation when the `animation` feature builds its reader ( `test_internals` ) |
 | gltf_buffers_browser_test.rs | Browser tests for the buffer rules `gltf::load` applies to every asset: the GLB chunk is `buffers[ 0 ]` only, a later uri-less buffer is refused, and so is a uri-less buffer with no chunk |
 | gltf_quantization_test.rs | Native checks for `KHR_mesh_quantization`: normalized position bounds dequantized to shader units, and `accessor_vec3_read` over every component type with the view's stride ( `test_internals` ) |
+| gltf_quantization_browser_test.rs | Browser test: `gltf::load` of a normalized `i16` mesh hands the scene dequantized bounds, not the accessor's raw integers |
 | tests.rs | Connects test modules into root |
 | shader_validation_tests.rs | Validates WGSL shader sources offline via naga |
 | legacy_glsl_shader_compile_test.rs | Compiles all 28 shipped legacy GLSL ES 3.00 `.vert`/`.frag` shaders through a real headless WebGL2 context |
