@@ -72,6 +72,18 @@ mod private
 mod_interface::mod_interface!
 {
   own use RenderTargetId;
-  own use TargetSlots;
+}
+
+// The slot table is an implementation detail of the adapter: crate-visible
+// here, public only to `tests/` under `test_internals`.
+pub( crate ) use private::TargetSlots;
+
+/// `TargetSlots`, reachable from `tests/` so the stale-handle rule is tested on
+/// the host. Without the `test_internals` feature this module does not exist.
+#[ cfg( feature = "test_internals" ) ]
+#[ doc( hidden ) ]
+pub mod internal
+{
+  pub use super::private::TargetSlots;
 }
 

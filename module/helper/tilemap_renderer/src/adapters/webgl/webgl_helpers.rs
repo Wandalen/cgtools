@@ -949,8 +949,6 @@ mod private
 mod_interface::mod_interface!
 {
   own use ArrayBuffer;
-  own use StagedUpload;
-  own use StagedVec;
   own use SpriteInstanceData;
   own use MeshInstanceData;
   own use GpuResources;
@@ -969,5 +967,19 @@ mod_interface::mod_interface!
   own use texture_filter_apply;
   own use texture_wrap_apply;
   own use topology_to_gl;
-  own use mat3_mul;
+}
+
+// `ArrayBuffer`'s staging and the camera multiply are implementation details of
+// the adapter. The renderers need `mat3_mul`, so it is crate-visible here; all
+// three are public only to `tests/`, under `test_internals`.
+pub( crate ) use private::mat3_mul;
+
+/// `StagedVec`, `StagedUpload` and `mat3_mul`, reachable from `tests/` so the
+/// GL-free staging and the camera multiply are tested on the host. Without the
+/// `test_internals` feature this module does not exist.
+#[ cfg( feature = "test_internals" ) ]
+#[ doc( hidden ) ]
+pub mod internal
+{
+  pub use super::private::{ mat3_mul, StagedUpload, StagedVec };
 }

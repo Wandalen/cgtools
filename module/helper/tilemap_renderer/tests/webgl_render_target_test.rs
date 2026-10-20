@@ -4,9 +4,9 @@
 //! stale-handle rule `WebGlBackend::reset_render_targets` relies on is checked
 //! on the host, without a WebGL2 context.
 
-#![ cfg( feature = "adapter-webgl" ) ]
+#![ cfg( all( feature = "adapter-webgl", feature = "test_internals" ) ) ]
 
-use tilemap_renderer::adapters::webgl::render_target::TargetSlots;
+use tilemap_renderer::adapters::webgl::render_target::internal::TargetSlots;
 
 /// Two pushes give two distinct handles, and each resolves to its own value
 /// until the table is reset. A cache surface is drawn by handle every frame, so

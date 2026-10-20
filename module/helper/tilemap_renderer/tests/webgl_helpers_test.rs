@@ -5,9 +5,9 @@
 //!
 //! These run on the host: nothing here touches a WebGL2 context.
 
-#![ cfg( feature = "adapter-webgl" ) ]
+#![ cfg( all( feature = "adapter-webgl", feature = "test_internals" ) ) ]
 
-use tilemap_renderer::adapters::webgl::webgl_helpers::{ mat3_mul, StagedUpload, StagedVec };
+use tilemap_renderer::adapters::webgl::webgl_helpers::internal::{ mat3_mul, StagedUpload, StagedVec };
 use tilemap_renderer::types::Transform;
 
 /// Pushes that stay within the GPU capacity upload as one range, and once
