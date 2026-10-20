@@ -109,6 +109,26 @@ fn the_khr_name_is_read_too()
   assert!( buffer_is_fallback( &gltf.buffers().next().unwrap() ), "a fallback with a uri is still not fetched" );
 }
 
+/// `KHR_meshopt_compression` must not be used on a buffer view that also uses
+/// `EXT_meshopt_compression`, so a view carrying both is refused rather than read as one.
+#[ test ]
+fn a_view_carrying_both_extensions_is_refused()
+{
+  let gltf = gltf::Gltf::from_slice_without_validation
+  (
+    br#"{ "asset": { "version": "2.0" },
+      "bufferViews": [ { "buffer": 0, "byteLength": 16, "extensions": {
+        "EXT_meshopt_compression": { "buffer": 0, "byteLength": 8, "byteStride": 4, "count": 4, "mode": "ATTRIBUTES" },
+        "KHR_meshopt_compression": { "buffer": 0, "byteLength": 8, "byteStride": 4, "count": 4, "mode": "ATTRIBUTES", "filter": "COLOR" } } } ],
+      "buffers": [ { "byteLength": 16, "uri": "a.bin" } ] }"#
+  ).unwrap();
+  assert_eq!
+  (
+    MeshoptViewSpec::from_view( &gltf.views().next().unwrap() ),
+    Some( Err( "uses both EXT_meshopt_compression and KHR_meshopt_compression, which KHR_meshopt_compression forbids".to_owned() ) )
+  );
+}
+
 #[ test ]
 fn finds_the_fallback_buffer()
 {

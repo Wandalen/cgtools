@@ -44,6 +44,9 @@ mod private
   /// `COLOR` filter.
   pub const KHR_MESHOPT_COMPRESSION : &str = "KHR_meshopt_compression";
 
+  /// Why a buffer view or buffer carrying both meshopt extension objects is refused.
+  const BOTH_EXTENSIONS : &str = "uses both EXT_meshopt_compression and KHR_meshopt_compression, which KHR_meshopt_compression forbids";
+
   /// Extension names that mark a buffer view as meshopt-compressed. The one list of
   /// them : `gltf_extensions`' supported-extensions list takes its meshopt entries from
   /// here.
@@ -197,13 +200,21 @@ mod private
 
   impl MeshoptViewSpec
   {
-    /// Reads `view`'s meshopt extension. `None` when the view is not compressed.
+    /// Reads `view`'s meshopt extension. `None` when the view is not compressed, an error when
+    /// it carries both extension objects : `KHR_meshopt_compression` must not be used on a
+    /// buffer view that also uses `EXT_meshopt_compression`, and picking one would decode the
+    /// view under rules its author may not have meant.
     #[ must_use ]
     pub fn from_view( view : &gltf::buffer::View< '_ > ) -> Option< Result< Self, String > >
     {
-      MESHOPT_EXTENSIONS.iter()
-      .find_map( | &name | view.extension_value( name ).map( | value | ( name, value ) ) )
-      .map( | ( name, value ) | Self::parse( name, value ) )
+      let mut found = MESHOPT_EXTENSIONS.iter()
+      .filter_map( | &name | view.extension_value( name ).map( | value | ( name, value ) ) );
+      let ( name, value ) = found.next()?;
+      if found.next().is_some()
+      {
+        return Some( Err( BOTH_EXTENSIONS.to_owned() ) );
+      }
+      Some( Self::parse( name, value ) )
     }
 
     /// Parses and validates an extension object against the rules of `extension`, one of
@@ -472,6 +483,12 @@ mod private
   )
   -> Result< Vec< ( gltf::buffer::View< 'a >, MeshoptViewSpec ) >, gl::WebglError >
   {
+    if let Some( buffer ) = gltf_file.buffers().find( | b | MESHOPT_EXTENSIONS.iter().all( | name | b.extension_value( name ).is_some() ) )
+    {
+      gl::browser::error!( "glTF buffer {}: {BOTH_EXTENSIONS}", buffer.index() );
+      return Err( gl::WebglError::Other( "glTF meshopt buffer is invalid" ) );
+    }
+
     let mut decodes = Vec::new();
     for view in gltf_file.views()
     {

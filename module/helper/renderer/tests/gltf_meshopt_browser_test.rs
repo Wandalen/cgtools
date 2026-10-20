@@ -301,4 +301,21 @@ mod tests
 
     assert_eq!( load_refusal( &uri ).await, "glTF meshopt fallback buffers are too large" );
   }
+
+  /// `KHR_meshopt_compression` must not be used on a buffer that also uses
+  /// `EXT_meshopt_compression`, so a fallback buffer carrying both objects is refused.
+  #[ wasm_bindgen_test( async ) ]
+  async fn load_refuses_a_buffer_carrying_both_extensions()
+  {
+    let compressed = meshopt_attributes_encode( &triangle_bytes(), 12 );
+    let json = compressed_triangle_gltf( &compressed ).replace
+    (
+      r#"{ "EXT_meshopt_compression" : { "fallback" : true } }"#,
+      r#"{ "EXT_meshopt_compression" : { "fallback" : true }, "KHR_meshopt_compression" : { "fallback" : true } }"#
+    );
+    assert!( json.contains( r#""KHR_meshopt_compression" : { "fallback" : true }"# ), "the fixture carries both objects" );
+    let uri = data_uri( "model/gltf+json", json.as_bytes() );
+
+    assert_eq!( load_refusal( &uri ).await, "glTF meshopt buffer is invalid" );
+  }
 }
