@@ -464,15 +464,28 @@ mod private
   }
 
   /// Decodes every meshopt-compressed buffer view into its own range of `buffers`, so the
-  /// rest of the loader reads plain glTF data. Loads nothing and waits for nothing when no
-  /// view is compressed.
+  /// rest of the loader reads plain glTF data. With no compressed view it decodes nothing and
+  /// does not wait for the decoder.
+  ///
+  /// The decoder is not loaded on demand, though : it is a static import of the crate's JS
+  /// glue, so every page that links this crate fetches it and starts compiling its wasm at
+  /// load, whatever the asset. That import also ties the crate to wasm-bindgen's JS-module
+  /// targets ( see the readme's "Compressed glTF" ).
+  ///
+  /// Every view is checked before the first one is decoded, but the decode itself is not
+  /// atomic : when the decoder rejects a view, the views before it are already written into
+  /// `buffers`. `gltf::load` drops the buffers on any error; a direct caller should too.
   ///
   /// # Errors
   ///
-  /// Returns `WebglError::Other` when an extension object is malformed, a range does not
-  /// fit its buffer, two views overlap ( [`decodes_overlap_check`] ), or the decoder
-  /// rejects the data; the details go to the console. Every view is checked before the
-  /// first one is decoded.
+  /// Returns `WebglError::Other`, with the details on the console, when :
+  /// - a buffer view or buffer breaks a meshopt rule : a malformed extension object, both
+  ///   meshopt extensions on one view or buffer, a parent layout that does not match the
+  ///   decoded data, a range outside its buffer, compressed bytes in a fallback buffer, or an
+  ///   uncompressed view reading a fallback buffer;
+  /// - two views overlap ( [`decodes_overlap_check`] );
+  /// - the decoder fails to initialise;
+  /// - the decoder rejects the data.
   pub async fn views_decode
   (
     gltf_file : &gltf::Gltf,
