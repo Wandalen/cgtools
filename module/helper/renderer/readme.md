@@ -210,7 +210,13 @@ async fn load_assets
 #### Compressed glTF
 
 The loader reads meshopt-compressed ( [EXT_meshopt_compression], [KHR_meshopt_compression] )
-and quantized ( [KHR_mesh_quantization] ) assets, such as gltfpack or glTF-Transform output.
+and quantized ( [KHR_mesh_quantization] ) assets, such as glTF-Transform output.
+
+It does not apply `KHR_texture_transform`, which `KHR_mesh_quantization` relies on to map
+integer texture coordinates back into place. An asset with integer texture coordinates that
+uses it is refused rather than drawn with misplaced textures; this is how gltfpack quantizes
+texture coordinates by default. glTF-Transform normalizes them to 0..1 instead and needs no
+transform. Elsewhere a texture transform is ignored with a warning.
 Compressed buffer views are decoded with meshoptimizer's own decoder, vendored as
 `src/webgl/loaders/meshopt_decoder.js` ( MIT, see `license_third_party` ), which wasm-bindgen
 imports as a JS snippet. That has two consequences for the page that hosts the wasm module :

@@ -90,9 +90,10 @@ mod private
   ///
   /// # Errors
   ///
-  /// Returns `WebglError::Other` if the asset requires an unsupported extension or any other
-  /// validation error is reported; each one is logged via `gl::browser::error!`, with its JSON
-  /// path for structural errors.
+  /// Returns `WebglError::Other` if the asset requires an unsupported extension, any other
+  /// validation error is reported, or its quantized texture coordinates need a texture
+  /// transform the loader cannot apply ( [`texture_transform_check`] ); each one is logged via
+  /// `gl::browser::error!`, with its JSON path for structural errors.
   pub fn document_validate( gltf_file : &gltf::Gltf ) -> Result< (), gl::WebglError >
   {
     use gltf::json::validation::Validate;
@@ -112,13 +113,57 @@ mod private
 
     if errors.is_empty()
     {
-      return Ok( () );
+      // Only now are the accessor indices known to be valid, so they can be followed.
+      return texture_transform_check( gltf_file );
     }
     for ( path, error ) in &errors
     {
       gl::browser::error!( "invalid glTF at '{path}': {error:?}" );
     }
     Err( gl::WebglError::Other( "glTF document failed validation" ) )
+  }
+
+  /// The extension that maps texture coordinates with an offset, rotation and scale.
+  const TEXTURE_TRANSFORM : &str = "KHR_texture_transform";
+
+  /// Checks an asset's use of `KHR_texture_transform`, which this loader does not apply.
+  ///
+  /// `KHR_mesh_quantization` "depends on `KHR_texture_transform` for texture coordinate
+  /// dequantization" : an encoder that stores texture coordinates as integers may put them in
+  /// a range only a texture transform maps back. So an asset with integer texture coordinates
+  /// that uses `KHR_texture_transform` would draw its textures at the wrong place and scale,
+  /// and is refused. Elsewhere a transform only moves a texture, so the asset loads with a
+  /// warning that its transforms are ignored. glTF-Transform's quantization keeps texture
+  /// coordinates normalized to 0..1 and uses no transform, so its output passes; an asset that
+  /// lists the extension as required is already refused by [`required_extensions_check`].
+  ///
+  /// Expects a structurally valid document : it follows accessor indices.
+  ///
+  /// # Errors
+  ///
+  /// Returns `WebglError::Other` for integer texture coordinates in an asset that uses
+  /// `KHR_texture_transform`.
+  pub fn texture_transform_check( gltf_file : &gltf::Gltf ) -> Result< (), gl::WebglError >
+  {
+    if !gltf_file.extensions_used().any( | name | name == TEXTURE_TRANSFORM )
+    {
+      return Ok( () );
+    }
+    let quantized = gltf_file.meshes()
+    .flat_map( | mesh | mesh.primitives() )
+    .flat_map( | primitive | primitive.attributes() )
+    .any( | ( semantic, accessor ) |
+      matches!( semantic, gltf::Semantic::TexCoords( _ ) ) && accessor.data_type() != gltf::accessor::DataType::F32 );
+    if quantized
+    {
+      gl::browser::error!
+      (
+        "glTF asset has integer texture coordinates and uses {TEXTURE_TRANSFORM}, which this loader does not apply, so its textures would be misplaced"
+      );
+      return Err( gl::WebglError::Other( "glTF asset needs KHR_texture_transform for its quantized texture coordinates" ) );
+    }
+    gl::warn!( "glTF asset uses {TEXTURE_TRANSFORM}, which this loader does not apply; its textures are drawn untransformed" );
+    Ok( () )
   }
 
   /// A texture reference inside a material extension object: an index into the asset's
@@ -260,6 +305,7 @@ crate::mod_interface!
   own use material_layer_extensions_apply;
   own use required_extensions_check;
   own use document_validate;
+  own use texture_transform_check;
 }
 
 /// The extension JSON parsing `tests/` reaches, exposed only under `test_internals`.
