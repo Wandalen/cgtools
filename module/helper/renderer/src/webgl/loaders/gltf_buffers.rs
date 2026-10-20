@@ -1,46 +1,71 @@
 //! The glTF loader's buffer stage : the raw bytes of every buffer a document names,
 //! from its GLB binary chunk, from a fetched uri, or zeroed for a meshopt fallback
-//! that `meshopt::views_decode` fills afterwards.
+//! that `meshopt::views_decode` fills afterwards ( `buffers_load` ), and whether `gltf::load`
+//! also needs them copied into wasm memory for the readers that run on the CPU
+//! ( `cpu_buffers_needed` ).
 
 mod private
 {
   use minwebgl as gl;
   use gl::JsCast;
-  use crate::webgl::loaders::gltf::asset_uri_resolve;
+  use crate::webgl::loaders::gltf_uri::asset_uri_resolve;
 
   /// Most meshopt fallback bytes [`buffers_load`] allocates for one document, all its fallback
   /// buffers together. A fallback holds no data of its own, so its size is only the
   /// `byteLength` the JSON declares : without a limit a few bytes of JSON could commit
   /// gigabytes, in one buffer or spread over many, and copying such buffers into wasm memory
   /// for skins or animations would abort the module. Decoded web geometry is far below this.
+  ///
+  /// The cap bounds what is allocated, and with the rules `meshopt::views_decode` enforces
+  /// also what is read from it : only compressed views may reference a fallback, and their
+  /// decoded ranges may not overlap, so together they cover each fallback byte at most once
+  /// and upload it to the GPU once. The one way to read a range more than once is an image
+  /// naming the same view as another, as in any glTF : each such image decodes it again.
   const FALLBACK_BYTES_MAX : usize = 1 << 30;
 
-  /// Allocates the zeroed buffer a meshopt fallback's views decode into, and adds its length
-  /// to `allocated`, the fallback bytes this document has allocated so far.
+  /// Checks, before anything is fetched or allocated, that the meshopt fallback buffers of
+  /// `gltf_file` declare at most [`FALLBACK_BYTES_MAX`] bytes together. Their sizes are known
+  /// from the JSON alone, so a document over the limit is refused before it downloads its
+  /// other buffers.
   ///
   /// # Errors
   ///
-  /// Returns `WebglError::Other` when the declared length would take `allocated` past
-  /// [`FALLBACK_BYTES_MAX`], or the browser refuses the allocation. `Uint8Array::new_with_length` would throw that
-  /// `RangeError` straight through the wasm frames, so the array is built through
-  /// `Reflect.construct`, which hands the exception back as a value.
-  fn fallback_buffer_allocate( gltf_buffer : &gltf::Buffer< '_ >, allocated : &mut usize ) -> Result< gl::js_sys::Uint8Array, gl::WebglError >
+  /// Returns `WebglError::Other` when the fallback buffers declare more than
+  /// [`FALLBACK_BYTES_MAX`] bytes together.
+  fn fallback_bytes_check( gltf_file : &gltf::Gltf ) -> Result< (), gl::WebglError >
+  {
+    let mut total = 0_usize;
+    for buffer in gltf_file.buffers().filter( crate::webgl::loaders::meshopt::buffer_is_fallback )
+    {
+      total = total.saturating_add( buffer.length() );
+      if total > FALLBACK_BYTES_MAX
+      {
+        gl::browser::error!
+        (
+          "glTF meshopt fallback buffers declare {total} bytes up to buffer {}, more than the {FALLBACK_BYTES_MAX} this loader allocates for one document",
+          buffer.index()
+        );
+        return Err( gl::WebglError::Other( "glTF meshopt fallback buffers are too large" ) );
+      }
+    }
+    Ok( () )
+  }
+
+  /// Allocates the zeroed buffer a meshopt fallback's views decode into.
+  /// [`fallback_bytes_check`] has already bounded its length.
+  ///
+  /// # Errors
+  ///
+  /// Returns `WebglError::Other` when the browser refuses the allocation.
+  /// `Uint8Array::new_with_length` would throw that `RangeError` straight through the wasm
+  /// frames, so the array is built through `Reflect.construct`, which hands the exception back
+  /// as a value.
+  fn fallback_buffer_allocate( gltf_buffer : &gltf::Buffer< '_ > ) -> Result< gl::js_sys::Uint8Array, gl::WebglError >
   {
     use gl::js_sys::{ Array, Reflect, Uint8Array };
 
-    let length = gltf_buffer.length();
-    let within = length <= FALLBACK_BYTES_MAX - *allocated;
-    let Some( length_u32 ) = u32::try_from( length ).ok().filter( | _ | within ) else
-    {
-      gl::browser::error!
-      (
-        "glTF meshopt fallback buffer {} declares {length} bytes; with the {allocated} bytes of the document's earlier         fallback buffers that is more than the {FALLBACK_BYTES_MAX} this loader allocates",
-        gltf_buffer.index()
-      );
-      return Err( gl::WebglError::Other( "glTF meshopt fallback buffers are too large" ) );
-    };
-    *allocated += length;
-
+    // At most `FALLBACK_BYTES_MAX`, which fits a `u32`.
+    let length_u32 = u32::try_from( gltf_buffer.length() ).unwrap_or( u32::MAX );
     let constructor = Uint8Array::new_with_length( 0 ).constructor();
     Reflect::construct( &constructor, &Array::of1( &length_u32.into() ) )
     .map( JsCast::unchecked_into )
@@ -68,15 +93,16 @@ mod private
   )
   -> Result< Vec< gl::js_sys::Uint8Array >, gl::WebglError >
   {
+    fallback_bytes_check( gltf_file )?;
+
     let mut buffers : Vec< gl::js_sys::Uint8Array > = Vec::new();
     let mut blob = gltf_file.blob.take();
-    let mut fallback_allocated = 0;
 
     for gltf_buffer in gltf_file.buffers()
     {
       if crate::webgl::loaders::meshopt::buffer_is_fallback( &gltf_buffer )
       {
-        buffers.push( fallback_buffer_allocate( &gltf_buffer, &mut fallback_allocated )? );
+        buffers.push( fallback_buffer_allocate( &gltf_buffer )? );
         continue;
       }
 
@@ -92,14 +118,15 @@ mod private
   }
 
   /// Whether the loader needs a copy of the buffers in wasm memory. Only skins, morph
-  /// targets and animations are read on the CPU. Everything else goes straight from the JS
-  /// buffers to the GPU, so the copy is skipped when nothing needs it : it costs as much as
-  /// the decoded model again, and the wasm heap never shrinks afterwards.
+  /// targets and animations are read on the CPU, animations only with the `animation`
+  /// feature, which builds their reader. Everything else goes straight from the JS buffers to
+  /// the GPU, so the copy is skipped when nothing needs it : it costs as much as the decoded
+  /// model again, and the wasm heap never shrinks afterwards.
   #[ must_use ]
   pub fn cpu_buffers_needed( gltf_file : &gltf::Gltf ) -> bool
   {
     gltf_file.skins().next().is_some()
-    || gltf_file.animations().next().is_some()
+    || ( cfg!( feature = "animation" ) && gltf_file.animations().next().is_some() )
     || gltf_file.meshes().any( | m | m.primitives().any( | p | p.morph_targets().next().is_some() ) )
   }
 
@@ -158,6 +185,16 @@ mod private
 
 crate::mod_interface!
 {
-  own use buffers_load;
-  own use cpu_buffers_needed;
+}
+
+// Both run only inside `gltf::load`.
+pub( crate ) use private::{ buffers_load, cpu_buffers_needed };
+
+/// `cpu_buffers_needed`, reachable from `tests/` under `test_internals`. Without the feature
+/// this module does not exist.
+#[ cfg( feature = "test_internals" ) ]
+#[ doc( hidden ) ]
+pub mod internal
+{
+  pub use super::private::cpu_buffers_needed;
 }

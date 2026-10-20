@@ -4,6 +4,10 @@
 //! weights ) into a `skeleton::DisplacementsData`. Pure data transform over the parsed document
 //! and raw buffer bytes, no `gl` / `GL` / `WebGl` calls anywhere in its body. Originally
 //! private, made `pub` alongside this test per task 299.
+//!
+//! Needs the `native` feature ( its `[[test]]` entry in `Cargo.toml` ), so a plain
+//! `cargo test -p renderer` skips it, the morph-target dequantization test included; run it
+//! with `--features native` or `--all-features`, as CI does.
 #![ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
 
 use renderer::webgl::loaders::gltf::skeleton_displacements_data_load;
@@ -96,9 +100,10 @@ fn packs_one_position_morph_target_and_stores_weights()
   assert!( ( weights[ 0 ] - 0.5 ).abs() < f32::EPSILON );
 }
 
-/// `KHR_mesh_quantization` morph targets : `POSITION` as normalized `i16` padded to a
-/// `byteStride` of 8, `NORMAL` as normalized `i8` and `TANGENT` as plain `i8`, each padded to
-/// a stride of 4, over 3 vertices.
+/// `KHR_mesh_quantization` morph targets over 3 vertices, in the types its table allows :
+/// `TANGENT` as normalized `i16` padded to a `byteStride` of 8, `NORMAL` as normalized `i8`
+/// and `POSITION` as plain `i8` ( the only target that may be unnormalized ), each `i8` padded
+/// to a stride of 4.
 const QUANTIZED_MORPH_TARGET_FIXTURE : &str = r#"
 {
   "asset": { "version": "2.0" },
@@ -110,7 +115,7 @@ const QUANTIZED_MORPH_TARGET_FIXTURE : &str = r#"
       [
         {
           "attributes": { "POSITION": 0 },
-          "targets": [ { "POSITION": 1, "NORMAL": 2, "TANGENT": 3 } ]
+          "targets": [ { "POSITION": 3, "NORMAL": 2, "TANGENT": 1 } ]
         }
       ]
     }
@@ -184,11 +189,12 @@ fn dequantizes_integer_morph_targets()
   let packed = result.displacements_data_pack();
 
   let half = 16384.0 / 32767.0;
+  // Per vertex : the position, normal and tangent displacement.
   let expected : Vec< f32 > = vec!
   [
-    1.0, 0.0, -1.0, 1.0,  1.0, 0.0, 0.0, 1.0,  3.0, -2.0, 1.0, 1.0,
-    half, -half, 0.0, 1.0,  0.0, -1.0, 0.0, 1.0,  0.0, 5.0, 0.0, 1.0,
-    0.0, 0.0, 1.0, 1.0,  0.0, 0.0, 64.0 / 127.0, 1.0,  -7.0, 0.0, 0.0, 1.0
+    3.0, -2.0, 1.0, 1.0,  1.0, 0.0, 0.0, 1.0,  1.0, 0.0, -1.0, 1.0,
+    0.0, 5.0, 0.0, 1.0,  0.0, -1.0, 0.0, 1.0,  half, -half, 0.0, 1.0,
+    -7.0, 0.0, 0.0, 1.0,  0.0, 0.0, 64.0 / 127.0, 1.0,  0.0, 0.0, 1.0, 1.0
   ];
   assert_eq!( packed.len(), expected.len() );
   for ( actual, expect ) in packed.iter().zip( expected.iter() )

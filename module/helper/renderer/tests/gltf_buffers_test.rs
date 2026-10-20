@@ -1,7 +1,7 @@
 //! Off-GPU checks for the glTF loader's buffer stage : `cpu_buffers_needed`, which decides
 //! whether `gltf::load` copies every buffer into wasm memory.
 
-use renderer::webgl::loaders::gltf_buffers::cpu_buffers_needed;
+use renderer::webgl::loaders::gltf_buffers::internal::cpu_buffers_needed;
 
 /// Parses `json` without validation, as `gltf::load` does before `document_validate`.
 fn parse( json : &str ) -> gltf::Gltf
@@ -42,15 +42,16 @@ fn cpu_buffers_needed_for_a_skin()
   assert!( cpu_buffers_needed( &document( r#", "skins" : [ { "joints" : [ 0 ] } ]"#, "" ) ) );
 }
 
-/// Animation keyframes are read on the CPU.
+/// Animation keyframes are read on the CPU, by a reader that exists only with the
+/// `animation` feature : without it nothing would read the copy.
 #[ test ]
-fn cpu_buffers_needed_for_an_animation()
+fn cpu_buffers_needed_for_an_animation_only_with_the_animation_feature()
 {
   let animation = r#", "animations" : [ {
     "channels" : [ { "sampler" : 0, "target" : { "node" : 0, "path" : "translation" } } ],
     "samplers" : [ { "input" : 0, "output" : 0 } ]
   } ]"#;
-  assert!( cpu_buffers_needed( &document( animation, "" ) ) );
+  assert_eq!( cpu_buffers_needed( &document( animation, "" ) ), cfg!( feature = "animation" ) );
 }
 
 /// Morph target displacements are read on the CPU.
