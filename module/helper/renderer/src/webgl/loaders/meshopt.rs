@@ -10,9 +10,11 @@ mod private
   // meshoptimizer's own decoder ( MIT, see the crate's `license_third_party` ), vendored
   // unchanged from the `meshoptimizer` npm package; its header says "Built from meshoptimizer
   // 1.2". Its `meshopt_decoder.mjs` is renamed to `.js` so that every server sends it with a
-  // JavaScript MIME type; module scripts refuse anything else. It carries its decoder as an inlined, SIMD-enabled wasm
-  // module, so the host page needs `wasm-unsafe-eval` in its CSP -- the same permission this
-  // crate's own wasm already needs.
+  // JavaScript MIME type; module scripts refuse anything else. It inlines two builds of its
+  // wasm decoder, one using SIMD and one without, picks the SIMD one when
+  // `WebAssembly.validate` accepts it, and compiles it with `WebAssembly.instantiate`, so the
+  // host page needs `wasm-unsafe-eval` in its CSP -- the same permission this crate's own wasm
+  // already needs.
   #[ wasm_bindgen( module = "/src/webgl/loaders/meshopt_decoder.js" ) ]
   extern "C"
   {
@@ -120,7 +122,9 @@ mod private
     Octahedral,
     /// Unit quaternions ( rotations ).
     Quaternion,
-    /// Floats with a shared exponent.
+    /// Floats, each stored as a 32-bit integer of a signed 8-bit exponent and a signed
+    /// 24-bit mantissa. An encoder may give several values the same exponent; the format
+    /// does not require it.
     Exponential,
     /// YCoCg-encoded colours ( `KHR_meshopt_compression` only ).
     Color,
