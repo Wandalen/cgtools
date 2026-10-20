@@ -7,7 +7,7 @@
 
 use renderer::webgl::loaders::gltf_quantization::position_bounds_dequantize;
 use renderer::webgl::loaders::gltf_extensions::{ document_validate, required_extensions_check };
-use renderer::webgl::loaders::meshopt::internal::{ buffer_is_fallback, decodes_overlap_check, MeshoptFilter, MeshoptMode, MeshoptViewSpec };
+use renderer::webgl::loaders::meshopt::internal::{ buffer_is_fallback, decodes_overlap_check, MeshoptFilter, MeshoptMode, MeshoptViewSpec, MESHOPT_EXTENSIONS };
 use serde_json::json;
 
 /// The layout glTF-Transform writes : compressed bytes in buffer 0, and a data-less
@@ -350,6 +350,21 @@ fn meshopt_and_quantization_pass_validation()
   assert!( gltf::Gltf::from_slice( MESHOPT_FIXTURE.as_bytes() ).is_err(), "the gltf crate alone refuses these extensions" );
   assert!( document_validate( &gltf ).is_ok() );
   assert!( required_extensions_check( &gltf ).is_ok() );
+}
+
+/// An asset may require any extension `meshopt` decodes, `KHR_meshopt_compression` as well as
+/// `EXT_meshopt_compression`, and `KHR_mesh_quantization`. The loader's supported list is
+/// written out by hand, so this keeps it from drifting from `MESHOPT_EXTENSIONS`.
+#[ test ]
+fn every_decoded_extension_may_be_required()
+{
+  for name in MESHOPT_EXTENSIONS.iter().chain( [ &"KHR_mesh_quantization" ] )
+  {
+    let json = format!( r#"{{ "asset": {{ "version": "2.0" }}, "extensionsUsed": [ "{name}" ], "extensionsRequired": [ "{name}" ] }}"# );
+    let gltf = gltf::Gltf::from_slice_without_validation( json.as_bytes() ).unwrap();
+    assert!( required_extensions_check( &gltf ).is_ok(), "{name} must be accepted in extensionsRequired" );
+    assert!( document_validate( &gltf ).is_ok(), "{name}: document_validate applies the same rule" );
+  }
 }
 
 #[ test ]
