@@ -4,6 +4,10 @@
 //! weights ) into a `skeleton::DisplacementsData`. Pure data transform over the parsed document
 //! and raw buffer bytes, no `gl` / `GL` / `WebGl` calls anywhere in its body. Originally
 //! private, made `pub` alongside this test per task 299.
+//!
+//! Needs the `native` feature ( its `[[test]]` entry in `Cargo.toml` ), so a plain
+//! `cargo test -p renderer` skips it, the morph-target dequantization test included; run it
+//! with `--features native` or `--all-features`, as CI does.
 #![ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
 
 use renderer::webgl::loaders::gltf::skeleton_displacements_data_load;
