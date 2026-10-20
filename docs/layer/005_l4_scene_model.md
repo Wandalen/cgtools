@@ -19,8 +19,11 @@ to an L3/L5 consumer produces pixels.
   in-memory object graph.
 - **Validate-able without a GPU**: model loading and validation must work
   headless — this is what makes L4 testable and toolable. This is the
-  invariant `tilemap_scene` meets; the d3 occupant below does not (its
-  loader requires a live GPU context just to parse).
+  invariant `tilemap_scene` meets; the d3 occupant below does not, for two
+  independent reasons: its loader requires a live GPU context just to parse,
+  and decoding meshopt-compressed buffers needs a JS host to run
+  meshoptimizer's vendored decoder, which the crate's wasm imports
+  statically.
 
 ### Occupants per Stack
 
