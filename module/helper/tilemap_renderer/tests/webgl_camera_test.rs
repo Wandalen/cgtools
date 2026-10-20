@@ -145,6 +145,32 @@ fn frame( camera : [ f32; 9 ], transform : Transform, draw : fn( Transform ) -> 
   pixels
 }
 
+/// Like [`frame`], but on one backend for several frames: frame `i` sets
+/// `cameras[ i ]` and submits `frames[ i ]` after the clear. Returns every
+/// frame's RGBA bytes. A command a frame leaves out is not replayed, so a
+/// batch created in frame 0 keeps the instance data frame 0 uploaded.
+fn frames_on_one_backend( cameras : &[ [ f32; 9 ] ], frames : &[ Vec< RenderCommand > ] ) -> Vec< Vec< u8 > >
+{
+  let gl = gl_init();
+  let canvas = gl.canvas().unwrap().dyn_into::< web_sys::HtmlCanvasElement >().unwrap();
+  canvas.set_width( WIDTH );
+  canvas.set_height( HEIGHT );
+  let config = RenderConfig { width : WIDTH, height : HEIGHT, ..RenderConfig::default() };
+  let mut backend = WebGlBackend::new( config, gl.clone() ).unwrap();
+  backend.assets_load( &white_assets() ).unwrap();
+
+  cameras.iter().zip( frames ).map( | ( camera, draw ) |
+  {
+    backend.set_camera( *camera );
+    let mut commands = vec![ RenderCommand::Clear( Clear { color : [ 0.0, 0.0, 0.0, 1.0 ] } ) ];
+    commands.extend( draw.iter().cloned() );
+    backend.submit( &commands ).unwrap();
+    let mut pixels = vec![ 0_u8; ( WIDTH * HEIGHT * 4 ) as usize ];
+    gl.read_pixels_with_opt_u8_array( 0, 0, WIDTH as i32, HEIGHT as i32, gl::RGBA, gl::UNSIGNED_BYTE, Some( &mut pixels ) ).unwrap();
+    pixels
+  }).collect()
+}
+
 /// How many pixels of `frame` are not the black clear.
 fn lit( frame : &[ u8 ] ) -> usize
 {
@@ -328,5 +354,27 @@ fn set_camera_applies_after_a_batch_parent()
     let folded_by_hand = frame( IDENTITY, quad_through_parent_and_camera(), plain );
     assert_eq!( lit( &folded_by_hand ), 24 * 18, "{path}: the reference quad covers 24×18 pixels" );
     assert!( through_camera == folded_by_hand, "{path}: the parent must apply first, then the camera" );
+  }
+}
+
+/// A pan or zoom on a batch drawn again in a later frame takes effect with no
+/// instance commands at all: frame 0 creates the batch and draws it through
+/// the identity camera, frame 1 changes only the camera and issues only
+/// `DrawBatch`. If the camera were baked into the uploaded instance data,
+/// frame 1 would still show frame 0's quad.
+#[ wasm_bindgen_test ]
+fn set_camera_moves_a_retained_batch_without_re_upload()
+{
+  let cases : [ ( fn( Transform ) -> Vec< RenderCommand >, fn( Transform ) -> Vec< RenderCommand >, &str ); 2 ] =
+  [
+    ( sprite_batch, sprite, "sprite batch" ),
+    ( mesh_batch, mesh, "mesh batch" ),
+  ];
+  for ( batch, plain, path ) in cases
+  {
+    let draw_again = vec![ RenderCommand::DrawBatch( DrawBatch { batch : ResourceId::new( 0 ) } ) ];
+    let frames = frames_on_one_backend( &[ IDENTITY, CAMERA ], &[ batch( quad() ), draw_again ] );
+    assert!( frames[ 0 ] == frame( IDENTITY, quad(), plain ), "{path}: frame 0 draws the quad where its transform puts it" );
+    assert!( frames[ 1 ] == frame( IDENTITY, quad_through_camera(), plain ), "{path}: frame 1 draws it through the new camera" );
   }
 }
