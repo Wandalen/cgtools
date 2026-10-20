@@ -187,6 +187,33 @@ fn rejects_malformed_extension_objects()
   assert_eq!( MeshoptViewSpec::parse( EXT, &wide ), refused( "TRIANGLES byteStride 8 must be 2 or 4" ) );
 }
 
+/// The layouts the specs allow are accepted, not only the malformed ones refused : 16- and
+/// 32-bit indices in both index modes, `QUATERNION` on 8-byte elements and `EXPONENTIAL` on
+/// any multiple of 4. A check that refused one of them would disable that data silently.
+#[ test ]
+fn accepts_every_layout_the_specs_allow()
+{
+  let parse = | value : serde_json::Value | MeshoptViewSpec::parse( EXT, &value );
+  for mode in [ "TRIANGLES", "INDICES" ]
+  {
+    for stride in [ 2, 4 ]
+    {
+      let spec = parse( json!( { "buffer": 0, "byteLength": 8, "byteStride": stride, "count": 6, "mode": mode } ) );
+      assert!( spec.is_ok(), "{mode} with byteStride {stride}: {spec:?}" );
+    }
+  }
+  let indices = parse( json!( { "buffer": 0, "byteLength": 8, "byteStride": 2, "count": 7, "mode": "INDICES" } ) );
+  assert!( indices.is_ok(), "INDICES need no multiple of 3: {indices:?}" );
+
+  let quaternion = parse( json!( { "buffer": 0, "byteLength": 8, "byteStride": 8, "count": 2, "mode": "ATTRIBUTES", "filter": "QUATERNION" } ) );
+  assert_eq!( quaternion.map( | s | s.filter() ), Ok( MeshoptFilter::Quaternion ) );
+  for stride in [ 4, 8, 12, 256 ]
+  {
+    let exponential = parse( json!( { "buffer": 0, "byteLength": 8, "byteStride": stride, "count": 2, "mode": "ATTRIBUTES", "filter": "EXPONENTIAL" } ) );
+    assert_eq!( exponential.map( | s | s.filter() ), Ok( MeshoptFilter::Exponential ), "EXPONENTIAL with byteStride {stride}" );
+  }
+}
+
 #[ test ]
 fn the_color_filter_is_khr_only()
 {
