@@ -78,7 +78,8 @@ mod private
       DataType::U8 => Iter::< [ u8; 3 ] >::new( acc, get )?.map( | v | scale( v.map( f32::from ) ) ).collect(),
       DataType::I16 => Iter::< [ i16; 3 ] >::new( acc, get )?.map( | v | scale( v.map( f32::from ) ) ).collect(),
       DataType::U16 => Iter::< [ u16; 3 ] >::new( acc, get )?.map( | v | scale( v.map( f32::from ) ) ).collect(),
-      #[ allow( clippy::cast_precision_loss, reason = "glTF allows no `u32` displacements, so values past 2^24 losing precision does not matter" ) ]
+      // `cast_precision_loss` is allowed workspace-wide; here it is also harmless, since glTF
+      // allows no `u32` displacements.
       DataType::U32 => Iter::< [ u32; 3 ] >::new( acc, get )?.map( | v | v.map( | c | c as f32 ) ).collect(),
     };
     Some( values )
