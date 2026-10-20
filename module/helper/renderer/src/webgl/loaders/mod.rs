@@ -14,6 +14,9 @@ crate::mod_interface!
   /// glTF buffer bytes : GLB chunk, fetched uris, meshopt fallbacks
   layer gltf_buffers;
 
+  /// glTF buffer and image uris resolved against the model's folder
+  layer gltf_uri;
+
   /// KHR_mesh_quantization : integer accessor values and bounds to floats
   layer gltf_quantization;
 

@@ -6,7 +6,7 @@ mod private
 {
   use minwebgl as gl;
   use gl::JsCast;
-  use crate::webgl::loaders::gltf::asset_uri_resolve;
+  use crate::webgl::loaders::gltf_uri::asset_uri_resolve;
 
   /// Most meshopt fallback bytes [`buffers_load`] allocates for one document, all its fallback
   /// buffers together. A fallback holds no data of its own, so its size is only the
