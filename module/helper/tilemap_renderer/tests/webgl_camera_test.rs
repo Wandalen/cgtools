@@ -44,6 +44,9 @@ use wasm_bindgen_test::wasm_bindgen_test;
 
 wasm_bindgen_test::wasm_bindgen_test_configure!( run_in_browser );
 
+/// A function that builds the commands drawing the quad at a transform.
+type Draw = fn( Transform ) -> Vec< RenderCommand >;
+
 /// Column-major identity: the backend's camera until a caller sets one.
 const IDENTITY : [ f32; 9 ] = [ 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0 ];
 
@@ -125,7 +128,7 @@ fn white_assets() -> Assets
 /// On a fresh [`WIDTH`]×[`HEIGHT`] canvas and backend: sets `camera`, clears to
 /// opaque black, submits the commands `draw` builds for `transform` and returns
 /// the whole frame's RGBA bytes.
-fn frame( camera : [ f32; 9 ], transform : Transform, draw : fn( Transform ) -> Vec< RenderCommand > ) -> Vec< u8 >
+fn frame( camera : [ f32; 9 ], transform : Transform, draw : Draw ) -> Vec< u8 >
 {
   let gl = gl_init();
   let canvas = gl.canvas().unwrap().dyn_into::< web_sys::HtmlCanvasElement >().unwrap();
@@ -163,7 +166,7 @@ fn frames_on_one_backend( cameras : &[ [ f32; 9 ] ], frames : &[ Vec< RenderComm
   {
     backend.set_camera( *camera );
     let mut commands = vec![ RenderCommand::Clear( Clear { color : [ 0.0, 0.0, 0.0, 1.0 ] } ) ];
-    commands.extend( draw.iter().cloned() );
+    commands.extend( draw.iter().copied() );
     backend.submit( &commands ).unwrap();
     let mut pixels = vec![ 0_u8; ( WIDTH * HEIGHT * 4 ) as usize ];
     gl.read_pixels_with_opt_u8_array( 0, 0, WIDTH as i32, HEIGHT as i32, gl::RGBA, gl::UNSIGNED_BYTE, Some( &mut pixels ) ).unwrap();
@@ -180,7 +183,7 @@ fn lit( frame : &[ u8 ] ) -> usize
 /// Draws `draw` through [`CAMERA`] and requires the frame to match the hand-folded
 /// draw through the identity, and to differ from the same draw without a camera.
 /// The second check keeps the first from passing because the camera was ignored.
-fn assert_camera_applies( draw : fn( Transform ) -> Vec< RenderCommand >, path : &str )
+fn assert_camera_applies( draw : Draw, path : &str )
 {
   let through_camera = frame( CAMERA, quad(), draw );
   let folded_by_hand = frame( IDENTITY, quad_through_camera(), draw );
@@ -343,7 +346,7 @@ fn set_camera_leaves_a_screen_space_sprite()
 #[ wasm_bindgen_test ]
 fn set_camera_applies_after_a_batch_parent()
 {
-  let cases : [ ( fn( Transform ) -> Vec< RenderCommand >, fn( Transform ) -> Vec< RenderCommand >, &str ); 2 ] =
+  let cases : [ ( Draw, Draw, &str ); 2 ] =
   [
     ( sprite_batch_under_parent, sprite, "sprite batch" ),
     ( mesh_batch_under_parent, mesh, "mesh batch" ),
@@ -365,7 +368,7 @@ fn set_camera_applies_after_a_batch_parent()
 #[ wasm_bindgen_test ]
 fn set_camera_moves_a_retained_batch_without_re_upload()
 {
-  let cases : [ ( fn( Transform ) -> Vec< RenderCommand >, fn( Transform ) -> Vec< RenderCommand >, &str ); 2 ] =
+  let cases : [ ( Draw, Draw, &str ); 2 ] =
   [
     ( sprite_batch, sprite, "sprite batch" ),
     ( mesh_batch, mesh, "mesh batch" ),
