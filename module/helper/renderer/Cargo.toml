@@ -160,8 +160,8 @@ required-features = ["native"]
 # The meshopt / quantization loader tests import `renderer::webgl::loaders`
 # and the `gltf` / `serde_json` crates, all of which exist only with `webgl`
 # ( part of `default` ). Under `--no-default-features` they are skipped with
-# a reason instead of failing to compile. `gltf_meshopt_test` and
-# `gltf_buffers_test` also reach loader internals, under `test_internals`.
+# a reason instead of failing to compile. `gltf_meshopt_test`, `gltf_buffers_test`
+# and `gltf_quantization_test` also reach loader internals, under `test_internals`.
 [[test]]
 name = "gltf_meshopt_test"
 required-features = ["webgl", "test_internals"]
@@ -172,6 +172,14 @@ required-features = ["webgl"]
 
 [[test]]
 name = "gltf_buffers_test"
+required-features = ["webgl", "test_internals"]
+
+[[test]]
+name = "gltf_buffers_browser_test"
+required-features = ["webgl"]
+
+[[test]]
+name = "gltf_quantization_test"
 required-features = ["webgl", "test_internals"]
 
 # The same holds for these, which reach `renderer::webgl` too.
