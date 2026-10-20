@@ -136,6 +136,8 @@ fn finds_the_fallback_buffer()
   assert_eq!( fallback, [ false, true ] );
 }
 
+/// Every malformed field is refused with its own reason. `parse` returns that reason as a
+/// `String`, the one the loader logs, so each case is pinned exactly.
 #[ test ]
 fn rejects_malformed_extension_objects()
 {
@@ -154,34 +156,35 @@ fn rejects_malformed_extension_objects()
     v.as_object_mut().unwrap().remove( key );
     MeshoptViewSpec::parse( EXT, &v )
   };
+  let refused = | reason : &str | Err( reason.to_owned() );
 
-  assert!( without( "buffer" ).is_err() );
-  assert!( without( "byteLength" ).is_err() );
-  assert!( without( "byteStride" ).is_err() );
-  assert!( without( "count" ).is_err() );
-  assert_eq!( without( "mode" ), Err( "missing `mode`".to_owned() ) );
-  assert_eq!( with( "mode", json!( 1 ) ), Err( "`mode` is not a string".to_owned() ), "a mode that is there is not reported missing" );
-  assert_eq!( with( "filter", json!( 2 ) ), Err( "`filter` is not a string".to_owned() ), "a non-string filter is not read as no filter" );
-  assert!( with( "count", json!( -1 ) ).is_err(), "negative count" );
-  assert!( with( "count", json!( 1.5 ) ).is_err(), "fractional count" );
-  assert!( with( "mode", json!( "STRIPS" ) ).is_err() );
-  assert!( with( "filter", json!( "WAVELET" ) ).is_err() );
-  assert!( with( "byteStride", json!( 6 ) ).is_err(), "ATTRIBUTES stride must be a multiple of 4" );
-  assert!( with( "byteStride", json!( 260 ) ).is_err(), "ATTRIBUTES stride is at most 256" );
-  assert!( with( "filter", json!( "QUATERNION" ) ).is_err(), "QUATERNION needs stride 8" );
+  for key in [ "buffer", "byteLength", "byteStride", "count" ]
+  {
+    assert_eq!( without( key ), refused( &format!( "missing `{key}`" ) ) );
+  }
+  assert_eq!( without( "mode" ), refused( "missing `mode`" ) );
+  assert_eq!( with( "mode", json!( 1 ) ), refused( "`mode` is not a string" ), "a mode that is there is not reported missing" );
+  assert_eq!( with( "filter", json!( 2 ) ), refused( "`filter` is not a string" ), "a non-string filter is not read as no filter" );
+  assert_eq!( with( "count", json!( -1 ) ), refused( "`count` is not a non-negative integer" ), "negative count" );
+  assert_eq!( with( "count", json!( 1.5 ) ), refused( "`count` is not a non-negative integer" ), "fractional count" );
+  assert_eq!( with( "mode", json!( "STRIPS" ) ), refused( "unknown mode `STRIPS`" ) );
+  assert_eq!( with( "filter", json!( "WAVELET" ) ), refused( "unknown EXT_meshopt_compression filter `WAVELET`" ) );
+  assert_eq!( with( "byteStride", json!( 6 ) ), refused( "ATTRIBUTES byteStride 6 must be a multiple of 4 up to 256" ) );
+  assert_eq!( with( "byteStride", json!( 260 ) ), refused( "ATTRIBUTES byteStride 260 must be a multiple of 4 up to 256" ) );
+  assert_eq!( with( "filter", json!( "QUATERNION" ) ), refused( "filter QUATERNION does not support byteStride 4" ) );
   assert!( with( "filter", json!( "OCTAHEDRAL" ) ).is_ok() );
 
   let indices = json!( { "buffer": 0, "byteLength": 8, "byteStride": 4, "count": 6, "mode": "TRIANGLES" } );
   assert!( MeshoptViewSpec::parse( EXT, &indices ).is_ok() );
   let mut odd = indices.clone();
   odd[ "count" ] = json!( 7 );
-  assert!( MeshoptViewSpec::parse( EXT, &odd ).is_err(), "TRIANGLES count must be a multiple of 3" );
+  assert_eq!( MeshoptViewSpec::parse( EXT, &odd ), refused( "TRIANGLES count 7 is not a multiple of 3" ) );
   let mut filtered = indices.clone();
   filtered[ "filter" ] = json!( "OCTAHEDRAL" );
-  assert!( MeshoptViewSpec::parse( EXT, &filtered ).is_err(), "index data takes no filter" );
+  assert_eq!( MeshoptViewSpec::parse( EXT, &filtered ), refused( "TRIANGLES data cannot use a filter" ) );
   let mut wide = indices;
   wide[ "byteStride" ] = json!( 8 );
-  assert!( MeshoptViewSpec::parse( EXT, &wide ).is_err(), "index stride is 2 or 4" );
+  assert_eq!( MeshoptViewSpec::parse( EXT, &wide ), refused( "TRIANGLES byteStride 8 must be 2 or 4" ) );
 }
 
 #[ test ]
@@ -189,7 +192,12 @@ fn the_color_filter_is_khr_only()
 {
   let color = json!( { "buffer": 0, "byteLength": 8, "byteStride": 4, "count": 4, "mode": "ATTRIBUTES", "filter": "COLOR" } );
   assert_eq!( MeshoptViewSpec::parse( "KHR_meshopt_compression", &color ).unwrap().filter(), MeshoptFilter::Color );
-  assert!( MeshoptViewSpec::parse( EXT, &color ).is_err(), "EXT_meshopt_compression defines no COLOR filter" );
+  assert_eq!
+  (
+    MeshoptViewSpec::parse( EXT, &color ),
+    Err( "unknown EXT_meshopt_compression filter `COLOR`".to_owned() ),
+    "EXT_meshopt_compression defines no COLOR filter"
+  );
 }
 
 #[ test ]
