@@ -71,6 +71,18 @@ fn quad_through_camera() -> Transform
   Transform { position : [ 40.0, 28.0 ], scale : [ 24.0, 18.0 ], ..Transform::default() }
 }
 
+/// A batch parent that moves its instances by `( 3, 2 )`. Applied after the
+/// camera instead of before, it would move the quad by `( 3, 2 )` on screen
+/// rather than `( 6, 4 )`, so the composition order shows.
+const PARENT : Transform = Transform { position : [ 3.0, 2.0 ], scale : [ 1.0, 1.0 ], rotation : 0.0, depth : 0.0, skew : [ 0.0, 0.0 ] };
+
+/// [`quad`] under [`PARENT`], then [`CAMERA`], folded in by hand:
+/// `2 · ( ( 10, 8 ) + ( 3, 2 ) ) + ( 20, 12 )`, at twice the size.
+fn quad_through_parent_and_camera() -> Transform
+{
+  Transform { position : [ 46.0, 32.0 ], scale : [ 24.0, 18.0 ], ..Transform::default() }
+}
+
 /// One 1×1 opaque white image ( id 0 ), one sprite ( id 0 ) covering it and one
 /// unit quad geometry ( id 0 ).
 fn white_assets() -> Assets
@@ -187,10 +199,22 @@ fn screen_space_sprite( transform : Transform ) -> Vec< RenderCommand >
 /// camera reaches it through the batch's parent matrix on the GPU.
 fn sprite_batch( transform : Transform ) -> Vec< RenderCommand >
 {
+  sprite_batch_under( Transform::default(), transform )
+}
+
+/// The quad as the one instance of a sprite batch under [`PARENT`].
+fn sprite_batch_under_parent( transform : Transform ) -> Vec< RenderCommand >
+{
+  sprite_batch_under( PARENT, transform )
+}
+
+/// The quad as the one instance of a sprite batch whose parent is `parent`.
+fn sprite_batch_under( parent : Transform, transform : Transform ) -> Vec< RenderCommand >
+{
   let batch = ResourceId::new( 0 );
   let params = SpriteBatchParams
   {
-    transform : Transform::default(),
+    transform : parent,
     sheet : ResourceId::new( 0 ),
     blend : BlendMode::Normal,
     clip : None,
@@ -210,10 +234,22 @@ fn sprite_batch( transform : Transform ) -> Vec< RenderCommand >
 /// The quad as the one instance of a mesh batch with an identity parent.
 fn mesh_batch( transform : Transform ) -> Vec< RenderCommand >
 {
+  mesh_batch_under( Transform::default(), transform )
+}
+
+/// The quad as the one instance of a mesh batch under [`PARENT`].
+fn mesh_batch_under_parent( transform : Transform ) -> Vec< RenderCommand >
+{
+  mesh_batch_under( PARENT, transform )
+}
+
+/// The quad as the one instance of a mesh batch whose parent is `parent`.
+fn mesh_batch_under( parent : Transform, transform : Transform ) -> Vec< RenderCommand >
+{
   let batch = ResourceId::new( 0 );
   let params = MeshBatchParams
   {
-    transform : Transform::default(),
+    transform : parent,
     geometry : ResourceId::new( 0 ),
     fill : FillRef::Solid( [ 1.0; 4 ] ),
     texture : None,
@@ -272,4 +308,25 @@ fn set_camera_leaves_a_screen_space_sprite()
 
   assert_eq!( lit( &without_camera ), 12 * 9, "the quad covers 12×9 pixels" );
   assert!( through_camera == without_camera, "a screen-space sprite must ignore the camera" );
+}
+
+/// A batch's parent transform applies first and the camera after it, for both
+/// batch kinds: the frame through the camera must match a plain draw of the
+/// quad with parent and camera folded in by hand. The identity parent of the
+/// other batch cases cannot tell the order apart.
+#[ wasm_bindgen_test ]
+fn set_camera_applies_after_a_batch_parent()
+{
+  let cases : [ ( fn( Transform ) -> Vec< RenderCommand >, fn( Transform ) -> Vec< RenderCommand >, &str ); 2 ] =
+  [
+    ( sprite_batch_under_parent, sprite, "sprite batch" ),
+    ( mesh_batch_under_parent, mesh, "mesh batch" ),
+  ];
+  for ( batch, plain, path ) in cases
+  {
+    let through_camera = frame( CAMERA, quad(), batch );
+    let folded_by_hand = frame( IDENTITY, quad_through_parent_and_camera(), plain );
+    assert_eq!( lit( &folded_by_hand ), 24 * 18, "{path}: the reference quad covers 24×18 pixels" );
+    assert!( through_camera == folded_by_hand, "{path}: the parent must apply first, then the camera" );
+  }
 }
