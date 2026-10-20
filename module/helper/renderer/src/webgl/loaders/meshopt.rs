@@ -346,37 +346,30 @@ mod private
     {
       let source_length = *buffer_lengths.get( self.buffer )
       .ok_or_else( || format!( "compressed data names buffer {}, which does not exist", self.buffer ) )?;
-      if self.byte_offset.checked_add( self.byte_length ).map_or( true, | end | end > source_length )
-      {
-        return Err( format!( "compressed range {}+{} exceeds buffer {} ( {source_length} bytes )", self.byte_offset, self.byte_length, self.buffer ) );
-      }
+      let source_end = self.byte_offset.checked_add( self.byte_length ).filter( | &end | end <= source_length )
+      .ok_or_else( || format!( "compressed range {}+{} exceeds buffer {} ( {source_length} bytes )", self.byte_offset, self.byte_length, self.buffer ) )?;
 
       let target_length = *buffer_lengths.get( view_buffer )
       .ok_or_else( || format!( "view names buffer {view_buffer}, which does not exist" ) )?;
-      if view_offset.checked_add( view_length ).map_or( true, | end | end > target_length )
-      {
-        return Err( format!( "view range {view_offset}+{view_length} exceeds buffer {view_buffer} ( {target_length} bytes )" ) );
-      }
+      let target_end = view_offset.checked_add( view_length ).filter( | &end | end <= target_length )
+      .ok_or_else( || format!( "view range {view_offset}+{view_length} exceeds buffer {view_buffer} ( {target_length} bytes )" ) )?;
 
-      let decoded = match self.decoded_length()
+      if self.decoded_length() != Some( view_length )
       {
-        Some( decoded ) if decoded == view_length => decoded,
-        _ => return Err( format!( "{} x {} decoded bytes do not match the view's byteLength {view_length}", self.count, self.byte_stride ) ),
-      };
+        return Err( format!( "{} x {} decoded bytes do not match the view's byteLength {view_length}", self.count, self.byte_stride ) );
+      }
       if let Some( stride ) = view_stride.filter( | &s | !self.khr && s != self.byte_stride )
       {
         return Err( format!( "the view's byteStride {stride} is not the extension's {}", self.byte_stride ) );
       }
 
-      // Both ends were bounded by a buffer length above, so neither sum overflows.
-      let overlaps = self.buffer == view_buffer
-      && self.byte_offset < view_offset + decoded
-      && view_offset < self.byte_offset + self.byte_length;
+      // The view is exactly the decoded data, so `target_end` is where the decode stops.
+      let overlaps = self.buffer == view_buffer && self.byte_offset < target_end && view_offset < source_end;
       if overlaps
       {
         return Err( format!
         (
-          "compressed range {}+{} overlaps the decoded range {view_offset}+{decoded} in buffer {view_buffer}",
+          "compressed range {}+{} overlaps the decoded range {view_offset}+{view_length} in buffer {view_buffer}",
           self.byte_offset, self.byte_length
         ) );
       }
@@ -568,18 +561,24 @@ mod private
   /// Decodes one checked view's compressed bytes into its own range of `buffers`.
   fn view_decode( spec : &MeshoptViewSpec, view : &gltf::buffer::View< '_ >, buffers : &[ js_sys::Uint8Array ] ) -> Result< (), gl::WebglError >
   {
-    // `ranges_check` bounded every value below by a JS array length, so none overflows.
+    // `ranges_check` bounded both ranges by a JS array length, so neither fails here; a spec
+    // that skipped it is refused rather than decoded out of range.
+    let range = | start : usize, length : Option< usize > | -> Option< ( u32, u32 ) >
+    {
+      let end = start.checked_add( length? )?;
+      Some( ( u32::try_from( start ).ok()?, u32::try_from( end ).ok()? ) )
+    };
+    let ( Some( ( source_start, source_end ) ), Some( ( target_start, target_end ) ) ) =
+      ( range( spec.byte_offset(), Some( spec.byte_length() ) ), range( view.offset(), spec.decoded_length() ) )
+    else
+    {
+      gl::browser::error!( "glTF bufferView {}: meshopt ranges do not fit a JS array", view.index() );
+      return Err( gl::WebglError::Other( "glTF meshopt bufferView is invalid" ) );
+    };
+    let source = buffers[ spec.buffer() ].subarray( source_start, source_end );
+    let target = buffers[ view.buffer().index() ].subarray( target_start, target_end );
+    // Each is at most the decoded length, which fits a `u32`.
     let as_u32 = | v : usize | u32::try_from( v ).unwrap_or( u32::MAX );
-    let source = buffers[ spec.buffer() ].subarray
-    (
-      as_u32( spec.byte_offset() ),
-      as_u32( spec.byte_offset() + spec.byte_length() )
-    );
-    let target = buffers[ view.buffer().index() ].subarray
-    (
-      as_u32( view.offset() ),
-      as_u32( view.offset() + spec.count() * spec.byte_stride() )
-    );
 
     DECODER.with( | d |
     {
