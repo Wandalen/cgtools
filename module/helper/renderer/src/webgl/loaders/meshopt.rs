@@ -190,6 +190,9 @@ mod private
     mode : MeshoptMode,
     /// Post-decode transform.
     filter : MeshoptFilter,
+    /// Whether it was read under `KHR_meshopt_compression` rather than
+    /// `EXT_meshopt_compression`, whose rules differ.
+    khr : bool,
   }
 
   impl MeshoptViewSpec
@@ -236,6 +239,7 @@ mod private
         count : field( "count" )?,
         mode,
         filter,
+        khr : extension == KHR_MESHOPT_COMPRESSION,
       };
       spec.mode.layout_check( spec.byte_stride, spec.filter, spec.count )?;
       spec.filter.stride_check( spec.byte_stride )?;
@@ -306,22 +310,26 @@ mod private
       self.count.checked_mul( self.byte_stride )
     }
 
-    /// Checks that the compressed bytes lie inside their buffer, that the decoded
-    /// data fits the view they decode into, and that the two do not overlap: the
-    /// decoder writes the view while it reads the compressed bytes, so a shared range
-    /// would decode from data it has already overwritten. `buffer_lengths` holds every
-    /// loaded buffer's length, by index.
+    /// Checks the spec against the view it decodes into and the loaded buffers : the
+    /// compressed bytes lie inside their buffer; the view is exactly `count * byteStride`
+    /// bytes, as both meshopt specs require of the parent bufferView, and under
+    /// `EXT_meshopt_compression` a `byteStride` it declares is the extension's (
+    /// `KHR_meshopt_compression` dropped that rule ); and the view does not overlap the
+    /// compressed bytes : the decoder writes the view while it reads them, so a shared
+    /// range would decode from data it has already overwritten. `buffer_lengths` holds
+    /// every loaded buffer's length, by index.
     ///
     /// # Errors
     ///
-    /// Returns a description of the first range that does not fit.
+    /// Returns a description of the first rule the view breaks.
     pub fn ranges_check
     (
       &self,
       buffer_lengths : &[ usize ],
       view_buffer : usize,
       view_offset : usize,
-      view_length : usize
+      view_length : usize,
+      view_stride : Option< usize >
     )
     -> Result< (), String >
     {
@@ -341,9 +349,13 @@ mod private
 
       let decoded = match self.decoded_length()
       {
-        Some( decoded ) if decoded <= view_length => decoded,
-        _ => return Err( format!( "{} x {} decoded bytes do not fit the view's {view_length}", self.count, self.byte_stride ) ),
+        Some( decoded ) if decoded == view_length => decoded,
+        _ => return Err( format!( "{} x {} decoded bytes do not match the view's byteLength {view_length}", self.count, self.byte_stride ) ),
       };
+      if let Some( stride ) = view_stride.filter( | &s | !self.khr && s != self.byte_stride )
+      {
+        return Err( format!( "the view's byteStride {stride} is not the extension's {}", self.byte_stride ) );
+      }
 
       // Both ends were bounded by a buffer length above, so neither sum overflows.
       let overlaps = self.buffer == view_buffer
@@ -467,7 +479,7 @@ mod private
       let spec = spec
       .and_then( | spec |
       {
-        spec.ranges_check( buffer_lengths, view.buffer().index(), view.offset(), view.length() )?;
+        spec.ranges_check( buffer_lengths, view.buffer().index(), view.offset(), view.length(), view.stride() )?;
         Ok( spec )
       } )
       .map_err( | e |

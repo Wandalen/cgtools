@@ -179,14 +179,40 @@ fn checks_ranges_against_the_loaded_buffers()
   let spec = attributes_spec( 0, 12, 12, 4 );
   let lengths = [ 44, 72 ];
 
-  assert!( spec.ranges_check( &lengths, 1, 24, 16 ).is_ok() );
-  assert!( spec.ranges_check( &[ 20, 72 ], 1, 24, 16 ).is_err(), "compressed bytes run past buffer 0" );
-  assert!( spec.ranges_check( &lengths, 1, 64, 16 ).is_err(), "view runs past buffer 1" );
-  assert!( spec.ranges_check( &lengths, 1, 24, 12 ).is_err(), "decoded 16 bytes do not fit a 12-byte view" );
-  assert!( spec.ranges_check( &lengths, 2, 0, 16 ).is_err(), "view names a missing buffer" );
-  assert!( attributes_spec( 5, 12, 12, 4 ).ranges_check( &lengths, 1, 24, 16 ).is_err(), "source names a missing buffer" );
-  assert!( attributes_spec( 0, u64::MAX, 12, 4 ).ranges_check( &lengths, 1, 24, 16 ).is_err(), "overflow" );
-  assert!( attributes_spec( 0, 12, 12, u64::MAX ).ranges_check( &lengths, 1, 24, 16 ).is_err(), "overflow" );
+  assert!( spec.ranges_check( &lengths, 1, 24, 16, None ).is_ok() );
+  assert!( spec.ranges_check( &[ 20, 72 ], 1, 24, 16, None ).is_err(), "compressed bytes run past buffer 0" );
+  assert!( spec.ranges_check( &lengths, 1, 64, 16, None ).is_err(), "view runs past buffer 1" );
+  assert!( spec.ranges_check( &lengths, 1, 24, 12, None ).is_err(), "decoded 16 bytes do not fit a 12-byte view" );
+  assert_eq!
+  (
+    spec.ranges_check( &lengths, 1, 24, 20, None ),
+    Err( "4 x 4 decoded bytes do not match the view's byteLength 20".to_owned() ),
+    "the parent byteLength is exactly count * byteStride, not merely enough"
+  );
+  assert!( spec.ranges_check( &lengths, 2, 0, 16, None ).is_err(), "view names a missing buffer" );
+  assert!( attributes_spec( 5, 12, 12, 4 ).ranges_check( &lengths, 1, 24, 16, None ).is_err(), "source names a missing buffer" );
+  assert!( attributes_spec( 0, u64::MAX, 12, 4 ).ranges_check( &lengths, 1, 24, 16, None ).is_err(), "overflow" );
+  assert!( attributes_spec( 0, 12, 12, u64::MAX ).ranges_check( &lengths, 1, 24, 16, None ).is_err(), "overflow" );
+}
+
+/// `EXT_meshopt_compression` requires a parent bufferView that declares `byteStride` to declare
+/// the extension's; `KHR_meshopt_compression` dropped the rule, and a view may leave it out.
+#[ test ]
+fn the_parent_byte_stride_matches_under_ext_only()
+{
+  let lengths = [ 44, 72 ];
+  let ext = attributes_spec( 0, 12, 12, 4 );
+  assert!( ext.ranges_check( &lengths, 1, 24, 16, Some( 4 ) ).is_ok() );
+  assert!( ext.ranges_check( &lengths, 1, 24, 16, None ).is_ok(), "no byteStride on the view" );
+  assert_eq!
+  (
+    ext.ranges_check( &lengths, 1, 24, 16, Some( 8 ) ),
+    Err( "the view's byteStride 8 is not the extension's 4".to_owned() )
+  );
+
+  let value = json!( { "buffer": 0, "byteOffset": 12, "byteLength": 12, "byteStride": 4, "count": 4, "mode": "ATTRIBUTES" } );
+  let khr = MeshoptViewSpec::parse( "KHR_meshopt_compression", &value ).unwrap();
+  assert!( khr.ranges_check( &lengths, 1, 24, 16, Some( 8 ) ).is_ok(), "KHR_meshopt_compression has no such rule" );
 }
 
 /// The decoder writes the view while reading the compressed bytes, so the two may share a
@@ -198,13 +224,13 @@ fn rejects_a_decode_target_overlapping_its_source()
   let spec = attributes_spec( 0, 0, 12, 4 );
   let lengths = [ 64 ];
 
-  assert!( spec.ranges_check( &lengths, 0, 12, 16 ).is_ok(), "the view starts where the compressed bytes end" );
-  assert!( spec.ranges_check( &lengths, 0, 32, 16 ).is_ok(), "disjoint ranges in one buffer" );
-  assert!( spec.ranges_check( &lengths, 0, 8, 16 ).is_err(), "the view starts inside the compressed bytes" );
-  assert!( spec.ranges_check( &lengths, 0, 0, 16 ).is_err(), "the view starts where the compressed bytes start" );
+  assert!( spec.ranges_check( &lengths, 0, 12, 16, None ).is_ok(), "the view starts where the compressed bytes end" );
+  assert!( spec.ranges_check( &lengths, 0, 32, 16, None ).is_ok(), "disjoint ranges in one buffer" );
+  assert!( spec.ranges_check( &lengths, 0, 8, 16, None ).is_err(), "the view starts inside the compressed bytes" );
+  assert!( spec.ranges_check( &lengths, 0, 0, 16, None ).is_err(), "the view starts where the compressed bytes start" );
   let after = attributes_spec( 0, 20, 12, 4 );
-  assert!( after.ranges_check( &lengths, 0, 8, 16 ).is_err(), "the decoded bytes run into compressed bytes after them" );
-  assert!( after.ranges_check( &lengths, 0, 4, 16 ).is_ok(), "the decoded bytes end where the compressed bytes start" );
+  assert!( after.ranges_check( &lengths, 0, 8, 16, None ).is_err(), "the decoded bytes run into compressed bytes after them" );
+  assert!( after.ranges_check( &lengths, 0, 4, 16, None ).is_ok(), "the decoded bytes end where the compressed bytes start" );
 }
 
 /// The fixture's three views decode side by side into the fallback buffer from disjoint
