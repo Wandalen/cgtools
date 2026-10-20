@@ -318,4 +318,38 @@ mod tests
 
     assert_eq!( load_refusal( &uri ).await, "glTF meshopt buffer is invalid" );
   }
+
+  /// A fallback buffer holds only what compressed views decode into it. An uncompressed view
+  /// reading it would read zeros, so the meshopt specs allow references to it only from
+  /// compressed views, and `load` refuses any other.
+  #[ wasm_bindgen_test( async ) ]
+  async fn load_refuses_an_uncompressed_view_on_a_fallback_buffer()
+  {
+    let buffers = format!
+    (
+      r#"{{ "byteLength" : 36, "uri" : "{}" }},
+      {{ "byteLength" : 36, "extensions" : {{ "EXT_meshopt_compression" : {{ "fallback" : true }} }} }}"#,
+      data_uri( "application/octet-stream", &triangle_bytes() )
+    );
+    let json = triangle_gltf( &[ "EXT_meshopt_compression" ], &buffers, r#"{ "buffer" : 1, "byteLength" : 36, "target" : 34962 }"# );
+    let uri = data_uri( "model/gltf+json", json.as_bytes() );
+
+    assert_eq!( load_refusal( &uri ).await, "glTF meshopt fallback buffer is read by an uncompressed bufferView" );
+  }
+
+  /// Nor may a compressed view's extension object name a fallback buffer as the place its
+  /// compressed bytes live : there are none there. The fallback here is long enough to hold
+  /// both ranges apart, so only this rule can refuse the file.
+  #[ wasm_bindgen_test( async ) ]
+  async fn load_refuses_compressed_data_in_a_fallback_buffer()
+  {
+    let buffers = r#"{ "byteLength" : 72, "extensions" : { "EXT_meshopt_compression" : { "fallback" : true } } }"#;
+    let view = r#"{ "buffer" : 0, "byteLength" : 36, "byteStride" : 12, "target" : 34962,
+      "extensions" : { "EXT_meshopt_compression" :
+        { "buffer" : 0, "byteOffset" : 36, "byteLength" : 36, "byteStride" : 12, "count" : 3, "mode" : "ATTRIBUTES" } } }"#;
+    let json = triangle_gltf( &[ "EXT_meshopt_compression" ], buffers, view );
+    let uri = data_uri( "model/gltf+json", json.as_bytes() );
+
+    assert_eq!( load_refusal( &uri ).await, "glTF meshopt bufferView is invalid" );
+  }
 }

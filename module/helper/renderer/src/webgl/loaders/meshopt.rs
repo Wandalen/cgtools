@@ -489,13 +489,34 @@ mod private
       return Err( gl::WebglError::Other( "glTF meshopt buffer is invalid" ) );
     }
 
+    // A fallback buffer holds only what compressed views decode into it, so the meshopt specs
+    // allow references to it from those views alone, and none from their extension objects.
+    let fallback = gltf_file.buffers().map( | b | buffer_is_fallback( &b ) ).collect::< Vec< _ > >();
+    let is_fallback = | buffer : usize | fallback.get( buffer ).copied().unwrap_or( false );
+
     let mut decodes = Vec::new();
     for view in gltf_file.views()
     {
-      let Some( spec ) = MeshoptViewSpec::from_view( &view ) else { continue };
+      let Some( spec ) = MeshoptViewSpec::from_view( &view ) else
+      {
+        if is_fallback( view.buffer().index() )
+        {
+          gl::browser::error!
+          (
+            "glTF bufferView {} is not compressed but reads fallback buffer {}, which holds no data of its own",
+            view.index(), view.buffer().index()
+          );
+          return Err( gl::WebglError::Other( "glTF meshopt fallback buffer is read by an uncompressed bufferView" ) );
+        }
+        continue;
+      };
       let spec = spec
       .and_then( | spec |
       {
+        if is_fallback( spec.buffer() )
+        {
+          return Err( format!( "compressed data names fallback buffer {}, which holds no data of its own", spec.buffer() ) );
+        }
         spec.ranges_check( buffer_lengths, view.buffer().index(), view.offset(), view.length(), view.stride() )?;
         Ok( spec )
       } )
