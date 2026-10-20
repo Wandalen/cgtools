@@ -10,6 +10,7 @@ mod private
   use gltf::json::Value;
   use minwebgl as gl;
   use crate::webgl::{ Texture, TextureInfo, material::PbrMaterial };
+  use crate::webgl::loaders::gltf_json::{ f32_get, usize_read };
   use crate::webgl::loaders::meshopt::{ EXT_MESHOPT_COMPRESSION, KHR_MESHOPT_COMPRESSION };
 
   /// glTF extensions this loader actually implements support for. Kept in sync
@@ -161,16 +162,11 @@ mod private
     pub texture : Option< ExtensionTextureRef >,
   }
 
-  fn number_get( json : &Value, key : &str, default : f32 ) -> f32
-  {
-    json.get( key ).and_then( Value::as_f64 ).map_or( default, | v | v as f32 )
-  }
-
   /// Reads a glTF `textureInfo` object; `None` when it has no integer `index`. A `texCoord`
   /// that isn't a non-negative integer reads as the default UV set 0. Both cases are logged.
   fn texture_ref_parse( json : &Value ) -> Option< ExtensionTextureRef >
   {
-    let Some( index ) = json.get( "index" ).and_then( Value::as_u64 ).and_then( | v | usize::try_from( v ).ok() )
+    let Some( index ) = json.get( "index" ).and_then( usize_read )
     else
     {
       gl::warn!( "glTF material extension textureInfo {json} has no valid index, ignoring it" );
@@ -195,12 +191,12 @@ mod private
     let normal = json.get( "clearcoatNormalTexture" );
     ClearcoatParams
     {
-      factor : number_get( json, "clearcoatFactor", 0.0 ),
-      roughness_factor : number_get( json, "clearcoatRoughnessFactor", 0.0 ),
+      factor : f32_get( json, "clearcoatFactor", 0.0 ),
+      roughness_factor : f32_get( json, "clearcoatRoughnessFactor", 0.0 ),
       texture : json.get( "clearcoatTexture" ).and_then( texture_ref_parse ),
       roughness_texture : json.get( "clearcoatRoughnessTexture" ).and_then( texture_ref_parse ),
       normal_texture : normal.and_then( texture_ref_parse ),
-      normal_scale : normal.map_or( 1.0, | n | number_get( n, "scale", 1.0 ) ),
+      normal_scale : normal.map_or( 1.0, | n | f32_get( n, "scale", 1.0 ) ),
     }
   }
 
@@ -210,8 +206,8 @@ mod private
   {
     AnisotropyParams
     {
-      strength : number_get( json, "anisotropyStrength", 0.0 ),
-      rotation : number_get( json, "anisotropyRotation", 0.0 ),
+      strength : f32_get( json, "anisotropyStrength", 0.0 ),
+      rotation : f32_get( json, "anisotropyRotation", 0.0 ),
       texture : json.get( "anisotropyTexture" ).and_then( texture_ref_parse ),
     }
   }

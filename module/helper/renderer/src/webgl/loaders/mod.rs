@@ -3,6 +3,9 @@ mod private
 
 }
 
+/// Numbers read from the extension JSON the `gltf` crate leaves untyped
+pub( crate ) mod gltf_json;
+
 crate::mod_interface!
 {
   /// Gltf loader

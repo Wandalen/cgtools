@@ -4,6 +4,7 @@ mod private
   use gl::js_sys;
   use gltf::json::Value;
   use wasm_bindgen::prelude::*;
+  use crate::webgl::loaders::gltf_json::usize_read;
   use wasm_bindgen_futures::JsFuture;
 
   // meshoptimizer's own decoder ( MIT, see the crate's `license_third_party` ), vendored
@@ -214,9 +215,7 @@ mod private
       let field = | name : &str | -> Result< usize, String >
       {
         let v = value.get( name ).ok_or_else( || format!( "missing `{name}`" ) )?;
-        v.as_u64()
-        .and_then( | v | usize::try_from( v ).ok() )
-        .ok_or_else( || format!( "`{name}` is not a non-negative integer" ) )
+        usize_read( v ).ok_or_else( || format!( "`{name}` is not a non-negative integer" ) )
       };
 
       let mode = MeshoptMode::from_name( value.get( "mode" ).and_then( Value::as_str ).ok_or( "missing `mode`" )? )?;
