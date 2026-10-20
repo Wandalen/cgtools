@@ -486,7 +486,7 @@ mod private
 
     for ( view, spec ) in &decodes
     {
-      view_decode( spec, view, buffers )?;
+      spec_decode( spec, view, buffers )?;
     }
 
     Ok( () )
@@ -559,7 +559,7 @@ mod private
   }
 
   /// Decodes one checked view's compressed bytes into its own range of `buffers`.
-  fn view_decode( spec : &MeshoptViewSpec, view : &gltf::buffer::View< '_ >, buffers : &[ js_sys::Uint8Array ] ) -> Result< (), gl::WebglError >
+  fn spec_decode( spec : &MeshoptViewSpec, view : &gltf::buffer::View< '_ >, buffers : &[ js_sys::Uint8Array ] ) -> Result< (), gl::WebglError >
   {
     // `ranges_check` bounded both ranges by a JS array length, so neither fails here; a spec
     // that skipped it is refused rather than decoded out of range.
