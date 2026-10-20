@@ -13,25 +13,25 @@ mod private
   use crate::webgl::loaders::gltf_json::{ f32_get, usize_read };
   use crate::webgl::loaders::meshopt::{ EXT_MESHOPT_COMPRESSION, KHR_MESHOPT_COMPRESSION };
 
-  /// glTF extensions this loader actually implements support for. Kept in sync
-  /// with the `gltf`-crate extension Cargo features this crate enables in
-  /// `Cargo.toml` ( `[dependencies.gltf].features` ) -- an extension whose
-  /// Cargo feature isn't turned on has no typed accessor exposed by the `gltf`
-  /// crate at all, so this loader could not act on it even if it were listed
-  /// here. Cross-checked against the code that reads each one, not just the
-  /// feature list: `KHR_lights_punctual` is read in `loaders/gltf.rs`'s
-  /// `light_list_get` / `light_get`, and `KHR_materials_specular` in its
-  /// `materials_create` ( the `gltf_m.specular()` branch ).
-  /// `KHR_materials_clearcoat` / `KHR_materials_anisotropy` have no typed accessor
-  /// or Cargo feature in the `gltf` crate; [`material_layer_extensions_apply`] in
-  /// this file reads their JSON through `extension_value`.
-  /// The meshopt extensions are decoded by [`crate::webgl::loaders::meshopt::views_decode`]
-  /// before any buffer is used. Their names are `meshopt`'s own constants, the ones its
-  /// `MESHOPT_EXTENSIONS` lists, so the two lists name them identically.
-  /// For `KHR_mesh_quantization`, GPU attributes reach `vertexAttribPointer` with their integer type and `normalized` flag intact
-  /// ( `loaders/gltf.rs`'s `attribute_descriptor_make` ). Values read on the CPU are
-  /// dequantized there: normalized position bounds in `position_bounds_dequantize`, and
-  /// morph target displacements in `accessor_vec3_read`.
+  /// glTF extensions this loader implements, each checked against the code that reads it.
+  /// They reach the loader by three routes :
+  /// - **Typed `gltf` accessors**, behind the `gltf`-crate Cargo features this crate enables
+  ///   ( `[dependencies.gltf].features` in `Cargo.toml` ) : `KHR_lights_punctual`, read in
+  ///   `loaders/gltf.rs`'s `light_list_get` / `light_get`, and `KHR_materials_specular`, in its
+  ///   `materials_create` ( the `gltf_m.specular()` branch ). Only these two have such a
+  ///   feature; listing another extension that needs one would promise what the crate cannot
+  ///   read.
+  /// - **Hand-read extension JSON**, for extensions the `gltf` crate has no accessor or
+  ///   feature for : `KHR_materials_clearcoat` / `KHR_materials_anisotropy`, read by
+  ///   [`material_layer_extensions_apply`] in this file, and the two meshopt extensions, decoded
+  ///   by [`crate::webgl::loaders::meshopt::views_decode`] before any buffer is used. The
+  ///   meshopt entries are `meshopt`'s own name constants; this list is written out by hand,
+  ///   so `gltf_meshopt_test` checks that every name `meshopt` decodes may be required.
+  /// - **No reader of its own** : `KHR_mesh_quantization` only widens the accessor types
+  ///   allowed. GPU attributes reach `vertexAttribPointer` with their integer type and
+  ///   `normalized` flag intact ( `loaders/gltf.rs`'s `attribute_descriptor_make` ); values
+  ///   read on the CPU are dequantized there : normalized position bounds in
+  ///   `position_bounds_dequantize`, and morph target displacements in `accessor_vec3_read`.
   const SUPPORTED_EXTENSIONS : &[ &str ] =
   &[
     "KHR_lights_punctual",

@@ -55,9 +55,9 @@ mod private
   /// Why a buffer view or buffer carrying both meshopt extension objects is refused.
   const BOTH_EXTENSIONS : &str = "uses both EXT_meshopt_compression and KHR_meshopt_compression, which KHR_meshopt_compression forbids";
 
-  /// Extension names that mark a buffer view as meshopt-compressed. The one list of
-  /// them : `gltf_extensions`' supported-extensions list takes its meshopt entries from
-  /// here.
+  /// Extension names that mark a buffer view as meshopt-compressed. `gltf_extensions`'
+  /// supported-extensions list names the same two constants, written out there by hand;
+  /// `gltf_meshopt_test` checks that every name here is in it.
   pub const MESHOPT_EXTENSIONS : [ &str; 2 ] = [ EXT_MESHOPT_COMPRESSION, KHR_MESHOPT_COMPRESSION ];
 
   /// How a compressed buffer view was encoded.
