@@ -7,7 +7,7 @@
 
 use renderer::webgl::loaders::gltf_quantization::position_bounds_dequantize;
 use renderer::webgl::loaders::gltf_extensions::{ document_validate, required_extensions_check };
-use renderer::webgl::loaders::meshopt::{ buffer_is_fallback, decodes_overlap_check, MeshoptFilter, MeshoptMode, MeshoptViewSpec };
+use renderer::webgl::loaders::meshopt::internal::{ buffer_is_fallback, decodes_overlap_check, MeshoptFilter, MeshoptMode, MeshoptViewSpec };
 use serde_json::json;
 
 /// The layout glTF-Transform writes : compressed bytes in buffer 0, and a data-less
@@ -357,7 +357,7 @@ fn component_types_buffer() -> Vec< u8 >
 #[ test ]
 fn accessor_vec3_read_reads_every_component_type()
 {
-  use renderer::webgl::loaders::gltf_quantization::accessor_vec3_read;
+  use renderer::webgl::loaders::gltf_quantization::internal::accessor_vec3_read;
 
   let gltf = gltf::Gltf::from_slice_without_validation( COMPONENT_TYPES_FIXTURE.as_bytes() ).expect( "fixture is well-formed JSON" );
   let buffers = vec![ component_types_buffer() ];

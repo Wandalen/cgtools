@@ -158,6 +158,16 @@ mod private
 
 crate::mod_interface!
 {
-  own use buffers_load;
-  own use cpu_buffers_needed;
+}
+
+// Both run only inside `gltf::load`.
+pub( crate ) use private::{ buffers_load, cpu_buffers_needed };
+
+/// `cpu_buffers_needed`, reachable from `tests/` under `test_internals`. Without the feature
+/// this module does not exist.
+#[ cfg( feature = "test_internals" ) ]
+#[ doc( hidden ) ]
+pub mod internal
+{
+  pub use super::private::cpu_buffers_needed;
 }

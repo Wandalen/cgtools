@@ -87,9 +87,17 @@ mod private
 
 crate::mod_interface!
 {
-  own use
-  {
-    position_bounds_dequantize,
-    accessor_vec3_read
-  };
+  own use position_bounds_dequantize;
+}
+
+// Only `gltf.rs`'s morph target reader calls it.
+pub( crate ) use private::accessor_vec3_read;
+
+/// `accessor_vec3_read`, reachable from `tests/` under `test_internals`. Without the feature
+/// this module does not exist.
+#[ cfg( feature = "test_internals" ) ]
+#[ doc( hidden ) ]
+pub mod internal
+{
+  pub use super::private::accessor_vec3_read;
 }

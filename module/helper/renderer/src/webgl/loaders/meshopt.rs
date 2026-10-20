@@ -490,15 +490,15 @@ mod private
   {
     // `ranges_check` bounded every value below by a JS array length, so none overflows.
     let as_u32 = | v : usize | u32::try_from( v ).unwrap_or( u32::MAX );
-    let source = buffers[ spec.buffer ].subarray
+    let source = buffers[ spec.buffer() ].subarray
     (
-      as_u32( spec.byte_offset ),
-      as_u32( spec.byte_offset + spec.byte_length )
+      as_u32( spec.byte_offset() ),
+      as_u32( spec.byte_offset() + spec.byte_length() )
     );
     let target = buffers[ view.buffer().index() ].subarray
     (
       as_u32( view.offset() ),
-      as_u32( view.offset() + spec.count * spec.byte_stride )
+      as_u32( view.offset() + spec.count() * spec.byte_stride() )
     );
 
     DECODER.with( | d |
@@ -506,11 +506,11 @@ mod private
       d.decode_gltf_buffer
       (
         &target,
-        as_u32( spec.count ),
-        as_u32( spec.byte_stride ),
+        as_u32( spec.count() ),
+        as_u32( spec.byte_stride() ),
         &source,
-        spec.mode.as_str(),
-        spec.filter.as_str()
+        spec.mode().as_str(),
+        spec.filter().as_str()
       )
     } )
     .map_err( | e |
@@ -523,7 +523,22 @@ mod private
 
 crate::mod_interface!
 {
-  own use
+  own use views_decode;
+}
+
+// The loader's other stages need the extension names and the fallback test; nothing outside
+// the crate does.
+pub( crate ) use private::{ EXT_MESHOPT_COMPRESSION, KHR_MESHOPT_COMPRESSION, buffer_is_fallback };
+
+/// The parsing and range checks `tests/` reaches, exposed only under `test_internals`.
+///
+/// Not part of the surface: with the feature off, the default and what every dependent gets,
+/// this module does not exist.
+#[ cfg( feature = "test_internals" ) ]
+#[ doc( hidden ) ]
+pub mod internal
+{
+  pub use super::private::
   {
     EXT_MESHOPT_COMPRESSION,
     KHR_MESHOPT_COMPRESSION,
@@ -533,6 +548,5 @@ crate::mod_interface!
     MeshoptViewSpec,
     buffer_is_fallback,
     decodes_overlap_check,
-    views_decode
   };
 }

@@ -1,7 +1,7 @@
 //! Off-GPU checks for the glTF loader's buffer stage : `cpu_buffers_needed`, which decides
 //! whether `gltf::load` copies every buffer into wasm memory.
 
-use renderer::webgl::loaders::gltf_buffers::cpu_buffers_needed;
+use renderer::webgl::loaders::gltf_buffers::internal::cpu_buffers_needed;
 
 /// Parses `json` without validation, as `gltf::load` does before `document_validate`.
 fn parse( json : &str ) -> gltf::Gltf
