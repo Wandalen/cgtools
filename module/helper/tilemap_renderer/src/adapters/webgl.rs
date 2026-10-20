@@ -1072,6 +1072,10 @@ mod private
         text_on_path : false,
         // `blend_apply` and `shaders/tint.glsl` honour `ImageAsset::premultiplied`.
         premultiplied_images : true,
+        // `new` enables `DEPTH_TEST` / `LEQUAL`; this assumes the context has a
+        // depth buffer, the WebGL default ( `depth : false` at context creation
+        // leaves it out ).
+        depth : true,
         max_texture_size,
       }
     }

@@ -11,7 +11,7 @@
 use tilemap_renderer::adapters::webgl::WebGlBackend;
 use tilemap_renderer::types::BlendMode;
 
-/// T01 -- honest-subset pin: `meshes`/`sprites`/`batches`/`premultiplied_images`
+/// T01 -- honest-subset pin: `meshes`/`sprites`/`batches`/`premultiplied_images`/`depth`
 /// true, every other boolean false, `supported_blend_modes` exactly `[Normal, Add, Multiply,
 /// Screen]`.
 #[ test ]
@@ -31,6 +31,7 @@ fn declared_capabilities_honest_subset()
   assert!( !caps.blend_modes );
   assert!( !caps.text_on_path );
   assert!( caps.premultiplied_images );
+  assert!( caps.depth, "new enables DEPTH_TEST, and the opaque pass of tilemap_scene relies on it" );
   assert_eq!( caps.max_texture_size, 4096 );
   assert!
   (

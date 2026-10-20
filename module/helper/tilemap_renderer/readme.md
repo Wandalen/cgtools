@@ -97,6 +97,7 @@ let Output::String( doc ) = svg.output()? else { unreachable!() };
 | Effects | yes | — | — | — | — | — |
 | Blend modes | yes | partial² | partial⁷ | — | —⁵ | —⁵ |
 | Premultiplied images | —⁸ | yes | —⁸ | — | —⁸ | —⁸ |
+| Depth buffer | — | yes | — | — | — | — |
 | Viewport pan/zoom | yes | partial | — | — | — | — |
 
 > **Terminal** adapter downsamples world coordinates onto a fixed character-cell grid
@@ -170,6 +171,11 @@ let Output::String( doc ) = svg.output()? else { unreachable!() };
 >
 > `Capabilities::premultiplied_images` reports the flag's support at runtime: `true` for
 > WebGL only.
+>
+> **Depth buffer** is `Capabilities::depth`: the adapter honours `SetDepthWrite`,
+> `Transform::depth` and a batch's `occlude_overlap`. Without it every draw lands in
+> command order, so a caller that orders draws by depth must keep painter's order itself;
+> `tilemap_scene`'s `Renderer::set_depth_buffer( false )` does.
 
 ## known issues / TODO
 

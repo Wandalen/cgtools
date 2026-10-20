@@ -131,6 +131,12 @@ mod private
     /// used as stored, which draws a premultiplied image's semi-transparent
     /// texels differently ( the readme's capability table says how, per adapter ).
     pub premultiplied_images : bool,
+    /// Tests and writes a depth buffer: honours [`crate::commands::SetDepthWrite`],
+    /// `Transform::depth` and a batch's `occlude_overlap` `LESS` test. `false`
+    /// means every draw lands in command order whatever its depth, so a caller
+    /// that orders draws by depth must fall back to painter's order itself
+    /// ( `tilemap_scene`'s `Renderer::set_depth_buffer` does ).
+    pub depth : bool,
     /// Maximum texture/image dimension. 0 = unlimited (e.g. SVG).
     pub max_texture_size : u32,
   }

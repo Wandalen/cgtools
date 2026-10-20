@@ -996,6 +996,7 @@ mod private
         supported_blend_modes : &[ BlendMode::Normal ],
         text_on_path : false,
         premultiplied_images : false,
+        depth : false,
         max_texture_size : 0,
       }
     }

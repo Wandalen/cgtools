@@ -8,7 +8,8 @@
 //! own draws. Depth-write toggling rides the `SetDepthWrite` render command, and
 //! each bucket's sprites are pinned to `pipeline_index / bucket_count` whenever
 //! any layer is opaque or `occlude_overlap`. With no opaque layer the renderer
-//! takes the single-pass path and emits no `SetDepthWrite` at all.
+//! takes the single-pass path and emits no `SetDepthWrite` at all, and so does
+//! a renderer told the backend has no depth buffer, whatever the flags.
 
 #![ allow( clippy::min_ident_chars, reason = "one-letter closure bindings ( `c`, `s` ) over render commands keep the command filters on one line" ) ]
 #![ allow
@@ -241,6 +242,50 @@ fn no_opaque_layer_takes_single_pass_path()
   // Painter's order, no depth pinning.
   let depths : Vec< f32 > = common::flat_sprites( &cmds ).iter().map( | s | s.transform.depth ).collect();
   assert_eq!( depths, vec![ 0.0, 0.0, 0.0 ], "no opaque pass ⇒ depths untouched" );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// 2b. A backend without a depth buffer (`Renderer::set_depth_buffer( false )`)
+//     gets the single painter's pass even from a spec with opaque and
+//     `occlude_overlap` layers: no `SetDepthWrite`, depth 0, declared order.
+// ────────────────────────────────────────────────────────────────────────────
+
+/// Without a depth buffer, opaque layers drawn topmost first would paint the
+/// lower layers over the upper ones. So `set_depth_buffer( false )` must give
+/// the frame a spec with no flags would get, and switching it on a renderer
+/// that already drew must not replay the two-pass frame from the idle cache.
+#[ test ]
+fn without_a_depth_buffer_flagged_layers_take_the_single_pass()
+{
+  let flagged = build_spec( [ ( true, false ), ( true, false ), ( false, true ) ] );
+  let mut renderer = Renderer::new( &flagged, &PathResolver ).expect( "renderer" );
+  let mut scene = Scene::new( Arc::new( flagged ) );
+  spawn_one_per_bucket( &mut scene );
+  // The second frame draws batches the first one created, so flatten both
+  // through one stateful flattener.
+  let mut flat = common::BatchFlattener::new();
+  let two_pass = renderer.render( &scene, &Camera::default() ).expect( "render" ).to_vec();
+  assert!( !depth_write_sequence( &two_pass ).is_empty(), "with a depth buffer the flags split the frame" );
+  flat.apply( &two_pass );
+
+  renderer.set_depth_buffer( false );
+  let cmds = renderer.render( &scene, &Camera::default() ).expect( "render" ).to_vec();
+  assert!( depth_write_sequence( &cmds ).is_empty(), "no depth buffer ⇒ no SetDepthWrite" );
+  let sprites : Vec< _ > = flat.apply( &cmds ).into_iter()
+    .filter_map( | c | if let RenderCommand::Sprite( s ) = c { Some( s ) } else { None } )
+    .collect();
+
+  let plain = build_spec( [ ( false, false ), ( false, false ), ( false, false ) ] );
+  let mut plain_renderer = Renderer::new( &plain, &PathResolver ).expect( "renderer" );
+  let mut plain_scene = Scene::new( Arc::new( plain ) );
+  spawn_one_per_bucket( &mut plain_scene );
+  let expected = plain_renderer.render( &plain_scene, &Camera::default() ).expect( "render" ).to_vec();
+  assert_eq!
+  (
+    format!( "{sprites:?}" ),
+    format!( "{:?}", common::flat_sprites( &expected ) ),
+    "the same sprites, at depth 0, in declared order",
+  );
 }
 
 // ────────────────────────────────────────────────────────────────────────────

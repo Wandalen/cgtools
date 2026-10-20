@@ -1625,8 +1625,10 @@ fn capabilities_all_true()
   assert!( caps.effects );
   assert!( caps.blend_modes );
   assert!( caps.text_on_path );
-  // The one `false`: SVG embeds a premultiplied image's bytes as a straight-alpha PNG.
+  // SVG embeds a premultiplied image's bytes as a straight-alpha PNG.
   assert!( !caps.premultiplied_images );
+  // SVG paints in document order and ignores `SetDepthWrite` and `depth`.
+  assert!( !caps.depth );
   assert_eq!( caps.max_texture_size, 0 );
 }
 

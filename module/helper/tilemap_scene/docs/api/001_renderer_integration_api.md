@@ -27,6 +27,7 @@ Game code drives a `Scene` — an in-memory, mutable instantiation of a loaded `
 | `tick` / `tick_into` | `(dt) -> Vec<SceneEvent>` | Advances the shared clock; returns events including `OneShot` animation completions (see `algorithm/001`). |
 | `instances`, `instances_at_hex`, `hex_instances`, `edge_instances`, `free_instances`, `viewport_instances`, `multihex_instances`, `len`, `is_empty` | queries | Read-only instance enumeration, whole-scene or filtered by anchor kind / position. |
 | `Renderer::render` | `(&mut self, &Scene, &Camera) -> Result<&[RenderCommand], CompileError>` | Produces this frame's draw commands (see `algorithm/002`); cached and replayed on an unchanged `(scene_revision, clock, camera_signature)` triple. |
+| `Renderer::set_depth_buffer` | `(&mut self, available: bool)` | Whether the backend has a depth buffer, as `Capabilities::depth` reports; `true` by default. With `false` the renderer ignores `opaque` and `occlude_overlap` and draws every layer in declared order (see `format/007`). |
 | `Camera::to_view_mat3` | `() -> [f32; 9]` | The world→screen projection as a column-major 3×3 matrix. World-space commands carry world coordinates; the caller hands this matrix to the backend each frame (`WebGlBackend::set_camera(camera.to_view_mat3())`) and the GPU applies it, so a pan changes one uniform and never the command stream. |
 | `Camera::project` | `(world: (f32, f32)) -> (f32, f32)` | `screen = (world - camera.world_center) * camera.zoom + viewport_size / 2` — the same projection as `to_view_mat3`, on the CPU, for a caller that needs one point on screen (UI anchored to a unit). `Renderer::render` does not call it. |
 
@@ -70,7 +71,7 @@ The renderer treats instance state as opaque and game-owned by design — it nev
 | File | Relationship |
 |------|--------------|
 | `src/scene.rs` | `Scene` — full method surface |
-| `src/renderer.rs` | `Renderer::render`, `cache_hits`, `cleanup`, `assets` |
+| `src/renderer.rs` | `Renderer::render`, `set_depth_buffer`, `cache_hits`, `cleanup`, `assets` |
 | `src/compile/camera.rs` | `Camera`, `Camera::to_view_mat3`, `Camera::project` |
 
 ### Tests

@@ -178,6 +178,7 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
         supported_blend_modes : &[],
         text_on_path : false,
         premultiplied_images : false,
+        depth : false,
         max_texture_size : 8192,
       }
     }

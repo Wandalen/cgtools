@@ -266,6 +266,10 @@ mod private
     /// `used_keys`). `0` (default) draws every layer, so this is transparent to
     /// consumers that never call [`Renderer::set_disabled_buckets`].
     disabled_buckets : u64,
+
+    /// Whether the backend has a depth buffer (see
+    /// [`Renderer::set_depth_buffer`]). `true` by default.
+    depth_buffer : bool,
   }
 
   impl Renderer
@@ -313,6 +317,7 @@ mod private
         sprite_to_sheet,
         vertex_cache : VertexResolveCache::new(),
         disabled_buckets : 0,
+        depth_buffer : true,
       })
     }
 
@@ -362,6 +367,25 @@ mod private
       if mask != self.disabled_buckets
       {
         self.disabled_buckets = mask;
+        self.has_rendered = false;
+      }
+    }
+
+    /// Tell the renderer whether the backend tests and writes depth, as its
+    /// `Capabilities::depth` reports. `true` by default.
+    ///
+    /// `opaque` and `occlude_overlap` layers rely on the depth buffer: opaque
+    /// layers draw front-to-back, so without depth testing the lower ones
+    /// would paint over the upper ones. With `false` the renderer ignores both
+    /// flags and draws every layer in painter's order, which is correct on any
+    /// backend, without the overdraw saving or the single coverage. Changing
+    /// it invalidates the idle-replay cache.
+    #[ inline ]
+    pub fn set_depth_buffer( &mut self, available : bool )
+    {
+      if available != self.depth_buffer
+      {
+        self.depth_buffer = available;
         self.has_rendered = false;
       }
     }
@@ -490,27 +514,7 @@ mod private
       // bucket count, so disabling a layer never shifts the others' depths.
       let disabled = self.disabled_buckets;
       let is_disabled = | i : usize | i < 64 && ( disabled >> i ) & 1 == 1;
-      // `alpha_clip` / `occlude_overlap` live on the batch params; a per-sprite
-      // `Sprite` / `ScreenSpaceSprite` draw has no clip and no `LESS` test.
-      // Drawn in the opaque pass such a sprite would write depth over its whole
-      // quad, transparent corners included, and punch holes in every layer
-      // under it. So an opaque bucket that has to draw anything per sprite this
-      // frame (a sorted bucket mixing sheets / blends / clip masks, or any
-      // viewport sprite) rides the transparent pass instead: painter's order,
-      // no depth writes, still hidden by nearer opaque layers. Batch params do
-      // not change (an opaque bucket's batches never carry `occlude_overlap`),
-      // so the live batches stay valid.
-      for ( i, b ) in buckets.iter_mut().enumerate()
-      {
-        if !b.opaque { continue; }
-        // A fully opaque layer has nothing to gain from single coverage (its
-        // overlaps are invisible), and `LESS` would flip which of two
-        // overlapping opaque tiles wins from last-drawn to first-drawn.
-        b.occlude_overlap = false;
-        let per_sprite = !b.sprites.is_empty()
-          && matches!( self.bucket_classify( i as u32, b ), BucketDispatch::PerSprite );
-        if per_sprite || !b.screen_space.is_empty() { b.opaque = false; }
-      }
+      self.bucket_flags_settle( &mut buckets );
       let any_opaque = buckets.iter().any( | b | b.opaque );
       let any_occlude = buckets.iter().any( | b | b.occlude_overlap );
       if any_opaque || any_occlude
@@ -613,6 +617,46 @@ mod private
       self.last_camera_signature = camera_signature;
       self.has_rendered = true;
       Ok( &self.cmd_buf )
+    }
+
+    /// Settle each bucket's `opaque` / `occlude_overlap` for this frame,
+    /// before [`Self::render`] picks the single or the two-pass path.
+    ///
+    /// - With no depth buffer (see [`Self::set_depth_buffer`]) neither flag
+    ///   can work, so both are cleared and the frame takes the painter's-order
+    ///   pass.
+    /// - `alpha_clip` / `occlude_overlap` live on the batch params; a
+    ///   per-sprite `Sprite` / `ScreenSpaceSprite` draw has no clip and no
+    ///   `LESS` test. Drawn in the opaque pass such a sprite would write depth
+    ///   over its whole quad, transparent corners included, and punch holes in
+    ///   every layer under it. So an opaque bucket that has to draw anything
+    ///   per sprite this frame (a sorted bucket mixing sheets / blends / clip
+    ///   masks, or any viewport sprite) rides the transparent pass instead:
+    ///   painter's order, no depth writes, still hidden by nearer opaque
+    ///   layers. Batch params do not change (an opaque bucket's batches never
+    ///   carry `occlude_overlap`), so the live batches stay valid.
+    fn bucket_flags_settle( &self, buckets : &mut [ BucketEmits ] )
+    {
+      if !self.depth_buffer
+      {
+        for b in buckets.iter_mut()
+        {
+          b.opaque = false;
+          b.occlude_overlap = false;
+        }
+        return;
+      }
+      for ( i, b ) in buckets.iter_mut().enumerate()
+      {
+        if !b.opaque { continue; }
+        // A fully opaque layer has nothing to gain from single coverage (its
+        // overlaps are invisible), and `LESS` would flip which of two
+        // overlapping opaque tiles wins from last-drawn to first-drawn.
+        b.occlude_overlap = false;
+        let per_sprite = !b.sprites.is_empty()
+          && matches!( self.bucket_classify( i as u32, b ), BucketDispatch::PerSprite );
+        if per_sprite || !b.screen_space.is_empty() { b.opaque = false; }
+      }
     }
 
     /// Emit one bucket's draw commands into `cmd_buf` — batched or per-sprite

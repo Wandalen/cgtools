@@ -93,6 +93,7 @@ fn construct_load_submit_output_returns_matching_dimensions()
   .expect( "NativeBackend::new failed -- needs a Vulkan ICD (a software one such as lavapipe suffices)" );
 
   assert!( !backend.capabilities().premultiplied_images );
+  assert!( !backend.capabilities().depth, "native draws in command order, with no depth buffer" );
   let bitmap = centered_sprite_render( &mut backend, 64.0 );
 
   assert_eq!( bitmap.width, 64 );
