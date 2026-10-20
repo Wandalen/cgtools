@@ -178,6 +178,26 @@ mod tests
     assert_eq!( buffers[ 1 ].to_vec(), [ 0_u8; 12 ], "nothing is decoded" );
   }
 
+  /// A fallback buffer may name a uri, for loaders without meshopt support. `load` never
+  /// fetches it : the file named here does not exist, so fetching it would fail the load.
+  #[ wasm_bindgen_test( async ) ]
+  async fn load_never_fetches_a_fallback_buffers_uri()
+  {
+    let gl = gl_init();
+    let compressed = meshopt_attributes_encode( &triangle_bytes(), 12 );
+    let json = compressed_triangle_gltf( &compressed ).replace
+    (
+      r#"{ "byteLength" : 36, "extensions""#,
+      r#"{ "byteLength" : 36, "uri" : "no_such_fallback_file_is_ever_fetched.bin", "extensions""#
+    );
+    assert!( json.contains( "no_such_fallback_file_is_ever_fetched.bin" ), "the fallback names a uri" );
+    let uri = data_uri( "model/gltf+json", json.as_bytes() );
+
+    let loaded = gltf::load( &document(), &uri, &gl ).await.expect( "the fallback's uri is not fetched" );
+
+    assert_eq!( view_bytes_read( &gl, &loaded, 0, 36 ), triangle_bytes() );
+  }
+
   /// `load` allocates the fallback buffer instead of fetching it, decodes into it, and uploads
   /// the decoded positions.
   #[ wasm_bindgen_test( async ) ]
