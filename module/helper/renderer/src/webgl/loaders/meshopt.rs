@@ -42,8 +42,14 @@ mod private
   /// The original meshopt extension name.
   pub const EXT_MESHOPT_COMPRESSION : &str = "EXT_meshopt_compression";
 
-  /// The Khronos ratification of [`EXT_MESHOPT_COMPRESSION`] : the same schema, plus the
-  /// `COLOR` filter.
+  /// The Khronos ratification of [`EXT_MESHOPT_COMPRESSION`], with the same JSON schema. It
+  /// differs in :
+  /// - the bitstream : `ATTRIBUTES` data may use version 1 of the vertex codec ( header
+  ///   `0xa1`, with its channel and control modes ) besides EXT's version 0. The vendored
+  ///   decoder reads both, so nothing here depends on the version;
+  /// - the `COLOR` filter, for YCoCg-encoded colours;
+  /// - the rules : it drops EXT's "a parent `byteStride` matches the extension's", and forbids
+  ///   using both extensions on one buffer view or buffer.
   pub const KHR_MESHOPT_COMPRESSION : &str = "KHR_meshopt_compression";
 
   /// Why a buffer view or buffer carrying both meshopt extension objects is refused.
