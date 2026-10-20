@@ -214,6 +214,32 @@ fn accepts_every_layout_the_specs_allow()
   }
 }
 
+/// Every mode and filter name parses to the variant whose `as_str` gives it back : the
+/// decoder receives `as_str`, so a typo on either side would only show as a JS decode
+/// failure. Names a variant has no `as_str` for, or the reverse, would fail here.
+#[ test ]
+fn mode_and_filter_names_round_trip()
+{
+  for name in [ "ATTRIBUTES", "TRIANGLES", "INDICES" ]
+  {
+    let stride = if name == "ATTRIBUTES" { 4 } else { 2 };
+    let spec = MeshoptViewSpec::parse( EXT, &json!( { "buffer": 0, "byteLength": 8, "byteStride": stride, "count": 3, "mode": name } ) ).unwrap();
+    assert_eq!( spec.mode().as_str(), name );
+  }
+  for ( extension, names ) in
+  [
+    ( EXT, &[ "NONE", "OCTAHEDRAL", "QUATERNION", "EXPONENTIAL" ][ .. ] ),
+    ( "KHR_meshopt_compression", &[ "NONE", "OCTAHEDRAL", "QUATERNION", "EXPONENTIAL", "COLOR" ][ .. ] ),
+  ]
+  {
+    for &name in names
+    {
+      let spec = MeshoptViewSpec::parse( extension, &json!( { "buffer": 0, "byteLength": 8, "byteStride": 8, "count": 1, "mode": "ATTRIBUTES", "filter": name } ) ).unwrap();
+      assert_eq!( spec.filter().as_str(), name, "{extension}" );
+    }
+  }
+}
+
 #[ test ]
 fn the_color_filter_is_khr_only()
 {
