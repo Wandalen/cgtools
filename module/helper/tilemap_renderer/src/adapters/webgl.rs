@@ -70,6 +70,9 @@ mod private
     pub( super ) sprite : SpriteRenderer,
     pub( super ) mesh : MeshRenderer,
     pub( super ) max_texture_size : u32,
+    /// Whether the context has a depth buffer (`DEPTH_BITS > 0`), reported as
+    /// `Capabilities::depth`.
+    depth : bool,
 
     /// World→screen view matrix (column-major 3×3), pre-multiplied into every
     /// world-space draw's parent transform. Set once per frame via
@@ -135,6 +138,15 @@ mod private
         .and_then( | v | u32::try_from( v as i64 ).ok() )
         .unwrap_or( 2048 );
 
+      // Whether the context has a depth buffer: `depth : false` at context
+      // creation leaves it out, and then `DEPTH_TEST` does nothing. Read now,
+      // while the default framebuffer is bound.
+      let depth = gl
+        .get_parameter( gl::DEPTH_BITS )
+        .ok()
+        .and_then( | v | v.as_f64() )
+        .is_some_and( | bits | bits > 0.0 );
+
       let context_lost = Rc::new( Cell::new( false ) );
       Self::context_loss_listeners_register( &gl, &context_lost );
 
@@ -146,6 +158,7 @@ mod private
         sprite,
         mesh,
         max_texture_size,
+        depth,
         camera : IDENTITY_MAT3,
         recording_batch : None,
         render_targets : TargetSlots::new(),
@@ -1050,12 +1063,12 @@ mod private
       Ok( () )
     }
 
-    /// Computes this backend's declared `Capabilities` from its one
-    /// hardware-dependent input -- `max_texture_size` -- touching no
-    /// `WebGl2RenderingContext`/`web_sys` state, so it is testable without a
-    /// live GL context.
+    /// Computes this backend's declared `Capabilities` from its two
+    /// context-dependent inputs -- `max_texture_size` and whether the context
+    /// has a depth buffer -- touching no `WebGl2RenderingContext`/`web_sys`
+    /// state, so it is testable without a live GL context.
     #[ must_use ]
-    pub fn declared_capabilities( max_texture_size : u32 ) -> Capabilities
+    pub fn declared_capabilities( max_texture_size : u32, depth : bool ) -> Capabilities
     {
       Capabilities
       {
@@ -1076,10 +1089,9 @@ mod private
         text_on_path : false,
         // `blend_apply` and `shaders/tint.glsl` honour `ImageAsset::premultiplied`.
         premultiplied_images : true,
-        // `new` enables `DEPTH_TEST` / `LEQUAL`; this assumes the context has a
-        // depth buffer, the WebGL default ( `depth : false` at context creation
-        // leaves it out ).
-        depth : true,
+        // `new` enables `DEPTH_TEST` / `LEQUAL`, which only works when the
+        // context has a depth buffer; `new` reads `DEPTH_BITS` to find out.
+        depth,
         max_texture_size,
       }
     }
@@ -1310,7 +1322,7 @@ mod private
 
     fn capabilities( &self ) -> Capabilities
     {
-      Self::declared_capabilities( self.max_texture_size )
+      Self::declared_capabilities( self.max_texture_size, self.depth )
     }
   }
 

@@ -97,7 +97,7 @@ let Output::String( doc ) = svg.output()? else { unreachable!() };
 | Effects | yes | — | — | — | — | — |
 | Blend modes | yes | partial² | partial⁷ | — | —⁵ | —⁵ |
 | Premultiplied images | —⁸ | yes | —⁸ | — | —⁸ | —⁸ |
-| Depth buffer | — | yes | — | — | — | — |
+| Depth buffer | — | yes¹⁰ | — | — | — | — |
 | GPU camera | — | yes⁹ | — | — | — | — |
 | Viewport pan/zoom | yes | partial | — | — | — | — |
 
@@ -185,6 +185,9 @@ let Output::String( doc ) = svg.output()? else { unreachable!() };
 > move world draws. SVG's `viewport_offset_set` / `viewport_scale_set`
 > transform the whole document, `ScreenSpaceSprite`s included, so they are not a
 > replacement.
+>
+> ¹⁰ When the context has one: `WebGlBackend::new` reads `DEPTH_BITS`, so a context
+> created with `depth : false` reports `Capabilities::depth == false`.
 
 ## known issues / TODO
 

@@ -13,8 +13,13 @@ use minwebgl as gl;
 /// `gl::context::from_canvas_with` ).
 pub fn gl_init() -> gl::GL
 {
+  gl_init_with( gl::context::ContextOptions::default() )
+}
+
+/// [`gl_init`] with the given context creation `options`.
+pub fn gl_init_with( options : gl::context::ContextOptions ) -> gl::GL
+{
   gl::browser::setup( gl::browser::Config::default() );
-  let options = gl::context::ContextOptions::default();
   let canvas = gl::canvas::make().unwrap();
   gl::context::from_canvas_with( &canvas, options ).unwrap()
 }

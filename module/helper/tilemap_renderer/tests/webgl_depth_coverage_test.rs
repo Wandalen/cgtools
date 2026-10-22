@@ -16,7 +16,7 @@
 
 mod helpers;
 
-use helpers::webgl::gl_init;
+use helpers::webgl::{ gl_init, gl_init_with };
 use minwebgl as gl;
 use tilemap_renderer::adapters::webgl::WebGlBackend;
 use tilemap_renderer::assets::{ Assets, ImageAsset, ImageSource, PixelFormat, SpriteAsset };
@@ -153,6 +153,23 @@ fn sprite_batch( sheet : u32, sprite : u32, alpha_clip : f32, occlude_overlap : 
   commands.push( RenderCommand::UnbindBatch( UnbindBatch ) );
   commands.push( RenderCommand::DrawBatch( DrawBatch { batch } ) );
   commands
+}
+
+/// `Capabilities::depth` reports the context's real depth buffer, which
+/// `tilemap_scene` reads to decide whether its opaque pass can work. A context
+/// created with `depth : false` has none, so `DEPTH_TEST` does nothing there,
+/// and claiming one would draw opaque layers front to back with nothing to
+/// reject the farther ones.
+#[ wasm_bindgen_test ]
+fn capabilities_depth_follows_the_context_depth_buffer()
+{
+  let config = RenderConfig { width : WIDTH, height : HEIGHT, ..RenderConfig::default() };
+  let with_depth = WebGlBackend::new( config, gl_init() ).unwrap();
+  assert!( with_depth.capabilities().depth, "the default context has a depth buffer" );
+
+  let options = gl::context::ContextOptions { depth : false, ..Default::default() };
+  let without = WebGlBackend::new( config, gl_init_with( options ) ).unwrap();
+  assert!( !without.capabilities().depth, "a context created with depth : false has none" );
 }
 
 const RED : [ f32; 4 ] = [ 1.0, 0.0, 0.0, 1.0 ];
