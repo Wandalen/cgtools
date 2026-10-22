@@ -245,13 +245,13 @@ fn no_opaque_layer_takes_single_pass_path()
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// 2b. A backend without a depth buffer (`Renderer::set_depth_buffer( false )`)
+// 2b. A backend without a depth buffer (`Renderer::depth_buffer_set( false )`)
 //     gets the single painter's pass even from a spec with opaque and
 //     `occlude_overlap` layers: no `SetDepthWrite`, depth 0, declared order.
 // ────────────────────────────────────────────────────────────────────────────
 
 /// Without a depth buffer, opaque layers drawn topmost first would paint the
-/// lower layers over the upper ones. So `set_depth_buffer( false )` must give
+/// lower layers over the upper ones. So `depth_buffer_set( false )` must give
 /// the frame a spec with no flags would get, and switching it on a renderer
 /// that already drew must not replay the two-pass frame from the idle cache.
 #[ test ]
@@ -268,7 +268,7 @@ fn without_a_depth_buffer_flagged_layers_take_the_single_pass()
   assert!( !depth_write_sequence( &two_pass ).is_empty(), "with a depth buffer the flags split the frame" );
   flat.apply( &two_pass );
 
-  renderer.set_depth_buffer( false );
+  renderer.depth_buffer_set( false );
   let cmds = renderer.render( &scene, &Camera::default() ).expect( "render" ).to_vec();
   assert!( depth_write_sequence( &cmds ).is_empty(), "no depth buffer ⇒ no SetDepthWrite" );
   let sprites : Vec< _ > = flat.apply( &cmds ).into_iter()

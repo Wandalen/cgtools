@@ -52,7 +52,7 @@ mod private
   use crate::compile::assets::{ CompiledAssets, assets_compile };
   use crate::compile::camera::Camera;
   use crate::compile::error::CompileError;
-  use crate::compile::frame::{ BucketEmits, VertexResolveCache, gather_frame_emits };
+  use crate::compile::frame::{ BucketEmits, VertexResolveCache, frame_emits_gather };
   use crate::compile::resolver::AssetResolver;
   use crate::pipeline::SortMode;
   use crate::scene::Scene;
@@ -264,11 +264,11 @@ mod private
     /// off. Bit `i` set ⇒ the `i`-th `pipeline.layers` bucket emits nothing and
     /// its live GPU batches are released on the next render (they fall out of
     /// `used_keys`). `0` (default) draws every layer, so this is transparent to
-    /// consumers that never call [`Renderer::set_disabled_buckets`].
+    /// consumers that never call [`Renderer::disabled_buckets_set`].
     disabled_buckets : u64,
 
     /// Whether the backend has a depth buffer (see
-    /// [`Renderer::set_depth_buffer`]). `true` by default.
+    /// [`Renderer::depth_buffer_set`]). `true` by default.
     depth_buffer : bool,
   }
 
@@ -350,7 +350,7 @@ mod private
     /// **Must be called before the first `render()`** — it sets the next id to
     /// allocate, so calling it after batches already exist would remint live ids.
     #[ inline ]
-    pub fn set_batch_id_base( &mut self, base : u32 )
+    pub fn batch_id_base_set( &mut self, base : u32 )
     {
       self.next_batch_id = base;
     }
@@ -362,7 +362,7 @@ mod private
     /// layer. Changing the mask invalidates the idle-replay cache so the next
     /// [`Renderer::render`] re-walks the scene with the new selection.
     #[ inline ]
-    pub fn set_disabled_buckets( &mut self, mask : u64 )
+    pub fn disabled_buckets_set( &mut self, mask : u64 )
     {
       if mask != self.disabled_buckets
       {
@@ -381,7 +381,7 @@ mod private
     /// backend, without the overdraw saving or the single coverage. Changing
     /// it invalidates the idle-replay cache.
     #[ inline ]
-    pub fn set_depth_buffer( &mut self, available : bool )
+    pub fn depth_buffer_set( &mut self, available : bool )
     {
       if available != self.depth_buffer
       {
@@ -484,7 +484,7 @@ mod private
 
       // Disabled layers are skipped already at gather time — their vertex
       // resolve is the most expensive part of a miss, and nothing emits them.
-      let emits = gather_frame_emits( &self.compiled, scene, camera, Some( &mut self.vertex_cache ), self.disabled_buckets )?;
+      let emits = frame_emits_gather( &self.compiled, scene, camera, Some( &mut self.vertex_cache ), self.disabled_buckets )?;
 
       self.cmd_buf.clear();
       self.cmd_buf.push( RenderCommand::Clear( Clear { color : emits.clear_color } ) );
@@ -622,7 +622,7 @@ mod private
     /// Settle each bucket's `opaque` / `occlude_overlap` for this frame,
     /// before [`Self::render`] picks the single or the two-pass path.
     ///
-    /// - With no depth buffer (see [`Self::set_depth_buffer`]) neither flag
+    /// - With no depth buffer (see [`Self::depth_buffer_set`]) neither flag
     ///   can work, so both are cleared and the frame takes the painter's-order
     ///   pass.
     /// - `alpha_clip` / `occlude_overlap` live on the batch params; a
@@ -801,7 +801,7 @@ mod private
         else
         {
           // Sprite id not in the compiled assets — should be impossible
-          // since `gather_frame_emits` only emits sprite ids from the
+          // since `frame_emits_gather` only emits sprite ids from the
           // same `compiled` table. Skip defensively.
           continue;
         };

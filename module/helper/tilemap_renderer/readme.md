@@ -176,7 +176,7 @@ let Output::String( doc ) = svg.output()? else { unreachable!() };
 > **Depth buffer** is `Capabilities::depth`: the adapter honours `SetDepthWrite`,
 > `Transform::depth` and a batch's `occlude_overlap`. Without it every draw lands in
 > command order, so a caller that orders draws by depth must keep painter's order itself;
-> `tilemap_scene`'s `Renderer::set_depth_buffer( false )` does.
+> `tilemap_scene`'s `Renderer::depth_buffer_set( false )` does.
 >
 > ⁹ The GPU camera is WebGL only: `WebGlBackend::camera_set` is an inherent method, not
 > part of `Backend`, and no command carries a camera. The other adapters draw world

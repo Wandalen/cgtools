@@ -135,7 +135,7 @@ mod private
     /// `Transform::depth` and a batch's `occlude_overlap` `LESS` test. `false`
     /// means every draw lands in command order whatever its depth, so a caller
     /// that orders draws by depth must fall back to painter's order itself
-    /// ( `tilemap_scene`'s `Renderer::set_depth_buffer` does ).
+    /// ( `tilemap_scene`'s `Renderer::depth_buffer_set` does ).
     pub depth : bool,
     /// Maximum texture/image dimension. 0 = unlimited (e.g. SVG).
     pub max_texture_size : u32,

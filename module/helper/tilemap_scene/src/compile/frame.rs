@@ -414,7 +414,7 @@ mod private
 
   // ════════════════════════════════════════════════════════════════════════
   // Scene-driven rendering — entry points called by
-  // [`crate::renderer::Renderer::render`]. `gather_frame_emits` returns
+  // [`crate::renderer::Renderer::render`]. `frame_emits_gather` returns
   // structured per-bucket emit data the renderer turns into batched
   // commands; `render_into` is a thin wrapper that flattens emits into
   // a per-sprite command stream for tests / fall-back code paths.
@@ -434,7 +434,7 @@ mod private
   /// scene's spatial indexes has no live entry — this would only happen if
   /// the indexes were corrupted by mutation outside the documented
   /// `Scene` API.
-  /// Output of [`gather_frame_emits`] — per-bucket, structured emit
+  /// Output of [`frame_emits_gather`] — per-bucket, structured emit
   /// data the renderer needs to either flatten into per-sprite
   /// `RenderCommand`s or group into batches.
   pub struct FrameEmits
@@ -568,7 +568,7 @@ mod private
     Ok( Routed { hex : hex_work, free : free_work, reads_tiles : layers_read_tiles } )
   }
 
-  /// One hex-placed instance layer routed to a bucket by [`gather_frame_emits`].
+  /// One hex-placed instance layer routed to a bucket by [`frame_emits_gather`].
   struct HexWork< 'a >
   {
     inst : &'a Instance,
@@ -577,7 +577,7 @@ mod private
     pos : ( i32, i32 ),
   }
 
-  /// One free-placed instance layer routed to a bucket by [`gather_frame_emits`].
+  /// One free-placed instance layer routed to a bucket by [`frame_emits_gather`].
   struct FreeWork< 'a >
   {
     inst : &'a Instance,
@@ -651,7 +651,7 @@ mod private
   /// `skip` masks out pipeline layers the caller will not draw (bit `i` = layer
   /// `i`, the renderer's `disabled_buckets`): their bucket comes back empty and
   /// neither the vertex resolve nor the per-bucket walk runs for them.
-  pub fn gather_frame_emits
+  pub fn frame_emits_gather
   (
     compiled : &CompiledAssets,
     scene : &Scene,
@@ -794,7 +794,7 @@ mod private
   ///
   /// # Errors
   ///
-  /// Propagates errors from [`gather_frame_emits`].
+  /// Propagates errors from [`frame_emits_gather`].
   pub fn render_into
   (
     out : &mut Vec< RenderCommand >,
@@ -803,7 +803,7 @@ mod private
     camera : &Camera,
   ) -> Result< (), CompileError >
   {
-    let emits = gather_frame_emits( compiled, scene, camera, None, 0 )?;
+    let emits = frame_emits_gather( compiled, scene, camera, None, 0 )?;
     out.push( RenderCommand::Clear( Clear { color : emits.clear_color } ) );
     for bucket in emits.buckets
     {
@@ -814,7 +814,7 @@ mod private
   }
 
   /// Whether pipeline layer `index` is masked out by `skip` (bit `index`; layers
-  /// past bit 63 are never skipped, matching `Renderer::set_disabled_buckets`).
+  /// past bit 63 are never skipped, matching `Renderer::disabled_buckets_set`).
   pub( crate ) fn bucket_skipped( skip : u64, index : usize ) -> bool
   {
     index < 64 && skip & ( 1_u64 << index ) != 0
@@ -1395,7 +1395,7 @@ mod vertex_corners;
 mod_interface::mod_interface!
 {
   own use render_into;
-  own use gather_frame_emits;
+  own use frame_emits_gather;
   own use FrameEmits;
   own use BucketEmits;
   own use VertexResolveCache;

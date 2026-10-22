@@ -71,7 +71,7 @@ Both this walk and `format/004`'s load-time frame lookup therefore fail hard on 
 | File | Relationship |
 |------|--------------|
 | `src/renderer.rs` | `Renderer::render`, `cache_hits`, `cleanup`, signature/cache-replay logic |
-| `src/compile/frame.rs` | Per-frame emit gathering (`gather_frame_emits`) |
+| `src/compile/frame.rs` | Per-frame emit gathering (`frame_emits_gather`) |
 
 ### Tests
 

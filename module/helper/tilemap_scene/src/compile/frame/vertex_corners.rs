@@ -498,7 +498,7 @@ fn triangles_by_cell( triangles : &[ TriangleContext ] ) -> HashMap< ( i32, i32 
 /// Whether two resolved vertex buckets carry the same CONTENT — matching tile
 /// count, sprite frames, and world positions. Used to decide if a bucket's
 /// pulse anchor survives a re-resolve triggered by an unrelated scene mutation
-/// (see the `restart_on_spawn` carry-forward in `gather_frame_emits`). Ignores
+/// (see the `restart_on_spawn` carry-forward in `frame_emits_gather`). Ignores
 /// `pulse_anchor` (that is what's being decided) and the static per-layer tint /
 /// alpha / blend (never mutated at runtime). Positions compared bit-exact —
 /// both sides are recomputed identically from the same tile geometry.

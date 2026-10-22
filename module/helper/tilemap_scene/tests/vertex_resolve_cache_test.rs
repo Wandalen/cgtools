@@ -362,11 +362,11 @@ fn vertex_corners_reappear_when_a_disabled_layer_is_re_enabled()
   let scene = Scene::from_snapshot( &snap, Arc::new( spec.clone() ) ).expect( "scene" );
   let terrain = spec.pipeline.layers.iter().position( | l | l.id == "terrain" ).expect( "terrain layer" );
 
-  renderer.set_disabled_buckets( 1 << terrain );
+  renderer.disabled_buckets_set( 1 << terrain );
   let off = common::commands_to_sprites( renderer.render( &scene, &Camera::default() ).expect( "render" ) );
   assert!( !has_three_way_blend( &spec, &off ), "a disabled layer emits nothing" );
 
-  renderer.set_disabled_buckets( 0 );
+  renderer.disabled_buckets_set( 0 );
   let on = common::commands_to_sprites( renderer.render( &scene, &Camera::default() ).expect( "render" ) );
   assert!( has_three_way_blend( &spec, &on ), "re-enabled layer must re-resolve its vertex sprites" );
 }
