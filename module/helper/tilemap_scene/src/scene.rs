@@ -132,6 +132,9 @@ mod private
     target : bool,
     /// Current eased progress in `[0, 1]`.
     value : f32,
+    /// The effect's declared `FadeGate::duration_ms`, read once when the gate
+    /// is first driven.
+    duration_ms : f32,
   }
 
   /// The cell a `Placement::Hex` instance stands in — the only placement that
@@ -670,18 +673,31 @@ mod private
     /// make the next render re-walk instead of replaying the visible frame.
     /// Neither path touches `tiles_revision`, so the vertex-resolve cache
     /// stays valid.
-    pub fn fade_target_set( &mut self, effect_id : impl Into< String >, target : bool )
+    ///
+    /// Returns `false`, and changes nothing, when the spec declares no
+    /// `FadeGate` effect named `effect_id` (a typo, or a gate the spec
+    /// dropped): no layer could read such a target.
+    pub fn fade_target_set( &mut self, effect_id : impl Into< String >, target : bool ) -> bool
     {
       use std::collections::hash_map::Entry;
-      match self.fade_gates.entry( effect_id.into() )
+      let effect_id = effect_id.into();
+      let Some( duration_ms ) = self.spec.effects.iter()
+        .find( | e | e.id == effect_id )
+        .and_then( | e | if let EffectKind::FadeGate { duration_ms } = e.kind { Some( duration_ms ) } else { None } )
+      else
+      {
+        return false;
+      };
+      match self.fade_gates.entry( effect_id )
       {
         Entry::Occupied( mut e ) => { e.get_mut().target = target; },
         Entry::Vacant( e ) =>
         {
-          e.insert( FadeGateState { target, value : if target { 1.0 } else { 0.0 } } );
+          e.insert( FadeGateState { target, value : if target { 1.0 } else { 0.0 }, duration_ms } );
           if !target { self.revision += 1; }
         },
       }
+      true
     }
 
     /// Current eased progress in `[0, 1]` of the [`crate::resource::EffectKind::FadeGate`]
@@ -703,13 +719,10 @@ mod private
     /// walk — split out purely to keep both functions short.
     fn fade_gates_tick( &mut self, dt : f32 )
     {
-      for ( effect_id, state ) in &mut self.fade_gates
+      for state in self.fade_gates.values_mut()
       {
         let target_v = if state.target { 1.0 } else { 0.0 };
-        let duration_ms = self.spec.effects.iter()
-          .find( | e | &e.id == effect_id )
-          .and_then( | e | if let EffectKind::FadeGate { duration_ms } = e.kind { Some( duration_ms ) } else { None } )
-          .unwrap_or( 200.0 );
+        let duration_ms = state.duration_ms;
         let step = if duration_ms > 0.0 { ( 1000.0 / duration_ms ) * dt } else { 1.0 };
         state.value = if state.value < target_v
         {

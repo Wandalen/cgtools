@@ -5,6 +5,13 @@
 
 mod private
 {
+  use core::sync::atomic::{ AtomicU32, Ordering };
+
+  /// Source of every [`TargetSlots`] generation: each new table and each
+  /// clear takes the next value, so no two tables in the process ever share
+  /// one, and a handle from one backend never resolves in another's table.
+  static NEXT_GENERATION : AtomicU32 = AtomicU32::new( 0 );
+
   /// Handle to an offscreen cache surface, returned by
   /// [`WebGlBackend::render_target_create`]( crate::adapters::webgl::WebGlBackend::render_target_create ).
   ///
@@ -12,7 +19,8 @@ mod private
   /// belongs to. [`WebGlBackend::render_targets_reset`]( crate::adapters::webgl::WebGlBackend::render_targets_reset ) starts a new
   /// generation and reuses the slots, so a handle kept across a reset is
   /// rejected (the methods taking it do nothing) instead of silently
-  /// addressing whichever new surface took its slot.
+  /// addressing whichever new surface took its slot. Generations are unique
+  /// in the process, so a handle passed to another backend is rejected too.
   #[ derive( Debug, Clone, Copy, PartialEq, Eq, Hash ) ]
   pub struct RenderTargetId
   {
@@ -31,11 +39,11 @@ mod private
 
   impl< T > TargetSlots< T >
   {
-    /// An empty table at generation 0.
+    /// An empty table at a generation no other table has.
     #[ must_use ]
-    pub const fn new() -> Self
+    pub fn new() -> Self
     {
-      Self { items : Vec::new(), generation : 0 }
+      Self { items : Vec::new(), generation : NEXT_GENERATION.fetch_add( 1, Ordering::Relaxed ) }
     }
 
     /// Store `item` and return its handle; `None` only past `u32::MAX` slots.
@@ -59,7 +67,7 @@ mod private
     pub fn clear( &mut self )
     {
       self.items.clear();
-      self.generation = self.generation.wrapping_add( 1 );
+      self.generation = NEXT_GENERATION.fetch_add( 1, Ordering::Relaxed );
     }
   }
 

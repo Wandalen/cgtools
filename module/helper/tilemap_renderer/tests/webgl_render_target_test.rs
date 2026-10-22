@@ -22,6 +22,22 @@ fn target_slots_get_resolves_until_reset()
   assert_eq!( slots.get( b ), Some( &"b" ) );
 }
 
+/// Two tables, as two backends hold, never share a generation, so a handle
+/// from one is rejected by the other even at the same slot. If both started at
+/// the same generation, a cache handle passed to the wrong backend would draw
+/// that backend's own surface in its place.
+#[ test ]
+fn target_slots_get_rejects_another_tables_handle()
+{
+  let mut first = TargetSlots::new();
+  let mut second = TargetSlots::new();
+  let from_first = first.push( "first" ).expect( "slot" );
+  let from_second = second.push( "second" ).expect( "slot" );
+  assert_eq!( second.get( from_first ), None, "slot 0 of another table" );
+  assert_eq!( first.get( from_second ), None );
+  assert_eq!( first.get( from_first ), Some( &"first" ) );
+}
+
 /// After a reset the first push reuses slot 0 under a new generation, so the
 /// handle from before the reset no longer resolves. Without the generation it
 /// would silently address the new surface that took its slot.

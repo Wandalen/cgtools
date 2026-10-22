@@ -226,6 +226,39 @@ fn fade_gate_first_hide_invalidates_idle_replay()
   }
 }
 
+/// `fade_target_set` reports whether the spec declares a `FadeGate` with the
+/// id: an undeclared id (a typo, or a gate the spec dropped) changes nothing
+/// and returns `false`, instead of creating a gate no layer reads that would
+/// ease at a made-up duration.
+#[ test ]
+fn fade_target_set_reports_an_undeclared_effect()
+{
+  let mut spec = dual_orient_spec();
+  spec.effects.push( Effect
+  {
+    id : "dim_fade".into(),
+    kind : EffectKind::FadeGate { duration_ms : 100.0 },
+    phase_offset : PhaseOffset::None,
+  });
+  spec.effects.push( Effect
+  {
+    id : "pulse".into(),
+    kind : EffectKind::AlphaPulse { min : 0.0, max : 1.0, frequency : 1.0, restart_on_spawn : false },
+    phase_offset : PhaseOffset::None,
+  });
+  let mut scene = Scene::new( Arc::new( spec ) );
+  let revision = scene.revision();
+
+  assert!( !scene.fade_target_set( "dim_fdae", false ), "a typo names no effect" );
+  assert!( !scene.fade_target_set( "pulse", false ), "a pulse is not a fade gate" );
+  assert_eq!( scene.revision(), revision, "nothing changed" );
+  assert_eq!( scene.fade_value( "dim_fdae" ), 1.0 );
+
+  assert!( scene.fade_target_set( "dim_fade", false ), "the declared gate is driven" );
+  assert_eq!( scene.fade_value( "dim_fade" ), 0.0 );
+  assert_ne!( scene.revision(), revision );
+}
+
 /// `Scene::tiles_revision` moves only when the set of visible objects standing in
 /// hex cells changes — `FreePos` moves, same-cell moves, states and tints leave it.
 #[ test ]

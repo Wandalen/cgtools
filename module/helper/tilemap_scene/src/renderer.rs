@@ -386,11 +386,18 @@ mod private
     /// `base`, so give each co-resident renderer a disjoint range (e.g. `0`,
     /// `1&lt;&lt;24`, `2&lt;&lt;24`).
     ///
-    /// **Must be called before the first `render()`** — it sets the next id to
-    /// allocate, so calling it after batches already exist would remint live ids.
+    /// **Must be called before the first `render()`** (or right after
+    /// [`Self::cleanup`]) — it sets the next id to allocate, so calling it while
+    /// batches exist would remint live ids. Debug builds assert this.
     #[ inline ]
     pub fn batch_id_base_set( &mut self, base : u32 )
     {
+      debug_assert!
+      (
+        self.batches.is_empty(),
+        "batch_id_base_set with {} live batches: call it before the first render or after cleanup",
+        self.batches.len(),
+      );
       self.next_batch_id = base;
     }
 

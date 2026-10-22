@@ -544,6 +544,27 @@ fn replay_after_a_spawn_and_a_despawn_draws_each_sprite_once()
   assert_eq!( renderer.cache_hits(), 2 );
 }
 
+/// `batch_id_base_set` sets the next id to allocate, so it is only safe while
+/// no batch is live: later it would remint ids the backend already holds.
+/// Debug builds assert that, before the first render and after `cleanup`.
+#[ test ]
+#[ cfg( debug_assertions ) ]
+#[ should_panic( expected = "batch_id_base_set with 1 live batches" ) ]
+fn batch_id_base_set_with_live_batches_asserts_in_debug()
+{
+  let spec = spec_build();
+  let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
+  renderer.batch_id_base_set( 1 << 24 );
+  let mut scene = Scene::new( Arc::new( spec ) );
+  let grass = scene.object( "grass" ).unwrap();
+  let _ = scene.spawn( grass, Placement::Hex { q : 0, r : 0 } );
+  let _ = renderer.render( &scene, &Camera::default() ).expect( "render" );
+  let _ = renderer.cleanup();
+  renderer.batch_id_base_set( 2 << 24 );
+  let _ = renderer.render( &scene, &Camera::default() ).expect( "render" );
+  renderer.batch_id_base_set( 3 << 24 );
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // 7. After invalidation, the new render correctly repopulates the cache —
 //    a subsequent idle call hits again.
