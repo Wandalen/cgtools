@@ -80,7 +80,9 @@ mod private
     /// `occlude_overlap` (or [`opaque`](Self::opaque)) layer pins every
     /// bucket to its own depth, `pipeline_index / bucket_count`: a bucket sits
     /// strictly nearer than all the layers under it, so their depth never
-    /// blocks it, while a nearer opaque layer still hides it. Pair with a
+    /// blocks it, while a nearer opaque layer still hides it. The depths lie in
+    /// `[0, 1)`, so the backend's `RenderConfig::max_depth` must be at least
+    /// `1.0` (the default), or the GPU clips the upper buckets. Pair with a
     /// non-zero [`alpha_clip`](Self::alpha_clip) so the AA fringe doesn't
     /// write depth and block a neighbour. Ignored on an `opaque` layer.
     /// Default `false` = unchanged.

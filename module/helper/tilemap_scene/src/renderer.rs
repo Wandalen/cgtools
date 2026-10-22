@@ -575,8 +575,9 @@ mod private
 
       // Depth layout. When any bucket is opaque or `occlude_overlap`, each
       // bucket is pinned to its own depth slot = `pipeline_index /
-      // bucket_count` (kept in `[0, 1)` so the default `max_depth = 1.0` needs
-      // no change): a later (higher-index) layer sits strictly nearer than
+      // bucket_count`, kept in `[0, 1)`: the backend's `max_depth` must be at
+      // least the default `1.0`, or the GPU clips the upper slots (documented
+      // on `PipelineLayer::occlude_overlap` and `RenderConfig::max_depth`): a later (higher-index) layer sits strictly nearer than
       // every layer under it. That one layout serves both features without
       // any mid-frame depth clear:
       // - opaque layers occlude the layers they cover (nearer wins the test);
