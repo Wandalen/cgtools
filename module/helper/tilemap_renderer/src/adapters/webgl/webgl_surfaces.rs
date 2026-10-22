@@ -20,8 +20,8 @@ impl WebGlBackend
   // They are inherent methods (like `camera_set`), driven by the consumer
   // between `submit` calls — the `RenderCommand` stream and the other backends
   // are untouched. `submit` never sets the GL viewport: `new` (and a context
-  // restore, through `gl_state_init`) and `resize` set
-  // it to the canvas size, and every draw projects through `viewport_size`.
+  // restore, through `gl_state_init`) and `resize` set it to the canvas size,
+  // and every draw projects through `viewport_size`.
   // So `render_target_begin` sets both the GL viewport and `active_viewport`
   // (which `viewport_size` returns while a target is bound) to the target's
   // size, and `render_target_end` restores the canvas size.
