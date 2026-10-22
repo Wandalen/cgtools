@@ -288,6 +288,46 @@ fn without_a_depth_buffer_flagged_layers_take_the_single_pass()
   );
 }
 
+/// A batch's `occlude_overlap` and `alpha_clip` are fixed when it is created,
+/// so a settled flag that changes must not leave a live batch drawing under the
+/// old one. Switching the depth buffer off clears the `occlude_overlap` of the
+/// `top` bucket: from then on every batch drawn must carry `false`, which takes
+/// a new batch, and the old one must be deleted.
+#[ test ]
+fn a_batch_whose_flags_change_is_replaced()
+{
+  let spec = build_spec( [ ( false, false ), ( false, false ), ( false, true ) ] );
+  let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
+  let mut scene = Scene::new( Arc::new( spec ) );
+  spawn_one_per_bucket( &mut scene );
+
+  // Each live batch's `occlude_overlap`, as the backend holds it.
+  let mut live : HashMap< ResourceId< Batch >, bool > = HashMap::default();
+  let mut submit = | cmds : &[ RenderCommand ] | -> Vec< bool >
+  {
+    let mut drawn = Vec::new();
+    for c in cmds
+    {
+      match c
+      {
+        RenderCommand::CreateSpriteBatch( b ) => { live.insert( b.batch, b.params.occlude_overlap ); },
+        RenderCommand::DeleteBatch( d ) => { live.remove( &d.batch ); },
+        RenderCommand::DrawBatch( d ) => drawn.push( live[ &d.batch ] ),
+        _ => {},
+      }
+    }
+    drawn
+  };
+
+  let first = submit( renderer.render( &scene, &Camera::default() ).expect( "render" ) );
+  assert_eq!( first.iter().filter( | &&o | o ).count(), 1, "the `top` batch draws with occlude_overlap" );
+
+  renderer.depth_buffer_set( false );
+  let second = submit( renderer.render( &scene, &Camera::default() ).expect( "render" ) );
+  assert_eq!( second, vec![ false; 3 ], "every batch drawn without a depth buffer carries occlude_overlap = false" );
+  assert_eq!( live.len(), 3, "the replaced batch is deleted" );
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // 3. An `occlude_overlap` transparent bucket keeps depth writes ON for its own
 //    draws while the surrounding transparent pass has them off. Walk the

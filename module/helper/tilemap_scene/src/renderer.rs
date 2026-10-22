@@ -112,6 +112,12 @@ mod private
     /// enum carries no per-variant data today).
     blend : Discriminant< BlendMode >,
     clip : Option< ResourceId< asset::ClipMask > >,
+    /// The bucket's `alpha_clip` (as bits, for `Hash` / `Eq`) and its settled
+    /// `occlude_overlap`. They go into the batch's `SpriteBatchParams` when
+    /// it is created, so a change must make a new batch, not reuse the old
+    /// one under stale params.
+    alpha_clip : u32,
+    occlude_overlap : bool,
   }
 
   /// Emission strategy for one bucket, chosen per render.
@@ -270,7 +276,7 @@ mod private
     // sprite `Sprite` commands — `DrawBatch` draws the whole buffer,
     // and run-splitting would defeat batch reuse (see roadmap §2).
     // ──────────────────────────────────────────────────────────────────
-    /// Live batches keyed by `(bucket_idx, sheet, blend, clip)`. Entries
+    /// Live batches keyed by [`BatchKey`]. Entries
     /// are added on first encounter and removed via `DeleteBatch` when
     /// a render no longer emits any instance for that key.
     batches : HashMap< BatchKey, BatchEntry >,
@@ -726,11 +732,6 @@ mod private
       used_keys : &mut Vec< BatchKey >,
     )
     {
-      // Per-bucket draw state (Copy) — captured before `bucket.sprites` is
-      // moved below, then forwarded into every `SpriteBatchParams`.
-      let bucket_alpha_clip = bucket.alpha_clip;
-      let bucket_occlude = bucket.occlude_overlap;
-
       // Decide emission strategy. `DrawBatch` is emitted inline at the end of
       // each bucket's prep so the cross-bucket draw order (batched vs
       // per-sprite) follows the consumer's declared pipeline.
@@ -744,10 +745,10 @@ mod private
           // is the bucket's pre-sorted order, which for `SortMode::None` is the
           // spawn / iteration order from `Scene` — stable across frames given
           // identical state.
-          let groups = self.sprites_group( bucket_idx, &bucket.sprites );
+          let groups = self.sprites_group( bucket_idx, &bucket );
           for ( key, sprites_in_group ) in groups
           {
-            self.batch_emit_or_update( key, sprites_in_group, bucket_alpha_clip, bucket_occlude );
+            self.batch_emit_or_update( key, sprites_in_group );
             used_keys.push( key );
             let id = self.batches.get( &key ).expect( "just inserted" ).id;
             self.cmd_buf.push( RenderCommand::DrawBatch( DrawBatch { batch : id } ) );
@@ -758,7 +759,7 @@ mod private
           // Single-key sorted bucket: one batch, instance-buffer order matches
           // sort order so a single `DrawBatch` preserves visual correctness
           // without per-sprite emission.
-          self.batch_emit_or_update( key, bucket.sprites, bucket_alpha_clip, bucket_occlude );
+          self.batch_emit_or_update( key, bucket.sprites );
           used_keys.push( key );
           let id = self.batches.get( &key ).expect( "just inserted" ).id;
           self.cmd_buf.push( RenderCommand::DrawBatch( DrawBatch { batch : id } ) );
@@ -831,7 +832,15 @@ mod private
       }
       BucketDispatch::BatchedPreserveOrder
       {
-        key : BatchKey { bucket_idx, sheet, blend, clip },
+        key : BatchKey
+        {
+          bucket_idx,
+          sheet,
+          blend,
+          clip,
+          alpha_clip : bucket.alpha_clip.to_bits(),
+          occlude_overlap : bucket.occlude_overlap,
+        },
       }
     }
 
@@ -843,9 +852,10 @@ mod private
     (
       &self,
       bucket_idx : u32,
-      sprites : &[ Sprite ],
+      bucket : &BucketEmits,
     ) -> Vec< ( BatchKey, Vec< Sprite > ) >
     {
+      let sprites = &bucket.sprites;
       let mut groups : Vec< ( BatchKey, Vec< Sprite > ) > = Vec::new();
       let mut index_of : HashMap< BatchKey, usize > = HashMap::default();
       for sprite in sprites
@@ -864,6 +874,8 @@ mod private
           sheet,
           blend : core::mem::discriminant( &sprite.blend ),
           clip : sprite.clip,
+          alpha_clip : bucket.alpha_clip.to_bits(),
+          occlude_overlap : bucket.occlude_overlap,
         };
         if let Some( &i ) = index_of.get( &key )
         {
@@ -886,8 +898,6 @@ mod private
       &mut self,
       key : BatchKey,
       sprites : Vec< Sprite >,
-      alpha_clip : f32,
-      occlude_overlap : bool,
     )
     {
       if let Some( entry ) = self.batches.get_mut( &key )
@@ -969,8 +979,8 @@ mod private
             sheet : key.sheet,
             blend,
             clip : key.clip,
-            alpha_clip,
-            occlude_overlap,
+            alpha_clip : f32::from_bits( key.alpha_clip ),
+            occlude_overlap : key.occlude_overlap,
           },
         }));
         self.cmd_buf.push( RenderCommand::BindBatch( BindBatch { batch : id } ) );
