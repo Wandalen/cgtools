@@ -324,6 +324,26 @@ mod private
       false
     }
 
+    /// Returns `true` if this material exists purely to write depth (its
+    /// `color_write_mask()` is normally `(false,false,false,false)`) so that
+    /// later-drawn opaque geometry behind it is correctly hidden by the
+    /// standard depth test — e.g. a real-world object occluding part of a
+    /// virtual one in AR. The opaque pass sorts occluders first regardless
+    /// of `has_emission()`, since draw order (not just depth-test state)
+    /// determines whether an occluder can retract already-written color.
+    ///
+    /// Only the opaque pass reads the flag. A material whose `alpha_mode()` is
+    /// `AlphaMode::Blend` goes to the transparent pass, which ignores it: that
+    /// pass doesn't write depth, so it can't occlude anything. `ScenePicker`
+    /// doesn't read it either: it draws every visible mesh into the id buffer,
+    /// occluders included, so an occluder hides picks behind it just as it hides
+    /// the geometry behind it. Return `PICK_ID_NONE` for it from the id callback
+    /// to keep it unpickable itself.
+    fn is_occluder( &self ) -> bool
+    {
+      false
+    }
+
     /// Returns `true` if the shader defines have changed and the shader
     /// program needs to be recompiled.
     fn needs_recompile( &self ) -> bool
