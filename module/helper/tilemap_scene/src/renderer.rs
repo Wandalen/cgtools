@@ -182,6 +182,29 @@ mod private
       && a.depth.to_bits() == b.depth.to_bits()
   }
 
+  /// Whether `cmd` draws, as opposed to editing a batch. An idle replay keeps
+  /// only these: the batch edits of the frame it repeats already reached the
+  /// backend, and applying them again is not a no-op.
+  fn command_draws( cmd : &RenderCommand ) -> bool
+  {
+    !matches!
+    (
+      cmd,
+      RenderCommand::CreateSpriteBatch( _ )
+        | RenderCommand::CreateMeshBatch( _ )
+        | RenderCommand::BindBatch( _ )
+        | RenderCommand::AddSpriteInstance( _ )
+        | RenderCommand::AddMeshInstance( _ )
+        | RenderCommand::SetSpriteInstance( _ )
+        | RenderCommand::SetMeshInstance( _ )
+        | RenderCommand::RemoveInstance( _ )
+        | RenderCommand::SetSpriteBatchParams( _ )
+        | RenderCommand::SetMeshBatchParams( _ )
+        | RenderCommand::UnbindBatch( _ )
+        | RenderCommand::DeleteBatch( _ )
+    )
+  }
+
   /// Retained-mode renderer.
   ///
   /// Holds the compiled asset table plus reusable per-frame buffers.
@@ -190,10 +213,16 @@ mod private
   {
     compiled : CompiledAssets,
     /// Output command buffer — held across frames so that an idle frame
-    /// (no scene / camera / clock change) can return the previously
-    /// emitted slice verbatim without re-running the per-frame walk.
-    /// On a cache miss the buffer is cleared and refilled.
+    /// (no scene / camera / clock change) can draw the previous frame again
+    /// without re-running the per-frame walk. On a cache miss the buffer is
+    /// cleared and refilled; the first hit after it strips the batch edits
+    /// (see [`Self::replay_draw_only`]).
     cmd_buf : Vec< RenderCommand >,
+    /// Whether `cmd_buf` holds only draw commands. A miss fills it with the
+    /// frame's batch edits too (create, bind, instance diffs, unbind,
+    /// delete), which the backend applies once; the first hit drops them,
+    /// so a replay only draws the frame again.
+    replay_draw_only : bool,
 
     // ──────────────────────────────────────────────────────────────────
     // Per-renderer delta cache.
@@ -302,6 +331,7 @@ mod private
       {
         compiled,
         cmd_buf : Vec::new(),
+        replay_draw_only : false,
         last_scene_revision : 0,
         last_clock : 0.0,
         last_camera_signature : CameraSignature
@@ -322,8 +352,7 @@ mod private
     }
 
     /// Number of `render()` calls served from the per-frame cache (i.e.
-    /// returned the previously emitted command slice without re-walking
-    /// the scene). Stable across renderer lifetime — does not reset.
+    /// drew the previous frame again without re-walking the scene). Stable across renderer lifetime — does not reset.
     #[ inline ]
     #[ must_use ]
     pub fn cache_hits( &self ) -> u64 { self.cache_hits }
@@ -440,7 +469,8 @@ mod private
     /// **Idle-replay cache.** When the scene's revision, clock, and the
     /// camera fingerprint all match the values captured on the previous
     /// successful call, the renderer skips the per-frame scene walk and
-    /// returns the previously emitted command slice verbatim. This
+    /// returns the previous frame's draw commands: the same stream without
+    /// its batch edits, which the backend already applied. This
     /// closes feedback §9 (`compile_frame` rebuilds the whole command
     /// stream every frame) for the common idle case where the
     /// consumer drives a continuous redraw loop but the world hasn't
@@ -475,7 +505,21 @@ mod private
         && clock.to_bits() == self.last_clock.to_bits()
         && camera_signature == self.last_camera_signature
       {
-        // Idle replay — buffer from previous render is still valid.
+        // Fix(BUG-541): an idle replay returns the previous frame's draw
+        // commands only.
+        // Root cause: the replay returned the miss's whole stream, batch edits
+        // included. The caller submits every `render` result, so the backend
+        // applied them a second time: `CreateSpriteBatch` reallocated the
+        // batch, `AddSpriteInstance` drew a ghost copy of each added sprite,
+        // and `RemoveInstance` removed one more instance or failed its bounds
+        // check.
+        // Pitfall: everything `render` returns is submitted once per call,
+        // so a cached stream must be safe to apply again.
+        if !self.replay_draw_only
+        {
+          self.cmd_buf.retain( command_draws );
+          self.replay_draw_only = true;
+        }
         self.cache_hits += 1;
         return Ok( &self.cmd_buf );
       }
@@ -487,6 +531,7 @@ mod private
       let emits = frame_emits_gather( &self.compiled, scene, camera, Some( &mut self.vertex_cache ), self.disabled_buckets )?;
 
       self.cmd_buf.clear();
+      self.replay_draw_only = false;
       self.cmd_buf.push( RenderCommand::Clear( Clear { color : emits.clear_color } ) );
 
       // Track which batches were touched this frame; anything in

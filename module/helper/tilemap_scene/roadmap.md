@@ -83,8 +83,9 @@ pipeline is exercised only by this crate's own tests.
   carries a per-frame cache across calls.
   - **Idle-replay:** when `(scene.revision, scene.clock, camera
     fingerprint)` matches the snapshot from the previous call, returns
-    the previously emitted command slice verbatim — no scene walk,
-    no command rebuild. Exposed via `Renderer::cache_hits()` for
+    the previous frame's draw commands without its batch edits, which
+    the backend already applied (BUG-541) — no scene walk, no command
+    rebuild. Exposed via `Renderer::cache_hits()` for
     consumer telemetry. The camera fingerprint deliberately EXCLUDES
     `world_center`: world-space draws carry world coordinates and the
     backend applies the pan as a GPU view matrix (`Camera::to_view_mat3`),

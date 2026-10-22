@@ -354,11 +354,11 @@ fn fallback_sprite_commands_sit_between_pipeline_drawbatches()
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// 6. Cache: idle replay of a sorted batch is byte-equal to the priming slice.
+// 6. Cache: idle replay of a sorted batch draws what the priming frame drew.
 // ────────────────────────────────────────────────────────────────────────────
 
 #[ test ]
-fn idle_replay_byte_equal_for_sorted_batch()
+fn idle_replay_draws_the_priming_frame_for_sorted_batch()
 {
   let spec = spec_build();
   let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
@@ -373,7 +373,12 @@ fn idle_replay_byte_equal_for_sorted_batch()
   let replayed : Vec< RenderCommand > = renderer.render( &scene, &camera ).expect( "replay" ).to_vec();
 
   assert_eq!( renderer.cache_hits(), hits_before + 1, "second call hits cache" );
-  assert_eq!( primed.len(), replayed.len(), "replay slice length matches" );
+  // Submitted to one backend in order: the replay draws the same sprites in
+  // the same order, without re-applying the priming frame's batch edits.
+  let mut backend = common::BatchFlattener::new();
+  let primed_drawn = format!( "{:?}", backend.apply( &primed ) );
+  let replayed_drawn = format!( "{:?}", backend.apply( &replayed ) );
+  assert_eq!( primed_drawn, replayed_drawn, "the replay draws the priming frame again" );
 }
 
 // ────────────────────────────────────────────────────────────────────────────

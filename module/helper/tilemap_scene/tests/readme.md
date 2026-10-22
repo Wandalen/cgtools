@@ -25,7 +25,7 @@ Two levels coexist:
 | hex_config_test.rs | HexConfig::from_hex_size grid-stride arithmetic |
 | layer_tint_compile_test.rs | LayerBehaviour.tint (None pass-through, Flat composition, Masked and non-Multiply tint rejection) through every sprite-emitting compile pass |
 | opaque_pass_test.rs | Opaque/transparent bucket split, per-bucket depth pinning, single coverage across batches and under opaque layers, and the single painter's pass without a depth buffer (`Renderer::depth_buffer_set`) |
-| renderer_cache_test.rs | Renderer per-frame idle-replay and camera-pan cache-hit acceptance |
+| renderer_cache_test.rs | Renderer per-frame idle-replay and camera-pan cache-hit acceptance; a replay submitted to one backend draws the frame again without repeating its batch edits (BUG-541) |
 | renderer_test.rs | Renderer asset-compile-once and per-instance override contract |
 | ron_syntax_error_test.rs | Invalid RON reported as `LoadError::Ron`, kept distinct from validation failures |
 | scene_events_test.rs | Scene::tick event-stream semantics |
