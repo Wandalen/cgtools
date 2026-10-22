@@ -214,6 +214,33 @@ fn accepts_every_layout_the_specs_allow()
   }
 }
 
+/// `OCTAHEDRAL` and `COLOR` decode 4- or 8-byte elements only, and `QUATERNION` 8-byte ones :
+/// each is accepted at its strides and refused, with the stride named, at the others.
+#[ test ]
+fn filters_accept_only_their_strides()
+{
+  let parse = | extension : &str, filter : &str, stride : u64 |
+    MeshoptViewSpec::parse( extension, &json!( { "buffer": 0, "byteLength": 8, "byteStride": stride, "count": 2, "mode": "ATTRIBUTES", "filter": filter } ) );
+  for ( extension, filter ) in [ ( EXT, "OCTAHEDRAL" ), ( "KHR_meshopt_compression", "OCTAHEDRAL" ), ( "KHR_meshopt_compression", "COLOR" ) ]
+  {
+    for stride in [ 4, 8 ]
+    {
+      let spec = parse( extension, filter, stride );
+      assert_eq!( spec.map( | s | s.filter().as_str() ), Ok( filter ), "{extension} {filter} with byteStride {stride}" );
+    }
+    for stride in [ 12, 16 ]
+    {
+      assert_eq!
+      (
+        parse( extension, filter, stride ),
+        Err( format!( "filter {filter} does not support byteStride {stride}" ) ),
+        "{extension} {filter} with byteStride {stride}"
+      );
+    }
+  }
+  assert_eq!( parse( EXT, "QUATERNION", 4 ), Err( "filter QUATERNION does not support byteStride 4".to_owned() ) );
+}
+
 /// Every mode and filter name parses to the variant whose `as_str` gives it back : the
 /// decoder receives `as_str`, so a typo on either side would only show as a JS decode
 /// failure. Names a variant has no `as_str` for, or the reverse, would fail here.
