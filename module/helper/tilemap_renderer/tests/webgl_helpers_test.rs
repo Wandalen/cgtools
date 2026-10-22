@@ -10,74 +10,100 @@
 use tilemap_renderer::adapters::webgl::webgl_helpers::internal::{ mat3_mul, StagedUpload, StagedVec };
 use tilemap_renderer::types::Transform;
 
+/// The pending upload for an unlimited buffer, recorded as done, as
+/// `ArrayBuffer::flush` does after a successful GL write.
+fn take( v : &mut StagedVec< u32 > ) -> StagedUpload
+{
+  let upload = v.upload_pending( u32::MAX ).expect( "an unlimited buffer fits any length" );
+  v.upload_done( upload );
+  upload
+}
+
 /// Pushes that stay within the GPU capacity upload as one range, and once
 /// taken the upload is not repeated. A repeat would re-send the buffer every
 /// frame although nothing changed.
 #[ test ]
-fn staged_vec_take_upload_pushes_within_capacity_as_one_range()
+fn staged_vec_upload_pushes_within_capacity_as_one_range()
 {
   let mut v = StagedVec::new( 16 );
   for i in 0..10_u32 { v.push( i ); }
-  assert_eq!( v.take_upload(), StagedUpload::Range { start : 0, end : 10 } );
-  assert_eq!( v.take_upload(), StagedUpload::None, "an upload is recorded as done" );
+  assert_eq!( take( &mut v ), StagedUpload::Range { start : 0, end : 10 } );
+  assert_eq!( take( &mut v ), StagedUpload::None, "an upload is recorded as done" );
 }
 
 /// Growing past the GPU capacity asks for one reallocation with headroom, and
 /// a push that fits after it uploads only itself. Without the headroom every
 /// push past capacity would reallocate the buffer again.
 #[ test ]
-fn staged_vec_take_upload_reallocates_once_past_capacity()
+fn staged_vec_upload_reallocates_once_past_capacity()
 {
   let mut v = StagedVec::new( 16 );
   for i in 0..40_u32 { v.push( i ); }
-  assert_eq!( v.take_upload(), StagedUpload::Realloc { capacity : 60 } );
+  assert_eq!( take( &mut v ), StagedUpload::Realloc { capacity : 60 } );
   v.push( 40 );
-  assert_eq!( v.take_upload(), StagedUpload::Range { start : 40, end : 41 }, "fits after the realloc" );
+  assert_eq!( take( &mut v ), StagedUpload::Range { start : 40, end : 41 }, "fits after the realloc" );
   for i in 0..40_u32 { v.push( i ); }
-  assert_eq!( v.take_upload(), StagedUpload::Realloc { capacity : 121 } );
+  assert_eq!( take( &mut v ), StagedUpload::Realloc { capacity : 121 } );
+}
+
+/// `upload_pending` records nothing, and an upload that does not fit the
+/// buffer's limit is refused: the next attempt still sees the whole dirty
+/// state. The capacity is capped at the limit. If a refused or failed upload
+/// had been recorded, the next one would skip the reallocation and the GPU
+/// would draw past the end of its buffer.
+#[ test ]
+fn staged_vec_upload_pending_records_nothing_and_respects_the_limit()
+{
+  let mut v = StagedVec::new( 4 );
+  for i in 0..10_u32 { v.push( i ); }
+  assert_eq!( v.upload_pending( 8 ), None, "10 elements do not fit a buffer of at most 8" );
+  assert_eq!( v.upload_pending( 12 ), Some( StagedUpload::Realloc { capacity : 12 } ), "growth stops at the limit" );
+  assert_eq!( v.upload_pending( 12 ), Some( StagedUpload::Realloc { capacity : 12 } ), "asking again changes nothing" );
+  assert_eq!( take( &mut v ), StagedUpload::Realloc { capacity : 15 } );
+  assert_eq!( take( &mut v ), StagedUpload::None, "recorded once done" );
 }
 
 /// Scattered sets and a swap-remove merge into the one range that covers all
 /// of them, and the remove moves the last item into the hole. A frame with a
 /// few edits then costs one `bufferSubData`, not one per edit.
 #[ test ]
-fn staged_vec_take_upload_merges_sets_and_removes_into_one_range()
+fn staged_vec_upload_merges_sets_and_removes_into_one_range()
 {
   let mut v = StagedVec::new( 8 );
   for i in 0..8_u32 { v.push( i ); }
-  let _ = v.take_upload();
+  let _ = take( &mut v );
   v.set( 5, 50 );
   v.set( 2, 20 );
   assert_eq!( v.swap_remove( 3 ), 7 );
   assert_eq!( v.items(), &[ 0, 1, 20, 7, 4, 50, 6 ] );
-  assert_eq!( v.take_upload(), StagedUpload::Range { start : 2, end : 6 } );
+  assert_eq!( take( &mut v ), StagedUpload::Range { start : 2, end : 6 } );
 }
 
 /// Removing from the tail only shortens the drawn count, so nothing is
 /// uploaded. The GPU copy below the new length is already correct.
 #[ test ]
-fn staged_vec_take_upload_skips_tail_removes()
+fn staged_vec_upload_skips_tail_removes()
 {
   let mut v = StagedVec::new( 8 );
   for i in 0..8_u32 { v.push( i ); }
-  let _ = v.take_upload();
+  let _ = take( &mut v );
   v.swap_remove( 7 );
   v.swap_remove( 6 );
-  assert_eq!( v.take_upload(), StagedUpload::None );
+  assert_eq!( take( &mut v ), StagedUpload::None );
   assert_eq!( v.len(), 6 );
 }
 
 /// A set on an item that is then removed from the tail uploads nothing: the
 /// edited item is no longer drawn. Uploading it would write past the length.
 #[ test ]
-fn staged_vec_take_upload_drops_a_set_truncated_away()
+fn staged_vec_upload_drops_a_set_truncated_away()
 {
   let mut v = StagedVec::new( 8 );
   for i in 0..8_u32 { v.push( i ); }
-  let _ = v.take_upload();
+  let _ = take( &mut v );
   v.set( 7, 70 );
   v.swap_remove( 7 );
-  assert_eq!( v.take_upload(), StagedUpload::None );
+  assert_eq!( take( &mut v ), StagedUpload::None );
 }
 
 // --- mat3_mul ---

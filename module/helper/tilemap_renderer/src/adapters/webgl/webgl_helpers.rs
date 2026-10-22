@@ -19,7 +19,7 @@ mod private
   // ============================================================================
 
   /// What an [`ArrayBuffer`] must send to the GPU to catch up with its staged
-  /// contents — see [`StagedVec::take_upload`].
+  /// contents — see [`StagedVec::upload_pending`].
   #[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
   pub enum StagedUpload
   {
@@ -46,9 +46,10 @@ mod private
   /// the GPU copy is missing. Kept GL-free so the bookkeeping is unit-testable.
   ///
   /// Every mutation only touches the `Vec` and widens one dirty range;
-  /// [`Self::take_upload`] then reports a single upload covering everything
-  /// changed since the last call. Batching this way turns N instance writes into
-  /// one `bufferSubData` instead of N bind/upload/unbind triples.
+  /// [`Self::upload_pending`] then reports a single upload covering everything
+  /// changed since the last [`Self::upload_done`]. Batching this way turns N
+  /// instance writes into one `bufferSubData` instead of N bind/upload/unbind
+  /// triples.
   #[ derive( Debug ) ]
   pub struct StagedVec< T >
   {
@@ -114,26 +115,46 @@ mod private
       self.len()
     }
 
-    /// The upload that brings the GPU copy up to date, and records it as done.
-    /// Removing from the tail needs no upload: the GPU just draws fewer elements.
-    pub fn take_upload( &mut self ) -> StagedUpload
+    /// The upload that brings the GPU copy up to date, for a GPU buffer that
+    /// can hold at most `max_capacity` elements, or `None` when the staged
+    /// elements alone are more than that. Removing from the tail needs no
+    /// upload: the GPU just draws fewer elements.
+    ///
+    /// Records nothing: the caller performs the upload and then reports it
+    /// with [`Self::upload_done`], so an upload that fails leaves the capacity
+    /// and the dirty range as they were, and the next attempt asks again.
+    #[ must_use ]
+    pub fn upload_pending( &self, max_capacity : u32 ) -> Option< StagedUpload >
     {
       let len = self.len();
-      let dirty = self.dirty.take();
       if len > self.gpu_capacity
       {
+        if len > max_capacity { return None; }
         // Headroom both ways: at least double (steady growth) and at least 1.5×
-        // the new length (a big jump), so the next few pushes don't realloc again.
-        self.gpu_capacity = self.gpu_capacity.saturating_mul( 2 )
+        // the new length (a big jump), so the next few pushes don't realloc
+        // again; never past what the buffer can hold.
+        let capacity = self.gpu_capacity.saturating_mul( 2 )
           .max( len.saturating_add( len / 2 ) )
-          .max( 4 );
-        return StagedUpload::Realloc { capacity : self.gpu_capacity };
+          .max( 4 )
+          .min( max_capacity );
+        return Some( StagedUpload::Realloc { capacity } );
       }
-      match dirty
+      Some( match self.dirty
       {
         Some( ( start, end ) ) if start < end.min( len ) => StagedUpload::Range { start, end : end.min( len ) },
         _ => StagedUpload::None,
+      })
+    }
+
+    /// Records `upload`, as returned by [`Self::upload_pending`], as done: the
+    /// GPU buffer has its capacity and holds every staged element.
+    pub fn upload_done( &mut self, upload : StagedUpload )
+    {
+      if let StagedUpload::Realloc { capacity } = upload
+      {
+        self.gpu_capacity = capacity;
       }
+      self.dirty = None;
     }
 
     fn mark( &mut self, index : u32 )
@@ -247,11 +268,17 @@ mod private
     /// Upload everything staged since the last flush in one GL write.
     ///
     /// # Errors
-    /// Returns `WebglError` if the grown buffer size overflows the WebGL limit.
+    /// Returns `WebglError` if the staged elements need more bytes than a
+    /// WebGL buffer can hold ( `i32::MAX` ). The buffer is then left as it
+    /// was: the elements stay staged, and [`Self::gpu_len`] keeps counting
+    /// the ones on the GPU.
     pub fn flush( &mut self ) -> Result< (), gl::WebglError >
     {
       let stride = Self::stride();
-      match self.staged.take_upload()
+      let max_capacity = i32::MAX.unsigned_abs() / stride.max( 1 );
+      let upload = self.staged.upload_pending( max_capacity )
+        .ok_or( gl::WebglError::FailedToAllocateResource( "Buffer" ) )?;
+      match upload
       {
         StagedUpload::None => {},
         StagedUpload::Realloc { capacity } =>
@@ -270,6 +297,7 @@ mod private
           self.gl.bind_buffer( gl::ARRAY_BUFFER, None );
         },
       }
+      self.staged.upload_done( upload );
       self.gpu_len = self.staged.len();
       Ok( () )
     }
