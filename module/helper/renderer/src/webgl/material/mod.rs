@@ -154,6 +154,47 @@ mod private
       None
     }
 
+    /// Returns `true` if this material renders as transmissive ( refracts the
+    /// captured opaque scene behind it ). Such primitives are routed to the
+    /// dedicated transmission pass ( OpenPBR adoption plan §3.3 ) between the
+    /// opaque and the transparent-OIT passes.
+    fn transmission_active( &self ) -> bool
+    {
+      false
+    }
+
+    /// Returns the base texture unit for the transmission target, or `None` if
+    /// the material does not sample it. The renderer binds the transmission
+    /// color to this unit and the transmission depth to `unit + 1`, mirroring
+    /// [`Self::ibl_base_texture_unit`]'s contract. Materials returning `Some`
+    /// must declare, under the matching define:
+    ///
+    /// ```glsl
+    /// uniform sampler2D transmissionSampler;
+    /// uniform sampler2D transmissionDepthSampler;
+    /// ```
+    fn transmission_texture_unit( &self ) -> Option< u32 >
+    {
+      None
+    }
+
+    /// Returns `true` when the material carries an authored geometric thickness
+    /// for the transmissive slab, and `false` when the renderer should supply one
+    /// from the size of the primitive being drawn ( see
+    /// [`fallback_slab_thickness`](transmission::fallback_slab_thickness), which
+    /// also records the thin-walled alternative this project did not take ).
+    ///
+    /// The distinction exists because OpenPBR has no geometric-thickness
+    /// parameter : a `.mtlx` / `.usda` surface arrives with nothing to offset the
+    /// refracted ray by, while a glTF material carrying `KHR_materials_volume`
+    /// does. Defaulting to `false` is the safe answer - a material that never
+    /// heard of the transmission pass has certainly not authored a thickness, and
+    /// the override only ever reaches materials the pass actually draws.
+    fn transmission_thickness_authored( &self ) -> bool
+    {
+      false
+    }
+
     /// Returns reference to [`ProgramInfo`](crate::webgl::ProgramInfo) with shader locations and used [`ShaderProgram`]
     fn shader_program_make( &self, gl : &gl::WebGl2RenderingContext, program : &gl::WebGlProgram ) -> Box< dyn ShaderProgram >;
 
@@ -358,16 +399,26 @@ mod private
   /// The vertex and fragment sources the renderer compiles for `material`: the `#version 300 es`
   /// header, each stage's own defines, `USE_IBL` in the fragment stage only when `use_ibl`, then
   /// the stage's source.
+  #[ cfg( feature = "test_internals" ) ]
   #[ must_use ]
   pub fn shader_sources( material : &dyn Material, use_ibl : bool ) -> ( String, String )
+  {
+    shader_sources_with_defines( material, use_ibl, "" )
+  }
+
+  /// [`shader_sources`] plus `extra_fragment_defines` after `USE_IBL`: the defines the renderer
+  /// adds from its own state rather than the material's ( the Kulla-Conty and fuzz-albedo LUTs ).
+  #[ must_use ]
+  pub fn shader_sources_with_defines( material : &dyn Material, use_ibl : bool, extra_fragment_defines : &str ) -> ( String, String )
   {
     let ibl_define = if use_ibl { "#define USE_IBL\n" } else { "" };
     let vs = format!( "#version 300 es\n{}\n{}", material.vertex_defines_str(), material.vertex_shader() );
     let fs = format!
     (
-      "#version 300 es\n{}\n{}\n{}",
+      "#version 300 es\n{}\n{}\n{}\n{}",
       material.fragment_defines_str(),
       ibl_define,
+      extra_fragment_defines,
       material.fragment_shader()
     );
     ( vs, fs )
@@ -382,6 +433,12 @@ crate::mod_interface!
   /// PBR Material
   layer pbr;
 
+  /// Canonical OpenPBR Surface parameter model ( native formats lane )
+  layer openpbr_surface;
+
+  /// Pure transmission math shared with `main.frag`'s `USE_TRANSMISSION` block
+  layer transmission;
+
   orphan use
   {
     AlphaMode,
@@ -394,7 +451,7 @@ crate::mod_interface!
   };
 }
 
-pub( crate ) use private::shader_sources;
+pub( crate ) use private::shader_sources_with_defines;
 
 /// The internals `tests/` reaches, exposed only under `test_internals`.
 ///

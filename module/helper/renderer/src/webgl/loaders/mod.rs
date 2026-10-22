@@ -11,6 +11,24 @@ crate::mod_interface!
   /// Gltf loader
   layer gltf;
 
+  /// OpenPBR Surface loader from MaterialX (`.mtlx`) documents
+  layer openpbr_mtlx;
+
+  /// OpenPBR `.usda` → `.mtlx` asset-reference resolver
+  layer openpbr_usda;
+
+  /// Kulla–Conty multi-scatter energy-compensation table generation
+  layer kulla_conty;
+
+  /// Fuzz ( sheen ) directional-albedo table generation, for the energy
+  /// ( albedo ) scaling of the substrate underneath the fuzz layer
+  layer sheen_albedo;
+
+  /// USD ( `.usda` / `.usdc` / `.usdz` ) scene ingestion on the pure-Rust
+  /// `openusd` stack ( OpenPBR adoption plan §2.3 N3 )
+  #[ cfg( feature = "native-formats" ) ]
+  layer usd;
+
   /// meshopt-compressed buffer views ( `EXT_meshopt_compression`, `KHR_meshopt_compression` )
   layer meshopt;
 

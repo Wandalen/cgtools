@@ -4,7 +4,7 @@
 
 mod private
 {
-  use crate::webgl::material::{ AlphaMode, PbrMaterial, TextureInfo };
+  use crate::webgl::material::{ AlphaMode, OpenPbrParams, OpenPbrSurface, PbrMaterial, TextureInfo };
   use minwebgl as gl;
   use rustc_hash::FxHashMap;
 
@@ -25,6 +25,41 @@ mod private
     pub fn need_use_ibl( &self ) -> bool
     {
       self.need_use_ibl
+    }
+
+    /// Replaces the OpenPBR extension carriers wholesale, refreshing the
+    /// shader-selection defines ( the program recompiles only if they changed ).
+    pub fn openpbr_params_set( &mut self, params : OpenPbrParams )
+    {
+      self.openpbr_params = params;
+      self.defines_update();
+      self.needs_update.set( true );
+    }
+
+    /// Applies a canonical [`OpenPbrSurface`] ( from the native `.mtlx`/`.usda`
+    /// lane ) to this material so it renders through the existing `USE_OPENPBR`
+    /// path — the runtime inverse of the glTF-carrier read. Fields with no
+    /// glTF-shaped sink ( subsurface, transmission/volume, thin-film,
+    /// dispersion, emission luminance ) are left at their defaults until the
+    /// corresponding pipeline step lands ( see the crate adoption plan ).
+    pub fn openpbr_surface_apply( &mut self, surface : &OpenPbrSurface )
+    {
+      let runtime = crate::webgl::material::openpbr_to_runtime( surface );
+
+      self.base_color_factor = gl::F32x4::from( runtime.base_color_rgba );
+      self.metallic_factor = runtime.base_metalness.clamp( 0.0, 1.0 );
+      self.roughness_factor = runtime.specular_roughness.clamp( 0.0, 1.0 );
+
+      // KHR specular / clearcoat toggles: `Some` only when the surface
+      // actually deviates ( setters refresh the defines either way ).
+      self.specular_factor_set( runtime.specular_weight );
+      self.specular_color_factor_set( runtime.specular_color.map( gl::F32x3::from ) );
+      self.clearcoat_factor_set( runtime.coat_weight );
+      self.clearcoat_roughness_factor_set( runtime.coat_roughness );
+
+      // IOR / fuzz / thin-film carriers ( the `USE_OPENPBR` shader inputs ).
+      let params = crate::webgl::material::openpbr_params_from_surface( surface );
+      self.openpbr_params_set( params );
     }
 
     /// Sets the base color texture.
@@ -220,6 +255,48 @@ mod private
     pub fn anisotropy_texture( &self ) -> Option< &TextureInfo >
     {
       self.anisotropy_texture.as_ref()
+    }
+
+    /// Sets the sheen ( fuzz ) color texture. Its presence alone enables the OpenPBR
+    /// shading path ( `USE_OPENPBR` ), mirroring how `engraving_texture_set` is the sole
+    /// gate for engraving. Per `KHR_materials_sheen`, an omitted `sheenColorFactor`
+    /// defaults to white when the texture is present ( see `upload` ).
+    pub fn sheen_color_texture_set( &mut self, value : Option< TextureInfo > )
+    {
+      self.sheen_color_texture = value;
+      self.defines_update();
+    }
+
+    /// Returns the sheen ( fuzz ) color texture.
+    pub fn sheen_color_texture( &self ) -> Option< &TextureInfo >
+    {
+      self.sheen_color_texture.as_ref()
+    }
+
+    /// Sets the sheen ( fuzz ) roughness texture ( A channel ).
+    pub fn sheen_roughness_texture_set( &mut self, value : Option< TextureInfo > )
+    {
+      self.sheen_roughness_texture = value;
+      self.defines_update();
+    }
+
+    /// Returns the sheen ( fuzz ) roughness texture.
+    pub fn sheen_roughness_texture( &self ) -> Option< &TextureInfo >
+    {
+      self.sheen_roughness_texture.as_ref()
+    }
+
+    /// Sets the thin-film ( iridescence ) weight texture ( A channel ).
+    pub fn iridescence_texture_set( &mut self, value : Option< TextureInfo > )
+    {
+      self.iridescence_texture = value;
+      self.defines_update();
+    }
+
+    /// Returns the thin-film ( iridescence ) weight texture.
+    pub fn iridescence_texture( &self ) -> Option< &TextureInfo >
+    {
+      self.iridescence_texture.as_ref()
     }
 
     /// Sets the engraving mask texture. `Some` is what enables the `USE_ENGRAVING` shader
