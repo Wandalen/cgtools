@@ -17,8 +17,8 @@ mod private
   /// They reach the loader by three routes :
   /// - **Typed `gltf` accessors**, behind the `gltf`-crate Cargo features this crate enables
   ///   ( `[dependencies.gltf].features` in `Cargo.toml` ) : `KHR_lights_punctual`, read in
-  ///   `loaders/gltf.rs`'s `light_list_get` / `light_get`, and `KHR_materials_specular`, in its
-  ///   `materials_create` ( the `gltf_m.specular()` branch ). Only these two have such a
+  ///   `loaders/gltf_lights.rs`'s `light_list_get` / `light_get`, and `KHR_materials_specular`,
+  ///   in `loaders/gltf.rs`'s `materials_create` ( the `gltf_m.specular()` branch ). Only these two have such a
   ///   feature; listing another extension that needs one would promise what the crate cannot
   ///   read.
   /// - **Hand-read extension JSON**, for extensions the `gltf` crate has no accessor or

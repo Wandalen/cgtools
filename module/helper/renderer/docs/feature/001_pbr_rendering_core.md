@@ -68,6 +68,9 @@ HAL once one exists.
 | `src/webgl/loaders/gltf_extensions.rs` | Required-extension validation, reading the clearcoat / anisotropy extension JSON, and applying those layers to imported materials |
 | `src/webgl/loaders/gltf_buffers.rs` | The bytes of every glTF buffer: the GLB chunk, fetched uris, zeroed meshopt fallbacks |
 | `src/webgl/loaders/gltf_quantization.rs` | `KHR_mesh_quantization`: dequantized `POSITION` bounds and integer `VEC3` accessor reads |
+| `src/webgl/loaders/gltf_scene.rs` | The loaded scene graph: nodes with their hierarchy, transforms, meshes and lights, skeleton attachment, and scenes |
+| `src/webgl/loaders/gltf_skeleton.rs` | Skins and morph targets read on the CPU into a mesh's `Skeleton` |
+| `src/webgl/loaders/gltf_lights.rs` | `KHR_lights_punctual` lights: the document's list and the light a node references |
 | `src/webgl/loaders/meshopt.rs` | `EXT_meshopt_compression` / `KHR_meshopt_compression`: per-view extension parsing, range checks, and decoding into the fallback buffers |
 | `src/webgl/material/pbr.rs` | Main shader pair and material upload |
 | `src/webgl/material/pbr/accessors.rs` | `PbrMaterial` property getters and setters |
