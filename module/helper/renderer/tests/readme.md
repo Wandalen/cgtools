@@ -55,6 +55,13 @@
 | pbr_material_live_test.rs | Live-context tests for `PbrMaterial` defines/IBL-flag/emission/clone logic |
 | pbr_texture_units_test.rs | `PbrMaterial` texture-unit layout: disjoint units, fragment samplers within WebGL2's guaranteed 16 |
 | gltf_material_extensions_test.rs | Native parsing of `KHR_materials_clearcoat` / `KHR_materials_anisotropy` JSON: defaults, `texCoord`, coat normal `scale`, rotation |
+| gltf_meshopt_test.rs | Native checks for meshopt-compressed glTF: parsing and validating each view's `EXT_meshopt_compression` / `KHR_meshopt_compression` object ( exact messages for malformed fields, every allowed layout accepted, each filter's strides accepted and the others refused, mode and filter names round-tripped, both extensions on one view refused ), the pre-decode layout, range and overlap checks ( each view against itself, and views against each other and against uncompressed views in `decodes_overlap_check`, whose sweep matches a pairwise oracle and scales to 100 000 views ), fallback-buffer detection, and validation letting both extensions and `KHR_mesh_quantization` through, required or not ( `test_internals` ) |
+| gltf_meshopt_browser_test.rs | Browser tests for meshopt glTF: `views_decode` through meshoptimizer's JS decoder, and `gltf::load`'s meshopt rules (fallback buffer allocated not fetched, oversized fallbacks refused alone or together and before any fetch, fallback buffers referenced only by compressed views, a buffer with both extensions refused, a decode over an uncompressed view refused), each refusal checked for its reason |
+| gltf_buffers_test.rs | Native checks for the loader's buffer stage: `cpu_buffers_needed` is false for a static mesh and true for a skin, a morph target, or an animation when the `animation` feature builds its reader ( `test_internals` ) |
+| gltf_buffers_browser_test.rs | Browser tests for the buffer rules `gltf::load` applies to every asset: the GLB chunk is `buffers[ 0 ]` only, a later uri-less buffer is refused, and so is a uri-less buffer with no chunk; a morph target loaded end to end from the CPU copy `cpu_buffers_needed` asks for |
+| gltf_quantization_test.rs | Native checks for `KHR_mesh_quantization`: normalized position bounds dequantized to shader units, and `accessor_vec3_read` over every component type with the view's stride, refusing ranges whose ends would overflow ( `test_internals` ) |
+| gltf_quantization_browser_test.rs | Browser test: `gltf::load` of a normalized `i16` mesh hands the scene dequantized bounds, not the accessor's raw integers |
+| gltf_browser_helpers/mod.rs | Fixtures shared by the glTF loader's browser suites ( meshopt, buffers, quantization ): a live context, `data:` uris, a one-triangle document, GLB packing, the reason `load` refuses a file, and read-back of an uploaded view |
 | tests.rs | Connects test modules into root |
 | shader_validation_tests.rs | Validates WGSL shader sources offline via naga |
 | legacy_glsl_shader_compile_test.rs | Compiles all 28 shipped legacy GLSL ES 3.00 `.vert`/`.frag` shaders through a real headless WebGL2 context |
@@ -65,10 +72,10 @@
 | gltf_loader_tests.rs | Verifies glTF loader asset-URI resolution rules |
 | gltf_material_variation_test.rs | Tests glTF material-variation cache lookup-or-insert sharing |
 | gltf_node_scene_test.rs | Tests glTF node-hierarchy, skeleton-attach, and scene-assembly builders |
-| gltf_skeleton_displacements_test.rs | Tests glTF morph-target displacement data packing |
+| gltf_skeleton_displacements_test.rs | Tests glTF morph-target displacement data packing, including `KHR_mesh_quantization` targets ( normalized `i16` / `i8` and plain `i8`, padded by `byteStride` ) dequantized by their component type ( `native` ) |
 | gltf_attribute_descriptor_test.rs | Tests glTF vertex-attribute descriptor computation from accessor metadata |
 | webgl_frame_orchestration_test.rs | Tests legacy webgl path's drawbuffers attachment selection |
 | webgl_renderer_pass_cycle_test.rs | Live-context test: legacy `Renderer::render()` completes on an opaque PBR primitive and an empty scene |
 | gltf_tangent_defines_test.rs | Live `gltf::load` of a `data:` URI asset: a TANGENT attribute turns on `USE_TANGENTS` in the fragment stage; `load` rejects an unsupported `extensionsRequired` entry and accepts the supported ones |
-| gltf_extensions_required_test.rs | Tests glTF loader rejects assets requiring unsupported extensions |
+| gltf_extensions_required_test.rs | Tests glTF loader rejects assets requiring unsupported extensions, and `texture_transform_check`: integer texture coordinates with `KHR_texture_transform` refused, without it or with float coordinates loaded, a required transform refused |
 | unreal_bloom_tests.rs | Structural browser tests: `UnrealBloomPass` renders via the real `SwapFramebuffer`-bound pass cycle |

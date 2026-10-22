@@ -21,7 +21,7 @@
 //! `required_extensions_check` from that separate, unrelated upstream gate, so
 //! these tests exercise exactly this loader's own checks in `gltf_extensions.rs`.
 
-use renderer::webgl::loaders::gltf_extensions::{ document_validate, required_extensions_check };
+use renderer::webgl::loaders::gltf_extensions::{ document_validate, required_extensions_check, texture_transform_check };
 
 const UNSUPPORTED_REQUIRED_FIXTURE : &str = r#"
 {
@@ -191,4 +191,79 @@ fn document_validate_still_reports_structural_errors()
   .expect( "fixture is well-formed JSON" );
 
   assert!( document_validate( &gltf ).is_err(), "an out-of-range node index must fail validation" );
+}
+
+/// A one-primitive mesh whose `TEXCOORD_0` has `uv_type` ( a glTF componentType ), with
+/// `used` in `extensionsUsed`. Structurally valid, so `document_validate` gets as far as
+/// `texture_transform_check`.
+fn texcoord_document( uv_type : u32, used : &[ &str ] ) -> gltf::Gltf
+{
+  let used = used.iter().map( | name | format!( "\"{name}\"" ) ).collect::< Vec< _ > >().join( ", " );
+  let normalized = if uv_type == 5126 { "" } else { r#", "normalized" : true"# };
+  let json = format!
+  (
+    r#"{{
+      "asset" : {{ "version" : "2.0" }},
+      "extensionsUsed" : [ {used} ],
+      "buffers" : [ {{ "byteLength" : 64, "uri" : "a.bin" }} ],
+      "bufferViews" : [ {{ "buffer" : 0, "byteLength" : 36 }}, {{ "buffer" : 0, "byteOffset" : 36, "byteLength" : 24 }} ],
+      "accessors" :
+      [
+        {{ "bufferView" : 0, "componentType" : 5126, "count" : 3, "type" : "VEC3", "min" : [ 0, 0, 0 ], "max" : [ 1, 1, 0 ] }},
+        {{ "bufferView" : 1, "componentType" : {uv_type}{normalized}, "count" : 3, "type" : "VEC2" }}
+      ],
+      "meshes" : [ {{ "primitives" : [ {{ "attributes" : {{ "POSITION" : 0, "TEXCOORD_0" : 1 }} }} ] }} ]
+    }}"#
+  );
+  gltf::Gltf::from_slice_without_validation( json.as_bytes() ).expect( "well-formed JSON" )
+}
+
+/// `KHR_mesh_quantization` relies on `KHR_texture_transform` to dequantize texture
+/// coordinates, which this loader does not apply. An asset with integer texture coordinates
+/// that uses it would draw its textures misplaced, so it is refused with that reason.
+#[ test ]
+fn quantized_texture_coordinates_with_a_texture_transform_are_refused()
+{
+  let gltf = texcoord_document( 5123, &[ "KHR_mesh_quantization", "KHR_texture_transform" ] );
+  for result in [ texture_transform_check( &gltf ), document_validate( &gltf ) ]
+  {
+    match result
+    {
+      Err( minwebgl::WebglError::Other( reason ) ) =>
+        assert_eq!( reason, "glTF asset needs KHR_texture_transform for its quantized texture coordinates" ),
+      other => panic!( "must be refused, got {other:?}" ),
+    }
+  }
+}
+
+/// Quantized texture coordinates with no texture transform, as glTF-Transform writes them
+/// ( normalized to 0..1 ), load : the GPU dequantizes them.
+#[ test ]
+fn quantized_texture_coordinates_without_a_texture_transform_load()
+{
+  let gltf = texcoord_document( 5123, &[ "KHR_mesh_quantization" ] );
+  assert!( texture_transform_check( &gltf ).is_ok() );
+  assert!( document_validate( &gltf ).is_ok() );
+}
+
+/// With float texture coordinates a texture transform only moves a texture, so an asset
+/// using one still loads ( with a warning that it is ignored ).
+#[ test ]
+fn float_texture_coordinates_with_a_texture_transform_load()
+{
+  let gltf = texcoord_document( 5126, &[ "KHR_texture_transform" ] );
+  assert!( texture_transform_check( &gltf ).is_ok() );
+  assert!( document_validate( &gltf ).is_ok() );
+}
+
+/// An asset that requires `KHR_texture_transform` is refused before any of this, as any
+/// unsupported required extension is.
+#[ test ]
+fn a_required_texture_transform_is_refused()
+{
+  let gltf = gltf::Gltf::from_slice_without_validation
+  (
+    br#"{ "asset" : { "version" : "2.0" }, "extensionsUsed" : [ "KHR_texture_transform" ], "extensionsRequired" : [ "KHR_texture_transform" ] }"#
+  ).unwrap();
+  assert!( required_extensions_check( &gltf ).is_err() );
 }
