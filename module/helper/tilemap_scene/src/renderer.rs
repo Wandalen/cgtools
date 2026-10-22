@@ -25,6 +25,7 @@ mod private
   use core::mem::Discriminant;
   use rustc_hash::FxHashMap as HashMap;
   use tilemap_renderer::assets::Assets;
+  use tilemap_renderer::backend::Capabilities;
   use tilemap_renderer::commands::
   {
     AddSpriteInstance,
@@ -306,8 +307,11 @@ mod private
     disabled_buckets : u64,
 
     /// Whether the backend has a depth buffer (see
-    /// [`Renderer::depth_buffer_set`]). `true` by default.
+    /// [`Renderer::capabilities_set`]). `true` by default.
     depth_buffer : bool,
+    /// Whether the backend applies the camera on the GPU (see
+    /// [`Renderer::capabilities_set`]). `true` by default.
+    gpu_camera : bool,
   }
 
   impl Renderer
@@ -358,6 +362,7 @@ mod private
         vertex_cache : VertexResolveCache::new(),
         disabled_buckets : 0,
         depth_buffer : true,
+        gpu_camera : true,
       })
     }
 
@@ -417,21 +422,30 @@ mod private
       }
     }
 
-    /// Tell the renderer whether the backend tests and writes depth, as its
-    /// `Capabilities::depth` reports. `true` by default.
+    /// Tell the renderer what the backend it feeds can do, as the backend's
+    /// `capabilities()` reports: `renderer.capabilities_set( &backend.capabilities() )`.
+    /// Until it is called the renderer assumes the WebGL backend, with a depth
+    /// buffer and a GPU camera. It reads two fields:
     ///
-    /// `opaque` and `occlude_overlap` layers rely on the depth buffer: opaque
-    /// layers draw front-to-back, so without depth testing the lower ones
-    /// would paint over the upper ones. With `false` the renderer ignores both
-    /// flags and draws every layer in painter's order, which is correct on any
-    /// backend, without the overdraw saving or the single coverage. Changing
-    /// it invalidates the idle-replay cache.
-    #[ inline ]
-    pub fn depth_buffer_set( &mut self, available : bool )
+    /// - `depth`: `opaque` and `occlude_overlap` layers rely on the depth
+    ///   buffer. Opaque layers draw front-to-back, so without depth testing the
+    ///   lower ones would paint over the upper ones. Without it the renderer
+    ///   ignores both flags and draws every layer in painter's order, which is
+    ///   correct on any backend, without the overdraw saving or the single
+    ///   coverage.
+    /// - `camera`: world draws carry world coordinates and the backend applies
+    ///   the camera. One draw is scaled by the zoom here instead: a repeat-tiled
+    ///   viewport backdrop, which is screen-space. Without a GPU camera the
+    ///   backend draws the world unzoomed, so the renderer leaves the backdrop
+    ///   unzoomed too and the frame stays consistent.
+    ///
+    /// A change invalidates the idle-replay cache.
+    pub fn capabilities_set( &mut self, capabilities : &Capabilities )
     {
-      if available != self.depth_buffer
+      if capabilities.depth != self.depth_buffer || capabilities.camera != self.gpu_camera
       {
-        self.depth_buffer = available;
+        self.depth_buffer = capabilities.depth;
+        self.gpu_camera = capabilities.camera;
         self.has_rendered = false;
       }
     }
@@ -515,6 +529,7 @@ mod private
       camera : &Camera,
     ) -> Result< &[ RenderCommand ], CompileError >
     {
+      let camera = &self.backend_camera( camera );
       let scene_revision = scene.revision();
       let clock = scene.clock();
       let camera_signature = CameraSignature::from( camera );
@@ -685,10 +700,18 @@ mod private
       Ok( &self.cmd_buf )
     }
 
+    /// The camera as the backend applies it. Without a GPU camera (see
+    /// [`Self::capabilities_set`]) the backend draws the world unzoomed, so the
+    /// frame ignores the zoom too.
+    fn backend_camera( &self, camera : &Camera ) -> Camera
+    {
+      if self.gpu_camera { *camera } else { Camera { zoom : 1.0, ..*camera } }
+    }
+
     /// Settle each bucket's `opaque` / `occlude_overlap` for this frame,
     /// before [`Self::render`] picks the single or the two-pass path.
     ///
-    /// - With no depth buffer (see [`Self::depth_buffer_set`]) neither flag
+    /// - With no depth buffer (see [`Self::capabilities_set`]) neither flag
     ///   can work, so both are cleared and the frame takes the painter's-order
     ///   pass.
     /// - `alpha_clip` / `occlude_overlap` live on the batch params; a

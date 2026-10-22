@@ -109,8 +109,9 @@ mod private
     ///
     /// When no layer is opaque the renderer takes the single painter's-order
     /// pass, so this is inert for existing specs. It needs a backend with a
-    /// depth buffer: on one without, pass its `Capabilities::depth` to
-    /// [`crate::Renderer::depth_buffer_set`], which then ignores this flag.
+    /// depth buffer: pass the backend's capabilities to
+    /// [`crate::Renderer::capabilities_set`], which ignores this flag when
+    /// `Capabilities::depth` is `false`.
     #[ serde( default ) ]
     pub opaque : bool,
   }

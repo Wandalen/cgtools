@@ -24,6 +24,7 @@ extern crate alloc;
 use alloc::sync::Arc;
 use rustc_hash::FxHashMap as HashMap;
 
+use tilemap_renderer::backend::Capabilities;
 use tilemap_renderer::commands::RenderCommand;
 use tilemap_scene::
 {
@@ -170,6 +171,14 @@ fn spawn_one_per_bucket( scene : &mut Scene )
   }
 }
 
+/// The capabilities of a backend with a GPU camera but no depth buffer.
+fn no_depth_buffer() -> Capabilities
+{
+  let mut capabilities = Capabilities::default();
+  capabilities.camera = true;
+  capabilities
+}
+
 /// Depth-write toggles in command order — `true`/`false` per `SetDepthWrite`.
 fn depth_write_sequence( cmds : &[ RenderCommand ] ) -> Vec< bool >
 {
@@ -245,13 +254,14 @@ fn no_opaque_layer_takes_single_pass_path()
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// 2b. A backend without a depth buffer (`Renderer::depth_buffer_set( false )`)
+// 2b. A backend without a depth buffer (`Capabilities::depth == false`, passed
+//     to `Renderer::capabilities_set`)
 //     gets the single painter's pass even from a spec with opaque and
 //     `occlude_overlap` layers: no `SetDepthWrite`, depth 0, declared order.
 // ────────────────────────────────────────────────────────────────────────────
 
 /// Without a depth buffer, opaque layers drawn topmost first would paint the
-/// lower layers over the upper ones. So `depth_buffer_set( false )` must give
+/// lower layers over the upper ones. So a backend without one must give
 /// the frame a spec with no flags would get, and switching it on a renderer
 /// that already drew must not replay the two-pass frame from the idle cache.
 #[ test ]
@@ -268,7 +278,7 @@ fn without_a_depth_buffer_flagged_layers_take_the_single_pass()
   assert!( !depth_write_sequence( &two_pass ).is_empty(), "with a depth buffer the flags split the frame" );
   flat.apply( &two_pass );
 
-  renderer.depth_buffer_set( false );
+  renderer.capabilities_set( &no_depth_buffer() );
   let cmds = renderer.render( &scene, &Camera::default() ).expect( "render" ).to_vec();
   assert!( depth_write_sequence( &cmds ).is_empty(), "no depth buffer ⇒ no SetDepthWrite" );
   let sprites : Vec< _ > = flat.apply( &cmds ).into_iter()
@@ -322,7 +332,7 @@ fn a_batch_whose_flags_change_is_replaced()
   let first = submit( renderer.render( &scene, &Camera::default() ).expect( "render" ) );
   assert_eq!( first.iter().filter( | &&o | o ).count(), 1, "the `top` batch draws with occlude_overlap" );
 
-  renderer.depth_buffer_set( false );
+  renderer.capabilities_set( &no_depth_buffer() );
   let second = submit( renderer.render( &scene, &Camera::default() ).expect( "render" ) );
   assert_eq!( second, vec![ false; 3 ], "every batch drawn without a depth buffer carries occlude_overlap = false" );
   assert_eq!( live.len(), 3, "the replaced batch is deleted" );

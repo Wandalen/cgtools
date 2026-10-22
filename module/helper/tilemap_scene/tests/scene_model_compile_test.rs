@@ -69,6 +69,7 @@ use tilemap_scene::
 extern crate alloc;
 use alloc::sync::Arc;
 use tilemap_renderer::assets::ImageSource;
+use tilemap_renderer::backend::Capabilities;
 
 // ────────────────────────────────────────────────────────────────────────────
 // assets_compile tests.
@@ -1880,6 +1881,75 @@ fn viewport_repeat2d_tiles_to_cover_viewport()
   let commands = at_time_compile( &spec, &scene, &camera, 0.0 );
   let screen = screen_space_commands( &commands );
   assert_eq!( screen.len(), 13 * 11, "expected full grid of screen-space sprites" );
+}
+
+/// A repeat-tiled viewport backdrop is the one draw the renderer scales by the
+/// zoom itself: the world is zoomed by the backend's GPU camera, and the tiles
+/// are screen-space. With a GPU camera (the default) a 2× zoom draws them at
+/// scale 2, like the world. A backend without one draws the world unzoomed, so
+/// once its capabilities are passed the tiles stay at scale 1 too, and more of
+/// them cover the viewport. Zooming them there would make the backdrop the only
+/// zoomed thing on screen.
+#[ test ]
+fn viewport_repeat2d_follows_the_zoom_only_with_a_gpu_camera()
+{
+  let mut spec = minimal_spec();
+  let mut states = HashMap::default();
+  states.insert
+  (
+    "default".into(),
+    vec!
+    [
+      ObjectLayer
+      {
+        id : None,
+        sprite_source : SpriteSource::ViewportTiled
+        {
+          content : Box::new( SpriteSource::Static( SpriteRef { asset : "terrain".into(), frame : "0".into() } ) ),
+          tiling : ViewportTiling::Repeat2D,
+          anchor_point : ViewportAnchorPoint::TopLeft,
+        },
+        behaviour : LayerBehaviour::default(),
+        z_in_object : 0,
+        pipeline_layer : None,
+      },
+    ],
+  );
+  spec.objects.push( Object
+  {
+    id : "tiled_bg".into(),
+    anchor : Anchor::Viewport,
+    global_layer : "terrain".into(),
+    priority : None,
+    sort_y_source : SortYSource::default(),
+    pivot : ( 0.5, 0.5 ),
+    default_state : "default".into(),
+    states,
+  });
+  let snap = SceneSnapshot
+  {
+    tiles : Vec::new(),
+    viewport_instances : vec![ ViewportInstance { object : "tiled_bg".into(), animation : None } ],
+    ..minimal_scene_3x3()
+  };
+  let camera = Camera { world_center : ( 0.0, 0.0 ), zoom : 2.0, viewport_size : ( 800, 600 ) };
+  let scales = | capabilities : Option< Capabilities > | -> Vec< [ f32; 2 ] >
+  {
+    let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
+    if let Some( c ) = capabilities { renderer.capabilities_set( &c ); }
+    let scene = Scene::from_snapshot( &snap, Arc::new( spec.clone() ) ).expect( "scene" );
+    renderer.render( &scene, &camera ).expect( "render" ).iter()
+      .filter_map( | c | if let RenderCommand::ScreenSpaceSprite( s ) = c { Some( s.transform.scale ) } else { None } )
+      .collect()
+  };
+
+  let gpu = scales( None );
+  assert!( !gpu.is_empty() && gpu.iter().all( | s | *s == [ 2.0, 2.0 ] ), "with a GPU camera the tiles follow the zoom: {gpu:?}" );
+  let mut no_camera = Capabilities::default();
+  no_camera.depth = true;
+  let unzoomed = scales( Some( no_camera ) );
+  assert!( !unzoomed.is_empty() && unzoomed.iter().all( | s | *s == [ 1.0, 1.0 ] ), "without one they stay at scale 1: {unzoomed:?}" );
+  assert!( unzoomed.len() > gpu.len(), "smaller tiles, so more of them cover the viewport" );
 }
 
 #[ test ]

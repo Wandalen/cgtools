@@ -34,6 +34,7 @@ fn declared_capabilities_matches_honest_subset()
   assert!( !capabilities.text_on_path );
   assert!( !capabilities.premultiplied_images );
   assert!( !capabilities.depth );
+  assert!( !capabilities.camera );
 }
 
 /// Builds a minimal `Sprite` command at `position`, otherwise default.

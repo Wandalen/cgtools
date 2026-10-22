@@ -758,6 +758,7 @@ fn capabilities_reports_coarse_support()
   assert!( !caps.text_on_path );
   assert!( !caps.premultiplied_images );
   assert!( !caps.depth );
+  assert!( !caps.camera );
   assert_eq!( caps.max_texture_size, 0 );
 }
 

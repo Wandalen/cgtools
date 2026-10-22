@@ -48,7 +48,7 @@ When any layer is `opaque` or `occlude_overlap`, every bucket's sprites are pinn
 
 `alpha_clip` and `occlude_overlap` reach the backend through the sprite-batch params, so they only apply to batched draws. Viewport-anchored sprites, and the sprites of a sorted bucket that mixes sheets, blend modes or clip masks in a frame, draw one by one and ignore both. An `opaque` bucket that has to draw anything that way in a frame is moved to the transparent pass for that frame, since a per-sprite quad would write depth over its transparent corners.
 
-`opaque` and `occlude_overlap` need a backend with a depth buffer (`tilemap_renderer`'s `Capabilities::depth`). On one without, opaque buckets drawn topmost first would paint the lower layers over the upper ones. `Renderer::depth_buffer_set( false )` makes the renderer ignore both flags and draw every layer in declared order, which is correct on any backend; `alpha_clip` still applies.
+`opaque` and `occlude_overlap` need a backend with a depth buffer (`tilemap_renderer`'s `Capabilities::depth`). On one without, opaque buckets drawn topmost first would paint the lower layers over the upper ones. `Renderer::capabilities_set( &backend.capabilities() )` passes it on: without a depth buffer the renderer ignores both flags and draw every layer in declared order, which is correct on any backend; `alpha_clip` still applies.
 
 ### Version Compatibility
 

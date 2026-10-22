@@ -33,6 +33,7 @@ fn declared_capabilities_honest_subset()
   assert!( caps.premultiplied_images );
   assert!( caps.depth, "a context with a depth buffer reports it" );
   assert!( !WebGlBackend::declared_capabilities( 4096, false ).depth, "and one without reports none" );
+  assert!( caps.camera, "camera_set's view matrix applies to every world draw" );
   assert_eq!( caps.max_texture_size, 4096 );
   assert!
   (

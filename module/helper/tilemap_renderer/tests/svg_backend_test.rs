@@ -1629,6 +1629,7 @@ fn capabilities_all_true()
   assert!( !caps.premultiplied_images );
   // SVG paints in document order and ignores `SetDepthWrite` and `depth`.
   assert!( !caps.depth );
+  assert!( !caps.camera, "the viewport transform wraps the whole document, so it is no world camera" );
   assert_eq!( caps.max_texture_size, 0 );
 }
 

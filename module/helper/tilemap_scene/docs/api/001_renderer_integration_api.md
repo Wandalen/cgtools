@@ -27,7 +27,7 @@ Game code drives a `Scene` — an in-memory, mutable instantiation of a loaded `
 | `tick` / `tick_into` | `(dt) -> Vec<SceneEvent>` | Advances the shared clock; returns events including `OneShot` animation completions (see `algorithm/001`). |
 | `instances`, `instances_at_hex`, `hex_instances`, `edge_instances`, `free_instances`, `viewport_instances`, `multihex_instances`, `len`, `is_empty` | queries | Read-only instance enumeration, whole-scene or filtered by anchor kind / position. |
 | `Renderer::render` | `(&mut self, &Scene, &Camera) -> Result<&[RenderCommand], CompileError>` | Produces this frame's draw commands (see `algorithm/002`); cached and replayed on an unchanged `(scene_revision, clock, camera_signature)` triple. |
-| `Renderer::depth_buffer_set` | `(&mut self, available: bool)` | Whether the backend has a depth buffer, as `Capabilities::depth` reports; `true` by default. With `false` the renderer ignores `opaque` and `occlude_overlap` and draws every layer in declared order (see `format/007`). |
+| `Renderer::capabilities_set` | `(&mut self, &Capabilities)` | What the backend can do, as its `capabilities()` reports; until called, a depth buffer and a GPU camera are assumed (the WebGL backend). Without `depth` the renderer ignores `opaque` and `occlude_overlap` and draws every layer in declared order (see `format/007`); without `camera` it ignores the zoom, which only a repeat-tiled viewport backdrop reads, since such a backend draws the world unzoomed. A change invalidates the idle-replay cache. |
 | `Camera::to_view_mat3` | `() -> [f32; 9]` | The world→screen projection as a column-major 3×3 matrix. World-space commands carry world coordinates; the caller hands this matrix to the backend each frame (`WebGlBackend::camera_set(camera.to_view_mat3())`) and the GPU applies it, so a pan changes one uniform and never the command stream. Only the WebGL backend takes a view matrix; on the others world draws stay in world coordinates, so the camera does not move them. |
 | `Camera::project` | `(world: (f32, f32)) -> (f32, f32)` | `screen = (world - camera.world_center) * camera.zoom + viewport_size / 2` — the same projection as `to_view_mat3`, on the CPU, for a caller that needs one point on screen (UI anchored to a unit). `Renderer::render` does not call it. |
 
@@ -71,7 +71,7 @@ The renderer treats instance state as opaque and game-owned by design — it nev
 | File | Relationship |
 |------|--------------|
 | `src/scene.rs` | `Scene` — full method surface |
-| `src/renderer.rs` | `Renderer::render`, `depth_buffer_set`, `cache_hits`, `cleanup`, `assets` |
+| `src/renderer.rs` | `Renderer::render`, `capabilities_set`, `cache_hits`, `cleanup`, `assets` |
 | `src/compile/camera.rs` | `Camera`, `Camera::to_view_mat3`, `Camera::project` |
 
 ### Tests

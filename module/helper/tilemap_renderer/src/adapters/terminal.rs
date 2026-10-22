@@ -997,6 +997,7 @@ mod private
         text_on_path : false,
         premultiplied_images : false,
         depth : false,
+        camera : false,
         max_texture_size : 0,
       }
     }

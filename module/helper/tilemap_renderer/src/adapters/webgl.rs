@@ -1092,6 +1092,8 @@ mod private
         // `new` enables `DEPTH_TEST` / `LEQUAL`, which only works when the
         // context has a depth buffer; `new` reads `DEPTH_BITS` to find out.
         depth,
+        // `camera_set`'s view matrix is multiplied into every world draw.
+        camera : true,
         max_texture_size,
       }
     }
