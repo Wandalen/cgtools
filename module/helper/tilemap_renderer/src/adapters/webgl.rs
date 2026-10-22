@@ -1202,12 +1202,20 @@ mod private
       // this, one mid-stream failure sticks `recording_batch` and every subsequent
       // submit fails on its first `BindBatch` ("batch N is already bound"),
       // cascading into an error spam that never recovers.
-      if let Some( stuck ) = self.recording_batch.take()
+      //
+      // The stuck batch is unbound the way its missing `UnbindBatch` would
+      // have: its staged writes are flushed, so its GPU copy and `gpu_len`
+      // match its contents again instead of lagging until it is next bound.
+      if let Some( stuck ) = self.recording_batch
       {
         web_sys::console::warn_1
         (
           &format!( "submit: clearing leftover bound batch {stuck:?} from a prior stream" ).into()
         );
+        if let Err( e ) = self.cmd_unbind_batch()
+        {
+          web_sys::console::warn_1( &format!( "submit: flushing leftover bound batch {stuck:?} failed: {e}" ).into() );
+        }
       }
 
       for cmd in commands
