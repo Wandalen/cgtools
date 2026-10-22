@@ -323,7 +323,7 @@ fn decodes_overlap_check_accepts_the_fixture_layout()
   let placed = gltf.views().zip( &specs )
   .map( | ( v, spec ) | ( v.index(), spec, v.buffer().index(), v.offset() ) )
   .collect::< Vec< _ > >();
-  assert!( decodes_overlap_check( &placed ).is_ok() );
+  assert!( decodes_overlap_check( &placed, &[] ).is_ok() );
 }
 
 /// Two views sharing a fallback buffer : each passes `ranges_check` alone, but a
@@ -337,25 +337,53 @@ fn decodes_overlap_check_rejects_views_corrupting_each_other()
   let a = attributes_spec( 0, 0, 12, 4 );
   let b = attributes_spec( 0, 12, 12, 4 );
 
-  assert!( decodes_overlap_check( &[ ( 0, &a, 1, 0 ), ( 1, &b, 1, 16 ) ] ).is_ok(), "decoded ranges touch end to start" );
-  assert!( decodes_overlap_check( &[ ( 0, &a, 1, 0 ), ( 1, &b, 1, 8 ) ] ).is_err(), "decoded ranges overlap" );
-  assert!( decodes_overlap_check( &[ ( 0, &a, 1, 0 ), ( 1, &b, 2, 0 ) ] ).is_ok(), "the same offset in different buffers" );
+  assert!( decodes_overlap_check( &[ ( 0, &a, 1, 0 ), ( 1, &b, 1, 16 ) ], &[] ).is_ok(), "decoded ranges touch end to start" );
+  assert!( decodes_overlap_check( &[ ( 0, &a, 1, 0 ), ( 1, &b, 1, 8 ) ], &[] ).is_err(), "decoded ranges overlap" );
+  assert!( decodes_overlap_check( &[ ( 0, &a, 1, 0 ), ( 1, &b, 2, 0 ) ], &[] ).is_ok(), "the same offset in different buffers" );
 
   // View 1 decodes into buffer 0 at 4..20, over view 0's compressed 0..12 and its own
   // compressed 12..24 : its own overlap is `ranges_check`'s case, so move its source away.
   let b_far = attributes_spec( 0, 40, 12, 4 );
-  assert!( decodes_overlap_check( &[ ( 0, &a, 1, 0 ), ( 1, &b_far, 0, 4 ) ] ).is_err(), "a later view decodes over an earlier view's compressed bytes" );
-  assert!( decodes_overlap_check( &[ ( 1, &b_far, 0, 4 ), ( 0, &a, 1, 0 ) ] ).is_err(), "an earlier view decodes over a later view's compressed bytes" );
-  assert!( decodes_overlap_check( &[ ( 0, &a, 1, 0 ), ( 1, &b_far, 0, 12 ) ] ).is_ok(), "the decoded range starts where the other view's compressed bytes end" );
+  assert!( decodes_overlap_check( &[ ( 0, &a, 1, 0 ), ( 1, &b_far, 0, 4 ) ], &[] ).is_err(), "a later view decodes over an earlier view's compressed bytes" );
+  assert!( decodes_overlap_check( &[ ( 1, &b_far, 0, 4 ), ( 0, &a, 1, 0 ) ], &[] ).is_err(), "an earlier view decodes over a later view's compressed bytes" );
+  assert!( decodes_overlap_check( &[ ( 0, &a, 1, 0 ), ( 1, &b_far, 0, 12 ) ], &[] ).is_ok(), "the decoded range starts where the other view's compressed bytes end" );
 
   let a_again = attributes_spec( 0, 0, 12, 4 );
-  assert!( decodes_overlap_check( &[ ( 0, &a, 1, 0 ), ( 1, &a_again, 1, 16 ) ] ).is_ok(), "two views may read the same compressed bytes" );
+  assert!( decodes_overlap_check( &[ ( 0, &a, 1, 0 ), ( 1, &a_again, 1, 16 ) ], &[] ).is_ok(), "two views may read the same compressed bytes" );
+}
+
+/// An uncompressed view in the buffer a compressed view decodes into : its accessors would
+/// read the decoded bytes of the other view, so a decode over it is refused, whichever comes
+/// first. It may share bytes with compressed data, since both are only read.
+#[ test ]
+fn decodes_overlap_check_rejects_a_decode_over_an_uncompressed_view()
+{
+  // Decodes 16 bytes into buffer 1 at 0..16, from buffer 0 at 0..12.
+  let a = attributes_spec( 0, 0, 12, 4 );
+  let decode = [ ( 0, &a, 1, 0 ) ];
+
+  assert_eq!
+  (
+    decodes_overlap_check( &decode, &[ ( 1, 1, 8, 16 ) ] ),
+    Err( "bufferView 0 decodes over the data of bufferView 1".to_owned() ),
+    "the uncompressed view starts inside the decoded range"
+  );
+  assert_eq!
+  (
+    decodes_overlap_check( &[ ( 1, &a, 1, 8 ) ], &[ ( 0, 1, 0, 16 ) ] ),
+    Err( "bufferView 1 decodes over the data of bufferView 0".to_owned() ),
+    "the decoded range starts inside the uncompressed view"
+  );
+  assert!( decodes_overlap_check( &decode, &[ ( 1, 1, 16, 8 ) ] ).is_ok(), "the uncompressed view starts where the decoded range ends" );
+  assert!( decodes_overlap_check( &decode, &[ ( 1, 2, 0, 16 ) ] ).is_ok(), "the same range in another buffer" );
+  assert!( decodes_overlap_check( &decode, &[ ( 1, 0, 4, 16 ), ( 2, 0, 0, 8 ) ] ).is_ok(), "uncompressed views may share bytes with compressed data and each other" );
+  assert!( decodes_overlap_check( &decode, &[ ( 1, 1, usize::MAX, 1 ) ] ).is_err(), "an uncompressed range whose end overflows" );
 }
 
 /// The sweep in `decodes_overlap_check` agrees with the plain pairwise rule on many small
-/// random layouts : a decoded range may overlap no other range, a compressed range may
-/// overlap other compressed ranges. Ranges lie in two buffers, so both same-buffer and
-/// cross-buffer pairs occur.
+/// random layouts : a decoded range may overlap no other range, and the ranges only read (
+/// compressed bytes and uncompressed views ) may overlap each other. Ranges lie in two
+/// buffers, so both same-buffer and cross-buffer pairs occur.
 #[ test ]
 fn decodes_overlap_check_matches_the_pairwise_rule()
 {
@@ -379,12 +407,19 @@ fn decodes_overlap_check_matches_the_pairwise_rule()
     .map( | ( i, ( &( .., tb, to ), spec ) ) | ( i, spec, usize::try_from( tb ).unwrap(), usize::try_from( to ).unwrap() ) )
     .collect::< Vec< _ > >();
 
-    let ranges = layout.iter().flat_map( | &( b, o, l, c, tb, to ) | [ ( ( tb, to, to + c * 4 ), true ), ( ( b, o, o + l ), false ) ] ).collect::< Vec< _ > >();
+    // ( buffer, offset, length ) of each uncompressed view.
+    let plain_layout = ( 0..next( 3 ) ).map( | _ | ( next( 2 ), next( 64 ), 1 + next( 8 ) ) ).collect::< Vec< _ > >();
+    let plain = plain_layout.iter().enumerate()
+    .map( | ( i, &( b, o, l ) ) | ( layout.len() + i, usize::try_from( b ).unwrap(), usize::try_from( o ).unwrap(), usize::try_from( l ).unwrap() ) )
+    .collect::< Vec< _ > >();
+
+    let mut ranges = layout.iter().flat_map( | &( b, o, l, c, tb, to ) | [ ( ( tb, to, to + c * 4 ), true ), ( ( b, o, o + l ), false ) ] ).collect::< Vec< _ > >();
+    ranges.extend( plain_layout.iter().map( | &( b, o, l ) | ( ( b, o, o + l ), false ) ) );
     let pairwise_ok = ranges.iter().enumerate().all( | ( i, &( a, a_decoded ) ) |
       ranges[ i + 1 .. ].iter().all( | &( b, b_decoded ) | !( a_decoded || b_decoded ) || !overlap( a, b ) ) );
 
-    let swept = decodes_overlap_check( &placed );
-    assert_eq!( swept.is_ok(), pairwise_ok, "layout {layout:?}: sweep says {swept:?}" );
+    let swept = decodes_overlap_check( &placed, &plain );
+    assert_eq!( swept.is_ok(), pairwise_ok, "layout {layout:?}, uncompressed {plain_layout:?}: sweep says {swept:?}" );
     if pairwise_ok { accepted += 1; } else { refused += 1; }
   }
   assert!( accepted > 100 && refused > 100, "both outcomes are exercised: {accepted} accepted, {refused} refused" );
@@ -399,7 +434,7 @@ fn decodes_overlap_check_scales_to_many_views()
   let specs = ( 0..n ).map( | i | attributes_spec( 0, i * 4, 4, 1 ) ).collect::< Vec< _ > >();
   let placed = specs.iter().enumerate().map( | ( i, spec ) | ( i, spec, 1, i * 4 ) ).collect::< Vec< _ > >();
   let start = std::time::Instant::now();
-  assert!( decodes_overlap_check( &placed ).is_ok() );
+  assert!( decodes_overlap_check( &placed, &[] ).is_ok() );
   assert!( start.elapsed() < std::time::Duration::from_secs( 2 ), "took {:?}", start.elapsed() );
 }
 
