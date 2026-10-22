@@ -1148,6 +1148,12 @@ mod private
         }
         ( self.sprite, self.mesh ) = Self::renderers_new( &self.gl )?;
         Self::gl_state_init( &self.gl, &self.config );
+        // The cache surfaces belonged to the lost context as well. Dropping
+        // them makes every handle from before the loss stale, so its methods
+        // do nothing instead of binding a framebuffer that no longer exists,
+        // and the restored context draws to the canvas at its own size again.
+        self.render_targets_reset();
+        self.active_viewport = None;
       }
 
       // Reset all GPU state: textures, sprites, geometries, and batches.

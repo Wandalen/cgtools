@@ -56,7 +56,8 @@ impl WebGlBackend
   }
 
   /// Free every cache surface and invalidate every [`RenderTargetId`] handed
-  /// out so far. The GL objects are released via each `GpuFramebuffer`'s
+  /// out so far. A context restore (`assets_load` after a loss) does this
+  /// too. The GL objects are released via each `GpuFramebuffer`'s
   /// `Drop`. Call before rebuilding a fresh set of targets (e.g. a chunk grid
   /// at a new extent / map load) so the old textures don't leak.
   pub fn render_targets_reset( &mut self )
@@ -67,15 +68,20 @@ impl WebGlBackend
   /// Bind cache surface `id` as the draw target and set the viewport to its
   /// size. `clear` optionally clears it (colour + depth) — pass a transparent
   /// colour for an overlay cache that must composite over another. Pair with
-  /// [`Self::render_target_end`]. No-op if `id` is stale.
-  pub fn render_target_begin( &mut self, id : RenderTargetId, clear : Option< [ f32; 4 ] > )
+  /// [`Self::render_target_end`].
+  ///
+  /// Returns `false`, binding nothing, if `id` is stale (made before the last
+  /// [`Self::render_targets_reset`] or context restore): the draws that
+  /// follow would then land on the canvas, so the caller should skip its bake
+  /// and create the surface again.
+  pub fn render_target_begin( &mut self, id : RenderTargetId, clear : Option< [ f32; 4 ] > ) -> bool
   {
     // Copy out size + a handle clone before mutating `active_viewport` (which
     // would otherwise conflict with the `render_targets` borrow).
     let ( w, h, fbh ) = match self.render_targets.get( id )
     {
       Some( fb ) => ( fb.width, fb.height, fb.framebuffer.clone() ),
-      None => return,
+      None => return false,
     };
     self.gl.bind_framebuffer( gl::FRAMEBUFFER, Some( &fbh ) );
     self.gl.viewport( 0, 0, w as i32, h as i32 );
@@ -92,6 +98,7 @@ impl WebGlBackend
       let _ = self.gl.invalidate_framebuffer( gl::FRAMEBUFFER, &discard );
       self.fill( c );
     }
+    true
   }
 
   /// Restore the default framebuffer and the canvas-sized viewport after a
