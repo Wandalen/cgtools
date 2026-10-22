@@ -19,9 +19,12 @@ impl WebGlBackend
   // frame, trading per-frame overdraw for a couple of texture-sample blits.
   // They are inherent methods (like `camera_set`), driven by the consumer
   // between `submit` calls — the `RenderCommand` stream and the other backends
-  // are untouched. `submit` sets the GL viewport once per frame from `config`
-  // and never mid-loop, so `render_target_begin` sets the target viewport and
-  // `render_target_end` restores it to the canvas size.
+  // are untouched. `submit` never sets the GL viewport: `new` (and a context
+  // restore, through `gl_state_init`) and `resize` set
+  // it to the canvas size, and every draw projects through `viewport_size`.
+  // So `render_target_begin` sets both the GL viewport and `active_viewport`
+  // (which `viewport_size` returns while a target is bound) to the target's
+  // size, and `render_target_end` restores the canvas size.
   // ========================================================================
 
   /// Hardware `MAX_TEXTURE_SIZE`. A cache surface may not exceed this in either
@@ -35,9 +38,9 @@ impl WebGlBackend
   /// is a `0×0` placeholder until its bytes arrive, and a draw referencing a
   /// still-zero sheet is skipped (`draw_batch` early-returns). A consumer that
   /// bakes the scene ONCE into a cache must wait for this — a bake fired before
-  /// the sheets load rasterizes nothing yet never repeats. Returns `true` when
-  /// there are no textures yet only if none are registered, so also gate on
-  /// having loaded a spec.
+  /// the sheets load rasterizes nothing yet never repeats. Returns `false`
+  /// while no texture is registered at all, so it cannot pass before the
+  /// spec's assets are loaded.
   #[ must_use ]
   pub fn textures_loaded( &self ) -> bool
   {

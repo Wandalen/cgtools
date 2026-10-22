@@ -46,7 +46,9 @@ scene-model = [
 ]
 # Exposes crate-private state to `tests/`, which is a separate crate and so cannot
 # reach it otherwise. Off by default: nothing a dependent builds changes, and every
-# item behind it is `#[ doc( hidden ) ]` and suffixed `_for_test`.
+# item behind it is `#[ doc( hidden ) ]`: the `context_lost` accessors, suffixed
+# `_for_test`, and the `internal` modules of `adapters::webgl::webgl_helpers` and
+# `adapters::webgl::render_target`, which re-export internal types.
 test_internals = []
 
 [dependencies]
