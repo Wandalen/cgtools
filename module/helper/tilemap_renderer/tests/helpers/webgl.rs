@@ -1,7 +1,8 @@
 //! Live-context fixtures shared by the WebGL2 browser suites
 //! ( `webgl_context_loss_test.rs`, `webgl_pending_image_test.rs`,
 //! `webgl_premultiplied_test.rs`, `webgl_camera_test.rs`,
-//! `webgl_depth_coverage_test.rs`, `webgl_array_buffer_test.rs` ).
+//! `webgl_depth_coverage_test.rs`, `webgl_array_buffer_test.rs`,
+//! `webgl_surfaces_test.rs` ).
 //!
 //! Gated on wasm32 and `adapter-webgl` in `helpers/mod.rs`, since the native
 //! suites pull in the same `helpers` module and have no browser to run these in.
