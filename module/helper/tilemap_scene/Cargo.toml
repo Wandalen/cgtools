@@ -17,5 +17,13 @@ rustc-hash = { workspace = true }
 slotmap = { workspace = true }
 tilemap_renderer = { workspace = true, default-features = true, features = ["scene-model"] }
 
+[dev-dependencies]
+criterion = { workspace = true }
+
+# Renderer::render on a 469-hex dual-grid board (the frames #207 optimised).
+[[bench]]
+name = "frame_render"
+harness = false
+
 [lints]
 workspace = true

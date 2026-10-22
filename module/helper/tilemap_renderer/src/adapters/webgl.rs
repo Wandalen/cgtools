@@ -10,6 +10,8 @@ mod private
   use core::cell::{ Cell, RefCell };
   use wasm_bindgen::prelude::*;
   use minwebgl as gl;
+  pub use super::render_target::RenderTargetId;
+  use super::render_target::TargetSlots;
   use super::webgl_renderers::{ SpriteRenderer, MeshRenderer };
   use super::webgl_textures::{ bitmap_texture_upload, image_upload_from_path };
   use super::webgl_helpers::
@@ -20,6 +22,7 @@ mod private
     GpuResources,
     GpuTexture,
     GpuSprite,
+    GpuFramebuffer,
     GpuGeometry,
     GpuBatch,
     sprite_batch_vao_setup,
@@ -31,11 +34,20 @@ mod private
     texture_filter_apply,
     texture_wrap_apply,
     topology_to_gl,
+    mat3_mul,
   };
   use crate::assets::Assets;
   use crate::backend::{ RenderError, Backend, Output, Capabilities };
   use crate::commands::{ Clear, Mesh, Sprite, CreateSpriteBatch, CreateMeshBatch, BindBatch, AddSpriteInstance, AddMeshInstance, SetSpriteInstance, SetMeshInstance, RemoveInstance, SetSpriteBatchParams, SetMeshBatchParams, DrawBatch, DeleteBatch, RenderCommand };
   use crate::types::{ FillRef, RenderConfig, ResourceId, Batch, MipmapMode, BlendMode, asset };
+
+  // ============================================================================
+  // Camera / matrix helpers
+  // ============================================================================
+
+  /// Column-major identity 3×3 — the default view matrix (world pixels map
+  /// straight to viewport pixels).
+  const IDENTITY_MAT3 : [ f32; 9 ] = [ 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0 ];
 
   // ============================================================================
   // Backend struct
@@ -52,21 +64,45 @@ mod private
   /// ```
   pub struct WebGlBackend
   {
-    config : RenderConfig,
-    gl : gl::GL,
-    resources : Rc< RefCell< GpuResources > >,
-    sprite : SpriteRenderer,
-    mesh : MeshRenderer,
-    max_texture_size : u32,
+    pub( super ) config : RenderConfig,
+    pub( super ) gl : gl::GL,
+    pub( super ) resources : Rc< RefCell< GpuResources > >,
+    pub( super ) sprite : SpriteRenderer,
+    pub( super ) mesh : MeshRenderer,
+    pub( super ) max_texture_size : u32,
+    /// Whether the context has a depth buffer (`DEPTH_BITS > 0`), reported as
+    /// `Capabilities::depth`.
+    depth : bool,
+
+    /// World→screen view matrix (column-major 3×3), pre-multiplied into every
+    /// world-space draw's parent transform. Set once per frame via
+    /// [`Self::camera_set`]; identity until the caller supplies one. Keeping the
+    /// camera here — rather than baked into per-instance transforms — is what
+    /// makes a pan/zoom a single-uniform update instead of a full instance-buffer
+    /// re-upload.
+    pub( super ) camera : [ f32; 9 ],
 
     // -- batch editing state --
-    recording_batch : Option< ResourceId< Batch > >,
+    pub( super ) recording_batch : Option< ResourceId< Batch > >,
+
+    /// Offscreen cache surfaces (see [`Self::render_target_create`]), addressed
+    /// by [`RenderTargetId`]. Used by consumers that bake a subset of the frame
+    /// into a texture and composite it back as a world quad via
+    /// [`Self::render_target_draw`].
+    pub( super ) render_targets : TargetSlots< GpuFramebuffer >,
+
+    /// Viewport override in force while a render-target pass is bound. The
+    /// vertex shaders divide world coords by `u_viewport` to reach NDC, so during
+    /// a bake this MUST be the target's pixel size, not the canvas size — else the
+    /// baked geometry projects to the wrong clip range and lands off-texture.
+    /// `None` outside a bake (shaders use the canvas size).
+    pub( super ) active_viewport : Option< [ f32; 2 ] >,
 
     // -- context state --
     // Set by the `webglcontextlost` listener, cleared by `webglcontextrestored`.
     // `submit`/`output` check this before issuing any GL call. `Rc` so the listener
     // closures (which outlive `new`) can share it with the backend instance.
-    context_lost : Rc< Cell< bool > >,
+    pub( super ) context_lost : Rc< Cell< bool > >,
   }
 
   impl WebGlBackend
@@ -102,6 +138,15 @@ mod private
         .and_then( | v | u32::try_from( v as i64 ).ok() )
         .unwrap_or( 2048 );
 
+      // Whether the context has a depth buffer: `depth : false` at context
+      // creation leaves it out, and then `DEPTH_TEST` does nothing. Read now,
+      // while the default framebuffer is bound.
+      let depth = gl
+        .get_parameter( gl::DEPTH_BITS )
+        .ok()
+        .and_then( | v | v.as_f64() )
+        .is_some_and( | bits | bits > 0.0 );
+
       let context_lost = Rc::new( Cell::new( false ) );
       Self::context_loss_listeners_register( &gl, &context_lost );
 
@@ -113,9 +158,29 @@ mod private
         sprite,
         mesh,
         max_texture_size,
+        depth,
+        camera : IDENTITY_MAT3,
         recording_batch : None,
+        render_targets : TargetSlots::new(),
+        active_viewport : None,
         context_lost,
       })
+    }
+
+    /// Set the world→screen view matrix (column-major 3×3) used to project every
+    /// world-space draw this frame. Call once per frame before [`Backend::submit`]
+    /// (a pan/zoom only changes this matrix — the command stream and instance
+    /// buffers stay identical, so panning costs one uniform per batch, not a
+    /// scene re-upload). `ScreenSpaceSprite`s are unaffected. Identity leaves
+    /// world coordinates mapped straight to viewport pixels.
+    ///
+    /// The camera is WebGL only: this is an inherent method, not part of
+    /// [`Backend`], and no [`crate::commands::RenderCommand`] carries a camera,
+    /// so the other adapters draw world coordinates as viewport pixels.
+    #[ inline ]
+    pub fn camera_set( &mut self, camera : [ f32; 9 ] )
+    {
+      self.camera = camera;
     }
 
     /// Compiles the sprite and mesh shader programs.
@@ -193,9 +258,9 @@ mod private
       on_restored.forget();
     }
 
-    fn viewport_size( &self ) -> [ f32; 2 ]
+    pub( super ) fn viewport_size( &self ) -> [ f32; 2 ]
     {
-      [ self.config.width as f32, self.config.height as f32 ]
+      self.active_viewport.unwrap_or( [ self.config.width as f32, self.config.height as f32 ] )
     }
 
     // ---- Command handlers ----
@@ -221,6 +286,12 @@ mod private
     fn cmd_clear( &self, c : &Clear )
     {
       let [ r, g, b, a ] = c.color;
+      // A depth clear is a no-op while `depthMask` is false. A frame whose
+      // `submit` bailed out between `SetDepthWrite( false )` and the restore
+      // would leave writes off, and this clear would then keep last frame's
+      // depth. Forcing writes on also makes `true` the state every frame
+      // starts from, which the command stream assumes.
+      self.gl.depth_mask( true );
       self.gl.clear_color( r, g, b, a );
       self.gl.clear_depth( 1.0 );
       self.gl.clear( gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT );
@@ -243,7 +314,7 @@ mod private
         return Err( RenderError::MissingAsset( m.geometry.inner() ) );
       };
 
-      let mat = m.transform.to_mat3();
+      let mat = mat3_mul( &self.camera, &m.transform.to_mat3() );
       let color = match m.fill { FillRef::Solid( c ) => c, _ => [ 1.0, 1.0, 1.0, 1.0 ] };
       // Untextured meshes are straight-alpha; a textured mesh inherits its
       // texture's premultiplied flag.
@@ -269,7 +340,11 @@ mod private
       Ok( () )
     }
 
-    fn cmd_sprite( &self, s : &Sprite, viewport : [ f32; 2 ] ) -> Result< (), RenderError >
+    /// Draw one sprite. `apply_camera` selects the coordinate space of
+    /// `s.transform`: `true` for a world-space `Sprite` (the view matrix is
+    /// pre-multiplied so the GPU projects it), `false` for a `ScreenSpaceSprite`
+    /// whose transform is already in viewport pixels and must bypass the camera.
+    fn cmd_sprite( &self, s : &Sprite, apply_camera : bool, viewport : [ f32; 2 ] ) -> Result< (), RenderError >
     {
       let res = self.resources.borrow();
       let Some( gpu_sprite ) = res.sprite( s.sprite ) else
@@ -292,7 +367,7 @@ mod private
 
       let tex_size = [ tw as f32, th as f32 ];
 
-      let mat = s.transform.to_mat3();
+      let mat = if apply_camera { mat3_mul( &self.camera, &s.transform.to_mat3() ) } else { s.transform.to_mat3() };
       blend_apply( &self.gl, &s.blend, gpu_tex.premultiplied );
       self.sprite.draw( &self.gl, &mat, &gpu_sprite.region, tex_size, &s.tint, gpu_tex.premultiplied, viewport, s.transform.depth, self.config.max_depth );
       Ok( () )
@@ -582,10 +657,22 @@ mod private
       Ok( () )
     }
 
-    fn cmd_unbind_batch( &mut self )
+    fn cmd_unbind_batch( &mut self ) -> Result< (), RenderError >
     {
       if let Some( batch_id ) = self.recording_batch.take()
       {
+        // Unbind is the commit point: upload everything this recording staged in
+        // one write per batch, before any `DrawBatch` can read it.
+        {
+          let mut res = self.resources.borrow_mut();
+          let flushed = match res.batch_mut( batch_id )
+          {
+            Some( GpuBatch::Sprite { instances, .. } ) => instances.flush(),
+            Some( GpuBatch::Mesh { instances, .. } ) => instances.flush(),
+            None => Ok( () ),
+          };
+          flushed.map_err( | e | RenderError::BackendError( format!( "UnbindBatch({batch_id:?}): {e}" ) ) )?;
+        }
         let res = self.resources.borrow();
         if let Some( batch ) = res.batch( batch_id )
         {
@@ -613,6 +700,7 @@ mod private
           }
         }
       }
+      Ok( () )
     }
 
     fn cmd_draw_batch( &self, db : DrawBatch, viewport : [ f32; 2 ] ) -> Result< (), RenderError >
@@ -634,26 +722,46 @@ mod private
         );
         return Ok( () );
       };
-      // Both batch kinds inherit the premultiplied flag of their bound texture,
-      // matching the single-command paths (`cmd_sprite` / `cmd_mesh`). A mesh
-      // batch may carry a premultiplied texture (`MeshBatchParams::texture`), so
-      // hardcoding straight-alpha here would double-scale its edges by alpha. An
-      // untextured mesh batch resolves to `false` (no texture) — straight-alpha.
+      // A sprite batch inherits the premultiplied flag of its single sheet
+      // texture; a mesh batch may carry a premultiplied texture too
+      // (`MeshBatchParams::texture`), so hardcoding straight-alpha there would
+      // double-scale its edges by alpha — route both through the same
+      // `mesh_premultiplied` helper `cmd_mesh` uses so the two paths can't drift.
       // Resolved once here and passed to both `blend_apply` and `batch_draw`'s
       // `u_premultiplied` upload: the `ONE` source factor is only right while the
       // shader keeps its output premultiplied, so the two must never disagree.
-      let ( blend, premultiplied ) = match gpu_batch
+      // Only sprite batches carry `occlude_overlap` (single-coverage mode).
+      let ( blend, premultiplied, occlude ) = match gpu_batch
       {
         GpuBatch::Sprite { params, .. } =>
-          ( &params.blend, res.texture( params.sheet ).is_some_and( | t | t.premultiplied ) ),
+          ( &params.blend, res.texture( params.sheet ).is_some_and( | t | t.premultiplied ), params.occlude_overlap ),
         GpuBatch::Mesh { params, .. } =>
-          ( &params.blend, res.mesh_premultiplied( params.texture ) ),
+          ( &params.blend, res.mesh_premultiplied( params.texture ), false ),
       };
       blend_apply( &self.gl, blend, premultiplied );
+      // Single-coverage mode: paint each pixel once regardless of how many
+      // overlapping (bled) instances cover it. LESS rejects every fragment at
+      // a depth already stored, so once the first instance writes the batch's
+      // depth at a pixel the overlapping ones fail (the discard in the frag
+      // shader keeps the transparent quad area from writing depth). There is
+      // deliberately no depth clear here: it would also wipe the depth of
+      // nearer opaque draws that must keep hiding this batch. The caller
+      // instead places the batch strictly nearer than whatever it draws over
+      // (the scene renderer gives every bucket its own depth slot) and keeps
+      // depth writes on. Restored to LEQUAL after so following draws
+      // composite normally.
+      if occlude
+      {
+        self.gl.depth_func( gl::LESS );
+      }
       match gpu_batch
       {
-        GpuBatch::Sprite { .. } => self.sprite.batch_draw( &self.gl, gpu_batch, &res, premultiplied, viewport, self.config.max_depth ),
-        GpuBatch::Mesh { .. } => self.mesh.batch_draw( &self.gl, gpu_batch, &res, premultiplied, viewport, self.config.max_depth ),
+        GpuBatch::Sprite { .. } => self.sprite.batch_draw( &self.gl, gpu_batch, &res, &self.camera, premultiplied, viewport, self.config.max_depth ),
+        GpuBatch::Mesh { .. } => self.mesh.batch_draw( &self.gl, gpu_batch, &res, &self.camera, premultiplied, viewport, self.config.max_depth ),
+      }
+      if occlude
+      {
+        self.gl.depth_func( gl::LEQUAL );
       }
       Ok( () )
     }
@@ -955,12 +1063,12 @@ mod private
       Ok( () )
     }
 
-    /// Computes this backend's declared `Capabilities` from its one
-    /// hardware-dependent input -- `max_texture_size` -- touching no
-    /// `WebGl2RenderingContext`/`web_sys` state, so it is testable without a
-    /// live GL context.
+    /// Computes this backend's declared `Capabilities` from its two
+    /// context-dependent inputs -- `max_texture_size` and whether the context
+    /// has a depth buffer -- touching no `WebGl2RenderingContext`/`web_sys`
+    /// state, so it is testable without a live GL context.
     #[ must_use ]
-    pub fn declared_capabilities( max_texture_size : u32 ) -> Capabilities
+    pub fn declared_capabilities( max_texture_size : u32, depth : bool ) -> Capabilities
     {
       Capabilities
       {
@@ -981,6 +1089,11 @@ mod private
         text_on_path : false,
         // `blend_apply` and `shaders/tint.glsl` honour `ImageAsset::premultiplied`.
         premultiplied_images : true,
+        // `new` enables `DEPTH_TEST` / `LEQUAL`, which only works when the
+        // context has a depth buffer; `new` reads `DEPTH_BITS` to find out.
+        depth,
+        // `camera_set`'s view matrix is multiplied into every world draw.
+        camera : true,
         max_texture_size,
       }
     }
@@ -1037,6 +1150,12 @@ mod private
         }
         ( self.sprite, self.mesh ) = Self::renderers_new( &self.gl )?;
         Self::gl_state_init( &self.gl, &self.config );
+        // The cache surfaces belonged to the lost context as well. Dropping
+        // them makes every handle from before the loss stale, so its methods
+        // do nothing instead of binding a framebuffer that no longer exists,
+        // and the restored context draws to the canvas at its own size again.
+        self.render_targets_reset();
+        self.active_viewport = None;
       }
 
       // Reset all GPU state: textures, sprites, geometries, and batches.
@@ -1095,6 +1214,30 @@ mod private
 
       let viewport = self.viewport_size();
 
+      // Each command stream is self-contained: the scene renderer always emits
+      // balanced `BindBatch`…`UnbindBatch` pairs within one stream. Clear any
+      // leftover bind state before starting so a prior submit that errored
+      // part-way — or a DIFFERENT renderer sharing this backend (e.g. a main
+      // renderer plus separate bake renderers) — cannot poison this one. Without
+      // this, one mid-stream failure sticks `recording_batch` and every subsequent
+      // submit fails on its first `BindBatch` ("batch N is already bound"),
+      // cascading into an error spam that never recovers.
+      //
+      // The stuck batch is unbound the way its missing `UnbindBatch` would
+      // have: its staged writes are flushed, so its GPU copy and `gpu_len`
+      // match its contents again instead of lagging until it is next bound.
+      if let Some( stuck ) = self.recording_batch
+      {
+        web_sys::console::warn_1
+        (
+          &format!( "submit: clearing leftover bound batch {stuck:?} from a prior stream" ).into()
+        );
+        if let Err( e ) = self.cmd_unbind_batch()
+        {
+          web_sys::console::warn_1( &format!( "submit: flushing leftover bound batch {stuck:?} failed: {e}" ).into() );
+        }
+      }
+
       for cmd in commands
       {
         // Unimplemented placeholder arms (Path/Text/Group) all map to {} and are
@@ -1106,13 +1249,12 @@ mod private
 
           // Mesh & sprite
           RenderCommand::Mesh( m ) => self.cmd_mesh( m, viewport )?,
-          RenderCommand::Sprite( s ) => self.cmd_sprite( s, viewport )?,
-          // ScreenSpaceSprite uses the same draw path as Sprite — the compile
-          // layer already emits coordinates in screen-space (no camera
-          // project), so the adapter does not need to branch further. The
-          // distinction matters only to callers that post-process the command
-          // stream.
-          RenderCommand::ScreenSpaceSprite( s ) => self.cmd_sprite( s, viewport )?,
+          RenderCommand::Sprite( s ) => self.cmd_sprite( s, true, viewport )?,
+          // ScreenSpaceSprite is already in viewport-pixel space (the compile
+          // layer anchored it to the viewport, not the world), so it bypasses
+          // the camera view matrix — `apply_camera = false` — while a world
+          // `Sprite` gets the camera pre-multiplied on the GPU.
+          RenderCommand::ScreenSpaceSprite( s ) => self.cmd_sprite( s, false, viewport )?,
 
           // Batch lifecycle
           RenderCommand::CreateSpriteBatch( c ) => self.cmd_create_sprite_batch( c )?,
@@ -1125,9 +1267,13 @@ mod private
           RenderCommand::RemoveInstance( ri ) => self.cmd_remove_instance( *ri )?,
           RenderCommand::SetSpriteBatchParams( sp ) => self.cmd_set_sprite_batch_params( sp )?,
           RenderCommand::SetMeshBatchParams( mp ) => self.cmd_set_mesh_batch_params( mp )?,
-          RenderCommand::UnbindBatch( _ ) => self.cmd_unbind_batch(),
+          RenderCommand::UnbindBatch( _ ) => self.cmd_unbind_batch()?,
           RenderCommand::DrawBatch( db ) => self.cmd_draw_batch( *db, viewport )?,
           RenderCommand::DeleteBatch( db ) => self.cmd_delete_batch( *db ),
+          // Opaque/transparent pass split: the scene renderer disables depth
+          // writes for the transparent pass so back-to-front blending is not
+          // corrupted, then restores them. No depth attachment ⇒ harmless no-op.
+          RenderCommand::SetDepthWrite( s ) => self.gl.depth_mask( s.enabled ),
 
           // Path — skip (unimplemented; see capabilities().paths). Warn on the opener only (not MoveTo/LineTo/etc.)
           // so a 1000-segment path produces one message, not 1000. `capabilities()`
@@ -1184,7 +1330,7 @@ mod private
 
     fn capabilities( &self ) -> Capabilities
     {
-      Self::declared_capabilities( self.max_texture_size )
+      Self::declared_capabilities( self.max_texture_size, self.depth )
     }
   }
 
@@ -1220,11 +1366,15 @@ mod private
   }
 }
 
+mod webgl_surfaces;
+
 mod_interface::mod_interface!
 {
+  layer render_target;
   layer webgl_helpers;
   layer webgl_renderers;
   layer webgl_textures;
 
   own use WebGlBackend;
+  own use RenderTargetId;
 }

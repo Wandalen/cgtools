@@ -400,6 +400,8 @@ fn backend_capabilities_default_all_false()
   assert!( !c.blend_modes );
   assert!( !c.text_on_path );
   assert!( !c.premultiplied_images );
+  assert!( !c.depth, "a backend that declares nothing has no depth buffer" );
+  assert!( !c.camera, "and no GPU camera" );
   assert_eq!( c.max_texture_size, 0 );
   assert_eq!( c.supported_blend_modes, [] );
 }

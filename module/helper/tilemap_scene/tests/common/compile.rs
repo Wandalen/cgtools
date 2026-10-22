@@ -34,6 +34,7 @@ use tilemap_scene::
   SpriteSource,
   Tile,
   TilingStrategy,
+  TriBlendPattern,
   WrapMode,
 };
 
@@ -124,7 +125,7 @@ pub fn minimal_spec() -> RenderSpec
       },
       layers : vec!
       [
-        PipelineLayer { id : "terrain".into(), sort : SortMode::None, tint_mask : None },
+        PipelineLayer { id : "terrain".into(), sort : SortMode::None, tint_mask : None, alpha_clip : 0.0, occlude_overlap : false, opaque : false },
       ],
       global_tint : None,
       viewport_size : None,
@@ -176,4 +177,84 @@ pub fn sprite_commands( commands : &[ RenderCommand ] ) -> Vec< &tilemap_rendere
     RenderCommand::Sprite( s ) => Some( s ),
     _ => None,
   }).collect()
+}
+
+/// Build the single-terrain dual-grid spec used by the orient_to_grid tests:
+/// one `hexagon` object that both marks terrain (`priority`) and carries the
+/// `VertexCorners` layer (`orient_to_grid: true`) routing the canonical
+/// full/edge/corner frames.
+pub fn dual_orient_spec() -> RenderSpec
+{
+  let mut spec = minimal_spec();
+  spec.pipeline.hex.grid_stride = ( 96, 111 );
+  spec.objects.clear();
+  // Pre-baked oriented frames: full has 2 (▲/▽), edge and corner have 6 each
+  // (the void / lone-hex points in any of 6 directions). Positions are
+  // irrelevant to these tests — only that each frame exists in the atlas.
+  let frames : Vec< ( &str, ( u32, u32 ) ) > = vec!
+  [
+    ( "dual_full_0", ( 0, 0 ) ), ( "dual_full_1", ( 1, 0 ) ),
+    ( "dual_edge_0", ( 2, 0 ) ), ( "dual_edge_1", ( 3, 0 ) ),
+    ( "dual_edge_2", ( 0, 1 ) ), ( "dual_edge_3", ( 1, 1 ) ),
+    ( "dual_edge_4", ( 2, 1 ) ), ( "dual_edge_5", ( 3, 1 ) ),
+    ( "dual_corner_0", ( 0, 2 ) ), ( "dual_corner_1", ( 1, 2 ) ),
+    ( "dual_corner_2", ( 2, 2 ) ), ( "dual_corner_3", ( 3, 2 ) ),
+    ( "dual_corner_4", ( 0, 3 ) ), ( "dual_corner_5", ( 1, 3 ) ),
+  ];
+  spec.assets.push
+  (
+    Asset
+    {
+      id : "dual".into(),
+      path : "dual.png".into(),
+      kind : atlas_with_frames( 4, &frames ),
+      filter : SamplerFilter::default(),
+      mipmap : MipmapMode::default(),
+      wrap : WrapMode::default(),
+      premultiplied : false,
+    }
+  );
+  spec.objects.push( Object
+  {
+    id : "hexagon".into(),
+    anchor : Anchor::Hex,
+    global_layer : "terrain".into(),
+    priority : Some( 10 ),
+    sort_y_source : SortYSource::default(),
+    pivot : ( 0.5, 0.5 ),
+    default_state : "default".into(),
+    states :
+    {
+      let mut m = HashMap::default();
+      m.insert
+      (
+        "default".into(),
+        vec!
+        [
+          ObjectLayer
+          {
+            id : None,
+            sprite_source : SpriteSource::VertexCorners
+            {
+              patterns : vec!
+              [
+                TriBlendPattern { corners : ( "hexagon".into(), "hexagon".into(), "hexagon".into() ), sprite_pattern : "dual_full_{rot}".into(),   priority : 30, animation : None },
+                TriBlendPattern { corners : ( "hexagon".into(), "hexagon".into(), "void".into() ),    sprite_pattern : "dual_edge_{rot}".into(),   priority : 20, animation : None },
+                TriBlendPattern { corners : ( "hexagon".into(), "void".into(), "void".into() ),       sprite_pattern : "dual_corner_{rot}".into(), priority : 10, animation : None },
+              ],
+              asset : "dual".into(),
+              orient_to_grid : true,
+              corner_source : None,
+              offset : None,
+            },
+            behaviour : LayerBehaviour::default(),
+            z_in_object : 0,
+            pipeline_layer : None,
+          },
+        ],
+      );
+      m
+    },
+  });
+  spec
 }

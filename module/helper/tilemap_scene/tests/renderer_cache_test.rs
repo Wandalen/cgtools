@@ -4,9 +4,10 @@
 //!
 //! The contract under test: a `render()` call whose `(scene.revision(),
 //! scene.clock(), camera signature)` matches the snapshot captured by the
-//! previous call returns the previously emitted command slice verbatim
-//! without re-walking the scene. Any change to revision (mutation), clock
-//! (tick), or camera invalidates the cache and forces a fresh emission.
+//! previous call draws the previous frame again without re-walking the scene:
+//! it returns that frame's draw commands, without the batch edits the backend
+//! already applied. Any change to revision (mutation), clock (tick), or camera
+//! invalidates the cache and forces a fresh emission.
 
 extern crate alloc;
 use alloc::sync::Arc;
@@ -124,7 +125,7 @@ fn spec_build() -> RenderSpec
       hex : HexConfig { tiling : TilingStrategy::HexFlatTop, grid_stride : ( 72, 64 ) },
       layers : vec!
       [
-        PipelineLayer { id : "terrain".into(), sort : SortMode::None, tint_mask : None },
+        PipelineLayer { id : "terrain".into(), sort : SortMode::None, tint_mask : None, alpha_clip : 0.0, occlude_overlap : false, opaque : false },
       ],
       global_tint : None,
       viewport_size : None,
@@ -136,6 +137,27 @@ fn spec_build() -> RenderSpec
 /// Snapshot the emitted commands as an owned `Vec` so we can compare
 /// across `render()` calls without juggling lifetimes.
 fn snapshot( cmds : &[ RenderCommand ] ) -> Vec< RenderCommand > { cmds.to_vec() }
+
+/// What a backend draws for each of `frames`, submitted in order to one
+/// backend, as a `Debug` string per frame (`RenderCommand` has no
+/// `PartialEq`). [`common::BatchFlattener`] keeps the batch table across
+/// frames as a backend does, and panics on an edit that does not apply.
+fn drawn( frames : &[ &[ RenderCommand ] ] ) -> Vec< String >
+{
+  let mut backend = common::BatchFlattener::new();
+  frames.iter().map( | f | format!( "{:?}", backend.apply( f ) ) ).collect()
+}
+
+/// Whether `cmds` edits a batch: anything but a draw, a clear or a depth toggle.
+fn has_batch_edits( cmds : &[ RenderCommand ] ) -> bool
+{
+  cmds.iter().any( | c | !matches!
+  (
+    c,
+    RenderCommand::Clear( _ ) | RenderCommand::SetDepthWrite( _ ) | RenderCommand::DrawBatch( _ )
+      | RenderCommand::Sprite( _ ) | RenderCommand::ScreenSpaceSprite( _ )
+  ))
+}
 
 /// Count world-space sprites after batch-flattening — a coarse "what
 /// got drawn" signal that works whether the renderer emits per-sprite
@@ -165,7 +187,10 @@ fn idle_render_returns_cached_slice()
   let second = snapshot( renderer.render( &scene, &camera ).expect( "second" ) );
   let hits_after_second = renderer.cache_hits();
 
-  assert_eq!( first.len(), second.len(), "cached slice has same length" );
+  assert!( has_batch_edits( &first ), "the first frame creates the batch" );
+  assert!( !has_batch_edits( &second ), "the replay carries no batch edits" );
+  let frames = drawn( &[ &first, &second ] );
+  assert_eq!( frames[ 0 ], frames[ 1 ], "the replay draws what the first frame drew" );
   assert_eq!
   (
     hits_after_second - hits_after_first, 1,
@@ -365,8 +390,12 @@ fn tick_zero_keeps_cache_warm()
 // 5. Camera change invalidates cache.
 // ────────────────────────────────────────────────────────────────────────────
 
+// A pan (world-centre change) is a cache HIT: world-space draws carry world
+// coordinates and the backend applies the pan as a view matrix, so the command
+// stream is unchanged. This is the pan optimisation — the caller feeds the new
+// view matrix to the backend out-of-band while replaying the cached commands.
 #[ test ]
-fn camera_pan_invalidates_cache()
+fn camera_pan_hits_cache_and_replays_identically()
 {
   let spec = spec_build();
   let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
@@ -377,14 +406,16 @@ fn camera_pan_invalidates_cache()
   let cam1 = Camera::default();
   let cam2 = Camera { world_center : ( 100.0, 0.0 ), ..Camera::default() };
 
-  let _ = renderer.render( &scene, &cam1 ).expect( "prime" );
+  let primed = snapshot( renderer.render( &scene, &cam1 ).expect( "prime" ) );
   let hits_before = renderer.cache_hits();
-  let _ = renderer.render( &scene, &cam2 ).expect( "different camera" );
+  let panned = snapshot( renderer.render( &scene, &cam2 ).expect( "panned" ) );
   assert_eq!
   (
-    renderer.cache_hits(), hits_before,
-    "camera pan must invalidate cache",
+    renderer.cache_hits(), hits_before + 1,
+    "camera pan must HIT the cache (world-space draws are camera-independent)",
   );
+  let frames = drawn( &[ &primed, &panned ] );
+  assert_eq!( frames[ 0 ], frames[ 1 ], "a pan draws the same sprites (world coords unchanged)" );
 }
 
 #[ test ]
@@ -432,13 +463,13 @@ fn camera_viewport_resize_invalidates_cache()
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// 6. Replay correctness — cached slice is byte-equal to the slice that
-//    populated it. Prevents future regressions where the replay path
-//    accidentally returns stale data after the next miss.
+// 6. Replay correctness — a replay draws what the frame that populated it
+//    drew, and applying it changes no batch. Prevents future regressions
+//    where the replay path returns stale data or repeats batch edits.
 // ────────────────────────────────────────────────────────────────────────────
 
 #[ test ]
-fn cached_slice_is_byte_equal_to_priming_slice()
+fn replay_draws_what_the_priming_frame_drew()
 {
   let spec = spec_build();
   let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
@@ -452,15 +483,86 @@ fn cached_slice_is_byte_equal_to_priming_slice()
   let primed = snapshot( renderer.render( &scene, &camera ).expect( "prime" ) );
   let replayed = snapshot( renderer.render( &scene, &camera ).expect( "replay" ) );
 
-  assert_eq!( primed.len(), replayed.len(), "command count stable across replay" );
-  assert_eq!
-  (
-    sprite_count( &primed ), sprite_count( &replayed ),
-    "sprite count stable across replay",
-  );
-  // First command of both should be Clear; nth Sprite should match by id.
+  let frames = drawn( &[ &primed, &replayed ] );
+  assert_eq!( frames[ 0 ], frames[ 1 ], "the replay draws the same sprites" );
+  assert_eq!( sprite_count( &primed ), 2 );
+  // First command of both should be Clear.
   assert!( matches!( primed.first(), Some( RenderCommand::Clear( _ ) ) ) );
   assert!( matches!( replayed.first(), Some( RenderCommand::Clear( _ ) ) ) );
+}
+
+/// BUG-541 reproducer. Every `render` result is submitted to one backend:
+/// a spawn adds an instance to the live batch, a despawn removes it, and each
+/// change is followed by an idle frame. The idle frames must draw the scene
+/// as it is. When the replay repeated the miss's batch edits, the first idle
+/// frame drew the added sprite twice, and the second one removed an instance
+/// past the batch's end.
+///
+/// ## Root Cause
+/// An idle hit returned the last miss's buffer unchanged, batch edits
+/// included, and the caller submitted them again.
+///
+/// ## Why Not Caught
+/// The replay tests looked at the returned commands on their own, by length
+/// and by stateless flattening, so they required the repeated edits.
+///
+/// ## Fix Applied
+/// The first hit after a miss keeps only the draw commands.
+///
+/// ## Prevention
+/// Submits every frame to one `BatchFlattener`, which keeps the batch table
+/// as a backend does and panics on an edit that does not apply.
+///
+/// ## Pitfall
+/// Everything `render` returns is submitted once per call, so a cached stream
+/// must be safe to apply again: only draws are.
+// test_kind: bug_reproducer(BUG-541)
+#[ test ]
+fn replay_after_a_spawn_and_a_despawn_draws_each_sprite_once()
+{
+  let spec = spec_build();
+  let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
+  let mut scene = Scene::new( Arc::new( spec ) );
+  let grass = scene.object( "grass" ).unwrap();
+  let knight = scene.object( "knight" ).unwrap();
+  let _ = scene.spawn( grass, Placement::Hex { q : 0, r : 0 } );
+  let camera = Camera::default();
+  let mut backend = common::BatchFlattener::new();
+  let mut frame = | renderer : &mut Renderer, scene : &Scene |
+  {
+    let cmds = renderer.render( scene, &camera ).expect( "render" );
+    backend.apply( cmds ).iter().filter( | c | matches!( c, RenderCommand::Sprite( _ ) ) ).count()
+  };
+
+  assert_eq!( frame( &mut renderer, &scene ), 1, "one grass tile" );
+  let h = scene.spawn( knight, Placement::Hex { q : 1, r : 0 } );
+  assert_eq!( frame( &mut renderer, &scene ), 2, "the spawn adds an instance to the live batch" );
+  assert_eq!( frame( &mut renderer, &scene ), 2, "an idle frame draws the knight once" );
+  scene.despawn( h );
+  assert_eq!( frame( &mut renderer, &scene ), 1, "the despawn removes the instance" );
+  assert_eq!( frame( &mut renderer, &scene ), 1, "an idle frame removes nothing more" );
+  assert_eq!( renderer.cache_hits(), 2 );
+}
+
+/// `batch_id_base_set` sets the next id to allocate, so it is only safe while
+/// no batch is live: later it would remint ids the backend already holds.
+/// Debug builds assert that, before the first render and after `cleanup`.
+#[ test ]
+#[ cfg( debug_assertions ) ]
+#[ should_panic( expected = "batch_id_base_set with 1 live batches" ) ]
+fn batch_id_base_set_with_live_batches_asserts_in_debug()
+{
+  let spec = spec_build();
+  let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
+  renderer.batch_id_base_set( 1 << 24 );
+  let mut scene = Scene::new( Arc::new( spec ) );
+  let grass = scene.object( "grass" ).unwrap();
+  let _ = scene.spawn( grass, Placement::Hex { q : 0, r : 0 } );
+  let _ = renderer.render( &scene, &Camera::default() ).expect( "render" );
+  let _ = renderer.cleanup();
+  renderer.batch_id_base_set( 2 << 24 );
+  let _ = renderer.render( &scene, &Camera::default() ).expect( "render" );
+  renderer.batch_id_base_set( 3 << 24 );
 }
 
 // ────────────────────────────────────────────────────────────────────────────

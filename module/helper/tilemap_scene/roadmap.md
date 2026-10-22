@@ -46,12 +46,16 @@ pipeline is exercised only by this crate's own tests.
 
 - Buckets with `SortMode::{ None, XAsc, XDesc, YAsc, YDesc, XAscYDesc, XAscYAsc, YDescXAsc, YAscXAsc }`
 - Per-layer pipeline-bucket override via `ObjectLayer.pipeline_layer`
+- Single-coverage buckets — `PipelineLayer.{ alpha_clip, occlude_overlap }` (both default off) forwarded onto every emitted `SpriteBatchParams`; turn a bucket of overlapping translucent tiles (bled dual-grid drop shadow) into a single-coverage mask so the overlap composites once (draws under `LESS` with each bucket pinned to its own depth slot, no mid-frame depth clear). Batched draws only. See `docs/format/007_render_pipeline.md`
+- Opaque pass — `PipelineLayer.opaque` (default off) joins a bucket to a front-to-back depth-culling pass via the new `SetDepthWrite` render command; when any layer is opaque the frame splits into opaque (depth writes on) then transparent (depth writes off) passes, cutting the flat tilemap's multi-layer overdraw. Inert when no layer is opaque; an opaque bucket that must draw per sprite in a frame falls back to the transparent pass. See `docs/format/007_render_pipeline.md`
 - `RenderPipeline.clear_color` (linear RGBA; `None` = transparent-black)
 - `RenderPipeline.global_tint` (composition — lerp(white, color, strength) multiplied into every emitted sprite)
 
 **Other infrastructure**
 
-- `Camera` with translate + uniform zoom; `viewport_size` source precedence `pipeline.viewport_size` → `camera.viewport_size`
+- `Camera` with translate + uniform zoom; `viewport_size` source precedence `pipeline.viewport_size` → `camera.viewport_size`. `Camera::to_view_mat3` exposes the world→screen projection as a column-major 3×3 so a GPU backend applies it once per frame — world-space draws emit at unit scale in world coordinates, making a pan/zoom a single view-matrix change instead of a per-sprite re-projection (and, for a pan, an idle-replay cache hit)
+- `Renderer::disabled_buckets_set(mask: u64)` — diagnostic / perf layer gate; bit `i` skips the `i`-th `pipeline.layers` bucket (its live batches are released, depth pinning still divides by the full count so the others' depths don't shift). A skipped bucket is not gathered at all — its `VertexCorners` resolve included — and the vertex-resolve cache is keyed on the mask as well as the scene revision. Changing the mask invalidates the idle-replay cache
+- `Renderer::batch_id_base_set(base: u32)` — offsets `ResourceId<Batch>` allocation so several renderers can share one backend without batch-id collisions (e.g. main / static-bake / region-bake). Must be called before the first `render()`
 - `Scene.seed: Option<u64>` — folds to `u32` salt for `coord_hash`; deterministic across frames
 - `FrameSpec::anchor` — per-frame pixel anchor, overrides `Object.pivot` when set; threaded via `CompiledAssets.sprite_anchors`
 - RON + serde loader (`RenderSpec::load`, `Scene::load`) with validation hooks
@@ -79,9 +83,25 @@ pipeline is exercised only by this crate's own tests.
   carries a per-frame cache across calls.
   - **Idle-replay:** when `(scene.revision, scene.clock, camera
     fingerprint)` matches the snapshot from the previous call, returns
-    the previously emitted command slice verbatim — no scene walk,
-    no command rebuild. Exposed via `Renderer::cache_hits()` for
-    consumer telemetry.
+    the previous frame's draw commands without its batch edits, which
+    the backend already applied (BUG-541) — no scene walk, no command
+    rebuild. Exposed via `Renderer::cache_hits()` for
+    consumer telemetry. The camera fingerprint deliberately EXCLUDES
+    `world_center`: world-space draws carry world coordinates and the
+    backend applies the pan as a GPU view matrix (`Camera::to_view_mat3`),
+    so a pan is a cache HIT and the caller feeds the new matrix to the
+    backend out-of-band. `zoom` and `viewport_size` still invalidate
+    (viewport-anchored draws depend on them).
+  - **Vertex-resolve cache:** the dual-grid `VertexCorners` pass is split
+    into a camera/clock-INDEPENDENT *resolve* tier (triangle enumeration +
+    per-triangle corner resolution + pattern match + frame-name building,
+    recorded in world space) and a cheap per-frame *project* tier (anchor
+    pivot + global-tint fold + alpha-pulse wave). Since the camera is now
+    applied on the GPU, the project tier no longer projects — it stays in
+    world space, so it is independent of pan/zoom. The resolve tier is
+    memoised on `scene.revision()`, so an animating-but-idle board (clock
+    ticking, nothing spawned/despawned) skips the whole triangle / pattern
+    / string walk. Inert for specs without `VertexCorners` layers.
   - **Batch emission (SortMode::None buckets):** sprites grouped by
     `(bucket, sheet, blend, clip)` into instanced batches. First
     encounter emits `CreateSpriteBatch` + `BindBatch` + N×
@@ -110,7 +130,7 @@ fallback, inline `DrawBatch` pipeline order) +
 3 `hex_config_test` (`from_hex_size` arithmetic for both tilings) +
 6 `catalog_test` +
 42 `scene_model_compile_test` (anchor × source × pipeline coverage —
-all migrated via `tests/common::flatten_to_sprites`) +
+all migrated via `tests/common::commands_to_sprites`) +
 14 `scene_model_test` (RON + serde round-trip).
 
 **Closed items from the (since-removed) `TILEMAP_SCENE_FEEDBACK.md` review:**
@@ -143,16 +163,32 @@ game use-case demands one.
 1. ~~**`TintBehaviour::Flat` for `VertexCorners`.**~~ *Shipped.* `TintBehaviour::Flat`
    is implemented for **all** layer types via the shared `FrameTints::sprite_tint` helper
    (instance, edge, viewport, free, and `VertexCorners` passes), not only
-   `vertex_pass_compile` — the flat tint multiplies the global tint so per-player
+   the `VertexCorners` pass — the flat tint multiplies the global tint so per-player
    region overlays can be coloured independently. `TintBehaviour::Masked` is
    explicitly rejected — at load with `ValidationError::UnsupportedBehaviour`,
    and at compile with `CompileError::UnsupportedBehaviour` as a backstop.
    Still open: **`TintBehaviour::Masked` + `TeamColor` resolution** against
    `Scene.players[i].color` for team-coloured units.
-2. **`Effects` (`VertexDisplace` / `AlphaPulse` / `ColorShift`).** Compile
-   layer just passes effect references through; real work is adapter-side
-   shader support. Largely blocked on backend. Consider dropping the variants
-   entirely if no game asks — they're declared but not plumbed.
+2. **`Effects` (`VertexDisplace` / `AlphaPulse` / `ColorShift` / `FadeGate`).**
+   `AlphaPulse` is plumbed for `VertexCorners` layers: `resolve_alpha_pulse`
+   folds the effect's `(min, max, frequency, restart_on_spawn)` into the
+   revision-cached vertex resolve, and the per-frame project tier evaluates a
+   raised-cosine wave scaling the tint alpha (the shaders premultiply). `restart_on_spawn`
+   phases the wave off `pulse_anchor` (the clock captured when the bucket's
+   content was resolved) so it restarts from `min` when the layer's own content
+   changes, instead of free-running off the global clock. The anchor is carried
+   forward across content-identical re-resolves (`same_vertex_content`), so an
+   unrelated `revision` bump — e.g. a cursor-preview `move_to` — does not restart
+   the pulse. *Shipped.* `FadeGate` is the one-way counterpart: instead of
+   oscillating forever, it eases a per-effect-id progress toward an externally
+   driven boolean target and holds there. The target isn't part of the RON
+   declaration — it's runtime state set via `Scene::fade_target_set(effect_id,
+   bool)`, advanced by `Scene::tick` at `1000.0 / duration_ms` per second and
+   read fresh every frame by `project_vertex_sprite` via `Scene::fade_value`
+   (unlike `alpha_pulse`, this can't be captured at resolve time — it's not a
+   pure function of `ctx.time_seconds`). Bucket-wide, same granularity as
+   `AlphaPulse`. `VertexDisplace` / `ColorShift` still pass references through
+   only — real work is adapter-side shader support, largely blocked on backend.
 3. **`Validate` rule implementation.** *Mostly shipped.* `RenderSpec::validate`
    now enforces pipeline-layer references, asset references (recursive
    through `Variant` / `NeighborBitmask` / `EdgeConnectedBitmask` /
@@ -270,7 +306,7 @@ workload demands it.
 
 1. **Fine-delta per-instance `SetSpriteInstance` for `SortMode::None`
    batches.** *Partially shipped — bit-equal payload elision.*
-   `emit_or_update_batch` now does a bit-equal pre-pass against the
+   `batch_emit_or_update` now does a bit-equal pre-pass against the
    cached `BatchEntry.instances` and emits `SetSpriteInstance` only
    for slots whose new `Sprite` payload (transform / sprite id / tint;
    blend & clip are batch-level) actually differs. If no slot

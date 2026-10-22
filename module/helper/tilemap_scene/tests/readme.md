@@ -24,15 +24,17 @@ Two levels coexist:
 | hash_test.rs | Known-answer determinism pins for normative SPEC §13 hashes |
 | hex_config_test.rs | HexConfig::from_hex_size grid-stride arithmetic |
 | layer_tint_compile_test.rs | LayerBehaviour.tint (None pass-through, Flat composition, Masked and non-Multiply tint rejection) through every sprite-emitting compile pass |
-| renderer_cache_test.rs | Renderer per-frame idle-replay cache acceptance |
+| opaque_pass_test.rs | Opaque/transparent bucket split, per-bucket depth pinning, single coverage across batches and under opaque layers, the single painter's pass without a depth buffer (`Renderer::capabilities_set`), a batch whose `occlude_overlap` changes is replaced instead of drawing under its old params, and an opaque bucket with a viewport sprite rides the transparent pass for that frame only, reusing its batch |
+| renderer_cache_test.rs | Renderer per-frame idle-replay and camera-pan cache-hit acceptance; a replay submitted to one backend draws the frame again without repeating its batch edits (BUG-541); `batch_id_base_set` asserts in debug while batches are live |
 | renderer_test.rs | Renderer asset-compile-once and per-instance override contract |
 | ron_syntax_error_test.rs | Invalid RON reported as `LoadError::Ron`, kept distinct from validation failures |
 | scene_events_test.rs | Scene::tick event-stream semantics |
 | scene_model_compile_test.rs | Compile pipeline integration (assets_compile + compile_frame) |
 | scene_model_test.rs | scene-model parsing, serde round-trip, loader API |
-| scene_state_test.rs | Retained-mode Scene mutation API |
+| scene_state_test.rs | Retained-mode Scene mutation API; a move that keeps the placement kind and anchor cell keeps the index order |
 | sorted_batching_test.rs | Sorted-bucket DrawBatch collapsing |
 | vertex_corners_compile_test.rs | VertexCorners through the compile pipeline: pattern matching, orient_to_grid frame selection, corner_source channels, offset |
+| vertex_resolve_cache_test.rs | Revision-keyed VertexCorners resolve cache (`Scene::tiles_revision`, re-resolve only on hex-cell changes, a same-cell move keeps the cell's stack order (BUG-540), re-enabling a disabled layer, a renderer reused for another scene with equal counters resolves it afresh), the `FadeGate` effect (easing, idle-replay invalidation, an undeclared id reported and ignored) and `AlphaPulse.restart_on_spawn` (wave restarts at a spawn, free-running one does not, a spawn that leaves the layer's vertex content alone carries the wave on, even when it changes another layer of the same bucket) |
 
 ## Adding tests
 

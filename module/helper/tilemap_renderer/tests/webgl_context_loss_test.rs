@@ -85,6 +85,49 @@ fn assets_load_clears_context_lost_after_simulated_loss()
   assert!( backend.output().is_ok(), "output must succeed again once assets_load has run" );
 }
 
+/// A context restore drops the cache surfaces with the rest of the lost
+/// context's objects. A handle from before the loss is then stale:
+/// `render_target_begin` refuses it and binds nothing, and a target pass the
+/// loss interrupted no longer sizes the canvas's draws. Here a 16×16 canvas
+/// was inside a 4×4 target pass when the context was lost; after the restore a
+/// 2×2 sprite must cover 4 canvas pixels, not the 64 it would cover if the
+/// projection still used the target's viewport.
+#[ wasm_bindgen_test ]
+fn a_context_restore_drops_render_targets_and_their_viewport()
+{
+  const SIZE : u32 = 16;
+  let gl = gl_init();
+  let canvas = gl.canvas().unwrap().dyn_into::< web_sys::HtmlCanvasElement >().unwrap();
+  canvas.set_width( SIZE );
+  canvas.set_height( SIZE );
+  let mut backend = WebGlBackend::new( RenderConfig { width : SIZE, height : SIZE, ..RenderConfig::default() }, gl.clone() ).unwrap();
+  backend.assets_load( &red_sprite_assets() ).unwrap();
+  let target = backend.render_target_create( 4, 4 ).unwrap();
+  assert!( backend.render_target_begin( target, None ), "a live handle binds its surface" );
+
+  backend.context_lost_set_for_test( true );
+  backend.assets_load( &red_sprite_assets() ).unwrap();
+  assert!( !backend.render_target_begin( target, None ), "a handle from before the restore is stale" );
+
+  let sprite = Sprite
+  {
+    transform : Transform { position : [ 2.0, 2.0 ], scale : [ 2.0, 2.0 ], ..Transform::default() },
+    sprite : ResourceId::new( 0 ),
+    tint : [ 1.0; 4 ],
+    blend : BlendMode::Normal,
+    clip : None,
+  };
+  backend.submit( &[ RenderCommand::Clear( Clear { color : [ 0.0, 0.0, 0.0, 1.0 ] } ), RenderCommand::Sprite( sprite ) ] ).unwrap();
+  let mut bytes = vec![ 0_u8; ( SIZE * SIZE * 4 ) as usize ];
+  gl.read_pixels_with_opt_u8_array( 0, 0, SIZE as i32, SIZE as i32, gl::RGBA, gl::UNSIGNED_BYTE, Some( &mut bytes ) ).unwrap();
+  let red = bytes.as_chunks::< 4 >().0.iter().filter( | p | p[ .. 3 ] == [ 255, 0, 0 ] ).count();
+  assert_eq!( red, 4, "the sprite is projected for the 16×16 canvas" );
+
+  let fresh = backend.render_target_create( 4, 4 ).unwrap();
+  assert!( backend.render_target_begin( fresh, None ), "a surface made after the restore binds" );
+  backend.render_target_end();
+}
+
 /// Calls `method` ( `loseContext` / `restoreContext` ) on a `WEBGL_lose_context`
 /// extension object.
 fn lose_context_call( extension : &gl::js_sys::Object, method : &str )
