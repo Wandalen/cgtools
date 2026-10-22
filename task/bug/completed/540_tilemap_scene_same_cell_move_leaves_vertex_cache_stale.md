@@ -88,6 +88,7 @@ just its membership, must bump it.
 | 2026-10-20 | filed | Raised by round 4 of the PR #207 review. |
 | 2026-10-20 | fixed | `placement_move` keeps the stack order on a same-cell move. |
 | 2026-10-20 | verified | See Verification Record below. |
+| 2026-10-22 | extended | Round 5 of the review: the same rule now covers every placement kind. A move that keeps the kind and the anchor cell keeps the instance's place in its per-anchor list and its cell's stack (`a_move_that_keeps_kind_and_cell_keeps_index_order` in `scene_state_test.rs`). |
 
 ## Verification Record
 

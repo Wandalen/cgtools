@@ -68,8 +68,9 @@ mod private
     instances_at_hex : HashMap< ( i32, i32 ), Vec< InstanceHandle > >,
 
     /// Per-anchor lists used by `Renderer` to iterate the world by pipeline
-    /// pass. Lists are kept in insertion order (spawn order); `Renderer`
-    /// applies per-bucket sort modes on top of this.
+    /// pass. Lists are kept in insertion order (spawn order; a move that
+    /// changes the placement kind or the anchor cell re-inserts at the end);
+    /// `Renderer` applies per-bucket sort modes on top of this.
     hex_instances : Vec< InstanceHandle >,
     edge_instances : Vec< InstanceHandle >,
     free_instances : Vec< InstanceHandle >,
@@ -503,9 +504,11 @@ mod private
 
     /// Move an existing instance to a new placement. The new placement
     /// MAY use a different variant than the previous one (e.g. `Hex` →
-    /// `FreePos`); spatial indexes are updated accordingly. A move onto the
-    /// hex cell the instance already stands in keeps its place in that cell's
-    /// stack.
+    /// `FreePos`); spatial indexes are updated accordingly. A move that keeps
+    /// the placement kind and the anchor cell ([`Placement::hex_coord`]; none
+    /// for `FreePos` and `Viewport`) keeps the instance's place in its
+    /// per-anchor list and its cell's stack, so it keeps its draw order. A
+    /// move that changes either re-inserts it at the end of both.
     pub fn placement_move( &mut self, h : InstanceHandle, placement : Placement )
     {
       let Some( inst ) = self.instances.get_mut( h )
@@ -517,18 +520,23 @@ mod private
       let old = inst.placement;
       let visible = inst.visible;
       inst.placement = placement;
-      // Fix(BUG-540): a move onto the hex cell the instance already stands in
-      // keeps its place in the spatial indexes. `Placement::Hex` carries only
-      // the cell, so nothing else changed.
+      // Fix(BUG-540): a move that keeps both index keys -- the placement kind
+      // (which per-anchor list holds the instance) and the hex cell it is
+      // anchored to (`Placement::hex_coord`, none for `FreePos` / `Viewport`)
+      // -- keeps its place in the spatial indexes: a same-cell `Hex` move, an
+      // `Edge` turned on its hex, a `Multihex` reshaped on its anchor, any
+      // `FreePos` or `Viewport` move.
       // Root cause: re-indexing pushed it to the end of `hex_instances`, so a
       // same-cell move reordered the cell's stack. The first corner terrain in
       // that stack owns the cell's corner, yet `tiles_revision` (correctly) did
       // not move, so the cached vertex resolve kept the old owner while a fresh
-      // resolve picked the new one.
+      // resolve picked the new one. The other kinds' lists set their draw
+      // order, so a mover also jumped above the instances spawned after it.
       // Pitfall: any other path that reorders a cell's stack must bump
       // `tiles_revision` too.
-      let same_cell = hex_cell( old ).is_some() && hex_cell( old ) == hex_cell( placement );
-      if !same_cell
+      let same_slot = core::mem::discriminant( &old ) == core::mem::discriminant( &placement )
+        && old.hex_coord() == placement.hex_coord();
+      if !same_slot
       {
         self.index_remove( h, old );
         self.index_insert( h, placement );
