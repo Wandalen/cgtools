@@ -178,10 +178,10 @@ let Output::String( doc ) = svg.output()? else { unreachable!() };
 > command order, so a caller that orders draws by depth must keep painter's order itself;
 > `tilemap_scene`'s `Renderer::set_depth_buffer( false )` does.
 >
-> ⁹ The GPU camera is WebGL only: `WebGlBackend::set_camera` is an inherent method, not
+> ⁹ The GPU camera is WebGL only: `WebGlBackend::camera_set` is an inherent method, not
 > part of `Backend`, and no command carries a camera. The other adapters draw world
 > coordinates as viewport pixels. `tilemap_scene` emits world draws in world coordinates
-> and leaves the view matrix to `set_camera`, so on another adapter its camera does not
+> and leaves the view matrix to `camera_set`, so on another adapter its camera does not
 > move world draws. SVG's `viewport_offset_set` / `viewport_scale_set`
 > transform the whole document, `ScreenSpaceSprite`s included, so they are not a
 > replacement.

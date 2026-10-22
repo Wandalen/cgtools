@@ -1,7 +1,7 @@
 //! `TargetSlots`, the generation-checked slot table behind `RenderTargetId`.
 //!
 //! GL-free: the table only stores values and stamps handles, so the
-//! stale-handle rule `WebGlBackend::reset_render_targets` relies on is checked
+//! stale-handle rule `WebGlBackend::render_targets_reset` relies on is checked
 //! on the host, without a WebGL2 context.
 
 #![ cfg( all( feature = "adapter-webgl", feature = "test_internals" ) ) ]

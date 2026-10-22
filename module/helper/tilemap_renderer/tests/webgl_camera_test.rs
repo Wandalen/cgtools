@@ -1,4 +1,4 @@
-//! `WebGlBackend::set_camera` end to end, against a live WebGL2 context with
+//! `WebGlBackend::camera_set` end to end, against a live WebGL2 context with
 //! pixel read-back: the matrix a caller sets (in `tilemap_scene`,
 //! `Camera::to_view_mat3`) reaches every world-space draw path through
 //! `submit`, and skips `ScreenSpaceSprite`.
@@ -137,7 +137,7 @@ fn frame( camera : [ f32; 9 ], transform : Transform, draw : Draw ) -> Vec< u8 >
   let config = RenderConfig { width : WIDTH, height : HEIGHT, ..RenderConfig::default() };
   let mut backend = WebGlBackend::new( config, gl.clone() ).unwrap();
   backend.assets_load( &white_assets() ).unwrap();
-  backend.set_camera( camera );
+  backend.camera_set( camera );
 
   let mut commands = vec![ RenderCommand::Clear( Clear { color : [ 0.0, 0.0, 0.0, 1.0 ] } ) ];
   commands.extend( draw( transform ) );
@@ -164,7 +164,7 @@ fn frames_on_one_backend( cameras : &[ [ f32; 9 ] ], frames : &[ Vec< RenderComm
 
   cameras.iter().zip( frames ).map( | ( camera, draw ) |
   {
-    backend.set_camera( *camera );
+    backend.camera_set( *camera );
     let mut commands = vec![ RenderCommand::Clear( Clear { color : [ 0.0, 0.0, 0.0, 1.0 ] } ) ];
     commands.extend( draw.iter().copied() );
     backend.submit( &commands ).unwrap();

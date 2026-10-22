@@ -424,7 +424,7 @@ mod private
 
     /// Backend image handle of the spec asset `asset_id`, or `None` if the spec
     /// declares no such asset. Lets a host draw a loaded image directly (e.g. a
-    /// tiled backdrop via the WebGL backend's `draw_image_tiled`).
+    /// tiled backdrop via the WebGL backend's `image_tiled_draw`).
     #[ inline ]
     #[ must_use ]
     pub fn image_id( &self, asset_id : &str ) -> Option< ResourceId< asset::Image > >

@@ -6,10 +6,10 @@
 mod private
 {
   /// Handle to an offscreen cache surface, returned by
-  /// [`WebGlBackend::create_render_target`]( crate::adapters::webgl::WebGlBackend::create_render_target ).
+  /// [`WebGlBackend::render_target_create`]( crate::adapters::webgl::WebGlBackend::render_target_create ).
   ///
   /// Besides the surface's slot it records which generation of surfaces it
-  /// belongs to. [`WebGlBackend::reset_render_targets`]( crate::adapters::webgl::WebGlBackend::reset_render_targets ) starts a new
+  /// belongs to. [`WebGlBackend::render_targets_reset`]( crate::adapters::webgl::WebGlBackend::render_targets_reset ) starts a new
   /// generation and reuses the slots, so a handle kept across a reset is
   /// rejected (the methods taking it do nothing) instead of silently
   /// addressing whichever new surface took its slot.

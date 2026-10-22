@@ -17,11 +17,11 @@ impl WebGlBackend
   // These let a consumer bake a subset of the frame into a texture once (or
   // occasionally) and composite it back as a single world-space quad every
   // frame, trading per-frame overdraw for a couple of texture-sample blits.
-  // They are inherent methods (like `set_camera`), driven by the consumer
+  // They are inherent methods (like `camera_set`), driven by the consumer
   // between `submit` calls — the `RenderCommand` stream and the other backends
   // are untouched. `submit` sets the GL viewport once per frame from `config`
-  // and never mid-loop, so `begin_render_target` sets the target viewport and
-  // `end_render_target` restores it to the canvas size.
+  // and never mid-loop, so `render_target_begin` sets the target viewport and
+  // `render_target_end` restores it to the canvas size.
   // ========================================================================
 
   /// Hardware `MAX_TEXTURE_SIZE`. A cache surface may not exceed this in either
@@ -48,8 +48,8 @@ impl WebGlBackend
 
   /// Allocate an offscreen cache surface (`width×height`, RGBA8 + depth) and
   /// return its handle, or `None` if allocation / completeness fails. The
-  /// handle stays valid until the next [`Self::reset_render_targets`].
-  pub fn create_render_target( &mut self, width : u32, height : u32 ) -> Option< RenderTargetId >
+  /// handle stays valid until the next [`Self::render_targets_reset`].
+  pub fn render_target_create( &mut self, width : u32, height : u32 ) -> Option< RenderTargetId >
   {
     let fb = GpuFramebuffer::new( &self.gl, width, height )?;
     self.render_targets.push( fb )
@@ -59,7 +59,7 @@ impl WebGlBackend
   /// out so far. The GL objects are released via each `GpuFramebuffer`'s
   /// `Drop`. Call before rebuilding a fresh set of targets (e.g. a chunk grid
   /// at a new extent / map load) so the old textures don't leak.
-  pub fn reset_render_targets( &mut self )
+  pub fn render_targets_reset( &mut self )
   {
     self.render_targets.clear();
   }
@@ -67,8 +67,8 @@ impl WebGlBackend
   /// Bind cache surface `id` as the draw target and set the viewport to its
   /// size. `clear` optionally clears it (colour + depth) — pass a transparent
   /// colour for an overlay cache that must composite over another. Pair with
-  /// [`Self::end_render_target`]. No-op if `id` is stale.
-  pub fn begin_render_target( &mut self, id : RenderTargetId, clear : Option< [ f32; 4 ] > )
+  /// [`Self::render_target_end`]. No-op if `id` is stale.
+  pub fn render_target_begin( &mut self, id : RenderTargetId, clear : Option< [ f32; 4 ] > )
   {
     // Copy out size + a handle clone before mutating `active_viewport` (which
     // would otherwise conflict with the `render_targets` borrow).
@@ -96,7 +96,7 @@ impl WebGlBackend
 
   /// Restore the default framebuffer and the canvas-sized viewport after a
   /// cache-surface pass.
-  pub fn end_render_target( &mut self )
+  pub fn render_target_end( &mut self )
   {
     // The depth attachment is write-only scratch for the bake's early-Z; only
     // the colour texture is sampled when compositing. Discard depth before
@@ -119,10 +119,10 @@ impl WebGlBackend
   /// the pixel rectangle `[ x, y, width, height ]` of the current draw target
   /// (GL convention: origin at the bottom-left), or lift the restriction with
   /// `None`. Lets a cache pass repaint only part of a surface: bind it with
-  /// [`Self::begin_render_target`]`( id, None )` to keep its contents, scissor
-  /// the changed area, `fill`, then redraw. [`Self::end_render_target`] always
+  /// [`Self::render_target_begin`]`( id, None )` to keep its contents, scissor
+  /// the changed area, `fill`, then redraw. [`Self::render_target_end`] always
   /// lifts the scissor, so it never leaks past the cache pass.
-  pub fn set_scissor( &mut self, rect : Option< [ i32; 4 ] > )
+  pub fn scissor_set( &mut self, rect : Option< [ i32; 4 ] > )
   {
     match rect
     {
@@ -159,7 +159,7 @@ impl WebGlBackend
   /// sprite shader composites the cache upright with a plain `[0,0,w,h]` region.
   /// If a cache ever renders vertically mirrored, negate the region height
   /// (`[0, h, w, -h]`).
-  pub fn draw_render_target( &self, id : RenderTargetId, min : [ f32; 2 ], max : [ f32; 2 ] )
+  pub fn render_target_draw( &self, id : RenderTargetId, min : [ f32; 2 ], max : [ f32; 2 ] )
   {
     let Some( fb ) = self.render_targets.get( id ) else { return; };
     let ( tw, th ) = ( fb.width as f32, fb.height as f32 );
@@ -191,7 +191,7 @@ impl WebGlBackend
   /// instanced sprite per tile. The image must be loaded with
   /// `WrapMode::Repeat`, otherwise the texture edge smears across the rect.
   /// No-op if `image` is unknown or not loaded yet.
-  pub fn draw_image_tiled
+  pub fn image_tiled_draw
   (
     &self,
     image : ResourceId< asset::Image >,

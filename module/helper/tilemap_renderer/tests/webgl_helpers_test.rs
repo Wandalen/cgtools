@@ -1,6 +1,6 @@
 //! The GL-free helpers of the WebGL adapter: `StagedVec`, the CPU staging that
 //! decides which part of an instance buffer each frame re-uploads, and
-//! `mat3_mul`, which folds the `WebGlBackend::set_camera` view matrix into each
+//! `mat3_mul`, which folds the `WebGlBackend::camera_set` view matrix into each
 //! draw's transform.
 //!
 //! These run on the host: nothing here touches a WebGL2 context.

@@ -485,7 +485,7 @@ mod private
   /// An offscreen render target: an RGBA8 color texture + a depth renderbuffer
   /// wrapped in a framebuffer. Used to bake a subset of the frame (e.g. the
   /// static terrain layers) into a texture that is later composited as a single
-  /// world-space quad — see `WebGlBackend::create_render_target`. Owns all three
+  /// world-space quad — see `WebGlBackend::render_target_create`. Owns all three
   /// GL objects and deletes them on `Drop` (RAII, like `GpuTexture`).
   ///
   /// The depth attachment is present because the sprite/mesh shaders depth-test

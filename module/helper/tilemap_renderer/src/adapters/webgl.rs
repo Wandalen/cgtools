@@ -73,7 +73,7 @@ mod private
 
     /// World→screen view matrix (column-major 3×3), pre-multiplied into every
     /// world-space draw's parent transform. Set once per frame via
-    /// [`Self::set_camera`]; identity until the caller supplies one. Keeping the
+    /// [`Self::camera_set`]; identity until the caller supplies one. Keeping the
     /// camera here — rather than baked into per-instance transforms — is what
     /// makes a pan/zoom a single-uniform update instead of a full instance-buffer
     /// re-upload.
@@ -82,10 +82,10 @@ mod private
     // -- batch editing state --
     pub( super ) recording_batch : Option< ResourceId< Batch > >,
 
-    /// Offscreen cache surfaces (see [`Self::create_render_target`]), addressed
+    /// Offscreen cache surfaces (see [`Self::render_target_create`]), addressed
     /// by [`RenderTargetId`]. Used by consumers that bake a subset of the frame
     /// into a texture and composite it back as a world quad via
-    /// [`Self::draw_render_target`].
+    /// [`Self::render_target_draw`].
     pub( super ) render_targets : TargetSlots< GpuFramebuffer >,
 
     /// Viewport override in force while a render-target pass is bound. The
@@ -165,7 +165,7 @@ mod private
     /// [`Backend`], and no [`crate::commands::RenderCommand`] carries a camera,
     /// so the other adapters draw world coordinates as viewport pixels.
     #[ inline ]
-    pub fn set_camera( &mut self, camera : [ f32; 9 ] )
+    pub fn camera_set( &mut self, camera : [ f32; 9 ] )
     {
       self.camera = camera;
     }
