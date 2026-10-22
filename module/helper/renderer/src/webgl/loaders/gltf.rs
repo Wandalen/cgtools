@@ -1284,6 +1284,74 @@ mod private
     scenes
   }
 
+  /// Fetches, parses and validates the glTF file at `gltf_path` : the first stage of [`load`].
+  ///
+  /// # Errors
+  ///
+  /// Returns `WebglError::Other`, with the details on the console, when the fetch or the parse
+  /// fails, or the asset fails [`document_validate`].
+  async fn document_read( gltf_path : &str ) -> Result< gltf::Gltf, gl::WebglError >
+  {
+    // Propagate fetch / parse failures as errors instead of panicking: an
+    // `.unwrap()` here aborts the whole wasm module (e.g. when a dev server
+    // returns an HTML 404 page, or the bytes are not a valid glTF/GLB), leaving
+    // it unusable for every subsequent call.
+    // `WebglError::Other` only carries a `&'static str`, so the underlying
+    // `JsValue` / `gltf::Error` (file path, HTTP status, JSON parse location)
+    // would otherwise be lost. Log it to the console before mapping so a failed
+    // load is diagnosable in production.
+    let gltf_slice = gl::file::load( gltf_path ).await
+    .map_err( | e |
+    {
+      gl::browser::error!( "Failed to load gltf file '{gltf_path}': {e:?}" );
+      gl::WebglError::Other( "Failed to load gltf file" )
+    } )?;
+    // Parsed without `gltf`'s own validation, which would reject any required extension
+    // outside `gltf-json`'s typed list ( see `document_validate` ); `document_validate` runs
+    // the same checks with this loader's extension rule right below.
+    let gltf_file = gltf::Gltf::from_slice_without_validation( &gltf_slice )
+    .map_err( | e |
+    {
+      gl::browser::error!( "Failed to parse gltf file '{gltf_path}': {e}" );
+      gl::WebglError::Other( "Failed to parse gltf file" )
+    } )?;
+
+    // Per glTF 2.0's "Specifying Extensions", a conformant client MUST refuse to
+    // load an asset whose `extensionsRequired` names an extension it doesn't
+    // support. Checked immediately after parsing, before any buffer/image/GL work.
+    document_validate( &gltf_file )
+    .inspect_err( | _ | gl::browser::error!( "Invalid gltf file '{gltf_path}'" ) )?;
+    Ok( gltf_file )
+  }
+
+  /// The buffer stage of [`load`] : every buffer's bytes as JS arrays, with the meshopt views
+  /// decoded into them, and a copy in wasm memory when a CPU-side reader needs one (
+  /// [`cpu_buffers_needed`] ), empty otherwise.
+  ///
+  /// # Errors
+  ///
+  /// Returns what `buffers_load` and `meshopt::views_decode` return.
+  async fn buffers_prepare
+  (
+    gltf_file : &mut gltf::Gltf,
+    folder_path : &str
+  )
+  -> Result< ( Vec< gl::js_sys::Uint8Array >, Vec< Vec< u8 > > ), gl::WebglError >
+  {
+    let buffers = buffers_load( gltf_file, folder_path ).await?;
+    crate::webgl::loaders::meshopt::views_decode( gltf_file, &buffers ).await?;
+
+    let bin_buffers = if cpu_buffers_needed( gltf_file )
+    {
+      buffers.iter().map( gl::js_sys::Uint8Array::to_vec ).collect()
+    }
+    else
+    {
+      Vec::new()
+    };
+    Ok( ( buffers, bin_buffers ) )
+  }
+
   /// Asynchronously loads a glTF (GL Transmission Format) file and its associated resources.
   ///
   /// # Errors
@@ -1315,51 +1383,8 @@ mod private
     let folder_path = path.parent().map_or( "", | p | p.to_str().expect( "Path is not UTF-8 encoded" ) );
     gl::debug!( "Folder: {folder_path}\nFile: {gltf_path}" );
 
-    // let gltf_slice= gl::file::load( &format!( "{}/scene.gltf", gltf_path ) )
-    // .await.expect( "Failed to load gltf file" );
-    // Propagate fetch / parse failures as errors instead of panicking: an
-    // `.unwrap()` here aborts the whole wasm module (e.g. when a dev server
-    // returns an HTML 404 page, or the bytes are not a valid glTF/GLB), leaving
-    // it unusable for every subsequent call.
-    // `WebglError::Other` only carries a `&'static str`, so the underlying
-    // `JsValue` / `gltf::Error` (file path, HTTP status, JSON parse location)
-    // would otherwise be lost. Log it to the console before mapping so a failed
-    // load is diagnosable in production.
-    let gltf_slice = gl::file::load( gltf_path ).await
-    .map_err( | e |
-    {
-      gl::browser::error!( "Failed to load gltf file '{gltf_path}': {e:?}" );
-      gl::WebglError::Other( "Failed to load gltf file" )
-    } )?;
-    // Parsed without `gltf`'s own validation, which would reject any required extension
-    // outside `gltf-json`'s typed list ( see `document_validate` ); `document_validate` runs
-    // the same checks with this loader's extension rule right below.
-    let mut gltf_file = gltf::Gltf::from_slice_without_validation( &gltf_slice )
-    .map_err( | e |
-    {
-      gl::browser::error!( "Failed to parse gltf file '{gltf_path}': {e}" );
-      gl::WebglError::Other( "Failed to parse gltf file" )
-    } )?;
-
-    // Per glTF 2.0's "Specifying Extensions", a conformant client MUST refuse to
-    // load an asset whose `extensionsRequired` names an extension it doesn't
-    // support. Checked immediately after parsing, before any buffer/image/GL work.
-    document_validate( &gltf_file )
-    .inspect_err( | _ | gl::browser::error!( "Invalid gltf file '{gltf_path}'" ) )?;
-
-    let buffers = buffers_load( &mut gltf_file, folder_path ).await?;
-    crate::webgl::loaders::meshopt::views_decode( &gltf_file, &buffers ).await?;
-
-    let bin_buffers = if cpu_buffers_needed( &gltf_file )
-    {
-      buffers.iter()
-      .map( minwebgl::js_sys::Uint8Array::to_vec )
-      .collect::< Vec< _ > >()
-    }
-    else
-    {
-      Vec::new()
-    };
+    let mut gltf_file = document_read( gltf_path ).await?;
+    let ( buffers, bin_buffers ) = buffers_prepare( &mut gltf_file, folder_path ).await?;
 
     gl::debug!( "Buffers: {}", buffers.len() );
 
