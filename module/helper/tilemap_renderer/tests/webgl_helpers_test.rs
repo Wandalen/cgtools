@@ -46,6 +46,22 @@ fn staged_vec_upload_reallocates_once_past_capacity()
   assert_eq!( take( &mut v ), StagedUpload::Realloc { capacity : 121 } );
 }
 
+/// Steady growth doubles the capacity: 17 elements in a 16-element buffer ask
+/// for 32, more than the 25 the length alone would give. An empty buffer
+/// grows to at least 4. Without the doubling a buffer growing one push per
+/// frame would reallocate every few frames.
+#[ test ]
+fn staged_vec_upload_doubles_or_floors_the_capacity()
+{
+  let mut v = StagedVec::new( 16 );
+  for i in 0..17_u32 { v.push( i ); }
+  assert_eq!( take( &mut v ), StagedUpload::Realloc { capacity : 32 } );
+
+  let mut empty = StagedVec::new( 0 );
+  empty.push( 1 );
+  assert_eq!( take( &mut empty ), StagedUpload::Realloc { capacity : 4 } );
+}
+
 /// `upload_pending` records nothing, and an upload that does not fit the
 /// buffer's limit is refused: the next attempt still sees the whole dirty
 /// state. The capacity is capped at the limit. If a refused or failed upload
