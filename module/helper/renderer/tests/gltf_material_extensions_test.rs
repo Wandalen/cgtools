@@ -5,8 +5,10 @@
 //! The `gltf` crate has no typed accessor for either extension, so the loader reads their JSON
 //! by hand; these pure, off-GPU checks pin the defaults, `texCoord`, the coat normal `scale` and
 //! the rotation, which no other test would notice going wrong.
+//!
+//! Its `[[test]]` entry in `Cargo.toml` requires `webgl` and `test_internals`, so cargo skips it
+//! with a reason when either is off.
 
-#![ cfg( feature = "test_internals" ) ]
 #![ allow( clippy::float_cmp, reason = "parsed factors pass through unchanged from the JSON literals; exact comparison is the point" ) ]
 
 use gltf::json::Value;

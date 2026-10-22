@@ -4,7 +4,8 @@
 //!   which needs a browser, on bytes encoded by a minimal vertex-codec encoder below.
 //! - The meshopt rules of `gltf::load` : a fallback buffer is allocated rather than fetched,
 //!   oversized fallbacks, alone or together, are refused before anything is fetched or
-//!   allocated, and fallback buffers are referenced only as the meshopt specs allow.
+//!   allocated, fallback buffers are referenced only as the meshopt specs allow, and no
+//!   view decodes over another view's data.
 //!
 //! The buffer rules every asset follows, meshopt or not, are in `gltf_buffers_browser_test.rs`.
 
@@ -295,6 +296,42 @@ mod tests
     let uri = data_uri( "model/gltf+json", json.as_bytes() );
 
     assert_eq!( load_refusal( &uri ).await, "glTF meshopt bufferView is invalid" );
+  }
+
+  /// A compressed view may decode into a buffer that holds data of its own, but not over an
+  /// uncompressed view of it : that view's accessors would read the decoded bytes. Here view 0
+  /// decodes into bytes 0..36 of buffer 1, and view 1 reads 12 bytes of buffer 1 at `offset`.
+  /// Placed at 36 it loads, so only the overlap can refuse it at 12.
+  #[ wasm_bindgen_test( async ) ]
+  async fn load_refuses_a_decode_over_an_uncompressed_view()
+  {
+    let compressed = meshopt_attributes_encode( &triangle_bytes(), 12 );
+    let len = compressed.len();
+    let json = | offset : usize | triangle_gltf
+    (
+      &[ "EXT_meshopt_compression" ],
+      &format!
+      (
+        r#"{{ "byteLength" : {len}, "uri" : "{}" }}, {{ "byteLength" : 48, "uri" : "{}" }}"#,
+        data_uri( "application/octet-stream", &compressed ),
+        data_uri( "application/octet-stream", &[ triangle_bytes(), vec![ 0; 12 ] ].concat() )
+      ),
+      &format!
+      (
+        r#"{{ "buffer" : 1, "byteLength" : 36, "byteStride" : 12, "target" : 34962,
+          "extensions" : {{ "EXT_meshopt_compression" :
+            {{ "buffer" : 0, "byteLength" : {len}, "byteStride" : 12, "count" : 3, "mode" : "ATTRIBUTES" }} }} }},
+        {{ "buffer" : 1, "byteOffset" : {offset}, "byteLength" : 12 }}"#
+      )
+    );
+
+    let gl = gl_init();
+    let apart = data_uri( "model/gltf+json", json( 36 ).as_bytes() );
+    let loaded = gltf::load( &document(), &apart, &gl ).await.expect( "views side by side load" );
+    assert_eq!( view_bytes_read( &gl, &loaded, 0, 36 ), triangle_bytes() );
+
+    let overlapping = data_uri( "model/gltf+json", json( 12 ).as_bytes() );
+    assert_eq!( load_refusal( &overlapping ).await, "glTF meshopt bufferViews overlap" );
   }
 
   /// The fallback limit is checked from the JSON before any buffer is fetched : buffer 0 here

@@ -398,63 +398,80 @@ mod private
     .any( | ext | ext.get( "fallback" ).and_then( Value::as_bool ).unwrap_or( false ) )
   }
 
-  /// Checks that the compressed views of one document cannot corrupt each other. Every
-  /// view is decoded in turn into its own range, so no view's decoded range may overlap
-  /// another's ( the later decode would overwrite the earlier one's output ), nor any
+  /// Checks that decoding the compressed views of one document cannot corrupt any view's
+  /// data. Every view is decoded in turn into its own range, so no view's decoded range may
+  /// overlap another's ( the later decode would overwrite the earlier one's output ), any
   /// view's compressed bytes ( a decode would overwrite input a view still reads, or has
-  /// read ). Compressed bytes may overlap each other : they are only read.
+  /// read ), nor the range of an uncompressed view ( an accessor reading it would get
+  /// decoded bytes of another view ). Compressed bytes and uncompressed views may overlap
+  /// each other : they are only read.
   ///
   /// `decodes` holds, per compressed view : its index, its checked spec, and the buffer
-  /// and offset of the range it decodes into.
+  /// and offset of the range it decodes into. `plain` holds, per uncompressed view : its
+  /// index, buffer, offset and length.
   ///
   /// Sorts every range by buffer and start, then sweeps each buffer once, keeping the
-  /// decoded and the compressed range that reach furthest so far : a range that starts
-  /// before one of them ends overlaps it. `O( n log n )` in the number of views, so a file
+  /// decoded and the read range that reach furthest so far : a range that starts before
+  /// one of them ends overlaps it. `O( n log n )` in the number of views, so a file
   /// declaring many small views cannot make the check itself the expensive part.
   ///
   /// # Errors
   ///
   /// Returns a description of the first overlap found, or of a range whose end overflows.
-  pub fn decodes_overlap_check( decodes : &[ ( usize, &MeshoptViewSpec, usize, usize ) ] ) -> Result< (), String >
+  pub fn decodes_overlap_check
+  (
+    decodes : &[ ( usize, &MeshoptViewSpec, usize, usize ) ],
+    plain : &[ ( usize, usize, usize, usize ) ],
+  )
+  -> Result< (), String >
   {
-    /// One range : buffer, start, end, whether the decode writes it ( or reads it ), view.
-    type Range = ( usize, usize, usize, bool, usize );
+    /// What a range holds : a decode writes `Decoded`, the other two are only read.
+    #[ derive( Clone, Copy, PartialEq, Eq ) ]
+    enum Held { Decoded, Compressed, Plain }
+    /// One range : buffer, start, end, what it holds, view.
+    type Range = ( usize, usize, usize, Held, usize );
 
-    let mut ranges : Vec< Range > = Vec::with_capacity( decodes.len() * 2 );
+    let mut ranges : Vec< Range > = Vec::with_capacity( decodes.len() * 2 + plain.len() );
     for &( view, spec, buffer, offset ) in decodes
     {
       let decoded_end = spec.decoded_length().and_then( | length | offset.checked_add( length ) )
       .ok_or_else( || format!( "bufferView {view}: the decoded range overflows" ) )?;
       let source_end = spec.byte_offset().checked_add( spec.byte_length() )
       .ok_or_else( || format!( "bufferView {view}: the compressed range overflows" ) )?;
-      ranges.push( ( buffer, offset, decoded_end, true, view ) );
-      ranges.push( ( spec.buffer(), spec.byte_offset(), source_end, false, view ) );
+      ranges.push( ( buffer, offset, decoded_end, Held::Decoded, view ) );
+      ranges.push( ( spec.buffer(), spec.byte_offset(), source_end, Held::Compressed, view ) );
+    }
+    for &( view, buffer, offset, length ) in plain
+    {
+      let end = offset.checked_add( length ).ok_or_else( || format!( "bufferView {view}: its range overflows" ) )?;
+      ranges.push( ( buffer, offset, end, Held::Plain, view ) );
     }
     ranges.sort_unstable_by_key( | &( buffer, start, .. ) | ( buffer, start ) );
 
+    let read = | held : Held | if held == Held::Compressed { "the compressed bytes" } else { "the data" };
     let mut reach_decoded : Option< Range > = None;
-    let mut reach_compressed : Option< Range > = None;
+    let mut reach_read : Option< Range > = None;
     for range in ranges
     {
-      let ( buffer, start, end, writes, view ) = range;
+      let ( buffer, start, end, held, view ) = range;
       let reaching = | furthest : Option< Range > | furthest.filter( | f | f.0 == buffer && f.2 > start );
       if let Some( other ) = reaching( reach_decoded )
       {
-        return Err( if writes
+        return Err( if held == Held::Decoded
         {
           format!( "bufferViews {} and {view} decode into overlapping ranges", other.4 )
         }
         else
         {
-          format!( "bufferView {} decodes over the compressed bytes of bufferView {view}", other.4 )
+          format!( "bufferView {} decodes over {} of bufferView {view}", other.4, read( held ) )
         } );
       }
-      if let Some( other ) = reaching( reach_compressed ).filter( | _ | writes )
+      if let Some( other ) = reaching( reach_read ).filter( | _ | held == Held::Decoded )
       {
-        return Err( format!( "bufferView {view} decodes over the compressed bytes of bufferView {}", other.4 ) );
+        return Err( format!( "bufferView {view} decodes over {} of bufferView {}", read( other.3 ), other.4 ) );
       }
 
-      let furthest = if writes { &mut reach_decoded } else { &mut reach_compressed };
+      let furthest = if held == Held::Decoded { &mut reach_decoded } else { &mut reach_read };
       if furthest.map_or( true, | f | f.0 != buffer || f.2 < end )
       {
         *furthest = Some( range );
@@ -536,6 +553,7 @@ mod private
     let is_fallback = | buffer : usize | fallback.get( buffer ).copied().unwrap_or( false );
 
     let mut decodes = Vec::new();
+    let mut plain = Vec::new();
     for view in gltf_file.views()
     {
       let Some( spec ) = MeshoptViewSpec::from_view( &view ) else
@@ -549,6 +567,7 @@ mod private
           );
           return Err( gl::WebglError::Other( "glTF meshopt fallback buffer is read by an uncompressed bufferView" ) );
         }
+        plain.push( ( view.index(), view.buffer().index(), view.offset(), view.length() ) );
         continue;
       };
       let spec = spec
@@ -572,7 +591,7 @@ mod private
     let placed = decodes.iter()
     .map( | ( view, spec ) | ( view.index(), spec, view.buffer().index(), view.offset() ) )
     .collect::< Vec< _ > >();
-    decodes_overlap_check( &placed ).map_err( | e |
+    decodes_overlap_check( &placed, &plain ).map_err( | e |
     {
       gl::browser::error!( "glTF meshopt compression: {e}" );
       gl::WebglError::Other( "glTF meshopt bufferViews overlap" )
