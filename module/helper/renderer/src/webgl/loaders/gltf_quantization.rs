@@ -56,13 +56,14 @@ mod private
   /// and its siblings always read `f32` without checking the type. Reading by the declared type keeps the view's `byteStride`
   /// and sparse substitution, which `gltf::accessor::Iter` already handles.
   ///
-  /// `None` when the accessor is not `VEC3` or its data is missing from `buffers`.
+  /// `None` when the accessor is not `VEC3`, its data is missing from `buffers`, or its
+  /// ranges do not pass `accessor_ranges_fit`.
   #[ must_use ]
   pub fn accessor_vec3_read( acc : gltf::Accessor< '_ >, buffers : &[ Vec< u8 > ] ) -> Option< Vec< [ f32; 3 ] > >
   {
     use gltf::accessor::{ DataType, Dimensions, Iter };
 
-    if acc.dimensions() != Dimensions::Vec3
+    if acc.dimensions() != Dimensions::Vec3 || !accessor_ranges_fit( &acc )
     {
       return None;
     }
@@ -83,6 +84,36 @@ mod private
       DataType::U32 => Iter::< [ u32; 3 ] >::new( acc, get )?.map( | v | v.map( | c | c as f32 ) ).collect(),
     };
     Some( values )
+  }
+
+  /// Whether `gltf::accessor::Iter::new` can locate `acc`'s data without its own arithmetic
+  /// failing. It computes every range end with unchecked `+`, `*` and `count - 1`, and in debug
+  /// builds asserts that a view's stride holds an element, so a file with a huge offset, count
+  /// or stride, a zero count, or a stride shorter than an element would panic there instead of
+  /// being refused. This computes the same ends, for the accessor's view and for its sparse
+  /// indices and values, with checked arithmetic first.
+  fn accessor_ranges_fit( acc : &gltf::Accessor< '_ > ) -> bool
+  {
+    // `count` elements of `size` bytes, `stride` apart from `start` in `view`, as `Iter::new`
+    // and its `buffer_view_slice` compute them.
+    let fits = | view : gltf::buffer::View< '_ >, start : usize, count : usize, size : usize |
+    {
+      let stride = view.stride().unwrap_or( size );
+      stride >= size
+      && view.offset().checked_add( view.length() ).is_some()
+      && count.checked_sub( 1 )
+      .and_then( | last | stride.checked_mul( last ) )
+      .and_then( | span | span.checked_add( size ) )
+      .and_then( | span | start.checked_add( span ) )
+      .is_some()
+    };
+    let base = acc.view().map_or( true, | view | fits( view, acc.offset(), acc.count(), acc.size() ) );
+    base && acc.sparse().map_or( true, | sparse |
+    {
+      let ( indices, values ) = ( sparse.indices(), sparse.values() );
+      fits( indices.view(), indices.offset(), sparse.count(), indices.index_type().size() )
+      && fits( values.view(), values.offset(), sparse.count(), acc.size() )
+    } )
   }
 }
 
