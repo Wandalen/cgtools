@@ -47,6 +47,8 @@ use tilemap_scene::
   SpriteRef,
   SpriteSource,
   TilingStrategy,
+  ViewportAnchorPoint,
+  ViewportTiling,
 };
 use tilemap_renderer::types::{ Batch, MipmapMode, ResourceId, SamplerFilter, WrapMode };
 
@@ -619,4 +621,94 @@ fn opaque_bucket_drawn_per_sprite_falls_back_to_transparent_pass()
     painted_depths( &cmds ), vec![ 0.0, 1.0 / 3.0, 1.0 / 3.0, 2.0 / 3.0 ],
     "bg in the opaque pass, then mid and top in painter's order on top of it",
   );
+}
+
+/// A `mid` object anchored to the viewport: one `ScreenSpaceSprite`, stretched
+/// over the viewport, routed into the `mid` bucket.
+fn viewport_overlay() -> Object
+{
+  let mut states = HashMap::default();
+  states.insert( "default".into(), vec![ ObjectLayer
+  {
+    sprite_source : SpriteSource::ViewportTiled
+    {
+      content : Box::new( SpriteSource::Static( SpriteRef { asset : "sheet".into(), frame : "3".into() } ) ),
+      tiling : ViewportTiling::Stretch,
+      anchor_point : ViewportAnchorPoint::TopLeft,
+    },
+    ..static_layer( "sheet", "3" )
+  }]);
+  Object { anchor : Anchor::Viewport, states, ..object( "overlay", "3", "mid" ) }
+}
+
+/// The depth-write state each `DrawBatch` of the batch holding the `mid`
+/// instance (pinned to depth 1/3) is drawn under, frame by frame through one
+/// backend, and whether a frame created or deleted any batch.
+struct MidBatch
+{
+  id : Option< ResourceId< Batch > >,
+}
+
+impl MidBatch
+{
+  fn frame( &mut self, cmds : &[ RenderCommand ] ) -> ( Vec< bool >, bool )
+  {
+    let mut write = true;
+    let mut writes = Vec::new();
+    let mut churn = false;
+    let mut bound = None;
+    for c in cmds
+    {
+      match c
+      {
+        RenderCommand::SetDepthWrite( s ) => write = s.enabled,
+        RenderCommand::CreateSpriteBatch( _ ) | RenderCommand::DeleteBatch( _ ) => churn = true,
+        RenderCommand::BindBatch( b ) => bound = Some( b.batch ),
+        RenderCommand::AddSpriteInstance( a ) if ( a.transform.depth - 1.0 / 3.0 ).abs() < 1e-6 => self.id = bound,
+        RenderCommand::DrawBatch( d ) if Some( d.batch ) == self.id => writes.push( write ),
+        _ => {},
+      }
+    }
+    ( writes, churn )
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// 7. The other trigger of the fallback: a viewport sprite. A `ScreenSpaceSprite`
+//    draws per sprite too, so an opaque bucket holding one rides the
+//    transparent pass while it is on screen, then returns to the opaque pass,
+//    reusing its batch throughout.
+// ────────────────────────────────────────────────────────────────────────────
+
+/// Frame 1: `mid` is opaque and batched, drawn with depth writes on. Frame 2:
+/// a viewport overlay joins the bucket, so `mid` must draw with writes off,
+/// or the overlay's full quad would write depth over the layers under it.
+/// Frame 3: the overlay is gone and `mid` is back in the opaque pass. The move
+/// changes no batch params, so no frame after the first creates or deletes a
+/// batch.
+#[ test ]
+fn opaque_bucket_with_a_viewport_sprite_falls_back_then_rebatches()
+{
+  let mut spec = build_spec( [ ( true, false ), ( true, false ), ( false, false ) ] );
+  spec.objects.push( viewport_overlay() );
+  let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
+  let mut scene = Scene::new( Arc::new( spec ) );
+  spawn_one_per_bucket( &mut scene );
+  let mut mid = MidBatch { id : None };
+
+  let ( first, _ ) = mid.frame( renderer.render( &scene, &Camera::default() ).expect( "render" ) );
+  assert_eq!( first, vec![ true ], "frame 1: mid draws in the opaque pass" );
+
+  let overlay = scene.object( "overlay" ).unwrap();
+  let h = scene.spawn( overlay, Placement::Viewport );
+  let cmds = renderer.render( &scene, &Camera::default() ).expect( "render" ).to_vec();
+  assert_eq!( cmds.iter().filter( | c | matches!( c, RenderCommand::ScreenSpaceSprite( _ ) ) ).count(), 1, "the overlay draws" );
+  let ( second, churn ) = mid.frame( &cmds );
+  assert_eq!( second, vec![ false ], "frame 2: with a viewport sprite mid rides the transparent pass" );
+  assert!( !churn, "frame 2 reuses every batch" );
+
+  scene.despawn( h );
+  let ( third, churn ) = mid.frame( renderer.render( &scene, &Camera::default() ).expect( "render" ) );
+  assert_eq!( third, vec![ true ], "frame 3: mid is back in the opaque pass" );
+  assert!( !churn, "frame 3 reuses every batch" );
 }
