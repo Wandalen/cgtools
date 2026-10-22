@@ -39,6 +39,15 @@ crate::mod_interface!
   /// glTF buffer and image uris resolved against the model's folder
   layer gltf_uri;
 
+  /// glTF skins and morph targets read on the CPU into a mesh's skeleton
+  layer gltf_skeleton;
+
+  /// glTF `KHR_lights_punctual` lights
+  layer gltf_lights;
+
+  /// glTF nodes, skeleton attachment and scenes : the loaded scene graph
+  layer gltf_scene;
+
   /// KHR_mesh_quantization : integer accessor values and bounds to floats
   layer gltf_quantization;
 

@@ -67,4 +67,5 @@ depend on what is loaded at run time:
 
 | File | Relationship |
 |------|--------------|
-| `tests/gltf_meshopt_browser_test.rs` | Runs the snippet in a browser, so a broken import fails the suite |
+| — | Not covered: each failure above depends on how a host deploys, serves and builds the crate, which this suite does not control |
+| `tests/gltf_meshopt_browser_test.rs` | Only imports and runs the snippet in a correctly deployed test page, so a broken import path in the crate fails the suite |

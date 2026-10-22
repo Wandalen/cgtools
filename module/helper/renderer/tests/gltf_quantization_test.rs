@@ -112,3 +112,59 @@ fn accessor_vec3_read_reads_every_component_type()
   assert!( read( 8 ).is_none(), "a SCALAR accessor is not read as VEC3" );
   assert!( accessor_vec3_read( gltf.accessors().next().unwrap(), &[] ).is_none(), "missing buffer data reads as None" );
 }
+
+/// Accessors whose ranges would make the `gltf` crate's unchecked arithmetic overflow, or
+/// trip its debug assertion on a short stride, read as `None` instead of panicking : a
+/// huge offset, count or stride, a zero count, a 4-byte stride under 12-byte elements, and a
+/// sparse accessor with a huge or zero sparse count. The last accessor is well-formed and
+/// reads, so the fixture itself is sound.
+#[ test ]
+fn accessor_vec3_read_refuses_ranges_that_overflow()
+{
+  let json = r#"
+  {
+    "asset": { "version": "2.0" },
+    "accessors":
+    [
+      { "bufferView": 0, "byteOffset": 18446744073709551615, "componentType": 5126, "count": 1, "type": "VEC3" },
+      { "bufferView": 0, "componentType": 5126, "count": 18446744073709551615, "type": "VEC3" },
+      { "bufferView": 0, "componentType": 5126, "count": 0, "type": "VEC3" },
+      { "bufferView": 1, "componentType": 5126, "count": 2, "type": "VEC3" },
+      { "bufferView": 2, "componentType": 5126, "count": 2, "type": "VEC3" },
+      { "bufferView": 3, "componentType": 5126, "count": 1, "type": "VEC3" },
+      { "componentType": 5126, "count": 2, "type": "VEC3",
+        "sparse": { "count": 18446744073709551615, "indices": { "bufferView": 0, "componentType": 5121 }, "values": { "bufferView": 0 } } },
+      { "componentType": 5126, "count": 2, "type": "VEC3",
+        "sparse": { "count": 0, "indices": { "bufferView": 0, "componentType": 5121 }, "values": { "bufferView": 0 } } },
+      { "bufferView": 0, "componentType": 5126, "count": 1, "type": "VEC3" }
+    ],
+    "bufferViews":
+    [
+      { "buffer": 0, "byteLength": 12 },
+      { "buffer": 0, "byteLength": 12, "byteStride": 18446744073709551615 },
+      { "buffer": 0, "byteLength": 12, "byteStride": 4 },
+      { "buffer": 0, "byteOffset": 18446744073709551615, "byteLength": 12 }
+    ],
+    "buffers": [ { "byteLength": 12, "uri": "placeholder.bin" } ]
+  }
+  "#;
+  let gltf = gltf::Gltf::from_slice_without_validation( json.as_bytes() ).expect( "fixture is well-formed JSON" );
+  let buffers = vec![ [ 0.5f32, -1.5, 2.0 ].iter().flat_map( | c | c.to_le_bytes() ).collect::< Vec< u8 > >() ];
+  let read = | i : usize | accessor_vec3_read( gltf.accessors().nth( i ).expect( "fixture accessor" ), &buffers );
+
+  for ( i, what ) in
+  [
+    ( 0, "a huge accessor offset" ),
+    ( 1, "a huge count" ),
+    ( 2, "a zero count" ),
+    ( 3, "a huge byteStride" ),
+    ( 4, "a byteStride shorter than an element" ),
+    ( 5, "a huge view offset" ),
+    ( 6, "a huge sparse count" ),
+    ( 7, "a zero sparse count" ),
+  ]
+  {
+    assert!( read( i ).is_none(), "{what} reads as None" );
+  }
+  assert_eq!( read( 8 ).map( | v | v.len() ), Some( 1 ), "a well-formed accessor of the same views reads" );
+}
