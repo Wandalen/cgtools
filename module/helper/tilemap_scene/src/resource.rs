@@ -408,6 +408,11 @@ mod private
     /// The effect kind with its parameters.
     pub kind : EffectKind,
     /// Per-instance phase offset for the effect's own animation.
+    ///
+    /// Not applied yet: the two effects the renderer runs ignore it.
+    /// `AlphaPulse` follows the scene clock (or, with `restart_on_spawn`, the
+    /// time its layer last changed), and `FadeGate` follows its runtime
+    /// target.
     #[ serde( default ) ]
     pub phase_offset : PhaseOffset,
   }
@@ -441,8 +446,9 @@ mod private
       /// from phase 0 (`min`) each time the layer's content changes — e.g. the
       /// attack-target overlay restarting its fade-in the instant the player
       /// selects a unit. Implemented for dual-grid (`VertexCorners`) layers as
-      /// the clock captured at the last structural resolve (which reruns on any
-      /// spawn/despawn/move). Default `false` (free-running global phase).
+      /// the clock captured when a structural resolve (rerun when the hex cells
+      /// change) last gave the layer different sprites. Default `false`
+      /// (free-running global phase).
       #[ serde( default ) ]
       restart_on_spawn : bool,
     },

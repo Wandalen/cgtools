@@ -686,3 +686,79 @@ fn alpha_pulse_restart_on_spawn_carries_the_wave_across_an_unrelated_spawn()
     }
   }
 }
+
+/// Two dual-grid layers share the `terrain` bucket: the pulsing hexagon layer
+/// and a `region` layer at half alpha that reads its own corner channel. A
+/// spawned region tile changes only the region layer's sprites, so the
+/// hexagon's `restart_on_spawn` wave carries on: half-way up at the spawn, not
+/// back at `min`. Carrying anchors per bucket would restart it, because the
+/// bucket's content as a whole changed.
+#[ test ]
+fn alpha_pulse_restart_on_spawn_ignores_another_layer_of_its_bucket()
+{
+  let mut spec = dual_orient_spec();
+  spec.effects.push( Effect
+  {
+    id : "pulse".into(),
+    kind : EffectKind::AlphaPulse { min : 0.2, max : 1.0, frequency : 1.0, restart_on_spawn : true },
+    phase_offset : PhaseOffset::None,
+  });
+  let stack = spec.objects[ 0 ].states.get_mut( "default" ).expect( "default state" );
+  stack[ 0 ].behaviour.effects.push( EffectRef( "pulse".into() ) );
+  let mut region_layer = stack[ 0 ].clone();
+  if let SpriteSource::VertexCorners { patterns, corner_source, .. } = &mut region_layer.sprite_source
+  {
+    for p in patterns.iter_mut()
+    {
+      let swap = | id : &mut String | if id == "hexagon" { *id = "region".into(); };
+      swap( &mut p.corners.0 );
+      swap( &mut p.corners.1 );
+      swap( &mut p.corners.2 );
+    }
+    *corner_source = Some( "region".into() );
+  }
+  region_layer.behaviour = LayerBehaviour { alpha : 0.5, ..LayerBehaviour::default() };
+  region_layer.pipeline_layer = Some( "terrain".into() );
+  let mut region = spec.objects[ 0 ].clone();
+  region.id = "region".into();
+  region.global_layer = "region".into();
+  region.priority = None;
+  region.states.insert( "default".into(), vec![ region_layer ] );
+  spec.objects.push( region );
+
+  let scene_snap = SceneSnapshot
+  {
+    tiles : vec!
+    [
+      Tile { pos : ( 0, 0 ), objects : vec![ "hexagon".into() ] },
+      Tile { pos : ( 5, 5 ), objects : vec![ "region".into() ] },
+    ],
+    ..minimal_scene_3x3()
+  };
+  let mut scene = Scene::from_snapshot( &scene_snap, Arc::new( spec.clone() ) ).expect( "scene" );
+  let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
+  let mut flattener = common::BatchFlattener::new();
+  // ( hexagon alphas, region sprite count ): the region layer draws at 0.5.
+  let mut frame = | scene : &Scene |
+  {
+    let alphas = pulse_alphas( &mut renderer, &mut flattener, scene );
+    let region = alphas.iter().filter( | &&a | ( a - 0.5 ).abs() < 1e-3 ).count();
+    ( alphas.into_iter().filter( | a | ( a - 0.5 ).abs() >= 1e-3 ).collect::< Vec< f32 > >(), region )
+  };
+
+  let ( start, region_before ) = frame( &scene );
+  scene.tick( 0.25 );
+  let region_object = scene.object( "region" ).expect( "region object" );
+  scene.spawn( region_object, Placement::Hex { q : 6, r : 5 } );
+  let ( at_spawn, region_after ) = frame( &scene );
+
+  assert!( region_after > region_before, "the spawn adds region sprites: {region_before} → {region_after}" );
+  for ( alphas, want, what ) in [ ( &start, 0.2, "first frame" ), ( &at_spawn, 0.6, "the region spawn leaves the hexagon's wave alone" ) ]
+  {
+    assert!( !alphas.is_empty(), "{what}: the hexagon must emit corner sprites" );
+    for &a in alphas
+    {
+      assert!( ( a - want ).abs() < 1e-3, "{what}: alpha {want} expected, got {a} in {alphas:?}" );
+    }
+  }
+}

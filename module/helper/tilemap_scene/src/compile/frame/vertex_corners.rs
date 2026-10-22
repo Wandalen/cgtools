@@ -71,6 +71,10 @@ pub struct ResolvedVertexSprite
   /// `restart_on_spawn` pulse uses `time_seconds - pulse_anchor` as its phase,
   /// so it restarts from `min` each time the layer's content changes.
   pub( crate ) pulse_anchor : f32,
+  /// Position of the sprite's layer among its bucket's layers. A bucket can
+  /// hold several layers, and [`VertexResolveCache::store`] carries each one's
+  /// pulse anchor on its own.
+  pub( crate ) layer : u32,
   /// Id of the layer's resolved [`EffectKind::FadeGate`] effect, or `None`.
   /// Static per layer (which `EffectRef`s a layer names doesn't change at
   /// runtime), so it is cached here; [`project_vertex_sprite`] reads the
@@ -111,25 +115,20 @@ impl VertexResolveCache
   /// with the `skip` mask.
   ///
   /// A `restart_on_spawn` pulse (see `project_vertex_sprite`) anchors to when its
-  /// bucket's CONTENT last changed — not to every re-resolve. The resolve reruns on
-  /// any hex-cell change, including ones that don't touch this bucket at all (a
-  /// capture elsewhere re-resolves every layer), which must NOT restart an unrelated
-  /// layer's pulse. So each bucket's prior anchor is carried forward while its
-  /// resolved tiles are unchanged; only genuinely new/changed content keeps the fresh
-  /// anchor the resolve gave it.
+  /// layer's CONTENT last changed — not to every re-resolve. The resolve reruns on
+  /// any hex-cell change, including ones that don't touch this layer at all (a
+  /// capture elsewhere re-resolves every layer, and another layer of the same
+  /// bucket may change alone), which must NOT restart this layer's pulse. So each
+  /// layer's prior anchor is carried forward while its resolved tiles are
+  /// unchanged; only genuinely new/changed content keeps the fresh anchor the
+  /// resolve gave it.
   pub( crate ) fn store( &mut self, mut fresh : Vec< Vec< ResolvedVertexSprite > >, scene : u64, revision : u64, skip : u64 )
   {
     if self.valid && self.scene == scene
     {
       for ( fb, ob ) in fresh.iter_mut().zip( self.buckets.iter() )
       {
-        if same_vertex_content( fb, ob )
-        {
-          for ( fs, os ) in fb.iter_mut().zip( ob.iter() )
-          {
-            fs.pulse_anchor = os.pulse_anchor;
-          }
-        }
+        pulse_anchors_carry( fb, ob );
       }
     }
     self.buckets = fresh;
@@ -421,6 +420,7 @@ fn layer_resolve
       pivot : object.pivot,
       alpha_pulse,
       pulse_anchor : ctx.time_seconds,
+      layer : layer_pos,
       fade_gate,
     }));
   }
@@ -507,21 +507,40 @@ fn triangles_by_cell( triangles : &[ TriangleContext ] ) -> HashMap< ( i32, i32 
   by_cell
 }
 
-/// Whether two resolved vertex buckets carry the same CONTENT — matching tile
-/// count, sprite frames, and world positions. Used to decide if a bucket's
-/// pulse anchor survives a re-resolve triggered by an unrelated scene mutation
-/// (see the `restart_on_spawn` carry-forward in `frame_emits_gather`). Ignores
-/// `pulse_anchor` (that is what's being decided) and the static per-layer tint /
-/// alpha / blend (never mutated at runtime). Positions compared bit-exact —
-/// both sides are recomputed identically from the same tile geometry.
-pub( crate ) fn same_vertex_content( a : &[ ResolvedVertexSprite ], b : &[ ResolvedVertexSprite ] ) -> bool
+/// Carries each layer's pulse anchor from `old` into `fresh`, two resolves of
+/// one bucket, when the layer's CONTENT is the same in both: the same sprite
+/// frames at the same world positions, in any order (the order follows the
+/// triangle enumeration, which shifts when other cells change). Used for the
+/// `restart_on_spawn` carry-forward (see [`VertexResolveCache::store`]).
+/// Ignores `pulse_anchor` (that is what's being decided) and the static
+/// per-layer tint / alpha / blend (never mutated at runtime). Positions are
+/// compared bit-exact — both sides are recomputed identically from the same
+/// tile geometry.
+pub( crate ) fn pulse_anchors_carry( fresh : &mut [ ResolvedVertexSprite ], old : &[ ResolvedVertexSprite ] )
 {
-  a.len() == b.len()
-    && a.iter().zip( b.iter() ).all( | ( x, y ) |
-      x.sprite == y.sprite
-        && x.world.0.to_bits() == y.world.0.to_bits()
-        && x.world.1.to_bits() == y.world.1.to_bits()
-    )
+  let content = | sprites : &[ ResolvedVertexSprite ], layer : u32 |
+  {
+    let mut c : Vec< ( u32, u32, u32 ) > = sprites.iter()
+      .filter( | s | s.layer == layer )
+      .map( | s | ( s.sprite.inner(), s.world.0.to_bits(), s.world.1.to_bits() ) )
+      .collect();
+    c.sort_unstable();
+    c
+  };
+  let mut layers : Vec< u32 > = fresh.iter().map( | s | s.layer ).collect();
+  layers.sort_unstable();
+  layers.dedup();
+  for layer in layers
+  {
+    let Some( anchor ) = old.iter().find( | s | s.layer == layer ).map( | s | s.pulse_anchor ) else { continue };
+    if content( fresh, layer ) == content( old, layer )
+    {
+      for s in fresh.iter_mut().filter( | s | s.layer == layer )
+      {
+        s.pulse_anchor = anchor;
+      }
+    }
+  }
 }
 
 /// **Project tier** of the dual-grid vertex pass — the cheap, per-frame half.
