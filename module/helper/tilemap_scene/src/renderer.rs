@@ -234,6 +234,9 @@ mod private
     // captured on the previous `render()` call, the cached `cmd_buf` is
     // still valid and we hand it back without re-walking the scene.
     // ──────────────────────────────────────────────────────────────────
+    /// `scene.id()` at the most recent successful render: another scene with
+    /// the same revision and clock is still a miss.
+    last_scene_id : u64,
     /// Snapshot of `scene.revision()` at the most recent successful render.
     last_scene_revision : u64,
     /// Snapshot of `scene.clock()` at the most recent successful render.
@@ -332,6 +335,7 @@ mod private
         compiled,
         cmd_buf : Vec::new(),
         replay_draw_only : false,
+        last_scene_id : 0,
         last_scene_revision : 0,
         last_clock : 0.0,
         last_camera_signature : CameraSignature
@@ -422,8 +426,8 @@ mod private
     /// Drain every live batch into a stream of `DeleteBatch` commands.
     ///
     /// Returns the commands to submit to the backend; the renderer
-    /// itself remains usable, but its batch table and idle-replay
-    /// cache are reset so the next [`Renderer::render`] is a
+    /// itself remains usable, but its batch table, idle-replay cache and
+    /// vertex-resolve cache are reset so the next [`Renderer::render`] is a
     /// guaranteed miss that allocates fresh batches.
     ///
     /// Submit the returned slice before destroying the renderer (or
@@ -439,9 +443,11 @@ mod private
         out.push( RenderCommand::DeleteBatch( DeleteBatch { batch : entry.id } ) );
       }
       // Reset the idle-replay cache — a stale `cmd_buf` would reference
-      // batch ids we just deleted.
+      // batch ids we just deleted — and the vertex resolve, which the next
+      // scene need not share.
       self.has_rendered = false;
       self.cmd_buf.clear();
+      self.vertex_cache.invalidate();
       out
     }
 
@@ -466,8 +472,8 @@ mod private
     /// the next call to [`Renderer::render`]. Submit the slice to a
     /// backend before calling `render` again.
     ///
-    /// **Idle-replay cache.** When the scene's revision, clock, and the
-    /// camera fingerprint all match the values captured on the previous
+    /// **Idle-replay cache.** When the scene (its [`Scene::id`]), its
+    /// revision, clock, and the camera fingerprint all match the values captured on the previous
     /// successful call, the renderer skips the per-frame scene walk and
     /// returns the previous frame's draw commands: the same stream without
     /// its batch edits, which the backend already applied. This
@@ -501,6 +507,7 @@ mod private
       let camera_signature = CameraSignature::from( camera );
 
       if self.has_rendered
+        && scene.id() == self.last_scene_id
         && scene_revision == self.last_scene_revision
         && clock.to_bits() == self.last_clock.to_bits()
         && camera_signature == self.last_camera_signature
@@ -657,6 +664,7 @@ mod private
         self.batches.remove( &key );
       }
 
+      self.last_scene_id = scene.id();
       self.last_scene_revision = scene_revision;
       self.last_clock = clock;
       self.last_camera_signature = camera_signature;

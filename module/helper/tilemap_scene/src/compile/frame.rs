@@ -679,7 +679,7 @@ mod private
 
     // The vertex resolve is reused while the scene's hex cells are unchanged.
     let revision = scene.tiles_revision();
-    let vertex_miss = vcache.as_ref().is_none_or( | c | !c.valid || c.revision != revision || c.skip != skip );
+    let vertex_miss = vcache.as_ref().is_none_or( | c | !c.valid || c.scene != scene.id() || c.revision != revision || c.skip != skip );
 
     // The per-cell tile table — one `String` per hex instance — is read only by
     // the vertex resolve and by neighbour-reading sources, so build it only when
@@ -716,7 +716,7 @@ mod private
     {
       if vertex_miss
       {
-        cache.store( resolve_vertex_pass_all( &synthetic_tiles, &ctx, skip )?, revision, skip );
+        cache.store( resolve_vertex_pass_all( &synthetic_tiles, &ctx, skip )?, scene.id(), revision, skip );
       }
       &cache.buckets
     }

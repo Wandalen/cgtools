@@ -461,6 +461,42 @@ fn vertex_resolve_cache_matches_a_fresh_resolve_after_a_same_cell_move()
   assert!( cached( &scene ), "and the cached resolve agrees" );
 }
 
+/// One renderer drawing two scenes: the fixture, then the same spec with water
+/// where the fixture has sand, so no triangle makes the grass/sand/water blend.
+/// Both scenes are built by the same number of spawns, so their revisions,
+/// `tiles_revision` and clock are equal. The renderer must draw the second
+/// scene as a fresh renderer would, whether it was cleaned up in between or
+/// not: equal counters must not let it reuse the first scene's resolve or
+/// replay its frame.
+#[ test ]
+fn a_renderer_reused_for_another_scene_does_not_reuse_its_caches()
+{
+  let ( spec, snap ) = three_way_blend_fixture();
+  let mut swapped = snap.clone();
+  swapped.tiles[ 1 ].objects = vec![ "water".into() ];
+  let camera = Camera::default();
+
+  for clean_up in [ false, true ]
+  {
+    let first = Scene::from_snapshot( &snap, Arc::new( spec.clone() ) ).expect( "scene" );
+    let second = Scene::from_snapshot( &swapped, Arc::new( spec.clone() ) ).expect( "scene" );
+    assert_eq!( ( first.revision(), first.tiles_revision() ), ( second.revision(), second.tiles_revision() ) );
+    assert_ne!( first.id(), second.id() );
+
+    let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
+    let mut flat = common::BatchFlattener::new();
+    assert!( has_three_way_blend( &spec, &flat.apply( renderer.render( &first, &camera ).expect( "render" ) ) ) );
+    if clean_up
+    {
+      let _ = flat.apply( &renderer.cleanup() );
+    }
+    let resolves = renderer.vertex_resolves();
+    let drawn = flat.apply( renderer.render( &second, &camera ).expect( "render" ) );
+    assert!( !has_three_way_blend( &spec, &drawn ), "the second scene has no blend (clean_up: {clean_up})" );
+    assert_eq!( renderer.vertex_resolves(), resolves + 1, "the second scene is resolved afresh (clean_up: {clean_up})" );
+  }
+}
+
 /// Renders `scene` through a long-lived `renderer` (the vertex resolve cache
 /// and the pulse anchor it keeps live there) and returns every sprite's alpha.
 fn pulse_alphas( renderer : &mut Renderer, flattener : &mut common::BatchFlattener, scene : &Scene ) -> Vec< f32 >

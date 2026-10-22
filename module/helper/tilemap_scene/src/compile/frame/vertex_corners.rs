@@ -92,6 +92,9 @@ pub struct ResolvedVertexSprite
 /// tint changes do not — an animating board with sailing boats reuses it.
 pub struct VertexResolveCache
 {
+  /// [`Scene::id`]( crate::Scene::id ) of the scene the buckets were resolved
+  /// from: another scene at the same revision is a miss.
+  pub( crate ) scene : u64,
   pub( crate ) revision : u64,
   /// The `skip` mask the buckets were resolved with — a different mask is a
   /// miss even at the same revision (a re-enabled layer was never resolved).
@@ -104,7 +107,8 @@ pub struct VertexResolveCache
 
 impl VertexResolveCache
 {
-  /// Stores `fresh`, a structural resolve made at `revision` with the `skip` mask.
+  /// Stores `fresh`, a structural resolve of scene `scene` made at `revision`
+  /// with the `skip` mask.
   ///
   /// A `restart_on_spawn` pulse (see `project_vertex_sprite`) anchors to when its
   /// bucket's CONTENT last changed — not to every re-resolve. The resolve reruns on
@@ -113,9 +117,9 @@ impl VertexResolveCache
   /// layer's pulse. So each bucket's prior anchor is carried forward while its
   /// resolved tiles are unchanged; only genuinely new/changed content keeps the fresh
   /// anchor the resolve gave it.
-  pub( crate ) fn store( &mut self, mut fresh : Vec< Vec< ResolvedVertexSprite > >, revision : u64, skip : u64 )
+  pub( crate ) fn store( &mut self, mut fresh : Vec< Vec< ResolvedVertexSprite > >, scene : u64, revision : u64, skip : u64 )
   {
-    if self.valid
+    if self.valid && self.scene == scene
     {
       for ( fb, ob ) in fresh.iter_mut().zip( self.buckets.iter() )
       {
@@ -129,6 +133,7 @@ impl VertexResolveCache
       }
     }
     self.buckets = fresh;
+    self.scene = scene;
     self.revision = revision;
     self.skip = skip;
     self.valid = true;
@@ -139,7 +144,14 @@ impl VertexResolveCache
   #[ must_use ]
   pub fn new() -> Self
   {
-    Self { revision : 0, skip : 0, valid : false, buckets : Vec::new(), resolves : 0 }
+    Self { scene : 0, revision : 0, skip : 0, valid : false, buckets : Vec::new(), resolves : 0 }
+  }
+
+  /// Drop the stored resolve, so the next use misses. Keeps the counters.
+  pub( crate ) fn invalidate( &mut self )
+  {
+    self.valid = false;
+    self.buckets = Vec::new();
   }
 
   /// How many times the structural resolve has run through this cache (its

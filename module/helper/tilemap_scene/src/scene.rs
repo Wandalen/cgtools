@@ -26,6 +26,7 @@
 mod private
 {
   use alloc::sync::Arc;
+  use core::sync::atomic::{ AtomicU64, Ordering };
   use rustc_hash::FxHashMap as HashMap;
   use slotmap::SlotMap;
   use crate::anchor::EdgeDirection;
@@ -39,9 +40,14 @@ mod private
   use crate::source::SpriteSource;
   use crate::spec::RenderSpec;
 
+  /// Source of [`Scene::id`]: each new scene takes the next value.
+  static NEXT_SCENE_ID : AtomicU64 = AtomicU64::new( 0 );
+
   /// Retained-mode rendering scene.
   pub struct Scene
   {
+    /// Process-unique identity, see [`Self::id`].
+    id : u64,
     spec : Arc< RenderSpec >,
     instances : SlotMap< InstanceHandle, Instance >,
 
@@ -357,6 +363,7 @@ mod private
         seed : 0,
         revision : 0,
         tiles_revision : 0,
+        id : NEXT_SCENE_ID.fetch_add( 1, Ordering::Relaxed ),
         next_phase_seed : 0,
         fade_gates : HashMap::default(),
       }
@@ -917,6 +924,13 @@ mod private
     #[ inline ]
     #[ must_use ]
     pub fn revision( &self ) -> u64 { self.revision }
+
+    /// Identity of this scene, unique within the process. The revision
+    /// counters start at 0 in every scene, so two scenes can share them; a
+    /// cache keyed on them must key on this too.
+    #[ inline ]
+    #[ must_use ]
+    pub fn id( &self ) -> u64 { self.id }
 
     /// Monotonic counter of changes to which visible objects occupy which hex
     /// cells — a subset of [`Self::revision`]'s bumps. Equal values guarantee
