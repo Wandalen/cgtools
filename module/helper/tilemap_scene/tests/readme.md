@@ -31,7 +31,7 @@ Two levels coexist:
 | scene_events_test.rs | Scene::tick event-stream semantics |
 | scene_model_compile_test.rs | Compile pipeline integration (assets_compile + compile_frame) |
 | scene_model_test.rs | scene-model parsing, serde round-trip, loader API |
-| scene_state_test.rs | Retained-mode Scene mutation API; a move that keeps the placement kind and anchor cell keeps the index order |
+| scene_state_test.rs | Retained-mode Scene mutation API; a move that keeps the placement kind and anchor cell keeps the index order, for any occupant of a three-occupant cell too |
 | sorted_batching_test.rs | Sorted-bucket DrawBatch collapsing |
 | vertex_corners_compile_test.rs | VertexCorners through the compile pipeline: pattern matching, orient_to_grid frame selection, corner_source channels, offset |
 | vertex_resolve_cache_test.rs | Revision-keyed VertexCorners resolve cache (`Scene::tiles_revision`, re-resolve only on hex-cell changes, a same-cell move keeps the cell's stack order (BUG-540), re-enabling a disabled layer, a renderer reused for another scene with equal counters resolves it afresh), the `FadeGate` effect (easing, idle-replay invalidation, an undeclared id reported and ignored) and `AlphaPulse.restart_on_spawn` (wave restarts at a spawn, free-running one does not, a spawn that leaves the layer's vertex content alone carries the wave on, even when it changes another layer of the same bucket) |

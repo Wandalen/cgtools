@@ -275,6 +275,31 @@ fn a_move_that_keeps_kind_and_cell_keeps_index_order()
   assert_eq!( scene.instances_at_hex( 0, 0 ).collect::< Vec< _ > >(), vec![ e1, e0 ] );
 }
 
+/// The same-slot rule holds for any occupant of a crowded cell, not only the
+/// first : in a cell of three, moving the second or the third back onto its own
+/// cell keeps the cell's stack and the per-anchor list as they were, while
+/// moving the second away and back puts it last.
+#[ test ]
+fn a_same_cell_move_keeps_the_order_of_a_three_occupant_cell()
+{
+  let mut scene = Scene::new( spec_build() );
+  let grass = scene.object( "grass" ).unwrap();
+  let cell = Placement::Hex { q : 2, r : 1 };
+  let [ a, b, c ] = [ (), (), () ].map( | () | scene.spawn( grass, cell ) );
+  let cell_order = | scene : &Scene | scene.instances_at_hex( 2, 1 ).collect::< Vec< _ > >();
+
+  scene.placement_move( b, cell );
+  assert_eq!( cell_order( &scene ), vec![ a, b, c ], "the middle occupant keeps its place" );
+  scene.placement_move( c, cell );
+  assert_eq!( cell_order( &scene ), vec![ a, b, c ], "and so does the top one" );
+  assert_eq!( scene.hex_instances(), &[ a, b, c ], "the per-anchor list is unchanged" );
+
+  scene.placement_move( b, Placement::Hex { q : 3, r : 1 } );
+  scene.placement_move( b, cell );
+  assert_eq!( cell_order( &scene ), vec![ a, c, b ], "leaving the cell and coming back re-indexes" );
+  assert_eq!( scene.hex_instances(), &[ a, c, b ] );
+}
+
 #[ test ]
 fn instances_at_hex_returns_only_matching()
 {
