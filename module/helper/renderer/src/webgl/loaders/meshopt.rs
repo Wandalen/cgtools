@@ -418,6 +418,7 @@ mod private
   /// # Errors
   ///
   /// Returns a description of the first overlap found, or of a range whose end overflows.
+  /// A zero-length range overlaps nothing.
   pub fn decodes_overlap_check
   (
     decodes : &[ ( usize, &MeshoptViewSpec, usize, usize ) ],
@@ -446,6 +447,9 @@ mod private
       let end = offset.checked_add( length ).ok_or_else( || format!( "bufferView {view}: its range overflows" ) )?;
       ranges.push( ( buffer, offset, end, Held::Plain, view ) );
     }
+    // A zero-length range shares no byte with anything, yet would test as
+    // overlapping a range that ends after its start.
+    ranges.retain( | &( _, start, end, .. ) | end > start );
     ranges.sort_unstable_by_key( | &( buffer, start, .. ) | ( buffer, start ) );
 
     let read = | held : Held | if held == Held::Compressed { "the compressed bytes" } else { "the data" };
