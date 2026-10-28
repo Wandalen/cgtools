@@ -68,10 +68,37 @@ impl WebGlBackend
     self.render_targets.clear();
   }
 
+  /// Runs `bake` with cache surface `id` bound, as [`Self::render_target_begin`]
+  /// binds it, and always restores the canvas with [`Self::render_target_end`]
+  /// afterwards, whatever `bake` returns. Prefer it to calling the two by hand:
+  /// a bake whose `submit` fails part-way would otherwise return before the
+  /// `render_target_end`, and every later frame would draw into the cache
+  /// surface at its viewport.
+  ///
+  /// Returns `bake`'s result, or `None` without calling it when `id` is stale.
+  pub fn render_target_with< R >
+  (
+    &mut self,
+    id : RenderTargetId,
+    clear : Option< [ f32; 4 ] >,
+    bake : impl FnOnce( &mut Self ) -> R,
+  )
+  -> Option< R >
+  {
+    if !self.render_target_begin( id, clear )
+    {
+      return None;
+    }
+    let result = bake( self );
+    self.render_target_end();
+    Some( result )
+  }
+
   /// Bind cache surface `id` as the draw target and set the viewport to its
   /// size. `clear` optionally clears it (colour + depth) — pass a transparent
   /// colour for an overlay cache that must composite over another. Pair with
-  /// [`Self::render_target_end`].
+  /// [`Self::render_target_end`], or use [`Self::render_target_with`], which
+  /// pairs them for you.
   ///
   /// Returns `false`, binding nothing, if `id` is stale (made before the last
   /// [`Self::render_targets_reset`] or context restore): the draws that

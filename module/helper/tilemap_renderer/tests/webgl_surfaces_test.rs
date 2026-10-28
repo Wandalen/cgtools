@@ -1,6 +1,6 @@
 //! `WebGlBackend`'s surface methods (`adapters/webgl/webgl_surfaces.rs`)
 //! against a live WebGL2 context, with pixel read-back: the render-target
-//! lifecycle (`render_target_create` / `_begin` / `_end` / `_draw`,
+//! lifecycle (`render_target_create` / `_begin` / `_end` / `_with` / `_draw`,
 //! `render_targets_reset`), `scissor_set`, `fill`, `image_tiled_draw` and
 //! `textures_loaded`. `webgl_render_target_test.rs` checks the handle table
 //! behind them on the host.
@@ -23,7 +23,7 @@ use minwebgl as gl;
 use tilemap_renderer::adapters::webgl::WebGlBackend;
 use tilemap_renderer::assets::{ Assets, ImageAsset, ImageSource, PixelFormat, SpriteAsset };
 use tilemap_renderer::backend::Backend;
-use tilemap_renderer::commands::{ Clear, RenderCommand, Sprite };
+use tilemap_renderer::commands::{ BindBatch, Clear, CreateSpriteBatch, RemoveInstance, RenderCommand, Sprite, SpriteBatchParams };
 use tilemap_renderer::types::{ BlendMode, MipmapMode, RenderConfig, ResourceId, SamplerFilter, Transform, WrapMode };
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::wasm_bindgen_test;
@@ -158,6 +158,44 @@ fn render_target_end_restores_the_canvas_viewport()
   backend.submit( &[ RenderCommand::Clear( Clear { color : BLACK } ), sprite( 2.0, 2.0, 1.0 ) ] ).unwrap();
   let drawn = frame( &gl );
   assert_eq!( drawn.iter().filter( | p | p[ .. 3 ] != [ 0, 0, 0 ] ).count(), 4, "the 2×2 sprite is 2×2 canvas pixels" );
+}
+
+/// `render_target_with` restores the canvas even when the bake fails : a
+/// `submit` that errors inside it must not leave the 4×4 target bound, so a 2×2
+/// sprite drawn afterwards covers 4 canvas pixels, not 64. A stale handle runs
+/// no bake at all.
+#[ wasm_bindgen_test ]
+fn render_target_with_restores_the_canvas_after_a_failed_bake()
+{
+  let ( gl, mut backend ) = backend_new();
+  let target = backend.render_target_create( 4, 4 ).unwrap();
+  // Removing past the end of an empty batch fails the stream, with the batch still bound.
+  let batch = ResourceId::new( 0 );
+  let params = SpriteBatchParams
+  {
+    transform : Transform::default(),
+    sheet : ResourceId::new( 0 ),
+    blend : BlendMode::Normal,
+    clip : None,
+    alpha_clip : 0.0,
+    occlude_overlap : false,
+  };
+  let baked = backend.render_target_with( target, Some( GREEN ), | b | b.submit( &
+  [
+    RenderCommand::CreateSpriteBatch( CreateSpriteBatch { batch, params } ),
+    RenderCommand::BindBatch( BindBatch { batch } ),
+    RenderCommand::RemoveInstance( RemoveInstance { index : 0 } ),
+  ]));
+  assert!( matches!( baked, Some( Err( _ ) ) ), "the bake ran and its submit failed: {baked:?}" );
+
+  backend.submit( &[ RenderCommand::Clear( Clear { color : BLACK } ), sprite( 2.0, 2.0, 1.0 ) ] ).unwrap();
+  let drawn = frame( &gl );
+  assert_eq!( drawn.iter().filter( | p | p[ .. 3 ] != [ 0, 0, 0 ] ).count(), 4, "the canvas is bound again" );
+
+  backend.render_targets_reset();
+  let mut ran = false;
+  assert!( backend.render_target_with( target, None, | _ | ran = true ).is_none() );
+  assert!( !ran, "a stale handle runs no bake" );
 }
 
 /// `scissor_set` limits `fill` to its rectangle, and `None` lifts the limit.
