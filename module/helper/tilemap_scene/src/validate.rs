@@ -116,6 +116,9 @@ mod private
     /// - **Tint modes.** Every declared tint's `mode` is `Multiply`; tints are
     ///   folded into the multiplicative `Sprite.tint`, so no other mode can be
     ///   honoured.
+    /// - **Depth layers clip.** A pipeline layer with `opaque` or
+    ///   `occlude_overlap` has `alpha_clip > 0`, so transparent texels write no
+    ///   depth.
     ///
     /// **Not enforced** — see the `TODO SPEC §16` comment at the end of
     /// this impl for why anchor ↔ sprite-source compatibility is left
@@ -214,6 +217,7 @@ mod private
       tint_mode_check( &self.tints, &mut errors );
       pipeline_tint_checks( &self.pipeline, &ids.tint, &mut errors );
       tiling_check( &self.pipeline, &mut errors );
+      depth_layer_clip_check( &self.pipeline, &mut errors );
 
       // TODO SPEC §16: anchor ↔ sprite-source compatibility (SPEC §3, §5).
       //
@@ -373,6 +377,22 @@ mod private
       if !seen.insert( id )
       {
         errors.push( ValidationError::DuplicateId { kind, id : id.to_owned() } );
+      }
+    }
+  }
+
+  /// Rejects a pipeline layer that writes depth, `opaque` or
+  /// `occlude_overlap`, with no positive `alpha_clip`: every texel would write
+  /// depth, the transparent ones included. An `opaque` layer's
+  /// `occlude_overlap` is ignored, so only `opaque` is reported for it.
+  fn depth_layer_clip_check( pipeline : &RenderPipeline, errors : &mut Vec< ValidationError > )
+  {
+    for layer in &pipeline.layers
+    {
+      let flag = if layer.opaque { "opaque" } else if layer.occlude_overlap { "occlude_overlap" } else { continue };
+      if layer.alpha_clip <= 0.0 || layer.alpha_clip.is_nan()
+      {
+        errors.push( ValidationError::UnclippedDepthLayer { layer : layer.id.clone(), flag, alpha_clip : layer.alpha_clip } );
       }
     }
   }

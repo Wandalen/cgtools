@@ -38,6 +38,7 @@ Two independent mechanisms together enforce nearly every rule in the Invariant S
 | ✅ | Asset reference resolution — recursive walk over `Static`/`Variant`/`NeighborCondition`/`VertexCorners`/`NeighborBitmask` (`ByMapping` recursively, `ByAtlas` directly)/`EdgeConnectedBitmask`/`ViewportTiled`, stopping at `Animation`/`External` leaves, plus every `AnimationTiming` frame asset. |
 | ✅ | `VertexCorners.corner_source` resolution — when set, names the `global_layer` of at least one declared object (`UnresolvedRef { kind: "corner_source layer", .. }`); otherwise every corner of that layer would silently resolve to `VOID_ID`. |
 | ✅ | One self id per `orient_to_grid` layer — a `VertexCorners` layer with `orient_to_grid: true` declares solid `( X, X, X )` patterns for at most one id (`ConflictingOrientSelfIds`); orientation counts corners against the first one, so a second solid id's edge and corner tiles would silently take parity frames. |
+| ✅ | Depth layers clip — a pipeline layer with `opaque` or `occlude_overlap` has `alpha_clip > 0` (`UnclippedDepthLayer`); without a clip its transparent texels would write depth and hide or block the layers they should show. |
 | ✅ | `default_state` existence in `states`. |
 | ✅ | Reserved id `"void"` not used as a declared object id. |
 | ✅ | Id uniqueness within `assets` / `tints` / `animations` / `effects` / `objects` (each its own collection). |

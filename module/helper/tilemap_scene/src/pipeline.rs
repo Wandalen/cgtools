@@ -82,9 +82,10 @@ mod private
     /// strictly nearer than all the layers under it, so their depth never
     /// blocks it, while a nearer opaque layer still hides it. The depths lie in
     /// `[0, 1)`, so the backend's `RenderConfig::max_depth` must be at least
-    /// `1.0` (the default), or the GPU clips the upper buckets. Pair with a
-    /// non-zero [`alpha_clip`](Self::alpha_clip) so the AA fringe doesn't
-    /// write depth and block a neighbour. Ignored on an `opaque` layer.
+    /// `1.0` (the default), or the GPU clips the upper buckets. Needs a
+    /// positive [`alpha_clip`](Self::alpha_clip) so the AA fringe doesn't
+    /// write depth and block a neighbour; validation refuses the layer
+    /// without one. Ignored on an `opaque` layer.
     /// Default `false` = unchanged.
     #[ serde( default ) ]
     pub occlude_overlap : bool,
@@ -101,8 +102,9 @@ mod private
     /// Correctness requirements for an opaque layer:
     /// - It must be visually opaque where it covers (alpha ≈ 1); a translucent
     ///   layer meant to show what is beneath it must stay `false`.
-    /// - Pair with a non-zero [`alpha_clip`](Self::alpha_clip) so transparent
-    ///   texels `discard` (no depth write) and lower layers show through gaps.
+    /// - Set a positive [`alpha_clip`](Self::alpha_clip) so transparent texels
+    ///   `discard` (no depth write) and lower layers show through gaps;
+    ///   validation refuses an opaque layer without one.
     /// - Keep it fully batched (see [`alpha_clip`](Self::alpha_clip)). In a
     ///   frame where it has to draw any sprite on its own, that sprite would
     ///   write depth over its whole quad, so the renderer draws the bucket in

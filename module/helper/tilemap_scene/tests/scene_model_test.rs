@@ -1153,3 +1153,58 @@ fn sprite_ref_ron_accepts_bare_tuple()
     ron::from_str( r#"SpriteRef( "atlas", "grass_01" )"# );
   assert!( prefixed.is_err(), "prefixed form unexpectedly parsed: {prefixed:?}" );
 }
+
+/// One `grass` object on a `terrain` pipeline layer declared as `layer`, whose
+/// default layer lists `effects`, with `declared` in the spec's `effects`.
+fn depth_and_effects_spec( layer : &str, declared : &str, effects : &str ) -> RenderSpec
+{
+  ron::from_str( &format!( r#"
+    RenderSpec(
+        version: "0.2.0",
+        assets: [
+            Asset( id: "terrain", path: "t.png", kind: Atlas( tile_size: ( 72, 64 ), columns: 8 ) ),
+        ],
+        effects: [ {declared} ],
+        objects: [
+            Object(
+                id: "grass",
+                anchor: Hex,
+                global_layer: "terrain",
+                default_state: "default",
+                states: {{ "default": [ ( sprite_source: Static( ( "terrain", "0" ) ), behaviour: ( effects: [ {effects} ] ) ) ] }},
+            ),
+        ],
+        pipeline: (
+            hex: ( tiling: HexFlatTop, grid_stride: ( 72, 64 ) ),
+            layers: [ {layer} ],
+        ),
+    )
+  "# ) ).expect( "spec parses" )
+}
+
+/// A pipeline layer that writes depth needs a positive `alpha_clip`, or its
+/// transparent texels write depth too : `opaque` and `occlude_overlap` are
+/// each refused at the default `0.0`, and pass with a clip.
+#[ test ]
+fn validate_rejects_a_depth_layer_without_alpha_clip()
+{
+  for ( flag, unclipped, clipped ) in
+  [
+    ( "opaque", r#"( id: "terrain", opaque: true )"#, r#"( id: "terrain", opaque: true, alpha_clip: 0.1 )"# ),
+    ( "occlude_overlap", r#"( id: "terrain", occlude_overlap: true )"#, r#"( id: "terrain", occlude_overlap: true, alpha_clip: 0.5 )"# ),
+  ]
+  {
+    let errs = depth_and_effects_spec( unclipped, "", "" ).validate().expect_err( "an unclipped depth layer must be flagged" );
+    assert!
+    (
+      matches!
+      (
+        errs.as_slice(),
+        [ tilemap_scene::ValidationError::UnclippedDepthLayer { layer, flag : f, .. } ] if layer == "terrain" && *f == flag
+      ),
+      "expected one UnclippedDepthLayer for {flag}, got {errs:?}",
+    );
+    depth_and_effects_spec( clipped, "", "" ).validate().expect( "a clipped depth layer validates" );
+  }
+  depth_and_effects_spec( r#"( id: "terrain" )"#, "", "" ).validate().expect( "a layer that writes no depth needs no clip" );
+}
