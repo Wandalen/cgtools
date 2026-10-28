@@ -35,6 +35,7 @@ Two levels coexist:
 | sorted_batching_test.rs | Sorted-bucket DrawBatch collapsing |
 | vertex_corners_compile_test.rs | VertexCorners through the compile pipeline: pattern matching, orient_to_grid frame selection, corner_source channels, offset |
 | vertex_resolve_cache_test.rs | Revision-keyed VertexCorners resolve cache (`Scene::tiles_revision`, re-resolve only on hex-cell changes, a same-cell move keeps the cell's stack order (BUG-540), re-enabling a disabled layer, a renderer reused for another scene with equal counters resolves it afresh), the `FadeGate` effect (easing, idle-replay invalidation, an undeclared id reported and ignored) and `AlphaPulse.restart_on_spawn` (wave restarts at a spawn, free-running one does not, a spawn that leaves the layer's vertex content alone carries the wave on, even when it changes another layer of the same bucket) |
+| webgl_renderer_test.rs | Renderer into a live `WebGlBackend` (wasm32, browser): a pan is an idle replay that only draws, and the frame follows it once the host calls `camera_set` with the new view matrix |
 
 ## Adding tests
 
@@ -47,3 +48,6 @@ Two levels coexist:
    `mod.rs` header for the import pattern).
 4. Verify with `cargo test -p tilemap_scene --all-features` (run detached via
    `longrun .launch` from the workspace root; check the log for the per-suite breakdown).
+   The browser suite (`webgl_renderer_test.rs`) runs with
+   `cargo test -p tilemap_scene --target wasm32-unknown-unknown --all-features`; criterion is a
+   native-only dev-dependency, so the benchmark does not build for wasm32.
