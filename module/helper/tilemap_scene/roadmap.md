@@ -116,22 +116,10 @@ pipeline is exercised only by this crate's own tests.
 - `RenderCommand::ScreenSpaceSprite` — viewport-anchored emits stay
   per-sprite (not batched in Step 4; deferred polish item).
 
-**Test baseline:** 167 passing.
-38 unit tests (hash, ids, camera, coords, animation, neighbors,
-conditions, vertex, edges, viewport, snapshot expansion) +
-17 `scene_state` (handle resolution, mutation API, revision bumps) +
-16 `scene_events` (`tick` + OneShot completion semantics) +
-6 `renderer_test` (per-instance overrides, snapshot bridge) +
-18 `renderer_cache_test` (idle replay, mutation / tick / camera
-invalidation, byte-equality on replay, **Set elision on unchanged
-batches**, **`cleanup()` drain semantics**) +
-7 `sorted_batching_test` (single-key sorted batching, multi-sheet
-fallback, inline `DrawBatch` pipeline order) +
-3 `hex_config_test` (`from_hex_size` arithmetic for both tilings) +
-6 `catalog_test` +
-42 `scene_model_compile_test` (anchor × source × pipeline coverage —
-all migrated via `tests/common::commands_to_sprites`) +
-14 `scene_model_test` (RON + serde round-trip).
+**Test baseline:** this tally went stale as suites were added, so it is no
+longer kept here. [`tests/readme.md`](tests/readme.md) lists every test file
+and what it covers; `cargo nextest run -p tilemap_scene --all-features` gives
+the current count.
 
 **Closed items from the (since-removed) `TILEMAP_SCENE_FEEDBACK.md` review:**
 
