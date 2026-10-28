@@ -239,6 +239,9 @@ fn filters_accept_only_their_strides()
     }
   }
   assert_eq!( parse( EXT, "QUATERNION", 4 ), Err( "filter QUATERNION does not support byteStride 4".to_owned() ) );
+  // `ATTRIBUTES` already refuses a stride that is not a multiple of 4, so the EXPONENTIAL rule
+  // shows only in which check reports it first.
+  assert!( parse( EXT, "EXPONENTIAL", 6 ).is_err(), "EXPONENTIAL decodes 32-bit words" );
 }
 
 /// Every mode and filter name parses to the variant whose `as_str` gives it back : the
@@ -405,6 +408,9 @@ fn decodes_overlap_check_rejects_a_decode_over_an_uncompressed_view()
   assert!( decodes_overlap_check( &decode, &[ ( 1, 2, 0, 16 ) ] ).is_ok(), "the same range in another buffer" );
   assert!( decodes_overlap_check( &decode, &[ ( 1, 0, 4, 16 ), ( 2, 0, 0, 8 ) ] ).is_ok(), "uncompressed views may share bytes with compressed data and each other" );
   assert!( decodes_overlap_check( &decode, &[ ( 1, 1, usize::MAX, 1 ) ] ).is_err(), "an uncompressed range whose end overflows" );
+  assert!( decodes_overlap_check( &decode, &[ ( 1, 1, 8, 0 ) ] ).is_ok(), "a zero-length view inside the decoded range shares no byte" );
+  let empty = attributes_spec( 1, 4, 0, 4 );
+  assert!( decodes_overlap_check( &[ ( 0, &a, 1, 0 ), ( 1, &empty, 2, 0 ) ], &[] ).is_ok(), "nor do zero compressed bytes" );
 }
 
 /// The sweep in `decodes_overlap_check` agrees with the plain pairwise rule on many small

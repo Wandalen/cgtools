@@ -167,12 +167,16 @@ mod private
       }
     }
 
-    /// Checks that this filter can decode elements of `stride` bytes.
+    /// Checks that this filter can decode elements of `stride` bytes. `EXPONENTIAL` decodes
+    /// 32-bit words, so it needs a multiple of 4; `ATTRIBUTES` asks that of every stride, and
+    /// the index modes take no filter, but the rule is stated here too so this check holds on
+    /// its own.
     fn stride_check( self, stride : usize ) -> Result< (), String >
     {
       let fits = match self
       {
-        Self::None | Self::Exponential => true,
+        Self::None => true,
+        Self::Exponential => stride % 4 == 0,
         Self::Octahedral | Self::Color => stride == 4 || stride == 8,
         Self::Quaternion => stride == 8,
       };
@@ -418,6 +422,7 @@ mod private
   /// # Errors
   ///
   /// Returns a description of the first overlap found, or of a range whose end overflows.
+  /// A zero-length range overlaps nothing.
   pub fn decodes_overlap_check
   (
     decodes : &[ ( usize, &MeshoptViewSpec, usize, usize ) ],
@@ -446,6 +451,9 @@ mod private
       let end = offset.checked_add( length ).ok_or_else( || format!( "bufferView {view}: its range overflows" ) )?;
       ranges.push( ( buffer, offset, end, Held::Plain, view ) );
     }
+    // A zero-length range shares no byte with anything, yet would test as
+    // overlapping a range that ends after its start.
+    ranges.retain( | &( _, start, end, .. ) | end > start );
     ranges.sort_unstable_by_key( | &( buffer, start, .. ) | ( buffer, start ) );
 
     let read = | held : Held | if held == Held::Compressed { "the compressed bytes" } else { "the data" };
@@ -500,6 +508,7 @@ mod private
   ///   meshopt extensions on one view or buffer, a parent layout that does not match the
   ///   decoded data, a range outside its buffer, compressed bytes in a fallback buffer, or an
   ///   uncompressed view reading a fallback buffer;
+  /// - an uncompressed view reads past the end of its buffer;
   /// - two views overlap ( `decodes_overlap_check` );
   /// - the decoder fails to initialise;
   /// - the decoder rejects the data.
@@ -566,6 +575,20 @@ mod private
             view.index(), view.buffer().index()
           );
           return Err( gl::WebglError::Other( "glTF meshopt fallback buffer is read by an uncompressed bufferView" ) );
+        }
+        // The upload and the image decode slice the loaded buffer by this range as is, with no
+        // check of their own: one past its end must fail the load here, not reach WebGL.
+        let fits = view.offset().checked_add( view.length() )
+        .is_some_and( | end | buffer_lengths.get( view.buffer().index() ).is_some_and( | &len | end <= len ) );
+        if !fits
+        {
+          gl::browser::error!
+          (
+            "glTF bufferView {} reads {}+{} from buffer {}, which holds {} bytes",
+            view.index(), view.offset(), view.length(), view.buffer().index(),
+            buffer_lengths.get( view.buffer().index() ).copied().unwrap_or( 0 )
+          );
+          return Err( gl::WebglError::Other( "glTF bufferView reads past the end of its buffer" ) );
         }
         plain.push( ( view.index(), view.buffer().index(), view.offset(), view.length() ) );
         continue;

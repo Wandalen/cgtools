@@ -54,6 +54,24 @@ mod tests
     assert_eq!( load_refusal( &uri ).await, "glTF buffer 0 has no uri and no GLB binary chunk" );
   }
 
+  /// A view that reaches past the end of its buffer is refused before anything slices the
+  /// buffer by it; without the check this file loaded, handing WebGL a range the buffer does
+  /// not hold. The same file with the view inside the buffer loads.
+  #[ wasm_bindgen_test( async ) ]
+  async fn load_refuses_a_view_past_the_end_of_its_buffer()
+  {
+    let buffers = format!( r#"{{ "byteLength" : 36, "uri" : "{}" }}"#, data_uri( "application/octet-stream", &triangle_bytes() ) );
+    let json = | length : usize | triangle_gltf( &[], &buffers, &format!( r#"{{ "buffer" : 0, "byteLength" : {length}, "target" : 34962 }}"# ) );
+
+    let gl = gl_init();
+    let inside = data_uri( "model/gltf+json", json( 36 ).as_bytes() );
+    let loaded = gltf::load( &document(), &inside, &gl ).await.expect( "a view inside its buffer loads" );
+    assert_eq!( view_bytes_read( &gl, &loaded, 0, 36 ), triangle_bytes() );
+
+    let past = data_uri( "model/gltf+json", json( 48 ).as_bytes() );
+    assert_eq!( load_refusal( &past ).await, "glTF bufferView reads past the end of its buffer" );
+  }
+
   /// A morph target is read on the CPU, so `load` must hand the skeleton stage its copy of the
   /// buffers ( `cpu_buffers_needed` ), which it skips for a static mesh. The triangle's one
   /// `POSITION` target moves each vertex along a different axis; the mesh's skeleton must pack

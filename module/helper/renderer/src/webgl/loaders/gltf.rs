@@ -819,6 +819,59 @@ mod private
     Ok( ( buffers, bin_buffers ) )
   }
 
+  /// What [`gpu_resources_create`] uploads and builds for [`load`].
+  struct GpuResources
+  {
+    images : Rc< RefCell< Vec< gl::web_sys::WebGlTexture > > >,
+    gl_buffers : Vec< gl::WebGlBuffer >,
+    textures : Vec< Rc< RefCell< Texture > > >,
+    /// The materials the meshes use, with each per-primitive variation.
+    used_materials : Vec< SharedMaterial >,
+    meshes : Vec< Rc< RefCell< Mesh > > >,
+  }
+
+  /// The GPU stage of [`load`] : uploads the images and the buffers, and builds the textures,
+  /// the materials and the meshes over them.
+  ///
+  /// # Errors
+  ///
+  /// Returns what `gl_buffers_upload` and `meshes_create` return.
+  fn gpu_resources_create
+  (
+    document : &gl::web_sys::Document,
+    gl : &gl::WebGl2RenderingContext,
+    gltf_file : &gltf::Gltf,
+    folder_path : &str,
+    buffers : &[ gl::js_sys::Uint8Array ],
+  )
+  -> Result< GpuResources, gl::WebglError >
+  {
+    gl::debug!( "Buffers: {}", buffers.len() );
+
+    let images = images_upload( document, gl, gltf_file, folder_path, buffers );
+
+    gl::debug!( "Images: {}", images.borrow().len() );
+
+    let gl_buffers = gl_buffers_upload( gl, gltf_file, buffers )?;
+
+    gl::debug!( "GL Buffers: {}", gl_buffers.len() );
+
+    let textures = textures_create( gltf_file, &images );
+
+    let ( materials, mut material_variation_map ) = materials_create( gl, gltf_file, &textures );
+    let mut used_materials : Vec< SharedMaterial > = Vec::new();
+
+    gl::debug!( "PbrMaterials: {}",materials.len() );
+    let meshes = meshes_create
+    (
+      gl, gltf_file, &gl_buffers, &materials, &mut material_variation_map, &mut used_materials
+    )?;
+
+    gl::debug!( "Meshes: {}",meshes.len() );
+
+    Ok( GpuResources { images, gl_buffers, textures, used_materials, meshes } )
+  }
+
   /// Asynchronously loads a glTF (GL Transmission Format) file and its associated resources.
   ///
   /// # Errors
@@ -830,6 +883,7 @@ mod private
   /// - a buffer cannot be loaded : a fetch fails, a buffer other than buffer 0 has no uri,
   ///   buffer 0 has no uri and the file no GLB binary chunk, or the meshopt fallback buffers
   ///   declare more bytes together than the loader allocates for one document;
+  /// - an uncompressed buffer view reaches past the end of its buffer;
   /// - meshopt decoding fails, for any reason `meshopt::views_decode` lists : a buffer view or
   ///   buffer breaking a meshopt rule, overlapping views, the decoder failing to initialise, or
   ///   the decoder rejecting the data.
@@ -853,28 +907,8 @@ mod private
     let mut gltf_file = document_read( gltf_path ).await?;
     let ( buffers, bin_buffers ) = buffers_prepare( &mut gltf_file, folder_path ).await?;
 
-    gl::debug!( "Buffers: {}", buffers.len() );
-
-    let images = images_upload( document, gl, &gltf_file, folder_path, &buffers );
-
-    gl::debug!( "Images: {}", images.borrow().len() );
-
-    let gl_buffers = gl_buffers_upload( gl, &gltf_file, &buffers )?;
-
-    gl::debug!( "GL Buffers: {}", gl_buffers.len() );
-
-    let textures = textures_create( &gltf_file, &images );
-
-    let ( materials, mut material_variation_map ) = materials_create( gl, &gltf_file, &textures );
-    let mut used_materials : Vec< SharedMaterial > = Vec::new();
-
-    gl::debug!( "PbrMaterials: {}",materials.len() );
-    let meshes = meshes_create
-    (
-      gl, &gltf_file, &gl_buffers, &materials, &mut material_variation_map, &mut used_materials
-    )?;
-
-    gl::debug!( "Meshes: {}",meshes.len() );
+    let GpuResources { images, gl_buffers, textures, used_materials, meshes } =
+      gpu_resources_create( document, gl, &gltf_file, folder_path, &buffers )?;
 
     let NodesCreated { nodes, rigged_nodes, lights } = nodes_create( &gltf_file, &meshes );
 

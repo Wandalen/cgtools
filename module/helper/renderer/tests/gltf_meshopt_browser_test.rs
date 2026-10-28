@@ -19,6 +19,7 @@ mod tests
   wasm_bindgen_test::wasm_bindgen_test_configure!( run_in_browser );
   use minwebgl as gl;
   use renderer::webgl::loaders::{ gltf, meshopt };
+  use renderer::webgl::Object3D;
   use crate::gltf_browser_helpers::*;
 
   /// Encodes `data`, a run of `stride`-byte elements, as `EXT_meshopt_compression`'s
@@ -128,19 +129,80 @@ mod tests
   /// ( buffer 0 ) into fallback buffer 1, with `filter` spliced into the extension object.
   fn filtered_document( compressed : &[ u8 ], count : usize, filter : &str ) -> ::gltf::Gltf
   {
+    filtered_document_with( "EXT_meshopt_compression", compressed, count, 4, filter )
+  }
+
+  /// [`filtered_document`] under `extension`, for elements of `stride` bytes.
+  fn filtered_document_with( extension : &str, compressed : &[ u8 ], count : usize, stride : usize, filter : &str ) -> ::gltf::Gltf
+  {
     let len = compressed.len();
-    let decoded = count * 4;
+    let decoded = count * stride;
     let json = format!
     (
       r#"{{ "asset" : {{ "version" : "2.0" }},
-        "extensionsUsed" : [ "EXT_meshopt_compression" ], "extensionsRequired" : [ "EXT_meshopt_compression" ],
+        "extensionsUsed" : [ "{extension}" ], "extensionsRequired" : [ "{extension}" ],
         "buffers" : [ {{ "byteLength" : {len}, "uri" : "compressed.bin" }},
-          {{ "byteLength" : {decoded}, "extensions" : {{ "EXT_meshopt_compression" : {{ "fallback" : true }} }} }} ],
-        "bufferViews" : [ {{ "buffer" : 1, "byteLength" : {decoded}, "byteStride" : 4,
-          "extensions" : {{ "EXT_meshopt_compression" :
-            {{ "buffer" : 0, "byteLength" : {len}, "byteStride" : 4, "count" : {count}, "mode" : "ATTRIBUTES", "filter" : "{filter}" }} }} }} ] }}"#
+          {{ "byteLength" : {decoded}, "extensions" : {{ "{extension}" : {{ "fallback" : true }} }} }} ],
+        "bufferViews" : [ {{ "buffer" : 1, "byteLength" : {decoded}, "byteStride" : {stride},
+          "extensions" : {{ "{extension}" :
+            {{ "buffer" : 0, "byteLength" : {len}, "byteStride" : {stride}, "count" : {count}, "mode" : "ATTRIBUTES", "filter" : "{filter}" }} }} }} ] }}"#
     );
     ::gltf::Gltf::from_slice_without_validation( json.as_bytes() ).unwrap()
+  }
+
+  /// Encodes `raw` ( elements of `stride` bytes ) as a view filtered by `filter` under
+  /// `extension`, decodes it with `views_decode`, and returns the decoded bytes.
+  async fn filtered_decode( extension : &str, raw : &[ u8 ], stride : usize, filter : &str ) -> Vec< u8 >
+  {
+    let compressed = meshopt_attributes_encode( raw, stride );
+    let document = filtered_document_with( extension, &compressed, raw.len() / stride, stride, filter );
+    let buffers = [ gl::js_sys::Uint8Array::from( compressed.as_slice() ), gl::js_sys::Uint8Array::new_with_length( raw.len() as u32 ) ];
+    meshopt::views_decode( &document, &buffers ).await.expect( "the filtered data decodes" );
+    buffers[ 1 ].to_vec()
+  }
+
+  /// `OCTAHEDRAL` stores a unit vector as signed `x`, `y` on the octahedron and `z` as the
+  /// encoded 1.0, and rebuilds `z` and normalises. The four inputs decode to +Z, +X, -Y and,
+  /// from the folded corner, -Z, each at the 8-bit unit length 127; `w` passes through.
+  /// Without the filter the raw bytes would come out unchanged.
+  #[ wasm_bindgen_test( async ) ]
+  async fn views_decode_applies_the_octahedral_filter()
+  {
+    let raw : Vec< u8 > = [ [ 0, 0, 127, 9 ], [ 127, 0, 127, 9 ], [ 0, -127, 127, 9 ], [ 127, 127, 127, 9 ] ]
+    .iter().flatten().map( | &v : &i8 | v.to_le_bytes()[ 0 ] ).collect();
+    let decoded = filtered_decode( "EXT_meshopt_compression", &raw, 4, "OCTAHEDRAL" ).await;
+    let vectors = decoded.as_chunks::< 4 >().0.iter().map( | v | v.map( | b | i8::from_le_bytes( [ b ] ) ) ).collect::< Vec< _ > >();
+    assert_eq!( vectors, [ [ 0, 0, 127, 9 ], [ 127, 0, 0, 9 ], [ 0, -127, 0, 9 ], [ 0, 0, -127, 9 ] ] );
+  }
+
+  /// `QUATERNION` stores three 16-bit components and, in the fourth, a scale and which
+  /// component was dropped ( its low 2 bits ); the decoder rebuilds the dropped one and puts
+  /// it back in place. Both inputs are the identity rotation with the dropped component at
+  /// index 3 and at index 0, so each decodes to the 1.0 ( 32767 ) at that index.
+  #[ wasm_bindgen_test( async ) ]
+  async fn views_decode_applies_the_quaternion_filter()
+  {
+    let raw : Vec< u8 > = [ [ 0_i16, 0, 0, 32767 ], [ 0, 0, 0, 32764 ] ].iter().flatten().flat_map( | v | v.to_le_bytes() ).collect();
+    let decoded = filtered_decode( "EXT_meshopt_compression", &raw, 8, "QUATERNION" ).await;
+    let quaternions = decoded.as_chunks::< 8 >().0.iter()
+    .map( | q | [ 0, 2, 4, 6 ].map( | i | i16::from_le_bytes( [ q[ i ], q[ i + 1 ] ] ) ) )
+    .collect::< Vec< _ > >();
+    assert_eq!( quaternions, [ [ 0, 0, 0, 32767 ], [ 32767, 0, 0, 0 ] ] );
+  }
+
+  /// `COLOR` ( `KHR_meshopt_compression` only ) stores a colour as YCoCg : `R = Y + Co - Cg`,
+  /// `G = Y + Cg`, `B = Y - Co - Cg`. A grey stays grey, and `Co` / `Cg` of 10 move the
+  /// channels by 10 the way the spec's equations say; full alpha stays full.
+  #[ wasm_bindgen_test( async ) ]
+  async fn views_decode_applies_the_color_filter()
+  {
+    let raw : Vec< u8 > = [ [ 100_u8, 0, 0, 255 ], [ 100, 10, 0, 255 ], [ 100, 0, 10, 255 ] ].concat();
+    let decoded = filtered_decode( "KHR_meshopt_compression", &raw, 4, "COLOR" ).await;
+    assert_eq!
+    (
+      decoded.as_chunks::< 4 >().0,
+      [ [ 100, 100, 100, 255 ], [ 110, 100, 90, 255 ], [ 90, 110, 90, 255 ] ]
+    );
   }
 
   /// The decoder applies a view's filter after decoding. `EXPONENTIAL` stores each float as
@@ -211,6 +273,112 @@ mod tests
     let loaded = gltf::load( &document(), &uri, &gl ).await.expect( "the compressed triangle loads" );
 
     assert_eq!( view_bytes_read( &gl, &loaded, 0, 36 ), triangle_bytes() );
+  }
+
+  /// Both extensions on one view : normalized `i16` positions ( `KHR_mesh_quantization` ),
+  /// padded to 8 bytes and compressed with `EXT_meshopt_compression`. `load` must upload the
+  /// decoded integers unchanged, for the GPU to normalize, and give the mesh bounds divided by
+  /// 32767, the quantized accessor's raw `max` of `( 32767, 16384, 0 )` read as -1..1.
+  #[ wasm_bindgen_test( async ) ]
+  async fn load_decodes_and_dequantizes_a_compressed_quantized_mesh()
+  {
+    let mut raw = Vec::new();
+    for v in [ [ 0_i16, 0, 0 ], [ 32767, 0, 0 ], [ 0, 16384, 0 ] ]
+    {
+      for c in v { raw.extend( c.to_le_bytes() ); }
+      raw.extend( [ 0, 0 ] );
+    }
+    let compressed = meshopt_attributes_encode( &raw, 8 );
+    let len = compressed.len();
+    let json = format!
+    (
+      r#"{{
+        "asset" : {{ "version" : "2.0" }},
+        "extensionsUsed" : [ "EXT_meshopt_compression", "KHR_mesh_quantization" ],
+        "extensionsRequired" : [ "EXT_meshopt_compression", "KHR_mesh_quantization" ],
+        "buffers" : [ {{ "byteLength" : {len}, "uri" : "{}" }},
+          {{ "byteLength" : 24, "extensions" : {{ "EXT_meshopt_compression" : {{ "fallback" : true }} }} }} ],
+        "bufferViews" : [ {{ "buffer" : 1, "byteLength" : 24, "byteStride" : 8, "target" : 34962,
+          "extensions" : {{ "EXT_meshopt_compression" :
+            {{ "buffer" : 0, "byteLength" : {len}, "byteStride" : 8, "count" : 3, "mode" : "ATTRIBUTES" }} }} }} ],
+        "accessors" : [ {{ "bufferView" : 0, "componentType" : 5122, "normalized" : true, "count" : 3, "type" : "VEC3",
+          "min" : [ 0, 0, 0 ], "max" : [ 32767, 16384, 0 ] }} ],
+        "materials" : [ {{}} ],
+        "meshes" : [ {{ "primitives" : [ {{ "attributes" : {{ "POSITION" : 0 }}, "material" : 0 }} ] }} ],
+        "nodes" : [ {{ "mesh" : 0 }} ],
+        "scenes" : [ {{ "nodes" : [ 0 ] }} ],
+        "scene" : 0
+      }}"#,
+      data_uri( "application/octet-stream", &compressed )
+    );
+    let gl = gl_init();
+    let loaded = gltf::load( &document(), &data_uri( "model/gltf+json", json.as_bytes() ), &gl ).await
+    .expect( "the compressed quantized triangle loads" );
+
+    assert_eq!( view_bytes_read( &gl, &loaded, 0, 24 ), raw, "the decoded integers, uploaded as they are" );
+    let bounds = loaded.meshes[ 0 ].borrow().bounding_box();
+    let near = | a : f32, b : f32 | ( a - b ).abs() < 1e-6;
+    let ( min, max ) = ( bounds.min.0, bounds.max.0 );
+    assert!( min.iter().all( | &c | near( c, 0.0 ) ), "min {min:?}" );
+    assert!( near( max[ 0 ], 1.0 ) && near( max[ 1 ], 16384.0 / 32767.0 ) && near( max[ 2 ], 0.0 ), "max {max:?}" );
+  }
+
+  /// A compressed morph target : its displacements are read on the CPU, from the copy `load`
+  /// takes of the buffers, so that copy must be taken after the decode. The target's view
+  /// decodes into a fallback buffer; read before the decode it would hold zeros.
+  #[ wasm_bindgen_test( async ) ]
+  async fn load_reads_a_compressed_morph_target()
+  {
+    let displacements = [ 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0_f32 ].iter().flat_map( | f | f.to_le_bytes() ).collect::< Vec< u8 > >();
+    let compressed = meshopt_attributes_encode( &displacements, 12 );
+    let len = compressed.len();
+    let json = format!
+    (
+      r#"{{
+        "asset" : {{ "version" : "2.0" }},
+        "extensionsUsed" : [ "EXT_meshopt_compression" ], "extensionsRequired" : [ "EXT_meshopt_compression" ],
+        "buffers" : [ {{ "byteLength" : {}, "uri" : "{}" }},
+          {{ "byteLength" : 36, "extensions" : {{ "EXT_meshopt_compression" : {{ "fallback" : true }} }} }} ],
+        "bufferViews" :
+        [
+          {{ "buffer" : 0, "byteLength" : 36, "target" : 34962 }},
+          {{ "buffer" : 1, "byteLength" : 36, "byteStride" : 12,
+            "extensions" : {{ "EXT_meshopt_compression" :
+              {{ "buffer" : 0, "byteOffset" : 36, "byteLength" : {len}, "byteStride" : 12, "count" : 3, "mode" : "ATTRIBUTES" }} }} }}
+        ],
+        "accessors" :
+        [
+          {{ "bufferView" : 0, "componentType" : 5126, "count" : 3, "type" : "VEC3", "min" : [ 0, 0, 0 ], "max" : [ 1, 1, 0 ] }},
+          {{ "bufferView" : 1, "componentType" : 5126, "count" : 3, "type" : "VEC3", "min" : [ 0, 0, 0 ], "max" : [ 1, 1, 1 ] }}
+        ],
+        "materials" : [ {{}} ],
+        "meshes" : [ {{ "primitives" : [ {{ "attributes" : {{ "POSITION" : 0 }}, "targets" : [ {{ "POSITION" : 1 }} ], "material" : 0 }} ], "weights" : [ 0.5 ] }} ],
+        "nodes" : [ {{ "mesh" : 0 }} ],
+        "scenes" : [ {{ "nodes" : [ 0 ] }} ],
+        "scene" : 0
+      }}"#,
+      36 + len,
+      data_uri( "application/octet-stream", &[ triangle_bytes(), compressed ].concat() )
+    );
+    let loaded = gltf::load( &document(), &data_uri( "model/gltf+json", json.as_bytes() ), &gl_init() ).await
+    .expect( "the triangle with a compressed target loads" );
+
+    let skeleton = loaded.nodes.iter().find_map( | node | match &node.borrow().object
+    {
+      Object3D::Mesh( mesh ) => mesh.borrow().skeleton.clone(),
+      _ => None,
+    } )
+    .expect( "the mesh has a skeleton for its morph target" );
+    let mut skeleton = skeleton.borrow_mut();
+    let data = skeleton.displacements_as_mut().as_mut().expect( "the skeleton holds the morph target" );
+    // Per vertex : [ position.xyz, 1 ], [ normal.xyz, 1 ], [ tangent.xyz, 1 ].
+    let expected = vec!
+    [
+      1.0, 0.0, 0.0, 1.0,  0.0, 0.0, 0.0, 1.0,  0.0, 0.0, 0.0, 1.0,
+      0.0, 1.0, 0.0, 1.0,  0.0, 0.0, 0.0, 1.0,  0.0, 0.0, 0.0, 1.0,
+      0.0, 0.0, 1.0, 1.0,  0.0, 0.0, 0.0, 1.0,  0.0, 0.0, 0.0, 1.0_f32,
+    ];
+    assert_eq!( data.displacements_data_pack(), expected, "the decoded displacements" );
   }
 
   /// A fallback buffer's size comes only from its declared `byteLength`, so a huge declaration
