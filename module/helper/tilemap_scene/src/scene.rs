@@ -723,7 +723,10 @@ mod private
       {
         let target_v = if state.target { 1.0 } else { 0.0 };
         let duration_ms = state.duration_ms;
-        let step = if duration_ms > 0.0 { ( 1000.0 / duration_ms ) * dt } else { 1.0 };
+        // No time passed, no step: a zero-length gate snaps on the next tick
+        // that moves the clock, not on a `tick( 0.0 )`, which bumps neither the
+        // revision nor the clock the idle replay keys on.
+        let step = if dt <= 0.0 { 0.0 } else if duration_ms > 0.0 { ( 1000.0 / duration_ms ) * dt } else { 1.0 };
         state.value = if state.value < target_v
         {
           ( state.value + step ).min( target_v )

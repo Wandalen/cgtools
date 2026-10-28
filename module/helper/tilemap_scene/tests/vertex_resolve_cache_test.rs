@@ -259,6 +259,33 @@ fn fade_target_set_reports_an_undeclared_effect()
   assert_ne!( scene.revision(), revision );
 }
 
+/// A fade gate moves only while time passes : `tick( 0.0 )` leaves its value,
+/// for a zero-length gate as for a timed one. A zero-length gate then snaps on
+/// the first tick that advances the clock.
+#[ test ]
+fn a_fade_gate_holds_on_a_tick_that_advances_no_time()
+{
+  let mut spec = dual_orient_spec();
+  for ( id, duration_ms ) in [ ( "snap", 0.0 ), ( "ease", 100.0 ) ]
+  {
+    spec.effects.push( Effect { id : id.into(), kind : EffectKind::FadeGate { duration_ms }, phase_offset : PhaseOffset::None } );
+  }
+  let mut scene = Scene::new( Arc::new( spec ) );
+  for id in [ "snap", "ease" ]
+  {
+    scene.fade_target_set( id, false );
+    scene.fade_target_set( id, true );
+  }
+
+  scene.tick( 0.0 );
+  assert_eq!( scene.fade_value( "snap" ), 0.0, "a zero-length gate holds while no time passes" );
+  assert_eq!( scene.fade_value( "ease" ), 0.0, "and so does a timed one" );
+
+  scene.tick( 0.05 );
+  assert_eq!( scene.fade_value( "snap" ), 1.0, "the zero-length gate snaps once time passes" );
+  assert!( ( scene.fade_value( "ease" ) - 0.5 ).abs() < 1e-5, "the 100 ms gate is half way after 50 ms" );
+}
+
 /// `Scene::tiles_revision` moves only when the set of visible objects standing in
 /// hex cells changes — `FreePos` moves, same-cell moves, states and tints leave it.
 #[ test ]
