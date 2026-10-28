@@ -19,6 +19,7 @@ mod tests
   wasm_bindgen_test::wasm_bindgen_test_configure!( run_in_browser );
   use minwebgl as gl;
   use renderer::webgl::loaders::{ gltf, meshopt };
+  use renderer::webgl::Object3D;
   use crate::gltf_browser_helpers::*;
 
   /// Encodes `data`, a run of `stride`-byte elements, as `EXT_meshopt_compression`'s
@@ -320,6 +321,64 @@ mod tests
     let ( min, max ) = ( bounds.min.0, bounds.max.0 );
     assert!( min.iter().all( | &c | near( c, 0.0 ) ), "min {min:?}" );
     assert!( near( max[ 0 ], 1.0 ) && near( max[ 1 ], 16384.0 / 32767.0 ) && near( max[ 2 ], 0.0 ), "max {max:?}" );
+  }
+
+  /// A compressed morph target : its displacements are read on the CPU, from the copy `load`
+  /// takes of the buffers, so that copy must be taken after the decode. The target's view
+  /// decodes into a fallback buffer; read before the decode it would hold zeros.
+  #[ wasm_bindgen_test( async ) ]
+  async fn load_reads_a_compressed_morph_target()
+  {
+    let displacements = [ 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0_f32 ].iter().flat_map( | f | f.to_le_bytes() ).collect::< Vec< u8 > >();
+    let compressed = meshopt_attributes_encode( &displacements, 12 );
+    let len = compressed.len();
+    let json = format!
+    (
+      r#"{{
+        "asset" : {{ "version" : "2.0" }},
+        "extensionsUsed" : [ "EXT_meshopt_compression" ], "extensionsRequired" : [ "EXT_meshopt_compression" ],
+        "buffers" : [ {{ "byteLength" : {}, "uri" : "{}" }},
+          {{ "byteLength" : 36, "extensions" : {{ "EXT_meshopt_compression" : {{ "fallback" : true }} }} }} ],
+        "bufferViews" :
+        [
+          {{ "buffer" : 0, "byteLength" : 36, "target" : 34962 }},
+          {{ "buffer" : 1, "byteLength" : 36, "byteStride" : 12,
+            "extensions" : {{ "EXT_meshopt_compression" :
+              {{ "buffer" : 0, "byteOffset" : 36, "byteLength" : {len}, "byteStride" : 12, "count" : 3, "mode" : "ATTRIBUTES" }} }} }}
+        ],
+        "accessors" :
+        [
+          {{ "bufferView" : 0, "componentType" : 5126, "count" : 3, "type" : "VEC3", "min" : [ 0, 0, 0 ], "max" : [ 1, 1, 0 ] }},
+          {{ "bufferView" : 1, "componentType" : 5126, "count" : 3, "type" : "VEC3", "min" : [ 0, 0, 0 ], "max" : [ 1, 1, 1 ] }}
+        ],
+        "materials" : [ {{}} ],
+        "meshes" : [ {{ "primitives" : [ {{ "attributes" : {{ "POSITION" : 0 }}, "targets" : [ {{ "POSITION" : 1 }} ], "material" : 0 }} ], "weights" : [ 0.5 ] }} ],
+        "nodes" : [ {{ "mesh" : 0 }} ],
+        "scenes" : [ {{ "nodes" : [ 0 ] }} ],
+        "scene" : 0
+      }}"#,
+      36 + len,
+      data_uri( "application/octet-stream", &[ triangle_bytes(), compressed ].concat() )
+    );
+    let loaded = gltf::load( &document(), &data_uri( "model/gltf+json", json.as_bytes() ), &gl_init() ).await
+    .expect( "the triangle with a compressed target loads" );
+
+    let skeleton = loaded.nodes.iter().find_map( | node | match &node.borrow().object
+    {
+      Object3D::Mesh( mesh ) => mesh.borrow().skeleton.clone(),
+      _ => None,
+    } )
+    .expect( "the mesh has a skeleton for its morph target" );
+    let mut skeleton = skeleton.borrow_mut();
+    let data = skeleton.displacements_as_mut().as_mut().expect( "the skeleton holds the morph target" );
+    // Per vertex : [ position.xyz, 1 ], [ normal.xyz, 1 ], [ tangent.xyz, 1 ].
+    let expected = vec!
+    [
+      1.0, 0.0, 0.0, 1.0,  0.0, 0.0, 0.0, 1.0,  0.0, 0.0, 0.0, 1.0,
+      0.0, 1.0, 0.0, 1.0,  0.0, 0.0, 0.0, 1.0,  0.0, 0.0, 0.0, 1.0,
+      0.0, 0.0, 1.0, 1.0,  0.0, 0.0, 0.0, 1.0,  0.0, 0.0, 0.0, 1.0_f32,
+    ];
+    assert_eq!( data.displacements_data_pack(), expected, "the decoded displacements" );
   }
 
   /// A fallback buffer's size comes only from its declared `byteLength`, so a huge declaration
