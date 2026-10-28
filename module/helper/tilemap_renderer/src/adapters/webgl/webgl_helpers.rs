@@ -265,14 +265,16 @@ mod private
       self.staged.swap_remove( index )
     }
 
-    /// Upload everything staged since the last flush in one GL write.
+    /// Upload everything staged since the last flush in one GL write. Returns
+    /// whether the GPU buffer was reallocated: its data store is replaced, but
+    /// the buffer object, which a VAO binds, stays the same.
     ///
     /// # Errors
     /// Returns `WebglError` if the staged elements need more bytes than a
     /// WebGL buffer can hold ( `i32::MAX` ). The buffer is then left as it
     /// was: the elements stay staged, and [`Self::gpu_len`] keeps counting
     /// the ones on the GPU.
-    pub fn flush( &mut self ) -> Result< (), gl::WebglError >
+    pub fn flush( &mut self ) -> Result< bool, gl::WebglError >
     {
       let stride = Self::stride();
       let max_capacity = i32::MAX.unsigned_abs() / stride.max( 1 );
@@ -297,9 +299,10 @@ mod private
           self.gl.bind_buffer( gl::ARRAY_BUFFER, None );
         },
       }
+      let reallocated = matches!( upload, StagedUpload::Realloc { .. } );
       self.staged.upload_done( upload );
       self.gpu_len = self.staged.len();
-      Ok( () )
+      Ok( reallocated )
     }
   }
 

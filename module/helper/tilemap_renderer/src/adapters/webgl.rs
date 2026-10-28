@@ -663,15 +663,23 @@ mod private
       {
         // Unbind is the commit point: upload everything this recording staged in
         // one write per batch, before any `DrawBatch` can read it.
+        let reallocated =
         {
           let mut res = self.resources.borrow_mut();
           let flushed = match res.batch_mut( batch_id )
           {
             Some( GpuBatch::Sprite { instances, .. } ) => instances.flush(),
             Some( GpuBatch::Mesh { instances, .. } ) => instances.flush(),
-            None => Ok( () ),
+            None => Ok( false ),
           };
-          flushed.map_err( | e | RenderError::BackendError( format!( "UnbindBatch({batch_id:?}): {e}" ) ) )?;
+          flushed.map_err( | e | RenderError::BackendError( format!( "UnbindBatch({batch_id:?}): {e}" ) ) )?
+        };
+        // `CreateSpriteBatch` / `CreateMeshBatch` set the VAO up on the instance
+        // buffer object, which a flush never replaces. Only a reallocation
+        // replaces its data store, after which the attribute setup is redone.
+        if !reallocated
+        {
+          return Ok( () );
         }
         let res = self.resources.borrow();
         if let Some( batch ) = res.batch( batch_id )

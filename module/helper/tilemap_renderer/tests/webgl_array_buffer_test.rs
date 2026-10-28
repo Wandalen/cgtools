@@ -27,7 +27,9 @@ use tilemap_renderer::commands::
   DrawBatch,
   RemoveInstance,
   RenderCommand,
+  SetSpriteInstance,
   SpriteBatchParams,
+  UnbindBatch,
 };
 use tilemap_renderer::types::{ BlendMode, MipmapMode, RenderConfig, ResourceId, SamplerFilter, Transform, WrapMode };
 use wasm_bindgen::JsCast;
@@ -61,26 +63,23 @@ fn array_buffer_gpu_len_counts_only_flushed_elements()
   for i in 0..3_u8 { buffer.push( &[ f32::from( i ), 0.5 ] ).unwrap(); }
   assert_eq!( ( buffer.len(), buffer.gpu_len() ), ( 3, 0 ), "pushes are only staged" );
 
-  buffer.flush().unwrap();
-  assert_eq!( buffer.gpu_len(), 3, "the flush grows the buffer and uploads all three" );
+  assert!( buffer.flush().unwrap(), "the flush grows the buffer" );
+  assert_eq!( buffer.gpu_len(), 3, "and uploads all three" );
   assert_eq!( gpu_contents( &gl, &buffer, 3 ), vec![ [ 0.0, 0.5 ], [ 1.0, 0.5 ], [ 2.0, 0.5 ] ] );
 
   assert_eq!( buffer.swap_remove( 0 ), 2 );
   assert_eq!( ( buffer.len(), buffer.gpu_len() ), ( 2, 3 ), "the remove is only staged" );
-  buffer.flush().unwrap();
+  assert!( !buffer.flush().unwrap(), "a remove fits the buffer, so it is not reallocated" );
   assert_eq!( buffer.gpu_len(), 2 );
   assert_eq!( gpu_contents( &gl, &buffer, 2 ), vec![ [ 2.0, 0.5 ], [ 1.0, 0.5 ] ], "the last element moved into the hole" );
 }
 
-/// A stream that binds a batch, adds an instance and then fails leaves the
-/// batch bound with its write only staged. The next `submit` unbinds it the
-/// way the missing `UnbindBatch` would, flushing the write, so a `DrawBatch`
-/// shows the instance. If the recovery only forgot the binding, the batch
-/// would draw nothing (its `gpu_len` still 0) until it was next bound.
-#[ wasm_bindgen_test ]
-fn a_batch_left_bound_by_a_failed_stream_is_flushed_by_the_next_submit()
+/// Canvas size of the batch suites below.
+const SIZE : u32 = 16;
+
+/// A `SIZE`×`SIZE` canvas and a backend on it, with sprite 0 a 1×1 white texel.
+fn white_backend() -> ( gl::GL, WebGlBackend )
 {
-  const SIZE : u32 = 16;
   let gl = gl_init();
   let canvas = gl.canvas().unwrap().dyn_into::< web_sys::HtmlCanvasElement >().unwrap();
   canvas.set_width( SIZE );
@@ -105,6 +104,26 @@ fn a_batch_left_bound_by_a_failed_stream_is_flushed_by_the_next_submit()
     clip_masks : Vec::new(),
     paths : Vec::new(),
   }).unwrap();
+  ( gl, backend )
+}
+
+/// How many canvas pixels are white.
+fn white_pixels( gl : &gl::GL ) -> usize
+{
+  let mut bytes = vec![ 0_u8; ( SIZE * SIZE * 4 ) as usize ];
+  gl.read_pixels_with_opt_u8_array( 0, 0, SIZE as i32, SIZE as i32, gl::RGBA, gl::UNSIGNED_BYTE, Some( &mut bytes ) ).unwrap();
+  bytes.as_chunks::< 4 >().0.iter().filter( | p | p[ .. 3 ] == [ 255, 255, 255 ] ).count()
+}
+
+/// A stream that binds a batch, adds an instance and then fails leaves the
+/// batch bound with its write only staged. The next `submit` unbinds it the
+/// way the missing `UnbindBatch` would, flushing the write, so a `DrawBatch`
+/// shows the instance. If the recovery only forgot the binding, the batch
+/// would draw nothing (its `gpu_len` still 0) until it was next bound.
+#[ wasm_bindgen_test ]
+fn a_batch_left_bound_by_a_failed_stream_is_flushed_by_the_next_submit()
+{
+  let ( gl, mut backend ) = white_backend();
 
   let batch = ResourceId::new( 0 );
   let params = SpriteBatchParams
@@ -131,8 +150,46 @@ fn a_batch_left_bound_by_a_failed_stream_is_flushed_by_the_next_submit()
     RenderCommand::Clear( Clear { color : [ 0.0, 0.0, 0.0, 1.0 ] } ),
     RenderCommand::DrawBatch( DrawBatch { batch } ),
   ]).unwrap();
-  let mut bytes = vec![ 0_u8; ( SIZE * SIZE * 4 ) as usize ];
-  gl.read_pixels_with_opt_u8_array( 0, 0, SIZE as i32, SIZE as i32, gl::RGBA, gl::UNSIGNED_BYTE, Some( &mut bytes ) ).unwrap();
-  let white = bytes.as_chunks::< 4 >().0.iter().filter( | p | p[ .. 3 ] == [ 255, 255, 255 ] ).count();
-  assert_eq!( white, 8 * 4, "the instance the failed stream added is drawn" );
+  assert_eq!( white_pixels( &gl ), 8 * 4, "the instance the failed stream added is drawn" );
+}
+
+/// A flush that fits the instance buffer keeps the VAO from the batch's
+/// creation : an edited instance is drawn where the edit put it. The first
+/// frame draws an 8×4 quad; the second moves it so half of it leaves the
+/// canvas, which a VAO reading stale or no data would not show.
+#[ wasm_bindgen_test ]
+fn a_flush_that_fits_the_buffer_draws_the_edited_instance()
+{
+  let ( gl, mut backend ) = white_backend();
+  let batch = ResourceId::new( 0 );
+  let params = SpriteBatchParams
+  {
+    transform : Transform::default(),
+    sheet : ResourceId::new( 0 ),
+    blend : BlendMode::Normal,
+    clip : None,
+    alpha_clip : 0.0,
+    occlude_overlap : false,
+  };
+  let quad = | x : f32 | Transform { position : [ x, 4.0 ], scale : [ 8.0, 4.0 ], ..Transform::default() };
+  let draw = [ RenderCommand::Clear( Clear { color : [ 0.0, 0.0, 0.0, 1.0 ] } ), RenderCommand::DrawBatch( DrawBatch { batch } ) ];
+
+  backend.submit( &
+  [
+    RenderCommand::CreateSpriteBatch( CreateSpriteBatch { batch, params } ),
+    RenderCommand::BindBatch( BindBatch { batch } ),
+    RenderCommand::AddSpriteInstance( AddSpriteInstance { transform : quad( 4.0 ), sprite : ResourceId::new( 0 ), tint : [ 1.0; 4 ] } ),
+    RenderCommand::UnbindBatch( UnbindBatch ),
+  ]).unwrap();
+  backend.submit( &draw ).unwrap();
+  assert_eq!( white_pixels( &gl ), 8 * 4, "the quad as added" );
+
+  backend.submit( &
+  [
+    RenderCommand::BindBatch( BindBatch { batch } ),
+    RenderCommand::SetSpriteInstance( SetSpriteInstance { index : 0, transform : quad( 12.0 ), sprite : ResourceId::new( 0 ), tint : [ 1.0; 4 ] } ),
+    RenderCommand::UnbindBatch( UnbindBatch ),
+  ]).unwrap();
+  backend.submit( &draw ).unwrap();
+  assert_eq!( white_pixels( &gl ), 4 * 4, "the moved quad, half past the canvas edge" );
 }
