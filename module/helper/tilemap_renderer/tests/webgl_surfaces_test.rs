@@ -125,6 +125,33 @@ fn a_baked_render_target_composites_through_the_camera()
   assert_eq!( count( &frame( &gl ), [ 255, 0, 0 ] ), 8 * 8 );
 }
 
+/// A composite keeps the baked image's orientation : the four-colour sprite
+/// baked into a 4×4 target and composited over `[ 0, 0 ]`–`[ 4, 4 ]` gives
+/// the same frame, pixel for pixel, as the sprite drawn there directly. A
+/// uniform bake cannot tell a flipped composite from a correct one; four
+/// distinct texels can.
+#[ wasm_bindgen_test ]
+fn a_composite_keeps_the_baked_orientation()
+{
+  let ( gl, mut backend ) = backend_new();
+  let target = backend.render_target_create( 4, 4 ).unwrap();
+  let baked = backend.render_target_with( target, Some( BLACK ), | b | b.submit( &[ sprite( 0.0, 0.0, 2.0 ) ] ) );
+  assert!( matches!( baked, Some( Ok( () ) ) ), "the bake draws: {baked:?}" );
+  backend.submit( &[ RenderCommand::Clear( Clear { color : BLACK } ) ] ).unwrap();
+  backend.render_target_draw( target, [ 0.0, 0.0 ], [ 4.0, 4.0 ] );
+  let composited = frame( &gl );
+
+  let ( gl, mut backend ) = backend_new();
+  backend.submit( &[ RenderCommand::Clear( Clear { color : BLACK } ), sprite( 0.0, 0.0, 2.0 ) ] ).unwrap();
+  let direct = frame( &gl );
+
+  for rgb in [ [ 255, 0, 0 ], [ 0, 255, 0 ], [ 0, 0, 255 ], [ 255, 255, 255 ] ]
+  {
+    assert_eq!( count( &direct, rgb ), 4, "each of the four colours covers 2×2 pixels: {rgb:?}" );
+  }
+  assert!( composited == direct, "the composite matches the direct draw" );
+}
+
 /// After `render_targets_reset` a kept handle is stale: `render_target_begin`
 /// returns `false` and binds nothing, and `render_target_draw` draws nothing.
 /// Reaching the surface that took its slot would composite the wrong cache.
