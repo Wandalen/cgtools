@@ -274,6 +274,54 @@ mod tests
     assert_eq!( view_bytes_read( &gl, &loaded, 0, 36 ), triangle_bytes() );
   }
 
+  /// Both extensions on one view : normalized `i16` positions ( `KHR_mesh_quantization` ),
+  /// padded to 8 bytes and compressed with `EXT_meshopt_compression`. `load` must upload the
+  /// decoded integers unchanged, for the GPU to normalize, and give the mesh bounds divided by
+  /// 32767, the quantized accessor's raw `max` of `( 32767, 16384, 0 )` read as -1..1.
+  #[ wasm_bindgen_test( async ) ]
+  async fn load_decodes_and_dequantizes_a_compressed_quantized_mesh()
+  {
+    let mut raw = Vec::new();
+    for v in [ [ 0_i16, 0, 0 ], [ 32767, 0, 0 ], [ 0, 16384, 0 ] ]
+    {
+      for c in v { raw.extend( c.to_le_bytes() ); }
+      raw.extend( [ 0, 0 ] );
+    }
+    let compressed = meshopt_attributes_encode( &raw, 8 );
+    let len = compressed.len();
+    let json = format!
+    (
+      r#"{{
+        "asset" : {{ "version" : "2.0" }},
+        "extensionsUsed" : [ "EXT_meshopt_compression", "KHR_mesh_quantization" ],
+        "extensionsRequired" : [ "EXT_meshopt_compression", "KHR_mesh_quantization" ],
+        "buffers" : [ {{ "byteLength" : {len}, "uri" : "{}" }},
+          {{ "byteLength" : 24, "extensions" : {{ "EXT_meshopt_compression" : {{ "fallback" : true }} }} }} ],
+        "bufferViews" : [ {{ "buffer" : 1, "byteLength" : 24, "byteStride" : 8, "target" : 34962,
+          "extensions" : {{ "EXT_meshopt_compression" :
+            {{ "buffer" : 0, "byteLength" : {len}, "byteStride" : 8, "count" : 3, "mode" : "ATTRIBUTES" }} }} }} ],
+        "accessors" : [ {{ "bufferView" : 0, "componentType" : 5122, "normalized" : true, "count" : 3, "type" : "VEC3",
+          "min" : [ 0, 0, 0 ], "max" : [ 32767, 16384, 0 ] }} ],
+        "materials" : [ {{}} ],
+        "meshes" : [ {{ "primitives" : [ {{ "attributes" : {{ "POSITION" : 0 }}, "material" : 0 }} ] }} ],
+        "nodes" : [ {{ "mesh" : 0 }} ],
+        "scenes" : [ {{ "nodes" : [ 0 ] }} ],
+        "scene" : 0
+      }}"#,
+      data_uri( "application/octet-stream", &compressed )
+    );
+    let gl = gl_init();
+    let loaded = gltf::load( &document(), &data_uri( "model/gltf+json", json.as_bytes() ), &gl ).await
+    .expect( "the compressed quantized triangle loads" );
+
+    assert_eq!( view_bytes_read( &gl, &loaded, 0, 24 ), raw, "the decoded integers, uploaded as they are" );
+    let bounds = loaded.meshes[ 0 ].borrow().bounding_box();
+    let near = | a : f32, b : f32 | ( a - b ).abs() < 1e-6;
+    let ( min, max ) = ( bounds.min.0, bounds.max.0 );
+    assert!( min.iter().all( | &c | near( c, 0.0 ) ), "min {min:?}" );
+    assert!( near( max[ 0 ], 1.0 ) && near( max[ 1 ], 16384.0 / 32767.0 ) && near( max[ 2 ], 0.0 ), "max {max:?}" );
+  }
+
   /// A fallback buffer's size comes only from its declared `byteLength`, so a huge declaration
   /// is refused with an error rather than allocated or thrown as a `RangeError`.
   #[ wasm_bindgen_test( async ) ]
