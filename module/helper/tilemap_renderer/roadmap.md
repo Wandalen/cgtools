@@ -21,13 +21,17 @@ The core library and SVG adapter are functional; the WebGL2 adapter is partially
     `webgl_helpers.rs` (self-contained helpers), `webgl_renderers.rs` (sprite / mesh
     renderers) and `webgl_textures.rs` (texture upload, async image loader), each under
     the 1500-line source-file ceiling
-  - `ArrayBuffer<T>` — GPU-side Vec with 2× grow via `copy_buffer_sub_data` (no CPU readback);
-    `swap_remove` uses a persistent scratch buffer to avoid binding the same buffer to both
-    `COPY_READ_BUFFER` and `COPY_WRITE_BUFFER` (WebGL2 spec violation)
+  - `ArrayBuffer<T>` — instance buffer with a CPU-side `StagedVec`: `push` / `set` /
+    `swap_remove` only stage, and `flush` (run at `UnbindBatch`) uploads the dirty range in one
+    `buffer_sub_data`, or reallocates to 2× (or the needed size) and uploads everything when the
+    contents outgrew the GPU buffer; growth is capped at `i32::MAX` bytes, and a refused flush
+    leaves the elements staged (see `docs/feature/002_webgl2_backend_adapter.md` and
+    `docs/pitfall/001_arraybuffer_swap_remove_buffer_binding_violation.md`)
   - `SpriteInstanceData` (72B, includes per-instance tint) and `MeshInstanceData` (56B, includes per-instance tint) with compile-time layout assertions
   - Single-draw: `Clear`, `Mesh` (with texture + topology), `Sprite` (with tint)
   - Batch lifecycle: `Create`, `Bind`, `Add/Set/Remove` instances, `Draw`, `Delete` — for both sprite and mesh batches
-  - Per-batch VAO setup at create/unbind time; bind-only at draw time
+  - Per-batch VAO setup at create time, redone at unbind only after a flush reallocated the
+    instance buffer; bind-only at draw time
   - Asset loading: images (Bitmap sync + Path async via `spawn_local`), sprites, geometries (sync + async path); async handlers use `Closure::once_into_js` so the browser drops the Rust closures (and captured `Rc<RefCell<GpuResources>>`) after `onload` / `onerror` fires, letting `WebGlBackend` drop actually free GPU resources
   - `Transform::depth` — honored via depth buffer (`DEPTH_TEST`, `LEQUAL`). Per-field range `[-RenderConfig::max_depth, max_depth]` (default `1.0`); shader divides by `u_max_depth`, GPU clips out-of-range values. Batch sum `parent_depth + instance_depth` is subject to the same range. Reliable for fully opaque draws (translucent must be back-to-front)
   - Blend modes: Normal, Add, Multiply, Screen (hardware-accelerated); Overlay falls back to Normal. `Capabilities::supported_blend_modes` advertises the correct set; `blend_modes: bool` means "all variants correct" and is `false` until Overlay is implemented
