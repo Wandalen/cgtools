@@ -203,6 +203,19 @@ fn renderer_assets_compile_once()
   assert_eq!( renderer.assets().sprites.len(), 4, "deduped sprite count: 4" );
 }
 
+/// `image_id` hands a host the backend handle of a declared image asset, the
+/// id `assets()` registers that image under, and `None` for an id the spec
+/// does not declare.
+#[ test ]
+fn image_id_resolves_declared_assets_only()
+{
+  let spec = spec_build();
+  let renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer builds" );
+  let terrain = renderer.image_id( "terrain" ).expect( "the terrain atlas is declared" );
+  assert_eq!( renderer.assets().images[ 0 ].id, terrain, "the handle the backend loads the image under" );
+  assert!( renderer.image_id( "missing" ).is_none(), "an undeclared asset has no image" );
+}
+
 #[ test ]
 fn per_instance_tint_multiplies_into_sprite()
 {

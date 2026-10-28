@@ -26,7 +26,7 @@ Two levels coexist:
 | layer_tint_compile_test.rs | LayerBehaviour.tint (None pass-through, Flat composition, Masked and non-Multiply tint rejection) through every sprite-emitting compile pass |
 | opaque_pass_test.rs | Opaque/transparent bucket split, per-bucket depth pinning, single coverage across batches and under opaque layers, the single painter's pass without a depth buffer (`Renderer::capabilities_set`, also on the real SVG backend), a batch whose `occlude_overlap` changes is replaced instead of drawing under its old params, and an opaque bucket with a viewport sprite rides the transparent pass for that frame only, reusing its batch |
 | renderer_cache_test.rs | Renderer per-frame idle-replay and camera-pan cache-hit acceptance; a replay submitted to one backend draws the frame again without repeating its batch edits (BUG-541); `batch_id_base_set` asserts in debug while batches are live |
-| renderer_test.rs | Renderer asset-compile-once and per-instance override contract |
+| renderer_test.rs | Renderer asset-compile-once and per-instance override contract; `image_id` for declared and undeclared assets |
 | ron_syntax_error_test.rs | Invalid RON reported as `LoadError::Ron`, kept distinct from validation failures |
 | scene_events_test.rs | Scene::tick event-stream semantics |
 | scene_model_compile_test.rs | Compile pipeline integration (assets_compile + compile_frame) |
