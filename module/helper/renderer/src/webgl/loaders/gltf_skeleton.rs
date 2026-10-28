@@ -233,5 +233,5 @@ crate::mod_interface!
   };
 }
 
-// Only `gltf.rs`'s `skeletons_attach` builds a skeleton for a mesh.
+// Only `skeletons_attach` ( `gltf_scene` ) builds a skeleton for a mesh.
 pub( crate ) use private::skeleton_load;

@@ -29,7 +29,11 @@ crate::mod_interface!
   #[ cfg( feature = "native-formats" ) ]
   layer usd;
 
-  /// meshopt-compressed buffer views ( `EXT_meshopt_compression`, `KHR_meshopt_compression` )
+  /// meshopt-compressed buffer views ( `EXT_meshopt_compression`, `KHR_meshopt_compression` ).
+  /// Named for the codec rather than `gltf_meshopt` like its siblings : downstream code and
+  /// docs already use the `loaders::meshopt` path, and the vendored `meshopt_decoder.js` keeps
+  /// meshoptimizer's own name, which is also the snippet path deployments serve
+  /// ( `docs/pitfall/004` ).
   layer meshopt;
 
   /// glTF buffer bytes : GLB chunk, fetched uris, meshopt fallbacks, and whether the

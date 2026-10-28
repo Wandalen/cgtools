@@ -137,6 +137,14 @@ mod private
   /// coordinates normalized to 0..1 and uses no transform, so its output passes; an asset that
   /// lists the extension as required is already refused by [`required_extensions_check`].
   ///
+  /// The check is document-wide on purpose : it refuses the asset when any primitive has
+  /// integer texture coordinates and the asset uses the extension anywhere, without matching
+  /// the two to one primitive. Matching them would mean following each material's texture
+  /// slots to the `texCoord` set they sample, and the asset it would then let through still
+  /// renders wrong elsewhere, since every transform it declares is ignored. A false refusal
+  /// costs an asset that was already partly misdrawn; a missed one draws quantized textures at
+  /// the wrong scale.
+  ///
   /// Expects a structurally valid document : it follows accessor indices.
   ///
   /// # Errors
