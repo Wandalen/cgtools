@@ -300,6 +300,35 @@ fn without_a_depth_buffer_flagged_layers_take_the_single_pass()
   );
 }
 
+/// The host contract on a real backend without a depth buffer : the SVG
+/// backend reports `depth: false`, and once the renderer is told so, a spec
+/// with opaque and `occlude_overlap` layers sends that backend no
+/// `SetDepthWrite`, and the backend draws the frame. Before
+/// `capabilities_set` the renderer assumes WebGL and splits the frame.
+#[ test ]
+fn the_svg_backend_gets_the_single_pass_once_its_capabilities_are_set()
+{
+  use tilemap_renderer::adapters::svg::SvgBackend;
+  use tilemap_renderer::backend::Backend;
+  use tilemap_renderer::types::RenderConfig;
+
+  let spec = build_spec( [ ( true, false ), ( true, false ), ( false, true ) ] );
+  let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
+  let mut scene = Scene::new( Arc::new( spec ) );
+  spawn_one_per_bucket( &mut scene );
+  let mut svg = SvgBackend::new( RenderConfig { width : 64, height : 64, ..RenderConfig::default() } );
+  svg.assets_load( renderer.assets() ).expect( "assets" );
+  assert!( !svg.capabilities().depth, "the SVG backend has no depth buffer" );
+
+  let assumed = renderer.render( &scene, &Camera::default() ).expect( "render" ).to_vec();
+  assert!( !depth_write_sequence( &assumed ).is_empty(), "before capabilities_set the renderer assumes a depth buffer" );
+
+  renderer.capabilities_set( &svg.capabilities() );
+  let cmds = renderer.render( &scene, &Camera::default() ).expect( "render" ).to_vec();
+  assert!( depth_write_sequence( &cmds ).is_empty(), "the SVG backend is sent no SetDepthWrite" );
+  svg.submit( &cmds ).expect( "the SVG backend draws the frame" );
+}
+
 /// A batch's `occlude_overlap` and `alpha_clip` are fixed when it is created,
 /// so a settled flag that changes must not leave a live batch drawing under the
 /// old one. Switching the depth buffer off clears the `occlude_overlap` of the

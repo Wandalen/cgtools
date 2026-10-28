@@ -7,8 +7,11 @@
 //! loop allocates nothing.
 //!
 //! ```ignore
-//! let renderer = Renderer::new( &spec, &PathResolver )?;
+//! let mut renderer = Renderer::new( &spec, &PathResolver )?;
 //! backend.assets_load( renderer.assets() );
+//! // Until told otherwise the renderer assumes the WebGL backend (a depth
+//! // buffer and a GPU camera); any other backend must say what it has.
+//! renderer.capabilities_set( &backend.capabilities() );
 //!
 //! // Per frame:
 //! let cmds = renderer.render( &scene, &camera )?;
@@ -18,7 +21,8 @@
 //! **Multi-renderer / multi-backend.** Each renderer is an independent
 //! algorithm instance: two `Renderer`s built from the same spec can
 //! render the same `Scene` into different backends simultaneously
-//! (e.g. WebGL plus a headless test backend) without state crosstalk.
+//! (e.g. WebGL plus a headless test backend) without state crosstalk. Give
+//! each one its own backend's capabilities with [`Renderer::capabilities_set`].
 
 mod private
 {

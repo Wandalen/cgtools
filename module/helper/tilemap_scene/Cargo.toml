@@ -19,6 +19,8 @@ tilemap_renderer = { workspace = true, default-features = true, features = ["sce
 
 [dev-dependencies]
 criterion = { workspace = true }
+# `opaque_pass_test` feeds a frame to the SVG backend, which has no depth buffer.
+tilemap_renderer = { workspace = true, features = ["scene-model", "adapter-svg"] }
 
 # Renderer::render on a 469-hex dual-grid board (the frames #207 optimised).
 [[bench]]
