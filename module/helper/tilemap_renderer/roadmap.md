@@ -17,10 +17,12 @@ The core library and SVG adapter are functional; the WebGL2 adapter is partially
 - **SVG adapter** — implemented across every command and asset family: paths, text, sprites, meshes, batches, groups, effects, gradients, patterns, blend modes, bitmap PNG encoding, viewport pan/zoom wrapper, `Source::Path` geometry loading via blocking `std::fs` (loud skip with stderr warning + diagnostic comment on read failure, incl. on wasm32 where no filesystem exists). Not complete, though — see "svg adapter gaps" below (font selection unimplemented). `Transform::depth` is deliberately ignored, not unimplemented — SVG has no depth buffer, so submission order is the whole ordering contract; a committed, permanent design decision formalized in [docs/invariant/003_z_layer_draw_ordering.md](docs/invariant/003_z_layer_draw_ordering.md)
 - **WebGL2 adapter (partial)** — hardware-accelerated sprites, meshes, and instanced batches on wasm32:
   - Split across `adapters/webgl.rs` (backend: command dispatch, asset loading, context
-    loss) and three `mod_interface::layer` submodules under `adapters/webgl/`:
-    `webgl_helpers.rs` (self-contained helpers), `webgl_renderers.rs` (sprite / mesh
-    renderers) and `webgl_textures.rs` (texture upload, async image loader), each under
-    the 1500-line source-file ceiling
+    loss), four `mod_interface::layer` submodules under `adapters/webgl/` —
+    `render_target.rs` (`RenderTargetId` and its slot table), `webgl_helpers.rs`
+    (self-contained helpers), `webgl_renderers.rs` (sprite / mesh renderers) and
+    `webgl_textures.rs` (texture upload, async image loader) — and one plain child module,
+    `webgl_surfaces.rs`, whose render-target, scissor and tiled-image methods stay inherent
+    on `WebGlBackend`; each file is under the 1500-line source-file ceiling
   - `ArrayBuffer<T>` — instance buffer with a CPU-side `StagedVec`: `push` / `set` /
     `swap_remove` only stage, and `flush` (run at `UnbindBatch`) uploads the dirty range in one
     `buffer_sub_data`, or reallocates to 2× (or the needed size) and uploads everything when the
