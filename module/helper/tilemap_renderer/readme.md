@@ -31,8 +31,10 @@ tilemap_renderer/
     ├── svg.rs      # SVG 1.1 document generation
     ├── webgl.rs    # WebGL2 hardware-accelerated rendering (wasm32)
     ├── webgl/
+    │   ├── render_target.rs    # RenderTargetId and its generation-checked slot table
     │   ├── webgl_helpers.rs    # Self-contained WebGL types (ArrayBuffer, GPU handles, GL mappers)
     │   ├── webgl_renderers.rs  # Sprite / mesh renderers: shader programs and draw calls
+    │   ├── webgl_surfaces.rs   # Cache surfaces: render targets, scissor, fill, tiled image
     │   └── webgl_textures.rs   # Texture upload: sync bitmaps, async image loader
     ├── terminal.rs # ANSI-truecolor character-cell rendering (coarse resolution)
     ├── none.rs     # complete no-op — math-only simulation, no rendering

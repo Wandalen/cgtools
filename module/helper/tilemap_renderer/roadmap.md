@@ -87,8 +87,10 @@ tilemap_renderer/           # Single crate with feature-gated adapters
 │       ├── svg.rs          # SVG 1.1 backend
 │       ├── webgl.rs        # WebGL2 backend entry point (WebGlBackend)
 │       ├── webgl/          # WebGL submodule layers
+│       │   ├── render_target.rs    # RenderTargetId, generation-checked slot table
 │       │   ├── webgl_helpers.rs    # ArrayBuffer, GPU handles, GL mappers, batch types
 │       │   ├── webgl_renderers.rs  # Sprite / mesh renderers
+│       │   ├── webgl_surfaces.rs   # Render targets, scissor, fill, tiled image (WebGlBackend methods)
 │       │   └── webgl_textures.rs   # Texture upload, async image loader
 │       ├── terminal.rs     # Terminal backend (ANSI-truecolor character-cell grid)
 │       └── shaders/        # GLSL shaders for WebGL
