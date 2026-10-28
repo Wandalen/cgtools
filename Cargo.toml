@@ -351,6 +351,8 @@ version = "0.28.0"
 version = "~0.66.1"
 
 [workspace.dependencies.former]
+# 2.53: game_the_final_state builds against these crates and needs former 2.53
+# from crates.io; a ~2.52 pin cannot resolve together with it.
 version = "~2.53.1"
 
 [workspace.dependencies.error_tools]
