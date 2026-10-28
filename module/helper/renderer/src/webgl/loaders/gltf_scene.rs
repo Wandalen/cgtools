@@ -27,8 +27,11 @@ mod private
     /// Every node in the glTF document, in document order, with hierarchy
     /// wired via [`Node::child_add`] and transform/object resolved.
     pub nodes : Vec< Rc< RefCell< Node > > >,
-    /// Each node's skeleton-attachment data, for [`skeletons_attach`]. Only `gltf::load` reads
-    /// it, so it stays inside the crate.
+    /// Each node's skeleton-attachment data, which `gltf::load` passes to [`skeletons_attach`].
+    /// Not public, as on `master`, where only `gltf.rs` could read it: `skeletons_attach` is,
+    /// so a caller outside the crate builds its own `RiggedNode` list for it, as
+    /// `tests/gltf_node_scene_test.rs` does. `pub( crate )` only because `load` now lives in
+    /// another module.
     pub( crate ) rigged_nodes : Vec< RiggedNode< 'a > >,
     /// The subset of `nodes` whose `object` resolved to [`Object3D::Light`].
     pub lights : Vec< Rc< RefCell< Node > > >
