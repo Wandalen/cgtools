@@ -504,6 +504,7 @@ mod private
   ///   meshopt extensions on one view or buffer, a parent layout that does not match the
   ///   decoded data, a range outside its buffer, compressed bytes in a fallback buffer, or an
   ///   uncompressed view reading a fallback buffer;
+  /// - an uncompressed view reads past the end of its buffer;
   /// - two views overlap ( `decodes_overlap_check` );
   /// - the decoder fails to initialise;
   /// - the decoder rejects the data.
@@ -570,6 +571,20 @@ mod private
             view.index(), view.buffer().index()
           );
           return Err( gl::WebglError::Other( "glTF meshopt fallback buffer is read by an uncompressed bufferView" ) );
+        }
+        // The upload and the image decode slice the loaded buffer by this range as is, with no
+        // check of their own: one past its end must fail the load here, not reach WebGL.
+        let fits = view.offset().checked_add( view.length() )
+        .is_some_and( | end | buffer_lengths.get( view.buffer().index() ).is_some_and( | &len | end <= len ) );
+        if !fits
+        {
+          gl::browser::error!
+          (
+            "glTF bufferView {} reads {}+{} from buffer {}, which holds {} bytes",
+            view.index(), view.offset(), view.length(), view.buffer().index(),
+            buffer_lengths.get( view.buffer().index() ).copied().unwrap_or( 0 )
+          );
+          return Err( gl::WebglError::Other( "glTF bufferView reads past the end of its buffer" ) );
         }
         plain.push( ( view.index(), view.buffer().index(), view.offset(), view.length() ) );
         continue;

@@ -830,6 +830,7 @@ mod private
   /// - a buffer cannot be loaded : a fetch fails, a buffer other than buffer 0 has no uri,
   ///   buffer 0 has no uri and the file no GLB binary chunk, or the meshopt fallback buffers
   ///   declare more bytes together than the loader allocates for one document;
+  /// - an uncompressed buffer view reaches past the end of its buffer;
   /// - meshopt decoding fails, for any reason `meshopt::views_decode` lists : a buffer view or
   ///   buffer breaking a meshopt rule, overlapping views, the decoder failing to initialise, or
   ///   the decoder rejecting the data.
