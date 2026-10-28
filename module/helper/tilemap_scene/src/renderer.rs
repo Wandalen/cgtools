@@ -599,7 +599,7 @@ mod private
       // bucket count, so disabling a layer never shifts the others' depths.
       let disabled = self.disabled_buckets;
       let is_disabled = | i : usize | i < 64 && ( disabled >> i ) & 1 == 1;
-      self.bucket_flags_settle( &mut buckets );
+      let dispatches = self.bucket_flags_settle( &mut buckets );
       let any_opaque = buckets.iter().any( | b | b.opaque );
       let any_occlude = buckets.iter().any( | b | b.occlude_overlap );
       if any_opaque || any_occlude
@@ -639,7 +639,7 @@ mod private
         {
           let bucket = slots[ i ].take().expect( "opaque bucket present" );
           if is_disabled( i ) { continue; }
-          self.emit_bucket( i as u32, bucket, &mut used_keys );
+          self.emit_bucket( i as u32, bucket, dispatches[ i ], &mut used_keys );
         }
 
         // Transparent pass: painter's (forward pipeline order), depth writes
@@ -663,7 +663,7 @@ mod private
               self.cmd_buf.push( RenderCommand::SetDepthWrite( SetDepthWrite { enabled : want_write } ) );
               depth_write = want_write;
             }
-            self.emit_bucket( i as u32, bucket, &mut used_keys );
+            self.emit_bucket( i as u32, bucket, dispatches[ i ], &mut used_keys );
           }
         }
 
@@ -678,7 +678,7 @@ mod private
         for ( bucket_idx, bucket ) in buckets.into_iter().enumerate()
         {
           if is_disabled( bucket_idx ) { continue; }
-          self.emit_bucket( bucket_idx as u32, bucket, &mut used_keys );
+          self.emit_bucket( bucket_idx as u32, bucket, dispatches[ bucket_idx ], &mut used_keys );
         }
       }
 
@@ -729,8 +729,14 @@ mod private
     ///   painter's order, no depth writes, still hidden by nearer opaque
     ///   layers. Batch params do not change (an opaque bucket's batches never
     ///   carry `occlude_overlap`), so the live batches stay valid.
-    fn bucket_flags_settle( &self, buckets : &mut [ BucketEmits ] )
+    ///
+    /// Returns, per bucket, the [`BucketDispatch`] it had to classify to decide,
+    /// so [`Self::emit_bucket`] does not classify the same bucket again. The
+    /// classification is taken after the bucket's `occlude_overlap` is final,
+    /// which is part of its batch key; `opaque` is not.
+    fn bucket_flags_settle( &self, buckets : &mut [ BucketEmits ] ) -> Vec< Option< BucketDispatch > >
     {
+      let mut dispatches = vec![ None; buckets.len() ];
       if !self.depth_buffer
       {
         for b in buckets.iter_mut()
@@ -738,7 +744,7 @@ mod private
           b.opaque = false;
           b.occlude_overlap = false;
         }
-        return;
+        return dispatches;
       }
       for ( i, b ) in buckets.iter_mut().enumerate()
       {
@@ -747,15 +753,19 @@ mod private
         // overlaps are invisible), and `LESS` would flip which of two
         // overlapping opaque tiles wins from last-drawn to first-drawn.
         b.occlude_overlap = false;
-        let per_sprite = !b.sprites.is_empty()
-          && matches!( self.bucket_classify( i as u32, b ), BucketDispatch::PerSprite );
+        let per_sprite = !b.sprites.is_empty() && matches!
+        (
+          dispatches[ i ].insert( self.bucket_classify( i as u32, b ) ),
+          BucketDispatch::PerSprite
+        );
         if per_sprite || !b.screen_space.is_empty() { b.opaque = false; }
       }
+      dispatches
     }
 
     /// Emit one bucket's draw commands into `cmd_buf` — batched or per-sprite
-    /// per [`Self::bucket_classify`] — followed by its viewport (screen-space)
-    /// sprites. Factored out of [`Self::render`] so the single-pass path and the
+    /// per `dispatch`, or per [`Self::bucket_classify`] when the bucket was not
+    /// classified yet — followed by its viewport (screen-space) sprites. Factored out of [`Self::render`] so the single-pass path and the
     /// opaque/transparent two-pass path share one emission body; `bucket_idx`
     /// is the bucket's original pipeline index (stable batch-cache key), passed
     /// through unchanged even when the two-pass path visits buckets out of order.
@@ -764,13 +774,14 @@ mod private
       &mut self,
       bucket_idx : u32,
       bucket : BucketEmits,
+      dispatch : Option< BucketDispatch >,
       used_keys : &mut Vec< BatchKey >,
     )
     {
       // Decide emission strategy. `DrawBatch` is emitted inline at the end of
       // each bucket's prep so the cross-bucket draw order (batched vs
       // per-sprite) follows the consumer's declared pipeline.
-      let dispatch = self.bucket_classify( bucket_idx, &bucket );
+      let dispatch = dispatch.unwrap_or_else( || self.bucket_classify( bucket_idx, &bucket ) );
 
       match dispatch
       {
