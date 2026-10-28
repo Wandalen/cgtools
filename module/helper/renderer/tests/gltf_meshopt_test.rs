@@ -239,6 +239,9 @@ fn filters_accept_only_their_strides()
     }
   }
   assert_eq!( parse( EXT, "QUATERNION", 4 ), Err( "filter QUATERNION does not support byteStride 4".to_owned() ) );
+  // `ATTRIBUTES` already refuses a stride that is not a multiple of 4, so the EXPONENTIAL rule
+  // shows only in which check reports it first.
+  assert!( parse( EXT, "EXPONENTIAL", 6 ).is_err(), "EXPONENTIAL decodes 32-bit words" );
 }
 
 /// Every mode and filter name parses to the variant whose `as_str` gives it back : the

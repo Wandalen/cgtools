@@ -167,12 +167,16 @@ mod private
       }
     }
 
-    /// Checks that this filter can decode elements of `stride` bytes.
+    /// Checks that this filter can decode elements of `stride` bytes. `EXPONENTIAL` decodes
+    /// 32-bit words, so it needs a multiple of 4; `ATTRIBUTES` asks that of every stride, and
+    /// the index modes take no filter, but the rule is stated here too so this check holds on
+    /// its own.
     fn stride_check( self, stride : usize ) -> Result< (), String >
     {
       let fits = match self
       {
-        Self::None | Self::Exponential => true,
+        Self::None => true,
+        Self::Exponential => stride % 4 == 0,
         Self::Octahedral | Self::Color => stride == 4 || stride == 8,
         Self::Quaternion => stride == 8,
       };
