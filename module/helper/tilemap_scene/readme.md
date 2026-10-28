@@ -24,6 +24,7 @@ crosstalk.
 | `src/spec.rs` | `RenderSpec` — the top-level container for asset / tint / animation / effect / object / pipeline declarations. |
 | `src/scene.rs` | `Scene` — the retained-mode render-world: per-anchor instance lists, spatial indexes, mutation / query API, monotonic `revision()` counter, `tick(dt) -> Vec<SceneEvent>`. |
 | `src/instance.rs` | `InstanceHandle` / `ObjectHandle` / `StateHandle` — typed slotmap keys; `Placement` enum (`Hex` / `Edge` / `FreePos` / `Viewport` / `Multihex`); `Instance` runtime payload with per-instance overrides (tint, phase offset, visibility, external sprites). |
+| `src/catalog.rs` | `Catalog` / `CatalogBuilder` — resolve every object and state id a host needs once, at init, reporting all missing ids together (`CatalogError`); the built catalog's `object` / `state` lookups then cannot miss. |
 | `src/snapshot.rs` | `SceneSnapshot` — RON-deserialisable scene data (tiles / edges / multihex / free / viewport instances); bridged into a runtime `Scene` via `Scene::from_snapshot`. |
 | `src/event.rs` | `SceneEvent` — observations emitted by `Scene::tick`; currently `AnimationCompleted { instance, state, layer_index, animation }`. |
 | `src/renderer.rs` | `Renderer` — owns `CompiledAssets`, allocates GPU batches lazily, carries a per-frame cache that serves idle frames without re-walking the scene. |
