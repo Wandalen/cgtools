@@ -558,7 +558,15 @@ mod private
       gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::CLAMP_TO_EDGE as i32 );
       gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE as i32 );
 
-      let depth = gl.create_texture()?;
+      // `create_*` returns `None` only on a lost context; each early return
+      // deletes what was created before it, as the incomplete-framebuffer
+      // branch below does.
+      let Some( depth ) = gl.create_texture() else
+      {
+        gl.bind_texture( gl::TEXTURE_2D, None );
+        gl.delete_texture( Some( &color ) );
+        return None;
+      };
       gl.bind_texture( gl::TEXTURE_2D, Some( &depth ) );
       gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::DEPTH_COMPONENT24, w, h );
       gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::NEAREST as i32 );
@@ -567,7 +575,12 @@ mod private
       gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE as i32 );
       gl.bind_texture( gl::TEXTURE_2D, None );
 
-      let framebuffer = gl.create_framebuffer()?;
+      let Some( framebuffer ) = gl.create_framebuffer() else
+      {
+        gl.delete_texture( Some( &color ) );
+        gl.delete_texture( Some( &depth ) );
+        return None;
+      };
       gl.bind_framebuffer( gl::FRAMEBUFFER, Some( &framebuffer ) );
       gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, Some( &color ), 0 );
       gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::DEPTH_ATTACHMENT, gl::TEXTURE_2D, Some( &depth ), 0 );
