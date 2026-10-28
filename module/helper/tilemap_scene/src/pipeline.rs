@@ -66,7 +66,9 @@ mod private
     /// sorted bucket that mixes sheets, blend modes or clip masks in a frame
     /// (only a single-key sorted bucket batches). Keep a coverage-controlled
     /// layer on `SortMode::None`, or on one sheet / blend / clip, and free of
-    /// viewport sprites.
+    /// viewport sprites. Those per-sprite draws still take the bucket's pinned
+    /// depth (see [`occlude_overlap`](Self::occlude_overlap)) whenever the
+    /// pipeline pins depths, so a nearer opaque layer still hides them.
     #[ serde( default ) ]
     pub alpha_clip : f32,
     /// When `true`, this bucket draws with depth writes on and the depth test
