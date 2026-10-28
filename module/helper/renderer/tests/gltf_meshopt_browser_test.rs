@@ -128,19 +128,80 @@ mod tests
   /// ( buffer 0 ) into fallback buffer 1, with `filter` spliced into the extension object.
   fn filtered_document( compressed : &[ u8 ], count : usize, filter : &str ) -> ::gltf::Gltf
   {
+    filtered_document_with( "EXT_meshopt_compression", compressed, count, 4, filter )
+  }
+
+  /// [`filtered_document`] under `extension`, for elements of `stride` bytes.
+  fn filtered_document_with( extension : &str, compressed : &[ u8 ], count : usize, stride : usize, filter : &str ) -> ::gltf::Gltf
+  {
     let len = compressed.len();
-    let decoded = count * 4;
+    let decoded = count * stride;
     let json = format!
     (
       r#"{{ "asset" : {{ "version" : "2.0" }},
-        "extensionsUsed" : [ "EXT_meshopt_compression" ], "extensionsRequired" : [ "EXT_meshopt_compression" ],
+        "extensionsUsed" : [ "{extension}" ], "extensionsRequired" : [ "{extension}" ],
         "buffers" : [ {{ "byteLength" : {len}, "uri" : "compressed.bin" }},
-          {{ "byteLength" : {decoded}, "extensions" : {{ "EXT_meshopt_compression" : {{ "fallback" : true }} }} }} ],
-        "bufferViews" : [ {{ "buffer" : 1, "byteLength" : {decoded}, "byteStride" : 4,
-          "extensions" : {{ "EXT_meshopt_compression" :
-            {{ "buffer" : 0, "byteLength" : {len}, "byteStride" : 4, "count" : {count}, "mode" : "ATTRIBUTES", "filter" : "{filter}" }} }} }} ] }}"#
+          {{ "byteLength" : {decoded}, "extensions" : {{ "{extension}" : {{ "fallback" : true }} }} }} ],
+        "bufferViews" : [ {{ "buffer" : 1, "byteLength" : {decoded}, "byteStride" : {stride},
+          "extensions" : {{ "{extension}" :
+            {{ "buffer" : 0, "byteLength" : {len}, "byteStride" : {stride}, "count" : {count}, "mode" : "ATTRIBUTES", "filter" : "{filter}" }} }} }} ] }}"#
     );
     ::gltf::Gltf::from_slice_without_validation( json.as_bytes() ).unwrap()
+  }
+
+  /// Encodes `raw` ( elements of `stride` bytes ) as a view filtered by `filter` under
+  /// `extension`, decodes it with `views_decode`, and returns the decoded bytes.
+  async fn filtered_decode( extension : &str, raw : &[ u8 ], stride : usize, filter : &str ) -> Vec< u8 >
+  {
+    let compressed = meshopt_attributes_encode( raw, stride );
+    let document = filtered_document_with( extension, &compressed, raw.len() / stride, stride, filter );
+    let buffers = [ gl::js_sys::Uint8Array::from( compressed.as_slice() ), gl::js_sys::Uint8Array::new_with_length( raw.len() as u32 ) ];
+    meshopt::views_decode( &document, &buffers ).await.expect( "the filtered data decodes" );
+    buffers[ 1 ].to_vec()
+  }
+
+  /// `OCTAHEDRAL` stores a unit vector as signed `x`, `y` on the octahedron and `z` as the
+  /// encoded 1.0, and rebuilds `z` and normalises. The four inputs decode to +Z, +X, -Y and,
+  /// from the folded corner, -Z, each at the 8-bit unit length 127; `w` passes through.
+  /// Without the filter the raw bytes would come out unchanged.
+  #[ wasm_bindgen_test( async ) ]
+  async fn views_decode_applies_the_octahedral_filter()
+  {
+    let raw : Vec< u8 > = [ [ 0, 0, 127, 9 ], [ 127, 0, 127, 9 ], [ 0, -127, 127, 9 ], [ 127, 127, 127, 9 ] ]
+    .iter().flatten().map( | &v : &i8 | v.to_le_bytes()[ 0 ] ).collect();
+    let decoded = filtered_decode( "EXT_meshopt_compression", &raw, 4, "OCTAHEDRAL" ).await;
+    let vectors = decoded.as_chunks::< 4 >().0.iter().map( | v | v.map( | b | i8::from_le_bytes( [ b ] ) ) ).collect::< Vec< _ > >();
+    assert_eq!( vectors, [ [ 0, 0, 127, 9 ], [ 127, 0, 0, 9 ], [ 0, -127, 0, 9 ], [ 0, 0, -127, 9 ] ] );
+  }
+
+  /// `QUATERNION` stores three 16-bit components and, in the fourth, a scale and which
+  /// component was dropped ( its low 2 bits ); the decoder rebuilds the dropped one and puts
+  /// it back in place. Both inputs are the identity rotation with the dropped component at
+  /// index 3 and at index 0, so each decodes to the 1.0 ( 32767 ) at that index.
+  #[ wasm_bindgen_test( async ) ]
+  async fn views_decode_applies_the_quaternion_filter()
+  {
+    let raw : Vec< u8 > = [ [ 0_i16, 0, 0, 32767 ], [ 0, 0, 0, 32764 ] ].iter().flatten().flat_map( | v | v.to_le_bytes() ).collect();
+    let decoded = filtered_decode( "EXT_meshopt_compression", &raw, 8, "QUATERNION" ).await;
+    let quaternions = decoded.as_chunks::< 8 >().0.iter()
+    .map( | q | [ 0, 2, 4, 6 ].map( | i | i16::from_le_bytes( [ q[ i ], q[ i + 1 ] ] ) ) )
+    .collect::< Vec< _ > >();
+    assert_eq!( quaternions, [ [ 0, 0, 0, 32767 ], [ 32767, 0, 0, 0 ] ] );
+  }
+
+  /// `COLOR` ( `KHR_meshopt_compression` only ) stores a colour as YCoCg : `R = Y + Co - Cg`,
+  /// `G = Y + Cg`, `B = Y - Co - Cg`. A grey stays grey, and `Co` / `Cg` of 10 move the
+  /// channels by 10 the way the spec's equations say; full alpha stays full.
+  #[ wasm_bindgen_test( async ) ]
+  async fn views_decode_applies_the_color_filter()
+  {
+    let raw : Vec< u8 > = [ [ 100_u8, 0, 0, 255 ], [ 100, 10, 0, 255 ], [ 100, 0, 10, 255 ] ].concat();
+    let decoded = filtered_decode( "KHR_meshopt_compression", &raw, 4, "COLOR" ).await;
+    assert_eq!
+    (
+      decoded.as_chunks::< 4 >().0,
+      [ [ 100, 100, 100, 255 ], [ 110, 100, 90, 255 ], [ 90, 110, 90, 255 ] ]
+    );
   }
 
   /// The decoder applies a view's filter after decoding. `EXPONENTIAL` stores each float as
