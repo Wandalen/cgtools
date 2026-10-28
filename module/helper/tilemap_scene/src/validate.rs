@@ -10,12 +10,12 @@
 
 mod private
 {
-  use rustc_hash::FxHashSet as HashSet;
+  use rustc_hash::{ FxHashMap as HashMap, FxHashSet as HashSet };
   use crate::compile::neighbors::VOID_ID;
   use crate::error::ValidationError;
   use crate::layer::{ MaskTint, ObjectLayer, TintBehaviour };
   use crate::pipeline::{ RenderPipeline, TilingStrategy };
-  use crate::resource::{ AnimationRef, AnimationTiming, EffectRef, Tint, TintRef };
+  use crate::resource::{ AnimationRef, AnimationTiming, EffectKind, EffectRef, Tint, TintRef };
   use crate::snapshot::SceneSnapshot;
   use crate::source::{ NeighborBitmaskSource, SpriteSource, TriBlendPattern };
   use crate::spec::RenderSpec;
@@ -36,8 +36,8 @@ mod private
     tint : HashSet< &'a str >,
     /// Declared `animations[*].id` values.
     anim : HashSet< &'a str >,
-    /// Declared `effects[*].id` values.
-    effect : HashSet< &'a str >,
+    /// Declared `effects[*].id` values, each with its kind's name.
+    effect : HashMap< &'a str, &'static str >,
     /// `objects[*].global_layer` values — the set of layer names a
     /// `VertexCorners.corner_source` can resolve against.
     global_layer : HashSet< &'a str >,
@@ -119,6 +119,8 @@ mod private
     /// - **Depth layers clip.** A pipeline layer with `opaque` or
     ///   `occlude_overlap` has `alpha_clip > 0`, so transparent texels write no
     ///   depth.
+    /// - **One effect per kind.** No object layer lists two effects of the same
+    ///   kind; only the first would apply.
     ///
     /// **Not enforced** — see the `TODO SPEC §16` comment at the end of
     /// this impl for why anchor ↔ sprite-source compatibility is left
@@ -134,7 +136,7 @@ mod private
         object : self.objects.iter().map( | o | o.id.as_str() ).collect(),
         tint : self.tints.iter().map( | t | t.id.as_str() ).collect(),
         anim : self.animations.iter().map( | a | a.id.as_str() ).collect(),
-        effect : self.effects.iter().map( | e | e.id.as_str() ).collect(),
+        effect : self.effects.iter().map( | e | ( e.id.as_str(), effect_kind_name( &e.kind ) ) ).collect(),
         // `tile_corner_id` matches `corner_source` to an object's
         // `global_layer`, so a value naming no object's `global_layer` can
         // only ever fall back to `VOID_ID` for every corner (silent,
@@ -381,6 +383,19 @@ mod private
     }
   }
 
+  /// The name of an effect's kind, as [`ValidationError::DuplicateEffectKind`]
+  /// reports it.
+  fn effect_kind_name( kind : &EffectKind ) -> &'static str
+  {
+    match kind
+    {
+      EffectKind::VertexDisplace { .. } => "VertexDisplace",
+      EffectKind::AlphaPulse { .. } => "AlphaPulse",
+      EffectKind::ColorShift { .. } => "ColorShift",
+      EffectKind::FadeGate { .. } => "FadeGate",
+    }
+  }
+
   /// Rejects a pipeline layer that writes depth, `opaque` or
   /// `occlude_overlap`, with no positive `alpha_clip`: every texel would write
   /// depth, the transparent ones included. An `opaque` layer's
@@ -468,9 +483,10 @@ mod private
       errors.push( ValidationError::IllegalSourceNesting { outer, inner } );
     });
 
+    let mut kinds : Vec< ( &'static str, Vec< String > ) > = Vec::new();
     for EffectRef( id ) in &layer.behaviour.effects
     {
-      if !ids.effect.contains( id.as_str() )
+      let Some( &kind ) = ids.effect.get( id.as_str() ) else
       {
         errors.push( ValidationError::UnresolvedRef
         {
@@ -478,7 +494,26 @@ mod private
           id : id.clone(),
           context : format!( "object {object_id:?} state {state_name:?} layer behaviour.effects" ),
         });
+        continue;
+      };
+      match kinds.iter_mut().find( | ( k, _ ) | *k == kind )
+      {
+        Some( ( _, same ) ) => same.push( id.clone() ),
+        None => kinds.push( ( kind, vec![ id.clone() ] ) ),
       }
+    }
+    // The renderer resolves each kind to the first matching effect a layer
+    // lists (`resolve_alpha_pulse`, `resolve_fade_gate`), so a second one of
+    // the same kind would never apply.
+    for ( kind, same ) in kinds.into_iter().filter( | ( _, same ) | same.len() > 1 )
+    {
+      errors.push( ValidationError::DuplicateEffectKind
+      {
+        object : object_id.to_owned(),
+        state : state_name.to_owned(),
+        kind,
+        ids : same,
+      });
     }
 
     layer_tint_check( object_id, state_name, layer, ids, errors );

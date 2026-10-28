@@ -1208,3 +1208,29 @@ fn validate_rejects_a_depth_layer_without_alpha_clip()
   }
   depth_and_effects_spec( r#"( id: "terrain" )"#, "", "" ).validate().expect( "a layer that writes no depth needs no clip" );
 }
+
+/// The renderer applies the first effect of each kind a layer lists, so a
+/// second `AlphaPulse` is refused, while one effect of each kind passes.
+#[ test ]
+fn validate_rejects_two_effects_of_one_kind_on_a_layer()
+{
+  let declared = r#"
+    Effect( id: "pulse_a", kind: AlphaPulse( min: 0.0, max: 1.0, frequency: 1.0 ) ),
+    Effect( id: "pulse_b", kind: AlphaPulse( min: 0.5, max: 1.0, frequency: 2.0 ) ),
+    Effect( id: "fade", kind: FadeGate( duration_ms: 100.0 ) ),
+  "#;
+  let errs = depth_and_effects_spec( r#"( id: "terrain" )"#, declared, r#"( "pulse_a" ), ( "fade" ), ( "pulse_b" )"# )
+  .validate().expect_err( "two pulses on one layer must be flagged" );
+  assert!
+  (
+    matches!
+    (
+      errs.as_slice(),
+      [ tilemap_scene::ValidationError::DuplicateEffectKind { object, state, kind, ids } ]
+        if object == "grass" && state == "default" && *kind == "AlphaPulse" && ids == &[ "pulse_a".to_owned(), "pulse_b".to_owned() ]
+    ),
+    "expected one DuplicateEffectKind( AlphaPulse ), got {errs:?}",
+  );
+  depth_and_effects_spec( r#"( id: "terrain" )"#, declared, r#"( "pulse_a" ), ( "fade" )"# )
+  .validate().expect( "one effect of each kind validates" );
+}

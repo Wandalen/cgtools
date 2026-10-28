@@ -43,6 +43,7 @@ Two independent mechanisms together enforce nearly every rule in the Invariant S
 | ✅ | Reserved id `"void"` not used as a declared object id. |
 | ✅ | Id uniqueness within `assets` / `tints` / `animations` / `effects` / `objects` (each its own collection). |
 | ✅ | `TintRef` / `AnimationRef` / `EffectRef` resolution, including recursive occurrences inside `Variant` / `NeighborBitmask` / `EdgeConnectedBitmask` / `ViewportTiled`. |
+| ✅ | One effect per kind on a layer — no `ObjectLayer.behaviour.effects` lists two effects of the same `EffectKind` (`DuplicateEffectKind`); the renderer applies only the first of each kind. |
 | ✅ | `NeighborBitmask.connects_with` / `EdgeConnectedBitmask.connects_with` entry resolution (declared object id or reserved id `"void"`). |
 | ✅ | Composite-in-composite nesting rejection (`IllegalSourceNesting`). |
 | ✅ | Tiling whitelist — `pipeline.hex.tiling` restricted to `HexFlatTop`/`HexPointyTop`; `Square4`/`Square8` rejected (`UnsupportedTiling`). |
