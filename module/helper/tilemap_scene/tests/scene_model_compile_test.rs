@@ -670,7 +670,6 @@ fn variant_fixed_always_picks_that_index()
     }
   );
 
-  let _compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
   let scene = SceneSnapshot
   {
     tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "grass".into() ] } ],
@@ -973,7 +972,6 @@ fn phase_offset_hashcoord_spreads_frames_across_tiles()
   let tiles : Vec< Tile > =
     ( 0..16 ).map( | q | Tile { pos : ( q, 0 ), objects : vec![ "grass".into() ] } ).collect();
   let scene = SceneSnapshot { tiles, ..minimal_scene_3x3() };
-  let _compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
   let cmds = at_time_compile( &spec, &scene, &Camera::default(), 0.0 );
 
   let sprites : std::collections::HashSet< _ > = cmds.iter().filter_map( | c |
@@ -1470,8 +1468,7 @@ fn edge_rotation_matches_direction()
       ..minimal_scene_3x3()
     };
     let _compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
-    let _compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
-  let commands = at_time_compile( &spec, &scene, &Camera::default(), 0.0 );
+    let commands = at_time_compile( &spec, &scene, &Camera::default(), 0.0 );
     let sprites = sprite_commands( &commands );
     assert_eq!( sprites.len(), 1 );
     assert!(
