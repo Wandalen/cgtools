@@ -140,7 +140,8 @@ crate::mod_interface!
 
 // Only `gltf_skeleton`'s morph target reader, `skeleton_displacements_data_load`, calls it.
 pub( crate ) use private::accessor_vec3_read;
-// The skin reader ( `gltf_skeleton` ) checks an accessor with it before reading.
+// The skin reader ( `gltf_skeleton` ) and the animation loader check accessors with it before
+// reading them.
 pub( crate ) use private::accessor_readable;
 
 /// `accessor_vec3_read`, reachable from `tests/` under `test_internals`. Without the feature

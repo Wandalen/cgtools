@@ -44,11 +44,36 @@ mod private
   };
   use mingl::{ F64x3, QuatF64 };
   use minwebgl::GL;
+  use crate::webgl::loaders::gltf_quantization::accessor_readable;
+
+  /// Whether the `gltf` crate's sampler readers can read `channel` safely. They take the input as
+  /// `SCALAR` `f32` and the output as the type its target property implies, without checking
+  /// either, locate both with unchecked arithmetic, and reach `unreachable!` on a rotation or
+  /// weight whose component type the spec does not allow. This checks the types the spec allows
+  /// and both accessors' ranges ( see `accessor_readable` ).
+  fn channel_readable( channel : &Channel< '_ > ) -> bool
+  {
+    use gltf::accessor::{ DataType, Dimensions };
+
+    const NORMALIZED : [ DataType; 5 ] = [ DataType::F32, DataType::I8, DataType::U8, DataType::I16, DataType::U16 ];
+    let sampler = channel.sampler();
+    let ( dimensions, data_types ) : ( Dimensions, &[ DataType ] ) = match channel.target().property()
+    {
+      Property::Translation | Property::Scale => ( Dimensions::Vec3, &[ DataType::F32 ] ),
+      Property::Rotation => ( Dimensions::Vec4, &NORMALIZED ),
+      Property::MorphTargetWeights => ( Dimensions::Scalar, &NORMALIZED ),
+    };
+    accessor_readable( &sampler.input(), Dimensions::Scalar, &[ DataType::F32 ] )
+    && accessor_readable( &sampler.output(), dimensions, data_types )
+  }
 
   /// Decodes an animation channel's raw sampler input/output arrays -- pure data extraction,
   /// no `gl`/`GL`/`WebGl` calls anywhere in its body. Returns the per-keyframe component count
   /// (`3` for `CubicSpline`'s in-tangent/value/out-tangent triples, `1` otherwise), the decoded
   /// keyframe times, and the still-untyped sampler output values.
+  ///
+  /// `None` when the sampler's input or output is missing, or when either accessor has a type
+  /// the spec does not allow for it or ranges that do not fit; the second case is logged.
   pub fn channel_decode< 'a >
   (
     channel : &Channel< '_ >,
@@ -56,6 +81,11 @@ mod private
   ) -> Option< ( usize, Vec< f64 >, ReadOutputs< 'a > ) >
   {
     let sampler = channel.sampler();
+    if !channel_readable( channel )
+    {
+      minwebgl::warn!( "glTF animation channel {} has unreadable sampler accessors, skipping it", channel.index() );
+      return None;
+    }
     let reader = channel.reader
     (
       | buffer | Some( buffers[ buffer.index() ].as_slice() )

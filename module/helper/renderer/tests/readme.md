@@ -33,7 +33,7 @@
 | webgl/wide_outline_gl_lifecycle.rs | Live-context: `WideOutlinePass::gl_resources_free` owned-vs-borrowed teardown (`test_internals`) |
 | animation_tests.rs | Tests node animation system (transforms, rotation, scaling) |
 | gltf_light_parsing_test.rs | Tests glTF light resolution and direction/position derivation |
-| gltf_animation_loader_test.rs | Tests glTF animation channel decode + vec3 tween-sequence building |
+| gltf_animation_loader_test.rs | Tests glTF animation channel decode + vec3 tween-sequence building, and that a channel whose sampler accessors have a type the spec does not allow or ranges that overflow is refused |
 | blender_tests.rs | Tests animation blending |
 | color_grading_tests.rs | Tests color grading pipeline |
 | geometry_tests.rs | Tests `Geometry` attribute API (add_attribute duplicate handling) |
