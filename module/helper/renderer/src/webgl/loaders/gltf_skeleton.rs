@@ -79,7 +79,8 @@ mod private
 
   /// One morph target channel's displacements : the accessor's values, or
   /// `vertices_count` zeros when the target does not declare that channel or
-  /// `accessor_vec3_read` refuses it.
+  /// `accessor_vec3_read` refuses it. The second case is logged, so a declared
+  /// channel the loader cannot read does not pass for one the asset left out.
   fn morph_channel_read
   (
     channel : Option< gltf::Accessor< '_ > >,
@@ -88,8 +89,18 @@ mod private
   )
   -> Vec< [ f32; 3 ] >
   {
-    channel.and_then( | acc | accessor_vec3_read( acc, buffers ) )
-    .unwrap_or_else( || vec![ [ 0.0; 3 ]; vertices_count ] )
+    let zeros = || vec![ [ 0.0; 3 ]; vertices_count ];
+    let Some( acc ) = channel
+    else
+    {
+      return zeros();
+    };
+    let index = acc.index();
+    accessor_vec3_read( acc, buffers ).unwrap_or_else( ||
+    {
+      gl::warn!( "glTF morph target accessor {index} is unreadable, using zero displacements" );
+      zeros()
+    })
   }
 
   /// Interleaves one primitive's per-target displacement lists vertex by vertex :
