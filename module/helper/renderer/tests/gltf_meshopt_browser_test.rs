@@ -8,6 +8,17 @@
 //!   view decodes over another view's data.
 //!
 //! The buffer rules every asset follows, meshopt or not, are in `gltf_buffers_browser_test.rs`.
+//!
+//! Not covered, because the vendored decoder ( `src/webgl/loaders/meshopt_decoder.js` ) offers
+//! no way to reach them, and editing it would break the notice that it is upstream's file
+//! unchanged apart from its extension :
+//! - Its SIMD and non-SIMD builds giving the same output. It picks one when it is imported,
+//!   with `WebAssembly.validate`, and cannot be made to pick the other; both come from
+//!   meshoptimizer's own sources and are tested upstream. These tests run the build the test
+//!   browser picks : headless Chrome supports SIMD, so the SIMD one.
+//! - `Decoder.ready` rejecting, the branch of `meshopt::views_decode` that logs a decoder
+//!   that failed to initialise. The promise is created when the module is imported, and
+//!   nothing in the module can make it reject.
 
 mod gltf_browser_helpers;
 
