@@ -25,6 +25,8 @@ impl WebGlBackend
   // So `render_target_begin` sets both the GL viewport and `active_viewport`
   // (which `viewport_size` returns while a target is bound) to the target's
   // size, and `render_target_end` restores the canvas size.
+  // `render_target_with` pairs the two around a bake and runs the end on every
+  // exit path; it is the default way to drive a pass.
   // ========================================================================
 
   /// Hardware `MAX_TEXTURE_SIZE`. A cache surface may not exceed this in either
