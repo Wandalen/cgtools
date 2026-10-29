@@ -77,6 +77,45 @@ mod private
     Some( skeleton::TransformsData::new( joints ) )
   }
 
+  /// One morph target channel's displacements : the accessor's values, or
+  /// `vertices_count` zeros when the target does not declare that channel or
+  /// `accessor_vec3_read` refuses it.
+  fn morph_channel_read
+  (
+    channel : Option< gltf::Accessor< '_ > >,
+    vertices_count : usize,
+    buffers : &[ Vec< u8 > ]
+  )
+  -> Vec< [ f32; 3 ] >
+  {
+    channel.and_then( | acc | accessor_vec3_read( acc, buffers ) )
+    .unwrap_or_else( || vec![ [ 0.0; 3 ]; vertices_count ] )
+  }
+
+  /// Interleaves one primitive's per-target displacement lists vertex by vertex :
+  /// every target's value for vertex 0, then for vertex 1, and so on.
+  fn targets_pack
+  (
+    targets_array : &[ Vec< [ f32; 3 ] > ]
+  )
+  -> Vec< [ f32; 3 ] >
+  {
+    if targets_array.is_empty()
+    {
+      return vec![];
+    }
+    let mut packed_array = Vec::with_capacity( targets_array.first().unwrap().len() * targets_array.len() );
+    for i in 0..targets_array.first().unwrap().len()
+    {
+      let targets_item = targets_array.iter()
+      .map( | arr | arr[ i ] )
+      .collect::< Vec< _ > >();
+      packed_array.extend( targets_item );
+    }
+
+    packed_array
+  }
+
   /// Packs a glTF primitive's morph-target position / normal / tangent
   /// displacements ( plus mesh-level morph weights ) into a
   /// [`skeleton::DisplacementsData`], or `None` if `primitives_morph_targets`
@@ -98,30 +137,6 @@ mod private
   )
   -> Option< skeleton::DisplacementsData >
   {
-    fn targets_pack
-    (
-      targets_array : &[ Vec< [ f32; 3 ] > ]
-    )
-    -> Vec< [ f32; 3 ] >
-    {
-      if targets_array.is_empty()
-      {
-        return vec![];
-      }
-      let mut packed_array = Vec::with_capacity( targets_array.first().unwrap().len() * targets_array.len() );
-      for i in 0..targets_array.first().unwrap().len()
-      {
-        let targets_item = targets_array.iter()
-        .map( | arr | arr[ i ] )
-        .collect::< Vec< _ > >();
-        packed_array.extend( targets_item );
-      }
-
-      packed_array
-    }
-
-    let get_target_array = | acc : gltf::Accessor< '_ > | accessor_vec3_read( acc, buffers );
-
     let skin_vertices_count = primitives_vertices_count.iter().sum::< usize >();
     let ( positions, normals, tangents ) =
     {
@@ -140,35 +155,9 @@ mod private
 
         for morph_target in morph_targets.clone()
         {
-          if let Some( positions ) = morph_target.positions()
-          .and_then(get_target_array)
-          {
-            targets_positions.push( positions );
-          }
-          else
-          {
-            targets_positions.push( vec![ [ 0.0; 3 ]; vertices_count ] );
-          }
-
-          if let Some( normals ) = morph_target.normals()
-          .and_then(get_target_array)
-          {
-            targets_normals.push( normals );
-          }
-          else
-          {
-            targets_normals.push( vec![ [ 0.0; 3 ]; vertices_count ] );
-          }
-
-          if let Some( tangents ) = morph_target.tangents()
-          .and_then(get_target_array)
-          {
-            targets_tangents.push( tangents );
-          }
-          else
-          {
-            targets_tangents.push( vec![ [ 0.0; 3 ]; vertices_count ] );
-          }
+          targets_positions.push( morph_channel_read( morph_target.positions(), vertices_count, buffers ) );
+          targets_normals.push( morph_channel_read( morph_target.normals(), vertices_count, buffers ) );
+          targets_tangents.push( morph_channel_read( morph_target.tangents(), vertices_count, buffers ) );
         }
 
         let primitive_positions = targets_pack( &targets_positions );
