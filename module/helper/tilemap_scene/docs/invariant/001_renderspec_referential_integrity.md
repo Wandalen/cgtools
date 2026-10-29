@@ -110,5 +110,5 @@ Where a rule is NOT enforced by either mechanism (anchor↔source compatibility 
 
 | File | Relationship |
 |------|--------------|
-| `tests/scene_model_test.rs` | `validate_rejects_*` / `validate_accepts_*` (14 tests) exercise every enforced `RenderSpec` rule in the table above; `validates_minimal_scene`, `validate_rejects_conflicting_tile_source`, `validate_rejects_owner_out_of_range` cover both enforced `SceneSnapshot` rules |
+| `tests/scene_model_test.rs` | the `validate_rejects_*` / `validate_accepts_*` tests exercise every enforced `RenderSpec` rule in the table above; `validates_minimal_scene`, `validate_rejects_conflicting_tile_source`, `validate_rejects_owner_out_of_range` cover both enforced `SceneSnapshot` rules |
 | `tests/scene_model_compile_test.rs` | `from_snapshot_rejects_unknown_initial_global_tint` / `_accepts_known_initial_global_tint`, `from_snapshot_rejects_unknown_tile_object`, `from_snapshot_rejects_unknown_palette_char` cover the three `Scene::from_snapshot` cross-file rules; `edge_rejects_external_source` pins the one remaining gap — passes `validate()`, then fails at compile (see `pitfall/001`) |
