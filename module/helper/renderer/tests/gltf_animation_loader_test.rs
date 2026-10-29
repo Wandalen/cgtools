@@ -195,8 +195,64 @@ fn channel_decode_reports_three_components_for_cubicspline_interpolation()
   assert!( matches!( values, ReadOutputs::Translations( _ ) ) );
 }
 
+/// Five one-channel animations over [`linear_two_keyframe_buffers`]' layout. Animation 0 is
+/// well formed; each later one breaks one thing about its sampler, named in the test.
+const UNREADABLE_SAMPLERS_FIXTURE : &str = r#"
+{
+  "asset": { "version": "2.0" },
+  "nodes": [ {} ],
+  "animations":
+  [
+    { "channels": [ { "sampler": 0, "target": { "node": 0, "path": "translation" } } ], "samplers": [ { "input": 0, "output": 1 } ] },
+    { "channels": [ { "sampler": 0, "target": { "node": 0, "path": "translation" } } ], "samplers": [ { "input": 2, "output": 1 } ] },
+    { "channels": [ { "sampler": 0, "target": { "node": 0, "path": "translation" } } ], "samplers": [ { "input": 0, "output": 3 } ] },
+    { "channels": [ { "sampler": 0, "target": { "node": 0, "path": "rotation" } } ], "samplers": [ { "input": 0, "output": 4 } ] },
+    { "channels": [ { "sampler": 0, "target": { "node": 0, "path": "translation" } } ], "samplers": [ { "input": 5, "output": 1 } ] }
+  ],
+  "accessors":
+  [
+    { "bufferView": 0, "componentType": 5126, "count": 2, "type": "SCALAR" },
+    { "bufferView": 1, "componentType": 5126, "count": 2, "type": "VEC3" },
+    { "bufferView": 0, "byteOffset": 18446744073709551615, "componentType": 5126, "count": 2, "type": "SCALAR" },
+    { "bufferView": 1, "componentType": 5126, "count": 1, "type": "VEC4" },
+    { "bufferView": 1, "componentType": 5125, "count": 1, "type": "VEC4" },
+    { "bufferView": 0, "componentType": 5126, "count": 0, "type": "SCALAR" }
+  ],
+  "bufferViews":
+  [
+    { "buffer": 0, "byteOffset": 0, "byteLength": 8 },
+    { "buffer": 0, "byteOffset": 8, "byteLength": 24 }
+  ],
+  "buffers": [ { "byteLength": 32, "uri": "placeholder.bin" } ]
+}
+"#;
+
+/// The `gltf` crate's sampler readers check neither the accessors' types nor their ranges:
+/// a huge offset panicked there with an add overflow, and a `u32` rotation reached its
+/// `unreachable!`. `channel_decode` refuses such a channel instead.
+#[ test ]
+fn channel_decode_refuses_sampler_accessors_it_cannot_read()
+{
+  let gltf = gltf::Gltf::from_slice_without_validation( UNREADABLE_SAMPLERS_FIXTURE.as_bytes() ).expect( "fixture is well-formed JSON" );
+  let buffers = linear_two_keyframe_buffers();
+  let channel = | i : usize | gltf.animations().nth( i ).expect( "fixture animation" ).channels().next().expect( "one channel" );
+
+  assert!( channel_decode( &channel( 0 ), &buffers ).is_some(), "a well-formed channel decodes" );
+  for ( i, what ) in
+  [
+    ( 1, "an input with a huge offset" ),
+    ( 2, "a VEC4 translation" ),
+    ( 3, "u32 rotation components" ),
+    ( 4, "an input of zero keyframes" ),
+  ]
+  {
+    assert!( channel_decode( &channel( i ), &buffers ).is_none(), "a channel with {what} is refused" );
+  }
+}
+
 #[ test ]
 fn vec3_sequence_builds_two_tweens_matching_authored_translation_vectors()
+
 {
   let gltf = gltf::Gltf::from_slice( LINEAR_TWO_KEYFRAME_FIXTURE.as_bytes() ).unwrap();
   let channel = first_channel( &gltf );

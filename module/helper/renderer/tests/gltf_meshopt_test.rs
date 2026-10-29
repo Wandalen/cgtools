@@ -458,17 +458,28 @@ fn decodes_overlap_check_matches_the_pairwise_rule()
   assert!( accepted > 100 && refused > 100, "both outcomes are exercised: {accepted} accepted, {refused} refused" );
 }
 
-/// Many views cost the check `O( n log n )`, not `O( n^2 )` : 100 000 disjoint views, which
-/// the pairwise check would compare five billion times, go through at once.
+/// Many views cost the check `O( n log n )`, not `O( n^2 )`. The bound is relative, so a slow
+/// or loaded machine does not fail it : ten times the views must cost well under the hundred
+/// times a pairwise check would. `n log n` gives about 12 times; the limit is 40. Each size
+/// takes the fastest of three runs, to drop a run the scheduler interrupted.
 #[ test ]
 fn decodes_overlap_check_scales_to_many_views()
 {
-  let n = 100_000_u64;
-  let specs = ( 0..n ).map( | i | attributes_spec( 0, i * 4, 4, 1 ) ).collect::< Vec< _ > >();
-  let placed = specs.iter().enumerate().map( | ( i, spec ) | ( i, spec, 1, i * 4 ) ).collect::< Vec< _ > >();
-  let start = std::time::Instant::now();
-  assert!( decodes_overlap_check( &placed, &[] ).is_ok() );
-  assert!( start.elapsed() < std::time::Duration::from_secs( 2 ), "took {:?}", start.elapsed() );
+  let fastest = | n : u64 |
+  {
+    let specs = ( 0..n ).map( | i | attributes_spec( 0, i * 4, 4, 1 ) ).collect::< Vec< _ > >();
+    let placed = specs.iter().enumerate().map( | ( i, spec ) | ( i, spec, 1, i * 4 ) ).collect::< Vec< _ > >();
+    ( 0..3 ).map( | _ |
+    {
+      let start = std::time::Instant::now();
+      assert!( decodes_overlap_check( &placed, &[] ).is_ok() );
+      start.elapsed()
+    })
+    .min().expect( "three runs" )
+  };
+  let ( small, large ) = ( fastest( 10_000 ), fastest( 100_000 ) );
+  let ratio = large.as_secs_f64() / small.as_secs_f64().max( 1e-6 );
+  assert!( ratio < 40.0, "10x the views took {ratio:.1}x as long ( {small:?} -> {large:?} )" );
 }
 
 #[ test ]

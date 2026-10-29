@@ -121,8 +121,8 @@ mod private
   /// onto the skinning / morph-target shader paths. A rigged node with no
   /// skin and no morph targets is a no-op : `gltf_skeleton::skeleton_load` returns `None`
   /// and the mesh's `skeleton` field ( and its material's defines ) are left
-  /// untouched -- the only GL call on this path, `PbrMaterial::define_add`,
-  /// is only ever reached once a real skeleton comes back.
+  /// untouched : `PbrMaterial::define_add` is only reached once a real skeleton
+  /// comes back. Takes no GL context and makes no GL calls.
   pub fn skeletons_attach
   (
     nodes : &[ Rc< RefCell< Node > > ],

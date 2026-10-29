@@ -86,6 +86,22 @@ mod private
     Some( values )
   }
 
+  /// Whether `acc` can be handed to one of the `gltf` crate's typed readers, which read it as
+  /// `dimensions` elements of one of `data_types` : its declared type matches, and
+  /// `accessor_ranges_fit` accepts its ranges. Those readers check neither, so a file whose
+  /// accessor has another type, or ranges that overflow, would panic or read garbage there.
+  #[ must_use ]
+  pub fn accessor_readable
+  (
+    acc : &gltf::Accessor< '_ >,
+    dimensions : gltf::accessor::Dimensions,
+    data_types : &[ gltf::accessor::DataType ]
+  )
+  -> bool
+  {
+    acc.dimensions() == dimensions && data_types.contains( &acc.data_type() ) && accessor_ranges_fit( acc )
+  }
+
   /// Whether `gltf::accessor::Iter::new` can locate `acc`'s data without its own arithmetic
   /// failing. It computes every range end with unchecked `+`, `*` and `count - 1`, and in debug
   /// builds asserts that a view's stride holds an element, so a file with a huge offset, count
@@ -122,8 +138,11 @@ crate::mod_interface!
   own use position_bounds_dequantize;
 }
 
-// Only `gltf.rs`'s morph target reader calls it.
+// Only `gltf_skeleton`'s morph target reader, `skeleton_displacements_data_load`, calls it.
 pub( crate ) use private::accessor_vec3_read;
+// The skin reader ( `gltf_skeleton` ) and the animation loader check accessors with it before
+// reading them.
+pub( crate ) use private::accessor_readable;
 
 /// `accessor_vec3_read`, reachable from `tests/` under `test_internals`. Without the feature
 /// this module does not exist.

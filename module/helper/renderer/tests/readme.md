@@ -33,7 +33,7 @@
 | webgl/wide_outline_gl_lifecycle.rs | Live-context: `WideOutlinePass::gl_resources_free` owned-vs-borrowed teardown (`test_internals`) |
 | animation_tests.rs | Tests node animation system (transforms, rotation, scaling) |
 | gltf_light_parsing_test.rs | Tests glTF light resolution and direction/position derivation |
-| gltf_animation_loader_test.rs | Tests glTF animation channel decode + vec3 tween-sequence building |
+| gltf_animation_loader_test.rs | Tests glTF animation channel decode + vec3 tween-sequence building, and that a channel whose sampler accessors have a type the spec does not allow or ranges that overflow is refused |
 | blender_tests.rs | Tests animation blending |
 | color_grading_tests.rs | Tests color grading pipeline |
 | geometry_tests.rs | Tests `Geometry` attribute API (add_attribute duplicate handling) |
@@ -73,7 +73,8 @@
 | gltf_loader_tests.rs | Verifies glTF loader asset-URI resolution rules |
 | gltf_material_variation_test.rs | Tests glTF material-variation cache lookup-or-insert sharing |
 | gltf_node_scene_test.rs | Tests glTF node-hierarchy, skeleton-attach, and scene-assembly builders |
-| gltf_skeleton_displacements_test.rs | Tests glTF morph-target displacement data packing, including `KHR_mesh_quantization` targets ( normalized `i16` / `i8` and plain `i8`, padded by `byteStride` ) dequantized by their component type ( `native` ) |
+| gltf_skeleton_displacements_test.rs | Tests glTF morph-target displacement data packing, including `KHR_mesh_quantization` targets ( normalized `i16` / `i8` and plain `i8`, padded by `byteStride` ) dequantized by their component type, and a target channel that does not hold one value per vertex zero-filled ( `native` ) |
+| gltf_skeleton_transforms_test.rs | Tests that a skin whose inverse bind matrices are not `MAT4` `f32`, do not hold one matrix per joint, or have ranges that overflow loads without a skin instead of reaching the `gltf` reader ( `native` ) |
 | gltf_attribute_descriptor_test.rs | Tests glTF vertex-attribute descriptor computation from accessor metadata |
 | webgl_frame_orchestration_test.rs | Tests legacy webgl path's drawbuffers attachment selection |
 | webgl_renderer_pass_cycle_test.rs | Live-context test: legacy `Renderer::render()` completes on an opaque PBR primitive and an empty scene |
