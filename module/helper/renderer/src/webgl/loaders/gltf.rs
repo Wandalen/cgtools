@@ -591,8 +591,9 @@ mod private
   }
 
   /// Uploads every supported vertex attribute of one glTF primitive into its
-  /// [`Geometry`], registering skinning / morph shader defines on
-  /// `dummy_material` as they are encountered.
+  /// [`Geometry`], registering the tangent and skinning ( joints / weights )
+  /// shader defines on `dummy_material` as they are encountered. Morph targets
+  /// are read separately, by `gltf_skeleton`.
   fn geometry_attributes_add
   (
     gl : &gl::WebGl2RenderingContext,

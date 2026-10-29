@@ -170,6 +170,10 @@ required-features = ["native"]
 name = "gltf_skeleton_displacements_test"
 required-features = ["native"]
 
+[[test]]
+name = "gltf_skeleton_transforms_test"
+required-features = ["native"]
+
 # USD scene ingestion lane; needs the optional `openusd` stack ( and its own
 # direct use of it from the test crate ).
 [[test]]

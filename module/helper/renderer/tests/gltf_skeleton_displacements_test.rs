@@ -202,3 +202,59 @@ fn dequantizes_integer_morph_targets()
     assert!( ( actual - expect ).abs() < 1e-6, "packed displacement mismatch : {packed:?} vs {expected:?}" );
   }
 }
+
+/// One primitive over 3 vertices with two `POSITION` morph targets : target 0 holds 3
+/// displacements, target 1 only 2, each `7.0`.
+const SHORT_MORPH_TARGET_FIXTURE : &str = r#"
+{
+  "asset": { "version": "2.0" },
+  "meshes":
+  [
+    {
+      "primitives":
+      [
+        {
+          "attributes": { "POSITION": 0 },
+          "targets": [ { "POSITION": 1 }, { "POSITION": 2 } ]
+        }
+      ]
+    }
+  ],
+  "accessors":
+  [
+    { "bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3", "min": [ 0.0, 0.0, 0.0 ], "max": [ 0.0, 0.0, 0.0 ] },
+    { "bufferView": 1, "componentType": 5126, "count": 3, "type": "VEC3" },
+    { "bufferView": 2, "componentType": 5126, "count": 2, "type": "VEC3" }
+  ],
+  "bufferViews":
+  [
+    { "buffer": 0, "byteOffset": 0, "byteLength": 36 },
+    { "buffer": 0, "byteOffset": 36, "byteLength": 36 },
+    { "buffer": 0, "byteOffset": 72, "byteLength": 24 }
+  ],
+  "buffers": [ { "byteLength": 96, "uri": "placeholder.bin" } ]
+}
+"#;
+
+/// A morph target channel must hold one displacement per vertex : packing interleaves the
+/// targets vertex by vertex, and indexed a shorter target past its end. The short channel is
+/// zero-filled like an unreadable one.
+#[ test ]
+fn zero_fills_a_morph_channel_that_does_not_hold_one_value_per_vertex()
+{
+  let gltf = gltf::Gltf::from_slice( SHORT_MORPH_TARGET_FIXTURE.as_bytes() ).unwrap();
+  let primitive = gltf.meshes().next().expect( "fixture mesh" ).primitives().next().expect( "fixture primitive" );
+  let morph_targets : Vec< MorphTargets< '_ > > = vec![ primitive.morph_targets() ];
+  let mut bytes = morph_target_buffers().remove( 0 );
+  for c in [ 7.0_f32; 6 ] { bytes.extend_from_slice( &c.to_le_bytes() ); }
+
+  let mut result = skeleton_displacements_data_load( Some( &morph_targets ), &[ 3 ], None, &[ bytes ] )
+  .expect( "a primitive with morph targets produces DisplacementsData" );
+  let packed = result.displacements_data_pack();
+
+  // 3 vertices, 2 targets, 3 channels, 4 floats each.
+  assert_eq!( packed.len(), 3 * 2 * 3 * 4 );
+  // Every one of the 18 packed vec4s ends in 1.0; target 0 adds its three unit components.
+  assert_eq!( packed.iter().filter( | &&v | ( v - 1.0 ).abs() < f32::EPSILON ).count(), 18 + 3, "target 0 is packed" );
+  assert!( packed.iter().all( | &v | ( v - 7.0 ).abs() > f32::EPSILON ), "the short target 1 is not : {packed:?}" );
+}

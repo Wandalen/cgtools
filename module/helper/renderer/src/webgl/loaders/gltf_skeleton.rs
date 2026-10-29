@@ -9,11 +9,15 @@ mod private
   use minwebgl as gl;
   use gl::F32x4x4;
   use crate::webgl::{ skeleton, Node, Skeleton };
-  use crate::webgl::loaders::gltf_quantization::accessor_vec3_read;
+  use crate::webgl::loaders::gltf_quantization::{ accessor_readable, accessor_vec3_read };
 
   /// Reads a skin's inverse bind matrices and resolves each joint to its node by
   /// [`gltf::Node::index()`] against the flat, index-ordered `nodes` slice -- the same
   /// resolution convention every other node lookup in this loader uses.
+  ///
+  /// `None` when the skin has no inverse bind matrices, or when their accessor is not `MAT4`
+  /// `f32`, does not hold one matrix per joint, or has ranges that do not fit ( see
+  /// `accessor_readable` ); the last three are logged.
   #[ must_use ]
   pub fn skeleton_transforms_data_load
   (
@@ -28,6 +32,14 @@ mod private
       | buffer | Some( buffers[ buffer.index() ].as_slice() )
     );
 
+    let accessor = skin.inverse_bind_matrices()?;
+    // The spec requires one matrix per joint; `joints` below pairs them positionally.
+    if accessor.count() != skin.joints().len()
+    || !accessor_readable( &accessor, gltf::accessor::Dimensions::Mat4, &[ gltf::accessor::DataType::F32 ] )
+    {
+      gl::warn!( "glTF skin {} has unreadable inverse bind matrices ( accessor {} ), loading it without a skin", skin.index(), accessor.index() );
+      return None;
+    }
     let inverse_bind_matrices_iter = reader.read_inverse_bind_matrices()?;
 
     let matrices = inverse_bind_matrices_iter
@@ -65,6 +77,62 @@ mod private
     Some( skeleton::TransformsData::new( joints ) )
   }
 
+  /// One morph target channel's displacements : the accessor's values, or
+  /// `vertices_count` zeros when the target does not declare that channel or
+  /// `accessor_vec3_read` refuses it or it does not hold one value per vertex.
+  /// The last two are logged, so a declared channel the loader cannot use does
+  /// not pass for one the asset left out.
+  fn morph_channel_read
+  (
+    channel : Option< gltf::Accessor< '_ > >,
+    vertices_count : usize,
+    buffers : &[ Vec< u8 > ]
+  )
+  -> Vec< [ f32; 3 ] >
+  {
+    let zeros = || vec![ [ 0.0; 3 ]; vertices_count ];
+    let Some( acc ) = channel
+    else
+    {
+      return zeros();
+    };
+    let index = acc.index();
+    // `targets_pack` interleaves the targets vertex by vertex, so each must hold one value per vertex.
+    match accessor_vec3_read( acc, buffers )
+    {
+      Some( values ) if values.len() == vertices_count => values,
+      _ =>
+      {
+        gl::warn!( "glTF morph target accessor {index} is unreadable or does not hold one value per vertex, using zero displacements" );
+        zeros()
+      }
+    }
+  }
+
+  /// Interleaves one primitive's per-target displacement lists vertex by vertex :
+  /// every target's value for vertex 0, then for vertex 1, and so on.
+  fn targets_pack
+  (
+    targets_array : &[ Vec< [ f32; 3 ] > ]
+  )
+  -> Vec< [ f32; 3 ] >
+  {
+    if targets_array.is_empty()
+    {
+      return vec![];
+    }
+    let mut packed_array = Vec::with_capacity( targets_array.first().unwrap().len() * targets_array.len() );
+    for i in 0..targets_array.first().unwrap().len()
+    {
+      let targets_item = targets_array.iter()
+      .map( | arr | arr[ i ] )
+      .collect::< Vec< _ > >();
+      packed_array.extend( targets_item );
+    }
+
+    packed_array
+  }
+
   /// Packs a glTF primitive's morph-target position / normal / tangent
   /// displacements ( plus mesh-level morph weights ) into a
   /// [`skeleton::DisplacementsData`], or `None` if `primitives_morph_targets`
@@ -86,30 +154,6 @@ mod private
   )
   -> Option< skeleton::DisplacementsData >
   {
-    fn targets_pack
-    (
-      targets_array : &[ Vec< [ f32; 3 ] > ]
-    )
-    -> Vec< [ f32; 3 ] >
-    {
-      if targets_array.is_empty()
-      {
-        return vec![];
-      }
-      let mut packed_array = Vec::with_capacity( targets_array.first().unwrap().len() * targets_array.len() );
-      for i in 0..targets_array.first().unwrap().len()
-      {
-        let targets_item = targets_array.iter()
-        .map( | arr | arr[ i ] )
-        .collect::< Vec< _ > >();
-        packed_array.extend( targets_item );
-      }
-
-      packed_array
-    }
-
-    let get_target_array = | acc : gltf::Accessor< '_ > | accessor_vec3_read( acc, buffers );
-
     let skin_vertices_count = primitives_vertices_count.iter().sum::< usize >();
     let ( positions, normals, tangents ) =
     {
@@ -128,35 +172,9 @@ mod private
 
         for morph_target in morph_targets.clone()
         {
-          if let Some( positions ) = morph_target.positions()
-          .and_then(get_target_array)
-          {
-            targets_positions.push( positions );
-          }
-          else
-          {
-            targets_positions.push( vec![ [ 0.0; 3 ]; vertices_count ] );
-          }
-
-          if let Some( normals ) = morph_target.normals()
-          .and_then(get_target_array)
-          {
-            targets_normals.push( normals );
-          }
-          else
-          {
-            targets_normals.push( vec![ [ 0.0; 3 ]; vertices_count ] );
-          }
-
-          if let Some( tangents ) = morph_target.tangents()
-          .and_then(get_target_array)
-          {
-            targets_tangents.push( tangents );
-          }
-          else
-          {
-            targets_tangents.push( vec![ [ 0.0; 3 ]; vertices_count ] );
-          }
+          targets_positions.push( morph_channel_read( morph_target.positions(), vertices_count, buffers ) );
+          targets_normals.push( morph_channel_read( morph_target.normals(), vertices_count, buffers ) );
+          targets_tangents.push( morph_channel_read( morph_target.tangents(), vertices_count, buffers ) );
         }
 
         let primitive_positions = targets_pack( &targets_positions );
