@@ -26,8 +26,8 @@ use renderer::webgl::loaders::gltf_extensions::{ document_validate, required_ext
 const UNSUPPORTED_REQUIRED_FIXTURE : &str = r#"
 {
   "asset": { "version": "2.0" },
-  "extensionsRequired": [ "KHR_texture_basisu" ],
-  "extensionsUsed": [ "KHR_texture_basisu" ]
+  "extensionsRequired": [ "KHR_materials_transmission" ],
+  "extensionsUsed": [ "KHR_materials_transmission" ]
 }
 "#;
 
@@ -42,9 +42,71 @@ fn rejects_unsupported_required_extension()
   assert!
   (
     result.is_err(),
-    "extensionsRequired names 'KHR_texture_basisu', which this loader does not implement -- \
+    "extensionsRequired names 'KHR_materials_transmission', which this loader does not implement -- \
     must be rejected, not silently proceeded past"
   );
+}
+
+/// An asset that requires `KHR_texture_basisu`: its author provides no fallback, so every
+/// texture is KTX2 and nothing else. The texture names its image only through the extension.
+const BASISU_REQUIRED_FIXTURE : &str = r#"
+{
+  "asset": { "version": "2.0" },
+  "extensionsUsed": [ "KHR_texture_basisu" ],
+  "extensionsRequired": [ "KHR_texture_basisu" ],
+  "images": [ { "uri": "colour.ktx2", "mimeType": "image/ktx2" } ],
+  "textures": [ { "extensions": { "KHR_texture_basisu": { "source": 0 } } } ]
+}
+"#;
+
+/// Without the `ktx2` feature the loader cannot decode a single texture of this asset, so it
+/// must refuse it up front rather than load it with blank surfaces.
+#[ cfg( not( feature = "ktx2" ) ) ]
+#[ test ]
+fn rejects_required_basisu_without_the_ktx2_feature()
+{
+  let gltf = gltf::Gltf::from_slice_without_validation( BASISU_REQUIRED_FIXTURE.as_bytes() )
+  .expect( "fixture is well-formed JSON" );
+
+  assert!( document_validate( &gltf ).is_err(), "KHR_texture_basisu needs the ktx2 feature" );
+}
+
+/// With the `ktx2` feature the same asset passes the whole gate. The texture has no `source`
+/// of its own, so this also checks that structural validation accepts a texture whose image
+/// comes from the extension ( the `allow_empty_texture` gltf feature ).
+#[ cfg( feature = "ktx2" ) ]
+#[ test ]
+fn accepts_required_basisu_with_the_ktx2_feature()
+{
+  let gltf = gltf::Gltf::from_slice_without_validation( BASISU_REQUIRED_FIXTURE.as_bytes() )
+  .expect( "fixture is well-formed JSON" );
+
+  assert!( document_validate( &gltf ).is_ok(), "the ktx2 feature decodes KHR_texture_basisu" );
+}
+
+/// An asset that only uses `KHR_texture_basisu` and ships a plain PNG fallback.
+const BASISU_USED_WITH_FALLBACK_FIXTURE : &str = r#"
+{
+  "asset": { "version": "2.0" },
+  "extensionsUsed": [ "KHR_texture_basisu" ],
+  "images":
+  [
+    { "uri": "colour.ktx2", "mimeType": "image/ktx2" },
+    { "uri": "colour.png", "mimeType": "image/png" }
+  ],
+  "textures": [ { "source": 1, "extensions": { "KHR_texture_basisu": { "source": 0 } } } ]
+}
+"#;
+
+/// `used` is not `required`. An asset that merely uses basisu and ships a fallback must load in
+/// every build, so the gate stays quiet with and without the `ktx2` feature.
+#[ test ]
+fn accepts_basisu_that_is_only_used_with_a_fallback()
+{
+  let gltf = gltf::Gltf::from_slice_without_validation( BASISU_USED_WITH_FALLBACK_FIXTURE.as_bytes() )
+  .expect( "fixture is well-formed JSON" );
+
+  assert!( document_validate( &gltf ).is_ok(), "a merely-used extension has a fallback and must not be refused" );
 }
 
 const SUPPORTED_REQUIRED_FIXTURE : &str = r#"

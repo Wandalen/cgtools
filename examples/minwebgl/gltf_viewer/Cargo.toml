@@ -10,6 +10,13 @@ authors = [
 [lints]
 workspace = true
 
+[features]
+# Pull the KTX2 ( KHR_texture_basisu, UASTC ) decode path into `renderer`, so the viewer can load a
+# model with KTX2 textures. It does not change which model loads: point `gltf_path` in
+# `src/main.rs` at one. Produce such a model with `gltf-transform uastc in.glb out.glb` ( needs
+# KTX-Software's `ktx` CLI on PATH ). The default build is unaffected.
+ktx2 = [ "renderer/ktx2" ]
+
 [dependencies]
 
 minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ] }
