@@ -76,6 +76,10 @@ impl WebGlBackend
   /// surface at its viewport.
   ///
   /// Returns `bake`'s result, or `None` without calling it when `id` is stale.
+  ///
+  /// Passes do not nest: the backend keeps no stack of bound targets, so a
+  /// `bake` that binds another target leaves the canvas bound when that inner
+  /// pass ends, not this one. Bake each surface in its own pass.
   pub fn render_target_with< R >
   (
     &mut self,
