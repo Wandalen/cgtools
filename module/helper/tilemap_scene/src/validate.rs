@@ -502,9 +502,10 @@ mod private
         None => kinds.push( ( kind, vec![ id.clone() ] ) ),
       }
     }
-    // The renderer resolves each kind to the first matching effect a layer
-    // lists (`resolve_alpha_pulse`, `resolve_fade_gate`), so a second one of
-    // the same kind would never apply.
+    // The renderer applies only `AlphaPulse` and `FadeGate` today, each from
+    // the first matching effect a layer lists (`resolve_alpha_pulse`,
+    // `resolve_fade_gate`), so a second one would never apply. The rule covers
+    // every kind, so the two not yet applied cannot come to depend on order.
     for ( kind, same ) in kinds.into_iter().filter( | ( _, same ) | same.len() > 1 )
     {
       errors.push( ValidationError::DuplicateEffectKind
