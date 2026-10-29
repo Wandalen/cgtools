@@ -157,6 +157,10 @@ required-features = ["native"]
 name = "gltf_skeleton_displacements_test"
 required-features = ["native"]
 
+[[test]]
+name = "gltf_skeleton_transforms_test"
+required-features = ["native"]
+
 # The meshopt / quantization loader tests import `renderer::webgl::loaders`
 # and the `gltf` / `serde_json` crates, all of which exist only with `webgl`
 # ( part of `default` ). Under `--no-default-features` they are skipped with

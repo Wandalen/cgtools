@@ -9,11 +9,15 @@ mod private
   use minwebgl as gl;
   use gl::F32x4x4;
   use crate::webgl::{ skeleton, Node, Skeleton };
-  use crate::webgl::loaders::gltf_quantization::accessor_vec3_read;
+  use crate::webgl::loaders::gltf_quantization::{ accessor_readable, accessor_vec3_read };
 
   /// Reads a skin's inverse bind matrices and resolves each joint to its node by
   /// [`gltf::Node::index()`] against the flat, index-ordered `nodes` slice -- the same
   /// resolution convention every other node lookup in this loader uses.
+  ///
+  /// `None` when the skin has no inverse bind matrices, or when their accessor is not `MAT4`
+  /// `f32`, does not hold one matrix per joint, or has ranges that do not fit ( see
+  /// `accessor_readable` ); the last three are logged.
   #[ must_use ]
   pub fn skeleton_transforms_data_load
   (
@@ -28,6 +32,14 @@ mod private
       | buffer | Some( buffers[ buffer.index() ].as_slice() )
     );
 
+    let accessor = skin.inverse_bind_matrices()?;
+    // The spec requires one matrix per joint; `joints` below pairs them positionally.
+    if accessor.count() != skin.joints().len()
+    || !accessor_readable( &accessor, gltf::accessor::Dimensions::Mat4, &[ gltf::accessor::DataType::F32 ] )
+    {
+      gl::warn!( "glTF skin {} has unreadable inverse bind matrices ( accessor {} ), loading it without a skin", skin.index(), accessor.index() );
+      return None;
+    }
     let inverse_bind_matrices_iter = reader.read_inverse_bind_matrices()?;
 
     let matrices = inverse_bind_matrices_iter
