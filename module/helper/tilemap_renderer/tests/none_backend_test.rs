@@ -122,6 +122,8 @@ fn capabilities_equals_default_field_for_field()
   assert_eq!( actual.supported_blend_modes, expected.supported_blend_modes );
   assert_eq!( actual.text_on_path, expected.text_on_path );
   assert_eq!( actual.premultiplied_images, expected.premultiplied_images );
+  assert_eq!( actual.depth, expected.depth );
+  assert_eq!( actual.camera, expected.camera );
   assert_eq!( actual.max_texture_size, expected.max_texture_size );
 }
 

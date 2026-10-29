@@ -1763,6 +1763,9 @@ mod private
           RenderCommand::UnbindBatch( _ ) => self.cmd_unbind_batch(),
           RenderCommand::DrawBatch( db ) => self.cmd_draw_batch( *db )?,
           RenderCommand::DeleteBatch( db ) => self.cmd_delete_batch( *db ),
+          // No depth buffer in SVG — the opaque/transparent pass split is a
+          // GPU-only optimisation; ignore.
+          RenderCommand::SetDepthWrite( _ ) => {},
           RenderCommand::BeginGroup( bg ) => self.cmd_begin_group( bg )?,
           RenderCommand::EndGroup( _ ) => self.cmd_end_group(),
         }
@@ -1806,6 +1809,8 @@ mod private
         blend_modes : true,
         text_on_path : true,
         premultiplied_images : false,
+        depth : false,
+        camera : false,
         max_texture_size : 0,
         supported_blend_modes : &[
           BlendMode::Normal,

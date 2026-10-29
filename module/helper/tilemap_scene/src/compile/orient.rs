@@ -64,9 +64,9 @@ mod private
   /// shape (present vs. not-present). A genuine three-id chiral junction's ▲/▽
   /// mirror pair is out of scope (would need a parity-keyed reflected frame).
   #[ must_use ]
-  pub fn dual_orientation_index
+  pub fn dual_orientation_index< S : AsRef< str > >
   (
-    raw : &[ String; 3 ],
+    raw : &[ S; 3 ],
     self_id : Option< &str >,
     corner_px : &[ ( f32, f32 ); 3 ],
     wx : f32,
@@ -90,8 +90,8 @@ mod private
     };
     let present : [ bool; 3 ] = match self_id
     {
-      Some( sid ) => core::array::from_fn( | i | raw[ i ] == sid ),
-      None => core::array::from_fn( | i | raw[ i ] != VOID_ID ),
+      Some( sid ) => core::array::from_fn( | i | raw[ i ].as_ref() == sid ),
+      None => core::array::from_fn( | i | raw[ i ].as_ref() != VOID_ID ),
     };
     let ( base, period, dist_idx ) = match present.iter().filter( | p | **p ).count()
     {

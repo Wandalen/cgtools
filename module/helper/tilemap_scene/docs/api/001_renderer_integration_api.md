@@ -25,9 +25,18 @@ Game code drives a `Scene` — an in-memory, mutable instantiation of a loaded `
 | `set_global_tint` | `(TintRef \| None)` | Changes the pipeline-level tint at runtime (e.g. day/night cycle). |
 | `move_to` | `(instance, placement)` | Repositions an existing instance. |
 | `tick` / `tick_into` | `(dt) -> Vec<SceneEvent>` | Advances the shared clock; returns events including `OneShot` animation completions (see `algorithm/001`). |
+| `fade_target_set` / `fade_value` | `(effect_id, visible: bool) -> bool` / `(effect_id) -> f32` | Drive a `FadeGate` effect (see `format/004`) toward fully visible or hidden; `tick` eases the value, `fade_value` reads it (`1.0` until first driven). Returns `false` and changes nothing when the spec declares no `FadeGate` under that id. |
+| `revision` / `tiles_revision` / `id` | `() -> u64` | Change counters and identity a cache keys on: `revision` moves on every mutation, `tiles_revision` only when the visible objects in hex cells change (the dual-grid resolve's only input), and `id` is unique per scene, since both counters start at 0 in every scene. |
 | `instances`, `instances_at_hex`, `hex_instances`, `edge_instances`, `free_instances`, `viewport_instances`, `multihex_instances`, `len`, `is_empty` | queries | Read-only instance enumeration, whole-scene or filtered by anchor kind / position. |
-| `Renderer::render` | `(&mut self, &Scene, &Camera) -> Result<&[RenderCommand], CompileError>` | Produces this frame's draw commands (see `algorithm/002`); cached and replayed on an unchanged `(scene_revision, clock, camera_signature)` triple. |
-| `Camera::project` | `(world: (f32, f32)) -> (f32, f32)` | `screen = (world - camera.world_center) * camera.zoom + viewport_size / 2`. |
+| `Renderer::render` | `(&mut self, &Scene, &Camera) -> Result<&[RenderCommand], CompileError>` | Produces this frame's draw commands (see `algorithm/002`); cached and replayed on an unchanged `(scene_id, scene_revision, clock, camera_signature)`. A replay returns the draw commands only, without the batch edits the miss already sent, so every result can be submitted. |
+| `Renderer::capabilities_set` | `(&mut self, &Capabilities)` | What the backend can do, as its `capabilities()` reports; until called, a depth buffer and a GPU camera are assumed (the WebGL backend). Without `depth` the renderer ignores `opaque` and `occlude_overlap` and draws every layer in declared order (see `format/007`); without `camera` it ignores the zoom, which only a repeat-tiled viewport backdrop reads, since such a backend draws the world unzoomed. A change invalidates the idle-replay cache. |
+| `Renderer::disabled_buckets_set` | `(&mut self, mask: u64)` | Skip the pipeline layers whose bits are set (bit `i` = `pipeline.layers[i]`): they emit nothing and their batches are released. A diagnostic and perf lever; a change invalidates the idle-replay cache. |
+| `Renderer::batch_id_base_set` | `(&mut self, base: u32)` | Allocate batch ids from `base`, so several renderers can share one backend with disjoint ids. Only while no batch is live (before the first `render`, or after `cleanup`); debug builds assert it. |
+| `Renderer::cleanup` | `(&mut self) -> Vec<RenderCommand>` | `DeleteBatch` for every live batch, to submit before dropping or swapping the renderer; resets its caches. |
+| `Renderer::image_id` | `(&self, asset_id) -> Option<ResourceId<Image>>` | The backend handle of a spec image, for drawing it directly (e.g. `WebGlBackend::image_tiled_draw`). |
+| `Renderer::cache_hits` / `scene_walks` / `vertex_resolves` | `(&self) -> u64` | Counters over the renderer's lifetime: idle replays, scene walks (misses), and full dual-grid resolves. Telemetry for what a frame cost. |
+| `Camera::to_view_mat3` | `() -> [f32; 9]` | The world→screen projection as a column-major 3×3 matrix. World-space commands carry world coordinates; the caller hands this matrix to the backend each frame (`WebGlBackend::camera_set(camera.to_view_mat3())`) and the GPU applies it, so a pan changes one uniform and never the command stream. Only the WebGL backend takes a view matrix; on the others world draws stay in world coordinates, so the camera does not move them. |
+| `Camera::project` | `(world: (f32, f32)) -> (f32, f32)` | `screen = (world - camera.world_center) * camera.zoom + viewport_size / 2` — the same projection as `to_view_mat3`, on the CPU, for a caller that needs one point on screen (UI anchored to a unit). `Renderer::render` does not call it. |
 
 ### Error Handling
 
@@ -47,7 +56,7 @@ The renderer treats instance state as opaque and game-owned by design — it nev
 | File | Relationship |
 |------|--------------|
 | [algorithm/001_animation_phase_and_frame_selection.md](../algorithm/001_animation_phase_and_frame_selection.md) | `tick`'s returned `SceneEvent`s include `OneShot` completion |
-| [algorithm/002_scene_rendering_pass.md](../algorithm/002_scene_rendering_pass.md) | `Renderer::render` triggers this algorithm; `Camera::project` feeds its culling/screen-position step |
+| [algorithm/002_scene_rendering_pass.md](../algorithm/002_scene_rendering_pass.md) | `Renderer::render` triggers this algorithm; `Camera`'s zoom and viewport size lay out its viewport-anchored draws, while world draws stay in world space for `Camera::to_view_mat3` |
 
 ### Formats
 
@@ -69,8 +78,8 @@ The renderer treats instance state as opaque and game-owned by design — it nev
 | File | Relationship |
 |------|--------------|
 | `src/scene.rs` | `Scene` — full method surface |
-| `src/renderer.rs` | `Renderer::render`, `cache_hits`, `cleanup`, `assets` |
-| `src/compile/camera.rs` | `Camera`, `Camera::project` |
+| `src/renderer.rs` | `Renderer::render`, `capabilities_set`, `cache_hits`, `cleanup`, `assets` |
+| `src/compile/camera.rs` | `Camera`, `Camera::to_view_mat3`, `Camera::project` |
 
 ### Tests
 

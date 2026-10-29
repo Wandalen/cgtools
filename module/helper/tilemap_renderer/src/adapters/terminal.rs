@@ -950,6 +950,9 @@ mod private
           RenderCommand::DeleteBatch( db ) => self.cmd_delete_batch( *db ),
           RenderCommand::BeginGroup( bg ) => self.cmd_begin_group( bg ),
           RenderCommand::EndGroup( _ ) => self.cmd_end_group(),
+          // No depth buffer in the terminal backend — the opaque/transparent
+          // pass split is a GPU-only optimisation; ignore.
+          RenderCommand::SetDepthWrite( _ ) => {},
         }
       }
 
@@ -993,6 +996,8 @@ mod private
         supported_blend_modes : &[ BlendMode::Normal ],
         text_on_path : false,
         premultiplied_images : false,
+        depth : false,
+        camera : false,
         max_texture_size : 0,
       }
     }

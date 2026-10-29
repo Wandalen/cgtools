@@ -17,21 +17,31 @@ The core library and SVG adapter are functional; the WebGL2 adapter is partially
 - **SVG adapter** — implemented across every command and asset family: paths, text, sprites, meshes, batches, groups, effects, gradients, patterns, blend modes, bitmap PNG encoding, viewport pan/zoom wrapper, `Source::Path` geometry loading via blocking `std::fs` (loud skip with stderr warning + diagnostic comment on read failure, incl. on wasm32 where no filesystem exists). Not complete, though — see "svg adapter gaps" below (font selection unimplemented). `Transform::depth` is deliberately ignored, not unimplemented — SVG has no depth buffer, so submission order is the whole ordering contract; a committed, permanent design decision formalized in [docs/invariant/003_z_layer_draw_ordering.md](docs/invariant/003_z_layer_draw_ordering.md)
 - **WebGL2 adapter (partial)** — hardware-accelerated sprites, meshes, and instanced batches on wasm32:
   - Split across `adapters/webgl.rs` (backend: command dispatch, asset loading, context
-    loss) and three `mod_interface::layer` submodules under `adapters/webgl/`:
-    `webgl_helpers.rs` (self-contained helpers), `webgl_renderers.rs` (sprite / mesh
-    renderers) and `webgl_textures.rs` (texture upload, async image loader), each under
-    the 1500-line source-file ceiling
-  - `ArrayBuffer<T>` — GPU-side Vec with 2× grow via `copy_buffer_sub_data` (no CPU readback);
-    `swap_remove` uses a persistent scratch buffer to avoid binding the same buffer to both
-    `COPY_READ_BUFFER` and `COPY_WRITE_BUFFER` (WebGL2 spec violation)
+    loss), four `mod_interface::layer` submodules under `adapters/webgl/` —
+    `render_target.rs` (`RenderTargetId` and its slot table), `webgl_helpers.rs`
+    (self-contained helpers), `webgl_renderers.rs` (sprite / mesh renderers) and
+    `webgl_textures.rs` (texture upload, async image loader) — and one plain child module,
+    `webgl_surfaces.rs`, whose render-target, scissor and tiled-image methods stay inherent
+    on `WebGlBackend`; each file is under the 1500-line source-file ceiling
+  - `ArrayBuffer<T>` — instance buffer with a CPU-side `StagedVec`: `push` / `set` /
+    `swap_remove` only stage, and `flush` (run at `UnbindBatch`) uploads the dirty range in one
+    `buffer_sub_data`, or reallocates to 2× (or the needed size) and uploads everything when the
+    contents outgrew the GPU buffer; growth is capped at `i32::MAX` bytes, and a refused flush
+    leaves the elements staged (see `docs/feature/002_webgl2_backend_adapter.md` and
+    `docs/pitfall/001_arraybuffer_swap_remove_buffer_binding_violation.md`)
   - `SpriteInstanceData` (72B, includes per-instance tint) and `MeshInstanceData` (56B, includes per-instance tint) with compile-time layout assertions
   - Single-draw: `Clear`, `Mesh` (with texture + topology), `Sprite` (with tint)
   - Batch lifecycle: `Create`, `Bind`, `Add/Set/Remove` instances, `Draw`, `Delete` — for both sprite and mesh batches
-  - Per-batch VAO setup at create/unbind time; bind-only at draw time
+  - Per-batch VAO setup at create time, redone at unbind only after a flush reallocated the
+    instance buffer; bind-only at draw time
   - Asset loading: images (Bitmap sync + Path async via `spawn_local`), sprites, geometries (sync + async path); async handlers use `Closure::once_into_js` so the browser drops the Rust closures (and captured `Rc<RefCell<GpuResources>>`) after `onload` / `onerror` fires, letting `WebGlBackend` drop actually free GPU resources
   - `Transform::depth` — honored via depth buffer (`DEPTH_TEST`, `LEQUAL`). Per-field range `[-RenderConfig::max_depth, max_depth]` (default `1.0`); shader divides by `u_max_depth`, GPU clips out-of-range values. Batch sum `parent_depth + instance_depth` is subject to the same range. Reliable for fully opaque draws (translucent must be back-to-front)
   - Blend modes: Normal, Add, Multiply, Screen (hardware-accelerated); Overlay falls back to Normal. `Capabilities::supported_blend_modes` advertises the correct set; `blend_modes: bool` means "all variants correct" and is `false` until Overlay is implemented
   - Premultiplied-alpha: `ImageAsset.premultiplied` flag; `blend_apply` selects `ONE` vs `SRC_ALPHA` source factor per draw so premultiplied textures composite without double-alpha-scale on antialiased edges
+  - Coverage controls (`SpriteBatchParams`): `alpha_clip` discards low-alpha texels (tested before the tint multiply); `occlude_overlap` draws the batch under `depth_func = LESS` (restoring `LEQUAL` after) so overlapping bled instances composite each pixel once. No depth clear: the caller keeps depth writes on and gives the batch a depth strictly nearer than what it covers (the scene renderer pins one depth per bucket). Pair the two so the AA fringe doesn't write depth
+  - Early-Z shader variants: `sprite_batch.frag` compiled twice (`#define USE_ALPHA_CLIP` after `#version`) — cutout variant with the `discard` for `alpha_clip > 0`, plain discard-free variant for `alpha_clip == 0` so the GPU keeps early-Z and depth-rejects flat full-board layers under the opaque terrain
+  - GPU camera (`camera_set`, column-major 3×3 world→screen view matrix): pre-multiplied into every world-space draw's parent on the GPU, so a pan/zoom is one uniform update, not an instance-buffer re-upload; `ScreenSpaceSprite`s bypass it
+  - Offscreen render targets (`GpuFramebuffer`, RGBA8 + depth texture, RAII): `render_target_create` / `_begin` / `_end` / `_with` / `_draw` and `render_targets_reset` bake a subset of the frame into a texture and composite it back as a world quad; surfaces are addressed by a typed `RenderTargetId` whose generation check rejects handles kept across `render_targets_reset`; `textures_loaded` / `max_texture_size` gate the bake. `render_target_begin` / `render_target_end` call `invalidate_framebuffer` on the attachments a tiled GPU needn't load/store (colour+depth before the clear, write-only depth before unbind). `submit` clears any leftover bound batch so several renderers can share one backend
   - Shaders: `sprite.vert/frag`, `sprite_batch.vert/frag`, `mesh.vert/frag`, `mesh_batch.vert/frag`
 - **WebGPU / native / no-op adapters** — `adapter-webgpu`, `adapter-native`, `adapter-none` via
   `gpu_hal`, adopted in `docs/adr/003_d2_stack_hal_adoption.md` (supersedes the earlier
@@ -79,8 +89,10 @@ tilemap_renderer/           # Single crate with feature-gated adapters
 │       ├── svg.rs          # SVG 1.1 backend
 │       ├── webgl.rs        # WebGL2 backend entry point (WebGlBackend)
 │       ├── webgl/          # WebGL submodule layers
+│       │   ├── render_target.rs    # RenderTargetId, generation-checked slot table
 │       │   ├── webgl_helpers.rs    # ArrayBuffer, GPU handles, GL mappers, batch types
 │       │   ├── webgl_renderers.rs  # Sprite / mesh renderers
+│       │   ├── webgl_surfaces.rs   # Render targets, scissor, fill, tiled image (WebGlBackend methods)
 │       │   └── webgl_textures.rs   # Texture upload, async image loader
 │       ├── terminal.rs     # Terminal backend (ANSI-truecolor character-cell grid)
 │       └── shaders/        # GLSL shaders for WebGL

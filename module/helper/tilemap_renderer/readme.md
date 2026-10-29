@@ -31,8 +31,10 @@ tilemap_renderer/
     ├── svg.rs      # SVG 1.1 document generation
     ├── webgl.rs    # WebGL2 hardware-accelerated rendering (wasm32)
     ├── webgl/
+    │   ├── render_target.rs    # RenderTargetId and its generation-checked slot table
     │   ├── webgl_helpers.rs    # Self-contained WebGL types (ArrayBuffer, GPU handles, GL mappers)
     │   ├── webgl_renderers.rs  # Sprite / mesh renderers: shader programs and draw calls
+    │   ├── webgl_surfaces.rs   # Cache surfaces: render targets, scissor, fill, tiled image
     │   └── webgl_textures.rs   # Texture upload: sync bitmaps, async image loader
     ├── terminal.rs # ANSI-truecolor character-cell rendering (coarse resolution)
     ├── none.rs     # complete no-op — math-only simulation, no rendering
@@ -97,6 +99,8 @@ let Output::String( doc ) = svg.output()? else { unreachable!() };
 | Effects | yes | — | — | — | — | — |
 | Blend modes | yes | partial² | partial⁷ | — | —⁵ | —⁵ |
 | Premultiplied images | —⁸ | yes | —⁸ | — | —⁸ | —⁸ |
+| Depth buffer | — | yes¹⁰ | — | — | — | — |
+| GPU camera | — | yes⁹ | — | — | — | — |
 | Viewport pan/zoom | yes | partial | — | — | — | — |
 
 > **Terminal** adapter downsamples world coordinates onto a fixed character-cell grid
@@ -170,6 +174,24 @@ let Output::String( doc ) = svg.output()? else { unreachable!() };
 >
 > `Capabilities::premultiplied_images` reports the flag's support at runtime: `true` for
 > WebGL only.
+>
+> **Depth buffer** is `Capabilities::depth`: the adapter honours `SetDepthWrite`,
+> `Transform::depth` and a batch's `occlude_overlap`. Without it every draw lands in
+> command order, so a caller that orders draws by depth must keep painter's order itself;
+> `tilemap_scene`'s `Renderer::capabilities_set` does when `depth` is `false`.
+>
+> ⁹ The GPU camera is WebGL only: `WebGlBackend::camera_set` is an inherent method, not
+> part of `Backend`, and no command carries a camera. The other adapters draw world
+> coordinates as viewport pixels. `Capabilities::camera` says which: `true` for WebGL
+> only. `tilemap_scene` emits world draws in world coordinates and leaves the view matrix
+> to `camera_set`, so on another adapter its camera does not move world draws; given the
+> backend's capabilities ( `Renderer::capabilities_set` ) it also leaves its one
+> CPU-zoomed draw, a repeat-tiled viewport backdrop, unzoomed there. SVG's `viewport_offset_set` / `viewport_scale_set`
+> transform the whole document, `ScreenSpaceSprite`s included, so they are not a
+> replacement.
+>
+> ¹⁰ When the context has one: `WebGlBackend::new` reads `DEPTH_BITS`, so a context
+> created with `depth : false` reports `Capabilities::depth == false`.
 
 ## known issues / TODO
 
