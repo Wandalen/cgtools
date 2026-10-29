@@ -122,7 +122,7 @@ crate::mod_interface!
   own use position_bounds_dequantize;
 }
 
-// Only `gltf.rs`'s morph target reader calls it.
+// Only `gltf_skeleton`'s morph target reader, `skeleton_displacements_data_load`, calls it.
 pub( crate ) use private::accessor_vec3_read;
 
 /// `accessor_vec3_read`, reachable from `tests/` under `test_internals`. Without the feature
