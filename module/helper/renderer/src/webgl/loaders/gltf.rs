@@ -1,9 +1,9 @@
 mod private
 {
   use std::{ cell::RefCell, rc::Rc };
-  use gltf::mesh::iter::MorphTargets;
   use crate::webgl::loaders::gltf_extensions::{ document_validate, material_layer_extensions_apply };
-  use mingl::F32x3;
+  use crate::webgl::loaders::gltf_buffers::{ buffers_load, cpu_buffers_needed };
+  use crate::webgl::loaders::gltf_quantization::position_bounds_dequantize;
   use minwebgl as gl;
   use gl::
   {
@@ -12,7 +12,6 @@ mod private
   };
   use crate::webgl::
   {
-    skeleton,
     AlphaMode,
     AttributeInfo,
     Geometry,
@@ -23,7 +22,6 @@ mod private
     Mesh,
     MinFilterMode,
     Node,
-    Object3D,
     Primitive,
     Sampler,
     Scene,
@@ -31,20 +29,11 @@ mod private
     TextureInfo,
     ToFromGlEnum,
     WrappingMode,
-    Light,
-    PointLight,
-    DirectLight,
-    SpotLight,
     helpers
   };
   use web_sys::wasm_bindgen::prelude::Closure;
 
   use rustc_hash::FxHashMap;
-  use
-  {
-    crate::webgl::Skeleton,
-    gl::F32x4x4
-  };
 
   #[ cfg( feature = "animation" ) ]
   use crate::webgl::animation::Animation;
@@ -88,439 +77,16 @@ mod private
   /// A material shared between primitives, mutable behind `Rc< RefCell< _ > >`.
   pub type SharedMaterial = Rc< RefCell< Box< dyn Material > > >;
 
-  /// Reads a skin's inverse bind matrices and resolves each joint to its node by
-  /// [`gltf::Node::index()`] against the flat, index-ordered `nodes` slice -- the same
-  /// resolution convention every other node lookup in this loader uses.
-  #[ must_use ]
-  pub fn skeleton_transforms_data_load
-  (
-    skin : &gltf::Skin< '_ >,
-    nodes : &[ Rc< RefCell< Node > > ],
-    buffers : &[ Vec< u8 > ]
-  )
-  -> Option< skeleton::TransformsData >
-  {
-    let reader = skin.reader
-    (
-      | buffer | Some( buffers[ buffer.index() ].as_slice() )
-    );
+  // The skin and morph target readers live in `gltf_skeleton`, the light readers in
+  // `gltf_lights`; their public functions are re-exported here, where they have always been.
+  pub use crate::webgl::loaders::gltf_skeleton::{ skeleton_transforms_data_load, skeleton_displacements_data_load };
+  pub use crate::webgl::loaders::gltf_lights::{ light_list_get, light_get };
+  // So does the node and scene assembly, in `gltf_scene`.
+  pub use crate::webgl::loaders::gltf_scene::{ RiggedNode, NodesCreated, nodes_create, skeletons_attach, scenes_create };
 
-    let inverse_bind_matrices_iter = reader.read_inverse_bind_matrices()?;
-
-    let matrices = inverse_bind_matrices_iter
-    .map
-    (
-      | m |
-      {
-        let mut matrix = [ 0.0_f32; 16 ];
-        for ( dst, src ) in matrix.iter_mut().zip( m.iter().flatten() )
-        {
-          *dst = *src;
-        }
-        F32x4x4::from_column_major( matrix )
-      }
-    )
-    .collect::< Vec< _ > >();
-
-    // Fix(BUG-173): joints were resolved by matching `joint.name()` against a name-keyed
-    // map, silently dropping any joint whose node had no `name` (optional per glTF spec)
-    // or whose name collided with another node's -- corrupting every subsequent joint's
-    // binding once one was dropped, since `JOINTS_0`/`JOINTS_1` vertex attributes index
-    // this list positionally.
-    // Root cause: `skin.joints()`'s iteration position IS the joint index vertex data
-    // references, but resolution went through a name lookup instead of `joint.index()`
-    // against the flat, index-ordered node list every other lookup in this file already
-    // uses.
-    // Pitfall: an optional, non-unique glTF field (node name) used as a resolution key
-    // for data that is actually positionally/numerically indexed is a silent-drop trap --
-    // it only surfaces once an asset has an unnamed or duplicate-named joint node.
-    let joints = skin.joints()
-    .zip( matrices )
-    .map( | ( joint, matrix ) | ( nodes[ joint.index() ].clone(), matrix ) )
-    .collect::< Vec< _ > >();
-
-    Some( skeleton::TransformsData::new( joints ) )
-  }
-
-  /// Packs a glTF primitive's morph-target position / normal / tangent
-  /// displacements ( plus mesh-level morph weights ) into a
-  /// [`skeleton::DisplacementsData`], or `None` if `primitives_morph_targets`
-  /// is `None`. Pure data transform over the parsed document and raw buffer
-  /// bytes -- no GL calls.
-  ///
-  /// # Panics
-  ///
-  /// Does not panic under normal control flow : `targets_pack`'s two
-  /// `.unwrap()` calls only run once `targets_array.first()` is known to be
-  /// `Some`, guarded immediately above by `targets_array.is_empty()`.
-  #[ must_use ]
-  pub fn skeleton_displacements_data_load
-  (
-    primitives_morph_targets : Option< &Vec< MorphTargets< '_ > > >,
-    primitives_vertices_count : &[ usize ],
-    weights : Option< Vec< f32 > >,
-    buffers : &[ Vec< u8 > ]
-  )
-  -> Option< skeleton::DisplacementsData >
-  {
-    fn targets_pack
-    (
-      targets_array : &[ Vec< [ f32; 3 ] > ]
-    )
-    -> Vec< [ f32; 3 ] >
-    {
-      if targets_array.is_empty()
-      {
-        return vec![];
-      }
-      let mut packed_array = Vec::with_capacity( targets_array.first().unwrap().len() * targets_array.len() );
-      for i in 0..targets_array.first().unwrap().len()
-      {
-        let targets_item = targets_array.iter()
-        .map( | arr | arr[ i ] )
-        .collect::< Vec< _ > >();
-        packed_array.extend( targets_item );
-      }
-
-      packed_array
-    }
-
-    let get_target_array = | acc : gltf::Accessor< '_ > |
-    {
-      gltf::mesh::util::ReadPositionDisplacements::new
-      (
-        acc,
-        | buffer | buffers.get( buffer.index() ).map( std::vec::Vec::as_slice )
-      )
-      .map( std::iter::Iterator::collect::< Vec< _ > > )
-    };
-
-    let skin_vertices_count = primitives_vertices_count.iter().sum::< usize >();
-    let ( positions, normals, tangents ) =
-    {
-      let primitives_morph_targets = primitives_morph_targets?;
-
-      let mut skin_positions = Vec::with_capacity( skin_vertices_count );
-      let mut skin_normals = Vec::with_capacity( skin_vertices_count );
-      let mut skin_tangents = Vec::with_capacity( skin_vertices_count );
-
-      for ( i, morph_targets ) in primitives_morph_targets.iter().enumerate()
-      {
-        let vertices_count = primitives_vertices_count[ i ];
-        let mut targets_positions = Vec::with_capacity( vertices_count );
-        let mut targets_normals = Vec::with_capacity( vertices_count );
-        let mut targets_tangents = Vec::with_capacity( vertices_count );
-
-        for morph_target in morph_targets.clone()
-        {
-          if let Some( positions ) = morph_target.positions()
-          .and_then(get_target_array)
-          {
-            targets_positions.push( positions );
-          }
-          else
-          {
-            targets_positions.push( vec![ [ 0.0; 3 ]; vertices_count ] );
-          }
-
-          if let Some( normals ) = morph_target.normals()
-          .and_then(get_target_array)
-          {
-            targets_normals.push( normals );
-          }
-          else
-          {
-            targets_normals.push( vec![ [ 0.0; 3 ]; vertices_count ] );
-          }
-
-          if let Some( tangents ) = morph_target.tangents()
-          .and_then(get_target_array)
-          {
-            targets_tangents.push( tangents );
-          }
-          else
-          {
-            targets_tangents.push( vec![ [ 0.0; 3 ]; vertices_count ] );
-          }
-        }
-
-        let primitive_positions = targets_pack( &targets_positions );
-        let primitive_normals = targets_pack( &targets_normals );
-        let primitive_tangents = targets_pack( &targets_tangents );
-
-        skin_positions.extend( primitive_positions );
-        skin_normals.extend( primitive_normals );
-        skin_tangents.extend( primitive_tangents );
-      }
-
-      (
-        ( !skin_positions.is_empty() ).then_some( skin_positions ),
-        ( !skin_normals.is_empty() ).then_some( skin_normals ),
-        ( !skin_tangents.is_empty() ).then_some( skin_tangents )
-      )
-    };
-
-    let mut displacements = skeleton::DisplacementsData::new();
-
-    let _ = displacements.displacement_set( positions, &gltf::Semantic::Positions, skin_vertices_count );
-    let _ = displacements.displacement_set( normals, &gltf::Semantic::Normals, skin_vertices_count );
-    let _ = displacements.displacement_set( tangents, &gltf::Semantic::Tangents, skin_vertices_count );
-    if let Some( weights ) = weights
-    {
-      let weights_rc = displacements.morph_weights_get();
-      *weights_rc.borrow_mut() = weights;
-    }
-
-    Some( displacements )
-  }
-
-  /// Loads [`Skeleton`] for one [`Mesh`]
-  fn skeleton_load
-  (
-    skin : Option< gltf::Skin< '_ > >,
-    nodes : &[ Rc< RefCell< Node > > ],
-    primitives_morph_targets : Option< &Vec< MorphTargets< '_ > > >,
-    primitives_vertices_count : &[ usize ],
-    weights : Option< Vec< f32 > >,
-    buffers : &[ Vec< u8 > ]
-  )
-  -> Option< Rc< RefCell< Skeleton > > >
-  {
-    let mut skeleton = Skeleton::new();
-
-    *skeleton.transforms_as_mut() = skin
-    .and_then(| s | skeleton_transforms_data_load( &s, nodes, buffers ));
-    *skeleton.displacements_as_mut() = skeleton_displacements_data_load
-    (
-      primitives_morph_targets,
-      primitives_vertices_count,
-      weights,
-      buffers
-    );
-
-    if skeleton.has_skin() || skeleton.has_morph_targets()
-    {
-      Some( Rc::new( RefCell::new( skeleton ) ) )
-    }
-    else
-    {
-      None
-    }
-  }
-
-  /// Extracts all `KHR_lights_punctual` lights from a parsed glTF document, keyed by their light index.
-  #[ must_use ]
-  pub fn light_list_get( gltf : &gltf::Gltf ) -> Option< FxHashMap< usize, Light > >
-  {
-    let mut lights = FxHashMap::default();
-    for ( i, gltf_light ) in gltf.lights()?.enumerate()
-    {
-      let light_type = gltf_light.kind();
-      let light =  match light_type
-      {
-        gltf::khr_lights_punctual::Kind::Point =>
-        {
-          let Some( range ) = gltf_light.range()
-          else
-          {
-            continue;
-          };
-          Light::Point
-          (
-            PointLight
-            {
-              position : F32x3::default(),
-              color : F32x3::from_slice( &gltf_light.color() ),
-              strength : gltf_light.intensity(),
-              range
-            }
-          )
-        },
-        gltf::khr_lights_punctual::Kind::Directional =>
-        {
-          Light::Direct
-          (
-            DirectLight
-            {
-              direction : F32x3::default(),
-              color : F32x3::from_slice( &gltf_light.color() ),
-              strength : gltf_light.intensity(),
-            }
-          )
-        },
-        gltf::khr_lights_punctual::Kind::Spot { inner_cone_angle, outer_cone_angle } =>
-        {
-          let color = gltf_light.color();
-          let strength = gltf_light.intensity();
-          let range = gltf_light.range().unwrap_or( 10.0 );
-
-          Light::Spot
-          (
-            SpotLight
-            {
-              position : F32x3::default(),
-              direction : F32x3::default(),
-              color: color.into(),
-              strength,
-              range,
-              inner_cone_angle,
-              outer_cone_angle,
-              use_light_map : false,
-            }
-          )
-        }
-      };
-
-      lights.insert( i, light );
-    }
-
-    Some( lights )
-  }
-
-  /// Resolves the [`Light`] a glTF node's `KHR_lights_punctual` extension references
-  /// (looked up by index in `lights`, e.g. from [`light_list_get`]), positioned/oriented
-  /// using `node`'s own resolved translation/rotation.
-  #[ must_use ]
-  pub fn light_get< S : std::hash::BuildHasher >( gltf_node : &gltf::Node< '_ >, node : &Node, lights : &std::collections::HashMap< usize, Light, S > ) -> Option< Light >
-  {
-    // Fix(BUG-189): the node-level `KHR_lights_punctual` reference was read via
-    // `gltf_node.extensions()`, the catch-all for extension data *unknown* to this crate
-    // version -- but `KHR_lights_punctual` is a named, typed field this crate's `gltf-json`
-    // deserializes separately (`#[serde(rename = "KHR_lights_punctual")]`), so `#[serde(flatten)]`
-    // never leaves it in that catch-all. `get_key_value` always returned `None`, so this
-    // function never resolved a single node-level light reference, for any glTF asset.
-    // Root cause: this crate exposes a dedicated typed accessor, `gltf::Node::light()`, for
-    // exactly this extension (gated by the same `KHR_lights_punctual` Cargo feature this crate
-    // already enables) -- `light_list_get` two functions up already uses the equivalent
-    // document-level typed accessor (`gltf.lights()`), only this per-node lookup didn't.
-    // Pitfall: a crate offering both a generic "unknown extensions" catch-all and a typed
-    // accessor for a *specific* known extension makes the catch-all silently exclude that
-    // extension the moment its typed-support feature is enabled -- reaching for the generic
-    // path out of habit, instead of the type's own dedicated accessor, fails silently (`None`),
-    // never a compile error.
-    let light_id = gltf_node.light()?.index();
-
-    lights.get( &light_id ).copied()
-    .map
-    (
-      | light |
-      {
-        match light
-        {
-          Light::Point( mut point_light ) =>
-          {
-            point_light.position = node.translation_get();
-            Light::Point( point_light )
-          },
-          // Fix(BUG-172): both arms used to derive `direction` from `node.translation_get()` --
-          // a light's world position, not its facing direction. `Direct` only fell back to the
-          // (correct) rotation-based formula when the raw translation's magnitude was below
-          // `DIRECTION_LIGHT_MIN_MAGNITUDE`, i.e. only for a light sitting within 1cm of the
-          // world origin; `Spot` had no rotation-based fallback at all.
-          // Root cause: per glTF's `KHR_lights_punctual`, facing direction comes exclusively
-          // from the node's rotation (local -Z axis) -- never its translation. Both arms now
-          // compute it unconditionally the same way.
-          // Pitfall: a magnitude-gated "fallback" that's actually the only physically correct
-          // formula silently masks the bug for every test fixture that happens to sit near the
-          // origin, while still being wrong for every other placement.
-          Light::Direct( mut direct_light ) =>
-          {
-            let forward = gl::F32x3::from_array( [ 0.0, 0.0, -1.0 ] );
-            let rot_matrix = gl::math::d2::F32x3x3::from_quat( node.rotation_get() );
-            direct_light.direction = ( rot_matrix * forward ).normalize();
-            Light::Direct( direct_light )
-          },
-          Light::Spot( mut spot_light ) =>
-          {
-            let forward = gl::F32x3::from_array( [ 0.0, 0.0, -1.0 ] );
-            let rot_matrix = gl::math::d2::F32x3x3::from_quat( node.rotation_get() );
-            spot_light.position = node.translation_get();
-            spot_light.direction = ( rot_matrix * forward ).normalize();
-            Light::Spot( spot_light )
-          }
-        }
-      }
-    )
-  }
-
-  /// Resolves a glTF asset `uri` (buffer or image) against the model's `folder_path`.
-  ///
-  /// URIs that already carry their own location are returned unchanged, because
-  /// prefixing `folder_path` would corrupt them:
-  /// * absolute / protocol-relative URLs (`http://`, `https://`, `//`),
-  /// * self-contained URIs (`blob:`, `data:`),
-  /// * origin-absolute paths (leading `/`).
-  ///
-  /// Everything else is treated as folder-relative and joined with a single `/`.
-  ///
-  /// When `folder_path` is empty (the glTF was loaded from a bare filename, so it
-  /// sits at the origin root) a folder-relative `uri` resolves to `"/{uri}"`. This
-  /// is intentional and harmless: `url_resolve` joins both `"/buffer.bin"` and
-  /// `"buffer.bin"` against the origin to the same `"{origin}/buffer.bin"`. A glTF
-  /// served from a subdirectory must be loaded with that directory in `gltf_path`
-  /// (e.g. `"assets/scene.gltf"`), otherwise the glTF fetch itself fails first.
-  #[ must_use ]
-  pub fn asset_uri_resolve( folder_path : &str, uri : &str ) -> String
-  {
-    // `gl::file::load` already resolves self-contained URLs and origin-absolute
-    // paths against the window origin; only genuinely folder-relative URIs need
-    // the model's folder prefix folded in.
-    if gl::file::is_self_contained_url( uri ) || uri.starts_with( '/' )
-    {
-      uri.to_string()
-    }
-    else
-    {
-      format!( "{folder_path}/{uri}" )
-    }
-  }
-
-  /// Collects the raw byte payload of every glTF buffer : the embedded GLB
-  /// binary chunk first ( when present ), then each URI-addressed buffer
-  /// fetched relative to `folder_path`.
-  async fn buffers_load
-  (
-    gltf_file : &mut gltf::Gltf,
-    folder_path : &str
-  )
-  -> Result< Vec< gl::js_sys::Uint8Array >, gl::WebglError >
-  {
-    let mut buffers : Vec< gl::js_sys::Uint8Array > = Vec::new();
-
-    // Move the GLB bin into buffers
-    if let Some( blob ) = gltf_file.blob.as_mut()
-    {
-      let blob = std::mem::take( blob );
-      gl::debug!( "The gltf binary payload is present: {}", blob.len() );
-      buffers.push( blob.as_slice().into() );
-    }
-
-    for gltf_buffer in gltf_file.buffers()
-    {
-      if let gltf::buffer::Source::Uri( uri ) = gltf_buffer.source()
-      {
-        let path = asset_uri_resolve( folder_path, uri );
-        let buffer = gl::file::load( &path ).await
-        .map_err( | e |
-        {
-          gl::browser::error!( "Failed to load gltf buffer '{path}': {e:?}" );
-          gl::WebglError::Other( "Failed to load a buffer" )
-        } )?;
-
-        gl::debug!
-        (
-          "Buffer path: {}\n
-          \tBuffer length: {}",
-          path,
-          buffer.len()
-        );
-
-        buffers.push( buffer.as_slice().into() );
-      }
-    }
-
-    Ok( buffers )
-  }
+  // Lives in `gltf_uri` so that `gltf_buffers` can use it without importing this module, which
+  // imports `gltf_buffers`; re-exported here, where it has always been.
+  pub use crate::webgl::loaders::gltf_uri::asset_uri_resolve;
 
   std::thread_local!
   {
@@ -912,8 +478,9 @@ mod private
   }
 
   /// Uploads every supported vertex attribute of one glTF primitive into its
-  /// [`Geometry`], registering skinning / morph shader defines on
-  /// `dummy_material` as they are encountered.
+  /// [`Geometry`], registering the tangent and skinning ( joints / weights )
+  /// shader defines on `dummy_material` as they are encountered. Morph targets
+  /// are read separately, by `gltf_skeleton`.
   fn geometry_attributes_add
   (
     gl : &gl::WebGl2RenderingContext,
@@ -942,7 +509,12 @@ mod private
         gltf::Semantic::Positions =>
         {
           geometry.vertex_count = acc.count() as u32;
-          let gltf_box = gltf_primitive.bounding_box();
+          let gltf_box = position_bounds_dequantize
+          (
+            gltf_primitive.bounding_box(),
+            acc.data_type(),
+            acc.normalized()
+          );
 
           let mut attr_info = attribute_info_make( gl_buffers, &acc, 0 );
           attr_info.bounding_box = BoundingBox::new( gltf_box.min, gltf_box.max );
@@ -1180,212 +752,14 @@ mod private
     Ok( meshes )
   }
 
-  /// A node prepared for skeleton attachment : the node, its glTF skin, its
-  /// primitives' morph targets, and its mesh's morph weights.
-  pub type RiggedNode< 'a > =
-  (
-    Rc< RefCell< Node > >,
-    Option< gltf::Skin< 'a > >,
-    Option< Vec< MorphTargets< 'a > > >,
-    Option< Vec< f32 > >
-  );
-
-  /// Product of [`nodes_create`] : the flat node list, per-node
-  /// skeleton-attachment data, and the nodes carrying lights.
-  pub struct NodesCreated< 'a >
-  {
-    /// Every node in the glTF document, in document order, with hierarchy
-    /// wired via [`Node::child_add`] and transform/object resolved.
-    pub nodes : Vec< Rc< RefCell< Node > > >,
-    rigged_nodes : Vec< RiggedNode< 'a > >,
-    /// The subset of `nodes` whose `object` resolved to [`Object3D::Light`].
-    pub lights : Vec< Rc< RefCell< Node > > >
-  }
-
-  /// Instantiates every glTF node with its transform and object ( mesh,
-  /// light, or plain ), wires the child hierarchy, and returns the flat node
-  /// list, skeleton-attachment data, and the light nodes. Pure data
-  /// transform over the parsed document and pre-built meshes -- no GL calls.
-  #[ must_use ]
-  pub fn nodes_create< 'a >
-  (
-    gltf_file : &'a gltf::Gltf,
-    meshes : &[ Rc< RefCell< Mesh > > ]
-  )
-  -> NodesCreated< 'a >
-  {
-    let gltf_lights = light_list_get( gltf_file ).unwrap_or_default();
-
-    let mut nodes = Vec::new();
-    let mut rigged_nodes = Vec::new();
-    let mut lights = Vec::new();
-
-    for gltf_node in gltf_file.nodes()
-    {
-      let mut node = Node::default();
-      node.visibility_set( true, true );
-      let mut is_light = false;
-
-      let ( translation, rotation, scale ) = gltf_node.transform().decomposed();
-      node.scale_set( scale );
-      node.translation_set( translation );
-      node.rotation_set( gl::QuatF32::from( rotation ) );
-
-      node.object = if let Some( mesh ) = gltf_node.mesh()
-      {
-        Object3D::Mesh( meshes[ mesh.index() ].clone() )
-      }
-      else if let Some( light ) = light_get( &gltf_node, &node, &gltf_lights )
-      {
-        is_light = true;
-        Object3D::Light( light )
-      }
-      else
-      {
-        Object3D::Other
-      };
-
-      if let Some( name ) = gltf_node.name() { node.name_set( name ); }
-
-      let node = Rc::new( RefCell::new( node ) );
-
-      let ( primitives_morph_targets, weights ) = if let Some( mesh ) = gltf_node.mesh()
-      {
-        (
-          Some( mesh.primitives().map( | p | p.morph_targets() ).collect::< Vec< _ > >() ),
-          mesh.weights().map( <[f32]>::to_vec )
-        )
-      }
-      else
-      {
-        ( None, None )
-      };
-      rigged_nodes.push( ( node.clone(), gltf_node.skin(), primitives_morph_targets, weights ) );
-
-      if is_light
-      {
-        lights.push( node.clone() );
-      }
-
-      nodes.push( node );
-    }
-
-    for gltf_node in gltf_file.nodes()
-    {
-      let mut node = nodes[ gltf_node.index() ].borrow_mut();
-      for child in gltf_node.children()
-      {
-        node.child_add( nodes[ child.index() ].clone() );
-      }
-    }
-
-    NodesCreated { nodes, rigged_nodes, lights }
-  }
-
-  /// Attaches a [`Skeleton`] to every rigged mesh, switching its materials
-  /// onto the skinning / morph-target shader paths. A rigged node with no
-  /// skin and no morph targets is a no-op : [`skeleton_load`] returns `None`
-  /// and the mesh's `skeleton` field ( and its material's defines ) are left
-  /// untouched -- the only GL call on this path, `PbrMaterial::define_add`,
-  /// is only ever reached once a real [`Skeleton`] comes back.
-  pub fn skeletons_attach
-  (
-    nodes : &[ Rc< RefCell< Node > > ],
-    rigged_nodes : Vec< RiggedNode< '_ > >,
-    bin_buffers : &[ Vec< u8 > ]
-  )
-  {
-    for ( node, skin, primitives_morph_targets, weights ) in rigged_nodes
-    {
-      if let Object3D::Mesh( mesh ) = &node.borrow().object
-      {
-        let primitives_vertices_count = mesh.borrow().primitives.iter()
-        .map( | p | p.borrow().geometry.borrow().vertex_count as usize )
-        .collect::< Vec< _ > >();
-        if let Some( skeleton ) = skeleton_load
-        (
-          skin,
-          nodes,
-          primitives_morph_targets.as_ref(),
-          primitives_vertices_count.as_slice(),
-          weights,
-          bin_buffers
-        )
-        {
-          mesh.borrow_mut().skeleton = Some( skeleton.clone() );
-          for primitive in &mesh.borrow().primitives
-          {
-            let p = primitive.borrow();
-            let mut mat_mut = helpers::cast_unchecked_material_to_ref_mut::< PbrMaterial >(  p.material.borrow_mut() );
-
-            if skeleton.borrow().has_skin()
-            {
-              mat_mut.define_add( "USE_SKINNING", String::new() );
-            }
-
-            if skeleton.borrow().has_morph_targets()
-            {
-              mat_mut.define_add( "USE_MORPH_TARGET", String::new() );
-            }
-          }
-        }
-      }
-    }
-  }
-
-  /// Builds every glTF scene from the instantiated nodes and computes the
-  /// initial world matrices. Pure data transform over already-instantiated
-  /// nodes -- no GL calls.
-  #[ must_use ]
-  pub fn scenes_create
-  (
-    gltf_file : &gltf::Gltf,
-    nodes : &[ Rc< RefCell< Node > > ]
-  )
-  -> Vec< Rc< RefCell< Scene > > >
-  {
-    let mut scenes = Vec::new();
-
-    for gltf_scene in gltf_file.scenes()
-    {
-      let mut scene = Scene::default();
-      for gltf_node in gltf_scene.nodes()
-      {
-        scene.add( nodes[ gltf_node.index() ].clone() );
-      }
-      scene.world_matrix_update();
-      scenes.push( Rc::new( RefCell::new( scene ) ) );
-    }
-
-    scenes
-  }
-
-  /// Asynchronously loads a glTF (GL Transmission Format) file and its associated resources.
+  /// Fetches, parses and validates the glTF file at `gltf_path` : the first stage of [`load`].
   ///
   /// # Errors
   ///
-  /// Returns `WebglError` if fetching or parsing the glTF file or its buffers fails, or if the
-  /// glTF asset fails validation, including an `extensionsRequired` entry this loader doesn't
-  /// support ( see [`document_validate`] ).
-  ///
-  /// # Panics
-  ///
-  /// Panics if the path is not UTF-8, or if texture creation/upload fails.
-  pub async fn load
-  (
-    document : &gl::web_sys::Document,
-    gltf_path : &str,
-    gl : &gl::WebGl2RenderingContext
-  ) -> Result< GLTF, gl::WebglError >
+  /// Returns `WebglError::Other`, with the details on the console, when the fetch or the parse
+  /// fails, or the asset fails [`document_validate`].
+  async fn document_read( gltf_path : &str ) -> Result< gltf::Gltf, gl::WebglError >
   {
-    gl.bind_vertex_array( None );
-
-    let path = std::path::Path::new( gltf_path );
-    let folder_path = path.parent().map_or( "", | p | p.to_str().expect( "Path is not UTF-8 encoded" ) );
-    gl::debug!( "Folder: {folder_path}\nFile: {gltf_path}" );
-
-    // let gltf_slice= gl::file::load( &format!( "{}/scene.gltf", gltf_path ) )
-    // .await.expect( "Failed to load gltf file" );
     // Propagate fetch / parse failures as errors instead of panicking: an
     // `.unwrap()` here aborts the whole wasm module (e.g. when a dev server
     // returns an HTML 404 page, or the bytes are not a valid glTF/GLB), leaving
@@ -1403,7 +777,7 @@ mod private
     // Parsed without `gltf`'s own validation, which would reject any required extension
     // outside `gltf-json`'s typed list ( see `document_validate` ); `document_validate` runs
     // the same checks with this loader's extension rule right below.
-    let mut gltf_file = gltf::Gltf::from_slice_without_validation( &gltf_slice )
+    let gltf_file = gltf::Gltf::from_slice_without_validation( &gltf_slice )
     .map_err( | e |
     {
       gl::browser::error!( "Failed to parse gltf file '{gltf_path}': {e}" );
@@ -1415,35 +789,127 @@ mod private
     // support. Checked immediately after parsing, before any buffer/image/GL work.
     document_validate( &gltf_file )
     .inspect_err( | _ | gl::browser::error!( "Invalid gltf file '{gltf_path}'" ) )?;
+    Ok( gltf_file )
+  }
 
-    let buffers = buffers_load( &mut gltf_file, folder_path ).await?;
+  /// The buffer stage of [`load`] : every buffer's bytes as JS arrays, with the meshopt views
+  /// decoded into them, and a copy in wasm memory when a CPU-side reader needs one (
+  /// [`cpu_buffers_needed`] ), empty otherwise.
+  ///
+  /// # Errors
+  ///
+  /// Returns what `buffers_load` and `meshopt::views_decode` return.
+  async fn buffers_prepare
+  (
+    gltf_file : &mut gltf::Gltf,
+    folder_path : &str
+  )
+  -> Result< ( Vec< gl::js_sys::Uint8Array >, Vec< Vec< u8 > > ), gl::WebglError >
+  {
+    let buffers = buffers_load( gltf_file, folder_path ).await?;
+    crate::webgl::loaders::meshopt::views_decode( gltf_file, &buffers ).await?;
 
-    let bin_buffers = buffers.iter()
-    .map( minwebgl::js_sys::Uint8Array::to_vec )
-    .collect::< Vec< _ > >();
+    let bin_buffers = if cpu_buffers_needed( gltf_file )
+    {
+      buffers.iter().map( gl::js_sys::Uint8Array::to_vec ).collect()
+    }
+    else
+    {
+      Vec::new()
+    };
+    Ok( ( buffers, bin_buffers ) )
+  }
 
+  /// What [`gpu_resources_create`] uploads and builds for [`load`].
+  struct GpuResources
+  {
+    images : Rc< RefCell< Vec< gl::web_sys::WebGlTexture > > >,
+    gl_buffers : Vec< gl::WebGlBuffer >,
+    textures : Vec< Rc< RefCell< Texture > > >,
+    /// The materials the meshes use, with each per-primitive variation.
+    used_materials : Vec< SharedMaterial >,
+    meshes : Vec< Rc< RefCell< Mesh > > >,
+  }
+
+  /// The GPU stage of [`load`] : uploads the images and the buffers, and builds the textures,
+  /// the materials and the meshes over them.
+  ///
+  /// # Errors
+  ///
+  /// Returns what `gl_buffers_upload` and `meshes_create` return.
+  fn gpu_resources_create
+  (
+    document : &gl::web_sys::Document,
+    gl : &gl::WebGl2RenderingContext,
+    gltf_file : &gltf::Gltf,
+    folder_path : &str,
+    buffers : &[ gl::js_sys::Uint8Array ],
+  )
+  -> Result< GpuResources, gl::WebglError >
+  {
     gl::debug!( "Buffers: {}", buffers.len() );
 
-    let images = images_upload( document, gl, &gltf_file, folder_path, &buffers );
+    let images = images_upload( document, gl, gltf_file, folder_path, buffers );
 
     gl::debug!( "Images: {}", images.borrow().len() );
 
-    let gl_buffers = gl_buffers_upload( gl, &gltf_file, &buffers )?;
+    let gl_buffers = gl_buffers_upload( gl, gltf_file, buffers )?;
 
     gl::debug!( "GL Buffers: {}", gl_buffers.len() );
 
-    let textures = textures_create( &gltf_file, &images );
+    let textures = textures_create( gltf_file, &images );
 
-    let ( materials, mut material_variation_map ) = materials_create( gl, &gltf_file, &textures );
+    let ( materials, mut material_variation_map ) = materials_create( gl, gltf_file, &textures );
     let mut used_materials : Vec< SharedMaterial > = Vec::new();
 
     gl::debug!( "PbrMaterials: {}",materials.len() );
     let meshes = meshes_create
     (
-      gl, &gltf_file, &gl_buffers, &materials, &mut material_variation_map, &mut used_materials
+      gl, gltf_file, &gl_buffers, &materials, &mut material_variation_map, &mut used_materials
     )?;
 
     gl::debug!( "Meshes: {}",meshes.len() );
+
+    Ok( GpuResources { images, gl_buffers, textures, used_materials, meshes } )
+  }
+
+  /// Asynchronously loads a glTF (GL Transmission Format) file and its associated resources.
+  ///
+  /// # Errors
+  ///
+  /// Returns `WebglError`, with the details on the console, when :
+  /// - fetching or parsing the glTF file fails;
+  /// - the asset fails validation, including an `extensionsRequired` entry this loader doesn't
+  ///   support ( see [`document_validate`] );
+  /// - a buffer cannot be loaded : a fetch fails, a buffer other than buffer 0 has no uri,
+  ///   buffer 0 has no uri and the file no GLB binary chunk, or the meshopt fallback buffers
+  ///   declare more bytes together than the loader allocates for one document;
+  /// - an uncompressed buffer view reaches past the end of its buffer;
+  /// - meshopt decoding fails, for any reason `meshopt::views_decode` lists : a buffer view or
+  ///   buffer breaking a meshopt rule, overlapping views, the decoder failing to initialise, or
+  ///   the decoder rejecting the data.
+  ///
+  /// # Panics
+  ///
+  /// Panics if the path is not UTF-8, or if texture creation/upload fails.
+  pub async fn load
+  (
+    document : &gl::web_sys::Document,
+    gltf_path : &str,
+    gl : &gl::WebGl2RenderingContext
+  ) -> Result< GLTF, gl::WebglError >
+  {
+    gl.bind_vertex_array( None );
+
+    let path = std::path::Path::new( gltf_path );
+    let folder_path = path.parent().map_or( "", | p | p.to_str().expect( "Path is not UTF-8 encoded" ) );
+    gl::debug!( "Folder: {folder_path}\nFile: {gltf_path}" );
+
+    let mut gltf_file = document_read( gltf_path ).await?;
+    let ( buffers, bin_buffers ) = buffers_prepare( &mut gltf_file, folder_path ).await?;
+
+    let GpuResources { images, gl_buffers, textures, used_materials, meshes } =
+      gpu_resources_create( document, gl, &gltf_file, folder_path, &buffers )?;
 
     let NodesCreated { nodes, rigged_nodes, lights } = nodes_create( &gltf_file, &meshes );
 

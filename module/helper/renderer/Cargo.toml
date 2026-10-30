@@ -42,7 +42,8 @@ enabled = [
   "dep:rustc-hash",
   "dep:serde",
   "dep:serde_json",
-  "dep:wasm-bindgen-futures"
+  "dep:wasm-bindgen-futures",
+  "dep:wasm-bindgen"
 ]
 default = [ "enabled", "webgl" ]
 full = [ "enabled", "webgl", "animation", "webgpu", "native" ]
@@ -83,6 +84,8 @@ uuid = { version = "1.20.0", features = ["v4", "js"], optional = true }
 serde = { workspace = true, features = [ "derive" ], optional = true }
 serde_json = { workspace = true, optional = true }
 wasm-bindgen-futures = { workspace = true, optional = true }
+# The meshopt decoder is imported from a JS module ( `src/webgl/loaders/meshopt_decoder.js` ).
+wasm-bindgen = { workspace = true, optional = true }
 
 [dependencies.web-sys]
 workspace = true
@@ -137,7 +140,7 @@ getrandom = { version = "0.2", features = [ "js" ] }
 name = "gltf_animation_loader_test"
 required-features = ["animation"]
 
-# The following three exercise pure sub-surfaces of the glTF loader gated
+# The following four exercise pure sub-surfaces of the glTF loader gated
 # behind `native` ( `#![cfg(all(feature = "native", not(target_arch =
 # "wasm32")))]` internally ) -- without `required-features`, a plain
 # `cargo test` silently compiles each to an empty crate and reports
@@ -153,6 +156,81 @@ required-features = ["native"]
 [[test]]
 name = "gltf_skeleton_displacements_test"
 required-features = ["native"]
+
+[[test]]
+name = "gltf_skeleton_transforms_test"
+required-features = ["native"]
+
+# The meshopt / quantization loader tests import `renderer::webgl::loaders`
+# and the `gltf` / `serde_json` crates, all of which exist only with `webgl`
+# ( part of `default` ). Under `--no-default-features` they are skipped with
+# a reason instead of failing to compile. `gltf_meshopt_test`, `gltf_buffers_test`
+# and `gltf_quantization_test` also reach loader internals, under `test_internals`.
+[[test]]
+name = "gltf_meshopt_test"
+required-features = ["webgl", "test_internals"]
+
+[[test]]
+name = "gltf_meshopt_browser_test"
+required-features = ["webgl"]
+
+[[test]]
+name = "gltf_buffers_test"
+required-features = ["webgl", "test_internals"]
+
+[[test]]
+name = "gltf_buffers_browser_test"
+required-features = ["webgl"]
+
+[[test]]
+name = "gltf_quantization_test"
+required-features = ["webgl", "test_internals"]
+
+[[test]]
+name = "gltf_quantization_browser_test"
+required-features = ["webgl"]
+
+# Reaches `gltf_extensions`' internals the same way.
+[[test]]
+name = "gltf_material_extensions_test"
+required-features = ["webgl", "test_internals"]
+
+# The same holds for these, which reach `renderer::webgl` too.
+[[test]]
+name = "tests"
+required-features = ["webgl"]
+
+[[test]]
+name = "color_grading_tests"
+required-features = ["webgl"]
+
+[[test]]
+name = "engraving_config_tests"
+required-features = ["webgl"]
+
+[[test]]
+name = "gltf_extensions_required_test"
+required-features = ["webgl"]
+
+[[test]]
+name = "gltf_light_parsing_test"
+required-features = ["webgl"]
+
+[[test]]
+name = "gltf_loader_tests"
+required-features = ["webgl"]
+
+[[test]]
+name = "gltf_material_variation_test"
+required-features = ["webgl"]
+
+[[test]]
+name = "pbr_texture_units_test"
+required-features = ["webgl"]
+
+[[test]]
+name = "webgl_frame_orchestration_test"
+required-features = ["webgl"]
 
 # Build-time-only WGSL→GLSL ES 300 translation for the `webgpu` feature's
 # WebGL override pair ( `build.rs` ) — never becomes part of the compiled
