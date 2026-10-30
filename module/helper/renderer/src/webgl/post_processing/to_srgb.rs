@@ -102,7 +102,7 @@ mod private
   {
     #[ doc( hidden ) ]
     #[ must_use ]
-    pub fn program_for_test( &self ) -> gl::WebGlProgram
+    pub fn material_program_for_test( &self ) -> gl::WebGlProgram
     {
       self.material.program().clone()
     }

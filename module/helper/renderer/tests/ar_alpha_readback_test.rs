@@ -150,20 +150,20 @@ mod tests
 
     for alpha_forward in [ true, false, true ]
     {
-      let replaced = pass.program_for_test();
+      let replaced = pass.material_program_for_test();
       pass.alpha_forward_set( &gl, alpha_forward ).expect( "the variant compiles" );
       // The previous draw left the replaced program current, and GL defers deleting a
       // current program until it is unbound, as the next pass or frame does.
       gl.use_program( None );
       assert!( !gl.is_program( Some( &replaced ) ), "alpha_forward = {alpha_forward}: the replaced program is deleted" );
-      assert!( gl.is_program( Some( &pass.program_for_test() ) ), "alpha_forward = {alpha_forward}: the new program is live" );
+      assert!( gl.is_program( Some( &pass.material_program_for_test() ) ), "alpha_forward = {alpha_forward}: the new program is live" );
 
       let alpha = to_srgb_pixel( &gl, &pass, quarter )[ 3 ];
       let expected = if alpha_forward { 64 } else { 255 };
       assert_near( alpha, expected, &format!( "alpha_forward = {alpha_forward}: the new variant draws" ) );
     }
 
-    let kept = pass.program_for_test();
+    let kept = pass.material_program_for_test();
     pass.alpha_forward_set( &gl, true ).expect( "setting the same value succeeds" );
     assert!( gl.is_program( Some( &kept ) ), "setting the current value keeps the program" );
   }
