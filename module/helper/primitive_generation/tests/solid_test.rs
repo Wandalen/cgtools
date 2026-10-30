@@ -10,7 +10,7 @@
 #[ cfg( test ) ]
 mod tests
 {
-  use primitive_generation::{ box_mesh, cylinder_mesh, torus_mesh, icosphere };
+  use primitive_generation::{ box_mesh, cylinder_mesh, torus_mesh, icosphere, icosphere_subdivided };
 
   #[ test ]
   fn box_mesh_has_eight_corners_matching_half_extents()
@@ -204,6 +204,69 @@ mod tests
     for ( i, tri ) in indices.chunks_exact( 3 ).enumerate()
     {
       assert_triangle_faces_outward( &positions, tri, &format!( "cylinder_mesh triangle {i}" ) );
+    }
+  }
+
+  /// Subdivision `n` grows faces by `×4` per pass: base 12 verts / 20 faces,
+  /// then 42/80, 162/320, 642/1280, 2562/5120.
+  #[ test ]
+  fn icosphere_subdivided_vertex_and_face_counts()
+  {
+    let expected = [ ( 0, 12, 20 ), ( 1, 42, 80 ), ( 2, 162, 320 ), ( 3, 642, 1280 ), ( 4, 2562, 5120 ) ];
+
+    for &( subdivisions, vertices, faces ) in &expected
+    {
+      let ( positions, indices ) = icosphere_subdivided( subdivisions );
+      assert_eq!( positions.len(), vertices, "subdivisions = {subdivisions}" );
+      assert_eq!( indices.len(), faces * 3, "subdivisions = {subdivisions}" );
+    }
+  }
+
+  /// Subdivision keeps every vertex on the unit sphere, so per-vertex normals
+  /// equal the position ( the shading-side assumption ).
+  #[ test ]
+  fn icosphere_subdivided_vertices_stay_on_unit_sphere()
+  {
+    let ( positions, indices ) = icosphere_subdivided( 3 );
+
+    for &[ x, y, z ] in &positions
+    {
+      let magnitude = ( x * x + y * y + z * z ).sqrt();
+      assert!( ( magnitude - 1.0 ).abs() < 1e-4, "vertex off the unit sphere: magnitude {magnitude}" );
+    }
+    for &i in &indices
+    {
+      assert!( ( i as usize ) < positions.len(), "index {i} out of range" );
+    }
+  }
+
+  /// A subdivided icosahedron must be a smooth closed surface: every edge is
+  /// shared by exactly two faces ( manifold ) and all faces wind consistently.
+  #[ test ]
+  fn icosphere_subdivided_is_manifold_and_consistently_wound()
+  {
+    let ( positions, indices ) = icosphere_subdivided( 3 );
+
+    let mut edge_counts : std::collections::HashMap< ( u32, u32 ), u32 > = std::collections::HashMap::new();
+    for tri in indices.chunks_exact( 3 )
+    {
+      let ( a, b, c ) = ( tri[ 0 ], tri[ 1 ], tri[ 2 ] );
+      for &( p, q ) in &[ ( a, b ), ( b, c ), ( c, a ) ]
+      {
+        let key = if p < q { ( p, q ) } else { ( q, p ) };
+        *edge_counts.entry( key ).or_insert( 0 ) += 1;
+      }
+    }
+    assert!
+    (
+      edge_counts.values().all( | &count | count == 2 ),
+      "every edge must be shared by exactly two faces"
+    );
+
+    // Winding: the centroid of every triangle points outward ( dot > 0 ).
+    for ( i, tri ) in indices.chunks_exact( 3 ).enumerate()
+    {
+      assert_triangle_faces_outward( &positions, tri, &format!( "icosphere_subdivided triangle {i}" ) );
     }
   }
 }

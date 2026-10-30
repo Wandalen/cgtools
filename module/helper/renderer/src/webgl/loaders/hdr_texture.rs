@@ -86,13 +86,20 @@ mod private
   ///
   /// # Panics
   ///
+  /// `flip_y` selects the row order of the upload. Pass `true` for an equirect
+  /// that a shader will sample by direction ( the skybox, or `pmrem` ), and
+  /// `false` for a precomputed map consumed in its stored orientation.
+  ///
+  /// # Panics
+  ///
   /// Panics if loading or decoding the HDR image fails.
   pub async fn load_to_mip_d2
   (
     gl : &gl::WebGl2RenderingContext,
     texture : Option< &gl::web_sys::WebGlTexture >,
     mip_level : u32,
-    path : &str
+    path : &str,
+    flip_y : bool
   )
   {
     let image = gl::file::load( path ).await.expect( "Can't load image" );
@@ -104,6 +111,14 @@ mod private
 
     let image_data : gl::js_sys::Object = gl::js_sys::Float32Array::from( data.as_slice() ).into();
 
+    // Radiance scanlines run top-to-bottom while GL puts row 0 at `v = 0`, so an
+    // unflipped upload lands the image upside down. Every shader in this crate
+    // that samples an environment by direction assumes the *flipped* convention
+    // ( image top at `v = 1` ), which is what `texture::d2::upload` gives an LDR
+    // image - so an equirect destined for one of them wants `flip_y`.
+    // Precomputed IBL maps ( `loaders::ibl` ) are consumed in their stored
+    // orientation and pass `false`.
+    gl.pixel_storei( gl::UNPACK_FLIP_Y_WEBGL, i32::from( flip_y ) );
     gl.bind_texture( gl::TEXTURE_2D, texture );
     gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_array_buffer_view_and_src_offset
     (

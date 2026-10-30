@@ -1,18 +1,347 @@
-//! Renders GLTF files using postprocess effects.
+//! Interactive PBR viewer: switch the loaded model at runtime from a debug
+//! list, and toggle between the plain glTF viewer mode and the OpenPBR test
+//! mode ( procedurally built scenes, starting with a solid-colour sphere ).
+
 #![ doc( html_root_url = "https://docs.rs/gltf_viewer/latest/gltf_viewer/" ) ]
 #![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
-#![ cfg_attr( not( doc ), doc = "Renders GLTF files using postprocess effects" ) ]
+#![ cfg_attr( not( doc ), doc = "Interactive glTF / OpenPBR material viewer" ) ]
 
 use std::{ cell::RefCell, rc::Rc };
-use minwebgl as gl;
 
+use minwebgl as gl;
+use gl::wasm_bindgen::{ prelude::Closure, JsValue };
+use gl::js_sys::{ Object, Reflect };
 use renderer::webgl::
 {
-  post_processing::{self, Pass, SwapFramebuffer}, Camera, Renderer
+  post_processing::{ self, Pass, SwapFramebuffer }, Camera, DirectLight, Light, Node, Object3D, PointLight,
+  Renderer, Scene
 };
+use renderer::webgl::loaders::openpbr_mtlx::openpbr_surfaces_from_mtlx;
+use renderer::webgl::material::OpenPbrSurface;
 
 mod lil_gui;
 mod gui_setup;
+mod openpbr_scene;
+
+/// Viewer modes.
+const MODE_GLTF : &str = "gltf";
+const MODE_OPENPBR : &str = "openpbr";
+/// Scene built procedurally into `.usda` text and loaded through the real
+/// `loaders::usd` pipeline ( composition + GL assembly ), with the material
+/// arriving through a referenced `.mtlx` ( native OpenPBR lane ).
+const MODE_USD : &str = "usd";
+
+/// Model registry: ( display name, static path ). Kept in sync with the
+/// `data-trunk rel="copy-file"` entries in `index.html`.
+const MODELS : &[ ( &str, &str ) ] =
+&[
+  ( "Dodge Challenger", "static/dodge-challenger/gltf/scene.gltf" ),
+  // Khronos reference tests. Each is a grid sweeping one extension's parameters,
+  // published alongside a reference render - the comparison is the only check the
+  // shader gets that reading the spec cannot give it.
+  ( "KHR ClearCoatTest", "static/ClearCoatTest.glb" ),
+  ( "KHR AnisotropyDiscTest", "static/AnisotropyDiscTest.glb" ),
+  ( "AV-8B Harrier II", "static/av-8b_harrier_ii.glb" ),
+  ( "Dae Crib", "static/dae_crib_-_tommys_garage.glb" ),
+  ( "Gambeson", "static/gambeson.glb" ),
+  ( "Low Poly Kids Playground", "static/low_poly_kids_playground.glb" ),
+  ( "Bike", "static/bike.glb" ),
+  ( "Nissan Titan 2017 (transparent)", "static/nissan_titan_2017_transparent.glb" ),
+  ( "Old Rusty Car", "static/old_rusty_car.glb" ),
+  ( "Transparent Cubes (OIT)", "static/transparent_cubes_oit_rendering_test_model.glb" ),
+  ( "Watchman of Doom", "static/watchman_of_doom_2.0_special.glb" ),
+];
+
+/// What the viewer is currently showing.
+#[ derive( Clone ) ]
+struct ViewerChoice
+{
+  /// One of `MODE_GLTF` / `MODE_OPENPBR`.
+  mode : String,
+  /// glTF model path ( used only in glTF mode ).
+  model : String,
+  /// OpenPBR material key ( used only in OpenPBR mode ), see
+  /// [`OPENPBR_MATERIALS`].
+  material : String,
+}
+
+/// OpenPBR test materials: ( display name, key ) — each is an embedded ASWF
+/// `open_pbr_*.mtlx` sample or a scalar-only file from the OpenPBR Shader
+/// Playground ( see `materials/ATTRIBUTION.md` ).
+const OPENPBR_MATERIALS : &[ ( &str, &str ) ] =
+&[
+  ( "Velvet (fuzz)", "velvet" ),
+  ( "Gold (metal)", "gold" ),
+  ( "Glass (ior / transmission)", "glass" ),
+  ( "Iridescent metal (thin film)", "iridescent" ),
+  ( "Cord (coat)", "cord" ),
+  ( "Straw (ior 2.83)", "straw" ),
+  ( "Yellow paint", "yellowPaint" ),
+];
+
+/// Embedded `.mtlx` text for `key` ( ASWF spec examples + scalar-only material
+/// files from the OpenPBR Shader Playground - see `materials/ATTRIBUTION.md` ).
+#[ must_use ]
+fn openpbr_material_mtlx( key : &str ) -> &'static str
+{
+  match key
+  {
+    "gold" => include_str!( "../materials/open_pbr_gold.mtlx" ),
+    "glass" => include_str!( "../materials/open_pbr_glass.mtlx" ),
+    "iridescent" => include_str!( "../materials/open_pbr_iridescent.mtlx" ),
+    "cord" => include_str!( "../materials/playground_cord.mtlx" ),
+    "straw" => include_str!( "../materials/playground_straw.mtlx" ),
+    "yellowPaint" => include_str!( "../materials/playground_yellowPaint.mtlx" ),
+    _ => include_str!( "../materials/open_pbr_velvet.mtlx" ),
+  }
+}
+
+/// Parses the embedded `.mtlx` for `key` into a canonical surface.
+#[ must_use ]
+fn openpbr_material_surface( key : &str ) -> OpenPbrSurface
+{
+  let xml = openpbr_material_mtlx( key );
+  let mut surfaces = openpbr_surfaces_from_mtlx( xml ).expect( "embedded OpenPBR material parses" );
+  surfaces.pop().expect( "material file contains one surface" )
+}
+
+/// The renderer's shared material cell ( `Rc<RefCell<Box<dyn Material>>>` ).
+type DynMaterial = Rc< RefCell< Box< dyn renderer::webgl::material::Material > > >;
+
+struct ViewerState
+{
+  choice : RefCell< ViewerChoice >,
+  scene : RefCell< Option< Rc< RefCell< Scene > > > >,
+  /// Live-editable OpenPBR surface ( OpenPBR test mode ).
+  surface : RefCell< Option< OpenPbrSurface > >,
+  /// The material currently driving the sphere ( OpenPBR test mode ).
+  material : RefCell< Option< DynMaterial > >,
+}
+
+/// Re-applies the edited surface to the live material ( marks uniforms for
+/// re-upload ).
+fn surface_apply( state : &Rc< ViewerState > )
+{
+  let material = state.material.borrow().clone();
+  let surface = state.surface.borrow().clone();
+  if let ( Some( material ), Some( surface ) ) = ( material, surface )
+  {
+    let mut m = renderer::webgl::cast_unchecked_material_to_ref_mut::< renderer::webgl::material::PbrMaterial >( material.borrow_mut() );
+    m.openpbr_surface_apply( &surface );
+  }
+}
+
+/// Adds one slider that edits a scalar field of the live OpenPBR surface.
+/// `range` is `( min, max, step )`.
+fn surface_slider
+(
+  state : &Rc< ViewerState >,
+  js_object : &Object,
+  gui : &JsValue,
+  name : &str,
+  default : f32,
+  range : ( f64, f64, f64 ),
+  set : fn( &mut OpenPbrSurface, f32 )
+)
+{
+  let ( min, max, step ) = range;
+  Reflect::set( js_object, &JsValue::from_str( name ), &JsValue::from_f64( f64::from( default ) ) ).unwrap();
+
+  let prop = lil_gui::slider_add( gui, js_object, name, min, max, step );
+  let callback =
+  {
+    let state = state.clone();
+    Closure::new( move | value : f32 |
+    {
+      if let Some( surface ) = state.surface.borrow_mut().as_mut()
+      {
+        set( surface, value );
+      }
+      surface_apply( &state );
+    } )
+  };
+  lil_gui::on_change( &prop, &callback );
+  callback.forget();
+}
+
+/// Normalizes a scene's scale/position so its bounding-box diagonal is 1 and
+/// it sits at the origin ( matches the fixed camera framing ). Procedural
+/// scenes may leave attribute bounding boxes at the inverted default
+/// ( `min=+∞, max=−∞` ), which would produce a `∞` diagonal and a `NaN` center —
+/// those are treated as "no box" and left untransformed.
+fn scene_fit_to_view( scene : &Rc< RefCell< Scene > > )
+{
+  let scene_bounding_box = scene.borrow().bounding_box();
+  let center = scene_bounding_box.center();
+  let diagonal = ( scene_bounding_box.max - scene_bounding_box.min ).mag();
+
+  let has_box = diagonal.is_finite() && diagonal > 0.0 && center.mag().is_finite();
+  let norm_scale = if has_box { 1.0 / diagonal } else { 1.0 };
+  let translation = if has_box { center * -norm_scale } else { gl::math::F32x3::splat( 0.0 ) };
+
+  let mut scene = scene.borrow_mut();
+  scene.scale_set( gl::math::F32x3::splat( norm_scale ) );
+  scene.translation_set( translation );
+  scene.world_matrix_update();
+}
+
+/// Wraps a light in a node and adds it to the scene.
+fn light_add( scene : &Rc< RefCell< Scene > >, light : Light ) -> Rc< RefCell< Node > >
+{
+  let node = Rc::new( RefCell::new( Node::new() ) );
+  node.borrow_mut().object = Object3D::Light( light );
+  scene.borrow_mut().children.push( node.clone() );
+  node
+}
+
+/// Generates the Kulla–Conty energy-compensation LUT and gives it to the
+/// renderer ( used by OpenPBR materials for direct-light multi-scattering ).
+fn kulla_conty_setup( renderer : &mut Renderer, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
+{
+  let lut = renderer::webgl::loaders::kulla_conty::kulla_conty_lut_upload( gl, 32, 32, 512 )?;
+  renderer.kulla_conty_lut_set( lut );
+  Ok( () )
+}
+
+/// Loads the environment map and gives the renderer both of its consumers: the
+/// prefiltered IBL, and the skybox.
+///
+/// The skybox is not decoration here. It is drawn at the end of the opaque pass,
+/// which is exactly what the transmission capture resolves, so it is also what a
+/// transmissive material refracts. Without it the capture behind the glass is
+/// the clear colour - a uniform near-black - so refraction has nothing to bend
+/// and §3.6 dispersion cannot separate three taps of one flat value, however
+/// wide their spread.
+async fn environment_setup( renderer : &mut Renderer, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
+{
+  let equirect = gl.create_texture().ok_or( gl::WebglError::FailedToAllocateResource( "HDR equirect texture" ) )?;
+  renderer::webgl::loaders::hdr_texture::load_to_mip_d2( gl, Some( &equirect ), 0, "static/venice_sunset_1k.hdr", true ).await;
+  let ibl = renderer::webgl::loaders::pmrem::generate( gl, &equirect, 512 )?;
+  renderer.ibl_set( ibl );
+  renderer.skybox_set( Some( renderer::webgl::Texture::owning( gl, gl::TEXTURE_2D, equirect, renderer::webgl::Sampler::default() ) ) );
+  Ok( () )
+}
+
+/// Generates the fuzz ( sheen ) directional-albedo LUT and gives it to the
+/// renderer, so the substrate under an OpenPBR `fuzz` layer is scaled down by
+/// what the layer reflects instead of the layer being pure gain. Without it a
+/// strong fuzz reads as an overall brighter material rather than a fuzzy one.
+fn sheen_albedo_setup( renderer : &mut Renderer, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
+{
+  let lut = renderer::webgl::loaders::sheen_albedo::sheen_albedo_lut_upload( gl, 32, 32, 64, 64 )?;
+  renderer.sheen_albedo_lut_set( lut );
+  Ok( () )
+}
+
+/// The OpenPBR / USD test rig: hemisphere-ish ambient ( two opposite direct
+/// lights whose diffuse contribution scales with NoL — top = cool sky, bottom
+/// = warm ground bounce, blending smoothly over the sphere ) plus a single key
+/// point light. No env reflection, so the material's own response is readable.
+fn studio_rig_add( scene : &Rc< RefCell< Scene > > )
+{
+  light_add( scene, Light::Direct( DirectLight { direction : gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] ), color : [ 0.8, 0.85, 1.0 ].into(), strength : 0.55 } ) );
+  light_add( scene, Light::Direct( DirectLight { direction : gl::math::F32x3::from( [ 0.0, -1.0, 0.0 ] ), color : [ 0.3, 0.24, 0.2 ].into(), strength : 0.2 } ) );
+  light_add( scene, Light::Point( PointLight { position : [ 1.5, 1.2, 1.6 ].into(), color : [ 1.0, 1.0, 1.0 ].into(), strength : 25.0, range : 8.0 } ) );
+}
+
+/// (Re)loads whatever `state.choice` selects into `state.scene`.
+async fn scene_load
+(
+  state : &Rc< ViewerState >,
+  document : &gl::web_sys::Document,
+  gl : &gl::WebGl2RenderingContext
+) -> Result< (), gl::WebglError >
+{
+  let choice = state.choice.borrow().clone();
+
+  if choice.mode == MODE_USD
+  {
+    // USD mode — the real `loaders::usd` pipeline on a multi-object set scene :
+    // spheres + cubes under per-object `Xform`s ( translate / rotate / scale ops,
+    // hierarchy composition ), five `.mtlx`-bound materials covering the distinct
+    // OpenPBR carriers ( metal gold, coat cord, ior 2.8 straw, painted yellow,
+    // fuzz velvet ) PLUS an inline `UsdPreviewSurface` - both material lanes in
+    // one file. All fed as in-memory text ( the same shape `usd_scene_load_http`
+    // builds from HTTP fetches ) through stage composition, mtlx binding
+    // resolution and GL scene assembly. Studio rig, no env reflection.
+    use openpbr_scene::UsdSetObject;
+
+    let objects =
+    [
+      UsdSetObject { mesh: "sphere", material: "./gold.mtlx",        translate: [ -2.4, 0.0, 0.0 ], rotate_deg: [ 0.0, 0.0, 0.0  ], scale: 1.0 },
+      UsdSetObject { mesh: "sphere", material: "./cord.mtlx",        translate: [ -1.4, 0.0, 0.5 ], rotate_deg: [ 0.0, 30.0, 0.0 ], scale: 0.8 },
+      UsdSetObject { mesh: "sphere", material: "./straw.mtlx",       translate: [ 0.0, 0.0, 0.0  ], rotate_deg: [ 0.0, 0.0, 0.0  ], scale: 1.2 },
+      UsdSetObject { mesh: "cube",   material: "./yellowPaint.mtlx", translate: [ 1.4, 0.0, -0.4 ], rotate_deg: [ 0.0, 0.0, 18.0 ], scale: 1.0 },
+      UsdSetObject { mesh: "sphere", material: "./velvet.mtlx",      translate: [ 2.4, 0.0, 0.6  ], rotate_deg: [ 0.0, 0.0, 0.0  ], scale: 1.0 },
+      UsdSetObject { mesh: "cube",   material: "preview",            translate: [ 1.0, 0.0, 1.6  ], rotate_deg: [ 25.0, 0.0, 0.0 ], scale: 0.7 },
+      // §3.3 transmission test : glass ( transmission_weight = 1 ) IN FRONT of
+      // the row, so it should visibly bend the image of the objects behind it.
+      UsdSetObject { mesh: "sphere", material: "./glass.mtlx",       translate: [ -0.7, 0.0, 1.7 ], rotate_deg: [ 0.0, 0.0, 0.0  ], scale: 1.0 },
+    ];
+    let root = openpbr_scene::usd_set_scene_text( &objects );
+    let assets =
+    [
+      ( "./gold.mtlx", openpbr_material_mtlx( "gold" ) ),
+      ( "./cord.mtlx", openpbr_material_mtlx( "cord" ) ),
+      ( "./straw.mtlx", openpbr_material_mtlx( "straw" ) ),
+      ( "./yellowPaint.mtlx", openpbr_material_mtlx( "yellowPaint" ) ),
+      ( "./velvet.mtlx", openpbr_material_mtlx( "velvet" ) ),
+      ( "./glass.mtlx", openpbr_material_mtlx( "glass" ) ),
+    ];
+    let scene = renderer::webgl::loaders::usd::usd_scene_from_texts( gl, "scene.usda", &root, &assets )
+    .map_err( | e |
+    {
+      gl::browser::error!( "USD scene load failed: {e:?}" );
+      gl::WebglError::Other( "Failed to load USD scene" )
+    })?;
+
+    studio_rig_add( &scene );
+    scene_fit_to_view( &scene );
+    // No live-parameter surface binding yet ( the material lives behind the
+    // usd assembly ); the sliders are re-enabled per mode in `gui_setup`.
+    *state.material.borrow_mut() = None;
+    *state.surface.borrow_mut() = None;
+    *state.scene.borrow_mut() = Some( scene );
+    return Ok( () );
+  }
+
+  if choice.mode == MODE_OPENPBR
+  {
+    // OpenPBR test mode — render the icosphere with a real `.mtlx` surface
+    // through the OpenPbrSurface → PbrMaterial runtime bridge, lit by a small
+    // studio rig *and* the environment. Env sampling used to be forced off here
+    // so the material's own response was easy to read in isolation, but a
+    // glass sphere in front of a visible sky that reflects and refracts nothing
+    // reads as broken rather than as legible - and the transmission slice has
+    // nothing to work with at all.
+    let surface = openpbr_material_surface( &choice.material );
+    let gltf = openpbr_scene::sphere_with_surface( gl, &surface );
+
+    if let Some( material ) = gltf.materials.first()
+    {
+      let material_rc = material.clone();
+      *state.material.borrow_mut() = Some( material_rc );
+      *state.surface.borrow_mut() = Some( surface );
+    }
+
+    let scene = gltf.scenes.into_iter().next().expect( "sphere scene exists" );
+
+    studio_rig_add( &scene );
+
+    scene_fit_to_view( &scene );
+    *state.scene.borrow_mut() = Some( scene );
+    return Ok( () );
+  }
+
+  let gltf = renderer::webgl::loaders::gltf::load( document, &choice.model, gl ).await?;
+  let scene = gltf.scenes.into_iter().next().expect( "gltf has one scene" );
+  scene_fit_to_view( &scene );
+  *state.material.borrow_mut() = None;
+  *state.surface.borrow_mut() = None;
+  *state.scene.borrow_mut() = Some( scene );
+
+  Ok( () )
+}
 
 fn canvas_size( canvas : &gl::web_sys::HtmlCanvasElement ) -> ( u32, u32 )
 {
@@ -20,12 +349,166 @@ fn canvas_size( canvas : &gl::web_sys::HtmlCanvasElement ) -> ( u32, u32 )
   let dpr = window.device_pixel_ratio();
   let css_w = f64::from( canvas.client_width() );
   let css_h = f64::from( canvas.client_height() );
-  // Canvas dimensions are always non-negative and far below `u32::MAX`, so casting to `u32`
-  // cannot lose sign; the fractional part is intentionally floored to get an integer
-  // backing-store pixel count.
   let w = ( css_w * dpr ) as u32;
   let h = ( css_h * dpr ) as u32;
   ( w.max( 1 ), h.max( 1 ) )
+}
+
+/// Spawns a reload of the current selection.
+fn reload
+(
+  state : &Rc< ViewerState >,
+  document : &gl::web_sys::Document,
+  gl : &gl::WebGl2RenderingContext
+)
+{
+  let state = state.clone();
+  let document = document.clone();
+  let gl = gl.clone();
+  gl::spawn_local( async move { let _ = scene_load( &state, &document, &gl ).await; } );
+}
+
+/// Wires the "Debug" folder: model list + viewer mode, both of which reload
+/// the scene.
+fn debug_ui_setup
+(
+  state : &Rc< ViewerState >,
+  document : &gl::web_sys::Document,
+  gl : &gl::WebGl2RenderingContext
+)
+{
+  let js_object = Object::new();
+  Reflect::set( &js_object, &JsValue::from_str( "model" ), &JsValue::from_str( &state.choice.borrow().model ) ).unwrap();
+  Reflect::set( &js_object, &JsValue::from_str( "material" ), &JsValue::from_str( &state.choice.borrow().material ) ).unwrap();
+  Reflect::set( &js_object, &JsValue::from_str( "mode" ), &JsValue::from_str( &state.choice.borrow().mode ) ).unwrap();
+
+  let gui = lil_gui::gui_new();
+  let folder = lil_gui::folder_add( &gui, "Debug" );
+
+  // Viewer mode ( glTF viewer / OpenPBR test ).
+  let mode_map = Object::new();
+  Reflect::set( &mode_map, &JsValue::from_str( "glTF model viewer" ), &JsValue::from_str( MODE_GLTF ) ).unwrap();
+  Reflect::set( &mode_map, &JsValue::from_str( "OpenPBR test" ), &JsValue::from_str( MODE_OPENPBR ) ).unwrap();
+  Reflect::set( &mode_map, &JsValue::from_str( "USD scene ( loaders::usd )" ), &JsValue::from_str( MODE_USD ) ).unwrap();
+  let mode_gui = lil_gui::dropdown_add( &folder, &js_object, "mode", &mode_map );
+  let callback =
+  {
+    let state = state.clone();
+    let document = document.clone();
+    let gl = gl.clone();
+    Closure::new( move | value : JsValue |
+    {
+      state.choice.borrow_mut().mode = value.as_string().unwrap_or_else( || MODE_GLTF.to_string() );
+      reload( &state, &document, &gl );
+    } )
+  };
+  lil_gui::on_finish_change( &mode_gui, &callback );
+  callback.forget();
+
+  // Model list ( glTF mode ).
+  let catalog_map = Object::new();
+  for ( name, path ) in MODELS
+  {
+    Reflect::set( &catalog_map, &JsValue::from_str( name ), &JsValue::from_str( path ) ).unwrap();
+  }
+  let catalog_gui = lil_gui::dropdown_add( &folder, &js_object, "model", &catalog_map );
+  let callback =
+  {
+    let state = state.clone();
+    let document = document.clone();
+    let gl = gl.clone();
+    Closure::new( move | value : JsValue |
+    {
+      if state.choice.borrow().mode != MODE_GLTF
+      {
+        return;
+      }
+      if let Some( path ) = value.as_string()
+      {
+        state.choice.borrow_mut().model = path;
+        reload( &state, &document, &gl );
+      }
+    } )
+  };
+  lil_gui::on_finish_change( &catalog_gui, &callback );
+  callback.forget();
+
+  // OpenPBR material ( OpenPBR test mode ).
+  let material_map = Object::new();
+  for ( name, key ) in OPENPBR_MATERIALS
+  {
+    Reflect::set( &material_map, &JsValue::from_str( name ), &JsValue::from_str( key ) ).unwrap();
+  }
+  let material_gui = lil_gui::dropdown_add( &folder, &js_object, "material", &material_map );
+  let callback =
+  {
+    let state = state.clone();
+    let document = document.clone();
+    let gl = gl.clone();
+    Closure::new( move | value : JsValue |
+    {
+      if state.choice.borrow().mode != MODE_OPENPBR
+      {
+        return;
+      }
+      if let Some( key ) = value.as_string()
+      {
+        state.choice.borrow_mut().material = key;
+        reload( &state, &document, &gl );
+      }
+    } )
+  };
+  lil_gui::on_finish_change( &material_gui, &callback );
+  callback.forget();
+
+  // Live OpenPBR surface parameters ( only active in OpenPBR test mode ).
+  let params_folder = lil_gui::folder_add( &folder, "material params" );
+  surface_slider( state, &js_object, &params_folder, "roughness", 1.0, ( 0.0, 1.0, 0.01 ), | s, v | s.specular_roughness = v );
+  surface_slider( state, &js_object, &params_folder, "metalness", 0.0, ( 0.0, 1.0, 0.01 ), | s, v | s.base_metalness = v );
+  surface_slider( state, &js_object, &params_folder, "specularIor", 1.5, ( 1.0, 2.5, 0.01 ), | s, v | s.specular_ior = v );
+  surface_slider( state, &js_object, &params_folder, "clearcoat", 0.0, ( 0.0, 1.0, 0.01 ), | s, v | s.coat_weight = v );
+  surface_slider( state, &js_object, &params_folder, "clearcoatRoughness", 0.0, ( 0.0, 1.0, 0.01 ), | s, v | s.coat_roughness = v );
+  surface_slider( state, &js_object, &params_folder, "fuzzWeight", 0.5, ( 0.0, 1.0, 0.01 ), | s, v | s.fuzz_weight = v );
+  surface_slider( state, &js_object, &params_folder, "fuzzRoughness", 0.5, ( 0.0, 1.0, 0.01 ), | s, v | s.fuzz_roughness = v );
+  surface_slider( state, &js_object, &params_folder, "thinFilmWeight", 0.0, ( 0.0, 1.0, 0.01 ), | s, v | s.thin_film_weight = v );
+  surface_slider( state, &js_object, &params_folder, "thinFilmThicknessNm", 450.0, ( 100.0, 1000.0, 5.0 ), | s, v | s.thin_film_thickness = v / 1000.0 );
+  surface_slider( state, &js_object, &params_folder, "thinFilmIor", 1.4, ( 1.0, 2.0, 0.01 ), | s, v | s.thin_film_ior = v );
+  // §3.3 / §3.4 transmission. Raising the weight re-routes the sphere into
+  // the transmission pass live ( `surface_apply` -> recompile -> `nodes_collect`
+  // sees `transmission_active` ).
+  //
+  // `transmissionDepth` is the spec's absorption length scale ( lambda ), not a
+  // geometric thickness : white light becomes `transmissionColor*` after
+  // travelling it, so it only shows once the tint is off-white - drop a channel
+  // below 1 and the glass takes on that color, deeper as the depth shrinks.
+  // `thinWalled` collapses the slab into a zero-thickness shell ( no refraction
+  // offset, no absorption ), and the `roughness` slider above drives the blur of
+  // the refracted tap, so together they exercise the whole 3.3b path.
+  surface_slider( state, &js_object, &params_folder, "transmissionWeight", 0.0, ( 0.0, 1.0, 0.01 ), | s, v | s.transmission_weight = v );
+  surface_slider( state, &js_object, &params_folder, "transmissionDepth", 1.5, ( 0.05, 6.0, 0.05 ), | s, v | s.transmission_depth = v );
+  surface_slider( state, &js_object, &params_folder, "transmissionColorR", 1.0, ( 0.0, 1.0, 0.01 ), | s, v | s.transmission_color[ 0 ] = v );
+  surface_slider( state, &js_object, &params_folder, "transmissionColorG", 1.0, ( 0.0, 1.0, 0.01 ), | s, v | s.transmission_color[ 1 ] = v );
+  surface_slider( state, &js_object, &params_folder, "transmissionColorB", 1.0, ( 0.0, 1.0, 0.01 ), | s, v | s.transmission_color[ 2 ] = v );
+  // A slider rather than a checkbox : `lil_gui.rs` binds sliders and dropdowns only.
+  surface_slider( state, &js_object, &params_folder, "thinWalled", 0.0, ( 0.0, 1.0, 1.0 ), | s, v | s.geometry_thin_walled = v > 0.5 );
+  // §3.6 chromatic dispersion. Only visible through a thick refracting edge, so
+  // raise `transmissionWeight` first and keep `thinWalled` off - a zero-thickness
+  // shell has no refraction offset for the spread to act on and compiles the
+  // three-tap path away entirely. The Abbe number runs backwards to the effect :
+  // it measures how *little* the medium disperses, so 20 ( the spec default ) is
+  // strongly dispersive and 64 is ordinary crown glass.
+  surface_slider( state, &js_object, &params_folder, "dispersionScale", 0.0, ( 0.0, 1.0, 0.01 ), | s, v | s.transmission_dispersion_scale = v );
+  surface_slider( state, &js_object, &params_folder, "dispersionAbbe", 20.0, ( 10.0, 80.0, 1.0 ), | s, v | s.transmission_dispersion_abbe_number = v );
+  // §3.5 subsurface. On a thin-walled surface it is a diffuse transmission lobe
+  // ( light straight out the far side ), so `thinWalled` has to be on for these
+  // to do anything - a thick subsurface surface needs the diffusion pass and is
+  // deliberately left unmapped. Put a light behind the sphere to see it.
+  surface_slider( state, &js_object, &params_folder, "subsurfaceWeight", 0.0, ( 0.0, 1.0, 0.01 ), | s, v | s.subsurface_weight = v );
+  surface_slider( state, &js_object, &params_folder, "subsurfaceColorR", 0.8, ( 0.0, 1.0, 0.01 ), | s, v | s.subsurface_color[ 0 ] = v );
+  surface_slider( state, &js_object, &params_folder, "subsurfaceColorG", 0.8, ( 0.0, 1.0, 0.01 ), | s, v | s.subsurface_color[ 1 ] = v );
+  surface_slider( state, &js_object, &params_folder, "subsurfaceColorB", 0.8, ( 0.0, 1.0, 0.01 ), | s, v | s.subsurface_color[ 2 ] = v );
+
+  lil_gui::show( &gui );
 }
 
 async fn app_run() -> Result< (), gl::WebglError >
@@ -49,69 +532,56 @@ async fn app_run() -> Result< (), gl::WebglError >
   canvas.set_width( pixel_w );
   canvas.set_height( pixel_h );
 
-  let gltf_path = "static/dodge-challenger/gltf/scene.gltf";
-  // let gltf_path = "gambeson.glb";
-  // let gltf_path = "old_rusty_car.glb";
-  // let gltf_path = "sponza.glb";
-  // let gltf_path = "nissan_titan_2017_transparent.glb";
-  // let gltf_path = "transparent_cubes_oit_rendering_test_model.glb";
-  // let gltf_path = "model.glb";
-  // let gltf_path = "untitled.glb";
-  // let gltf_path = "av-8b_harrier_ii.glb";
-  // let gltf_path = "dae_crib_-_tommys_garage.glb";
-  // let gltf_path = "low_poly_kids_playground.glb";
-  // let gltf_path = "watchman_of_doom_2.0_special.glb";
-
-  let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
-  let scenes = gltf.scenes;
-
-  let scene_bounding_box = scenes[ 0 ].borrow().bounding_box();
-  let diagonal = ( scene_bounding_box.max - scene_bounding_box.min ).mag();
-  let center = scene_bounding_box.center();
-
-  let norm_scale = if diagonal > 0.0 { 1.0 / diagonal } else { 1.0 };
-  {
-    let mut scene = scenes[ 0 ].borrow_mut();
-    scene.scale_set( gl::math::F32x3::splat( norm_scale ) );
-    scene.translation_set( center * -norm_scale );
-    scene.world_matrix_update();
-  }
-
-  let eye = gl::math::F32x3::from( [ 0.0, 0.7, 0.7 ] );
-  let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
-  let center = gl::math::F32x3::splat( 0.0 );
+  let default_model = MODELS[ 0 ].1;
+  let state = Rc::new
+  (
+    ViewerState
+    {
+      choice : RefCell::new
+      (
+        ViewerChoice
+        {
+          mode : MODE_GLTF.to_string(),
+          model : default_model.to_string(),
+          material : "velvet".to_string(),
+        }
+      ),
+      scene : RefCell::new( None ),
+      surface : RefCell::new( None ),
+      material : RefCell::new( None ),
+    }
+  );
 
   let fov = 70.0f32.to_radians();
   let near = 0.01;
   let far = 100.0;
   let aspect_ratio = pixel_w as f32 / pixel_h as f32;
 
-  let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far )?;
+  let mut camera = Camera::new( [ 0.0, 0.7, 0.7 ].into(), [ 0.0, 1.0, 0.0 ].into(), [ 0.0; 3 ].into(), aspect_ratio, fov, near, far )?;
   camera.window_size_set( [ pixel_w as f32, pixel_h as f32 ].into() );
   camera.controls_bind( &canvas );
 
   let samples = 4;
   let mut renderer = Renderer::new( &gl, pixel_w, pixel_h, samples )?;
 
-  let equirect = gl.create_texture().ok_or( gl::WebglError::FailedToAllocateResource( "HDR equirect texture" ) )?;
-  renderer::webgl::loaders::hdr_texture::load_to_mip_d2( &gl, Some( &equirect ), 0, "static/venice_sunset_1k.hdr" ).await;
-
-  let ibl = renderer::webgl::loaders::pmrem::generate( &gl, &equirect, 512 )?;
-  renderer.ibl_set( ibl );
+  environment_setup( &mut renderer, &gl ).await?;
+  kulla_conty_setup( &mut renderer, &gl )?;
+  sheen_albedo_setup( &mut renderer, &gl )?;
   renderer.clear_color_set( gl::math::F32x3::from( [ 0.01, 0.01, 0.01 ] ) );
   renderer.exposure_set( 0.0 );
 
   let renderer = Rc::new( RefCell::new( renderer ) );
 
-  let mut swap_buffer = SwapFramebuffer::new( &gl, pixel_w, pixel_h );
+  gui_setup::setup( &renderer );
+  debug_ui_setup( &state, &document, &gl );
+  reload( &state, &document, &gl );
 
+  let mut swap_buffer = SwapFramebuffer::new( &gl, pixel_w, pixel_h );
   let mut tonemapping = post_processing::ToneMappingPass::< post_processing::ToneMappingAces >::new( &gl )?;
   // Turns on the MSAA-edge fix: with the renderer's transparent coverage the pass can
   // tell glass from silhouettes. Set again after every resize, which replaces the texture.
   tonemapping.transparent_coverage_texture_set( renderer.borrow().transparent_coverage_texture() );
   let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
-
-  gui_setup::setup( &renderer );
 
   let prev_size : Rc< RefCell< ( u32, u32 ) > > = Rc::new( RefCell::new( ( pixel_w, pixel_h ) ) );
 
@@ -119,6 +589,7 @@ async fn app_run() -> Result< (), gl::WebglError >
   {
     let canvas = canvas.clone();
     let prev_size = prev_size.clone();
+    let state = state.clone();
     move | _t : f64 |
     {
       let ( w, h ) = canvas_size( &canvas );
@@ -141,7 +612,11 @@ async fn app_run() -> Result< (), gl::WebglError >
         *prev = ( w, h );
       }
 
-      renderer.borrow_mut().render( &gl, &mut scenes[ 0 ].borrow_mut(), &camera ).expect( "Failed to render" );
+      if let Some( scene ) = state.scene.borrow().as_ref()
+      {
+        let mut scene = scene.borrow_mut();
+        renderer.borrow_mut().render( &gl, &mut scene, &camera ).expect( "Failed to render" );
+      }
 
       swap_buffer.reset();
       swap_buffer.bind( &gl );
@@ -149,7 +624,6 @@ async fn app_run() -> Result< (), gl::WebglError >
 
       let t = tonemapping.render( &gl, swap_buffer.input_get(), swap_buffer.output_get() )
       .expect( "Failed to render tonemapping pass" );
-
       swap_buffer.output_set( t );
       swap_buffer.swap();
 

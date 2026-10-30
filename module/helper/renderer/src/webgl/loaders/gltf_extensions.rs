@@ -266,7 +266,8 @@ mod private
   }
 
   /// Applies `gltf_m`'s `KHR_materials_clearcoat` / `KHR_materials_anisotropy` extension
-  /// objects, if present, to `material`. Texture indices resolve against `textures` (the
+  /// objects, and the textures of its `KHR_materials_sheen` / `KHR_materials_iridescence` ones,
+  /// if present, to `material`. Texture indices resolve against `textures` (the
   /// asset's `textures` array); an index outside it leaves that texture unset.
   pub fn material_layer_extensions_apply
   (
@@ -304,6 +305,20 @@ mod private
       material.anisotropy_strength_set( Some( an.strength ) );
       material.anisotropy_rotation = an.rotation;
       material.anisotropy_texture_set( texture_info( an.texture ) );
+    }
+
+    // KHR_materials_sheen / KHR_materials_iridescence textures ( OpenPBR adoption plan §3.1
+    // subset ). Their factors travel with the other OpenPBR carriers, read by
+    // `gltf::material_openpbr_params_read`.
+    if let Some( json ) = gltf_m.extension_value( "KHR_materials_sheen" )
+    {
+      material.sheen_color_texture_set( texture_info( json.get( "sheenColorTexture" ).and_then( texture_ref_parse ) ) );
+      material.sheen_roughness_texture_set( texture_info( json.get( "sheenRoughnessTexture" ).and_then( texture_ref_parse ) ) );
+    }
+
+    if let Some( json ) = gltf_m.extension_value( "KHR_materials_iridescence" )
+    {
+      material.iridescence_texture_set( texture_info( json.get( "iridescenceTexture" ).and_then( texture_ref_parse ) ) );
     }
   }
 }
