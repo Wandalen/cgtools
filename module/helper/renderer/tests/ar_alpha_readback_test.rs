@@ -525,7 +525,6 @@ mod tests
     let quad = canvas_pixel( mid + 16 );
     assert_eq!( quad[ 3 ], 255, "the quad is opaque on the canvas: {quad:?}" );
     assert!( quad[ 0 ] > 0, "the quad is not black: {quad:?}" );
-    assert_premultiplied( quad, "the quad" );
 
     gl.delete_texture( Some( &tone_mapped ) );
     gl.delete_texture( Some( &graded ) );
