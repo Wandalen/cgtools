@@ -69,7 +69,7 @@ those cards.
 | L5 — scene script + runners | Scenes as scripts you can parse, interpret, and rerun — same script, same frames | `tilemap_scene` (compiled scenes), `scene_script` (Rhai glue) | `d3_scene` |
 | L4 — scene model | What exists, as data files — loadable and checkable without any GPU | `tilemap_scene` (RON model); glTF via `renderer` loaders; procedural glTF assembly via `primitive_generation` | `d3_scene` |
 | L3 — stack engine | Turns one stack's vocabulary into draw work; one engine per stack | `tilemap_renderer` (d2), `renderer` (d3) | — |
-| L2 — frame orchestration | Which passes run, in what order, into which render targets | embedded in `renderer` and `tilemap_renderer` today | `frame_graph` |
+| L2 — frame orchestration | Which passes run, in what order, into which render targets | embedded in `renderer`, `tilemap_renderer` and `tilemap_scene` (the tile frame's pass split) today | `frame_graph` |
 | L1 — GPU abstraction | One GPU API over all backends, so code is written once per stack instead of once per backend | `gpu_hal` (v0: WebGPU + WebGL2 + native `wgpu` + native `vulkan`, serving `renderer`'s canonical path; `vulkan` implemented — see [ADR-004](docs/adr/004_native_vulkan_hal_backend.md)) | — |
 | L0 — drivers | Thin Rust wrappers over the raw GPU APIs, one per backend | `minwebgl`, `minwebgpu`, `minwgpu`, `minvulkan` (real Instance/Device/Queue, tested against a live ICD; real surface/swapchain too — see [ADR-006](docs/adr/006_vulkan_windowed_presentation.md)) | — |
 | (substrate) | Shared helpers the drivers build on — below the ladder, not a layer | `mingl` | — |

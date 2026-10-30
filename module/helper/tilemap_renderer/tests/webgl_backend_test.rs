@@ -11,13 +11,13 @@
 use tilemap_renderer::adapters::webgl::WebGlBackend;
 use tilemap_renderer::types::BlendMode;
 
-/// T01 -- honest-subset pin: `meshes`/`sprites`/`batches`/`premultiplied_images`
-/// true, every other boolean false, `supported_blend_modes` exactly `[Normal, Add, Multiply,
-/// Screen]`.
+/// T01 -- honest-subset pin: `meshes`/`sprites`/`batches`/`premultiplied_images` true,
+/// `depth` as the context reports, every other boolean false, `supported_blend_modes` exactly
+/// `[Normal, Add, Multiply, Screen]`.
 #[ test ]
 fn declared_capabilities_honest_subset()
 {
-  let caps = WebGlBackend::declared_capabilities( 4096 );
+  let caps = WebGlBackend::declared_capabilities( 4096, true );
 
   assert!( !caps.paths );
   assert!( !caps.text );
@@ -31,6 +31,9 @@ fn declared_capabilities_honest_subset()
   assert!( !caps.blend_modes );
   assert!( !caps.text_on_path );
   assert!( caps.premultiplied_images );
+  assert!( caps.depth, "a context with a depth buffer reports it" );
+  assert!( !WebGlBackend::declared_capabilities( 4096, false ).depth, "and one without reports none" );
+  assert!( caps.camera, "camera_set's view matrix applies to every world draw" );
   assert_eq!( caps.max_texture_size, 4096 );
   assert!
   (
@@ -48,8 +51,8 @@ fn declared_capabilities_honest_subset()
 #[ test ]
 fn declared_capabilities_max_texture_size_reflects_input()
 {
-  let small = WebGlBackend::declared_capabilities( 2048 );
-  let large = WebGlBackend::declared_capabilities( 8192 );
+  let small = WebGlBackend::declared_capabilities( 2048, true );
+  let large = WebGlBackend::declared_capabilities( 8192, true );
 
   assert_eq!( small.max_texture_size, 2048 );
   assert_eq!( large.max_texture_size, 8192 );

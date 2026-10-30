@@ -2,8 +2,9 @@
 
 Pass scheduling, render-target lifecycles, and resolve/composite chains —
 the machinery that turns "draw these things" into an ordered frame. Today
-this layer exists only *embedded inside* each L3 engine; the blank crate
-`frame_graph` reserves the slot for its extraction.
+this layer exists only *embedded inside* other crates — each L3 engine, and
+`tilemap_scene` for the tile stack; the blank crate `frame_graph` reserves
+the slot for its extraction.
 
 ### Scope
 
@@ -103,7 +104,11 @@ and resolve mechanics are the same shape of problem.
   `rgb 205 46 41` (lit quad center) and `rgb 0 0 0` (background), identical
   on both backends.
 - `tilemap_renderer` (WebGL2 adapter): per-batch VAO lifecycle and
-  draw-time state management inside `src/adapters/webgl.rs`. Beyond
+  draw-time state management inside `src/adapters/webgl.rs`, plus offscreen
+  cache surfaces in `src/adapters/webgl/webgl_surfaces.rs`: an RGBA8 + depth
+  target per surface, a bake pass that binds it and sets its viewport, and a
+  composite pass that draws it back as a world quad, pixel-verified by
+  `tests/webgl_surfaces_test.rs`. Beyond
   `tests/webgl_backend_test.rs`'s compile-and-construct-level coverage,
   real-browser pixel verification via `browsee` is documented in
   `tests/manual/readme.md` — confirmed `rgb 255 0 0` sprite on
@@ -118,6 +123,18 @@ and resolve mechanics are the same shape of problem.
 - `tilemap_renderer` (native adapter): `submit()` in `src/adapters/native.rs`
   runs the same encoder/pass/pipeline/dispatch-loop/end/submit shape as the
   WebGPU adapter, over an offscreen surface with pixel readback.
+- `tilemap_scene` (`src/renderer.rs`), though it sits at L4/L5: `Renderer::render`
+  orders the tile frame for `tilemap_renderer`'s backends. With an `opaque`
+  layer it splits the frame into an opaque pass, topmost layer first with
+  depth writes on, and a transparent pass in painter's order with depth
+  writes off, toggled through `SetDepthWrite`; it pins each pipeline bucket
+  to its own depth slot so `occlude_overlap` buckets get single coverage
+  under the backend's `LESS` test; and it replays an unchanged frame from its
+  idle cache. It reads the backend's `Capabilities` (`depth`, `camera`) to
+  fall back to one painter's pass. `tests/opaque_pass_test.rs` checks the
+  command stream against a model of the backend's depth contract, and
+  `tilemap_renderer`'s `tests/webgl_depth_coverage_test.rs` checks the
+  backend side on a live context.
 
 ### Extraction Trigger
 
@@ -163,6 +180,10 @@ name and a documented home.
 | `module/helper/tilemap_renderer/src/adapters/webgl.rs` | Per-batch VAO lifecycle and draw-time state management |
 | `module/helper/tilemap_renderer/src/adapters/webgpu.rs` | Per-frame encoder/pass/pipeline/dispatch-loop/end/submit cycle in `submit()` |
 | `module/helper/tilemap_renderer/src/adapters/native.rs` | Same per-frame cycle as the WebGPU adapter, over an offscreen surface with pixel readback |
+| `module/helper/tilemap_renderer/src/adapters/webgl/webgl_surfaces.rs` | Offscreen cache surfaces: target lifecycle, bake and composite passes |
+| `module/helper/tilemap_renderer/tests/webgl_surfaces_test.rs` | Live-context pixel coverage of the cache surfaces |
+| `module/helper/tilemap_scene/src/renderer.rs` | Tile-stack frame orchestration: opaque / transparent passes, per-bucket depth slots, idle replay |
+| `module/helper/tilemap_scene/tests/opaque_pass_test.rs` | The pass split and depth slots, against a model of the backend's depth contract |
 | `module/helper/tilemap_renderer/tests/native_backend_test.rs` | Native adapter's own per-frame cycle, pixel-verified via readback (task 087) |
 | `module/helper/tilemap_renderer/tests/webgpu_backend_test.rs` | WebGPU adapter's compile-and-construct-level coverage |
 | `module/helper/tilemap_renderer/tests/webgl_backend_test.rs`, `tests/command_consistency_test.rs` | WebGL2 adapter's compile-and-construct-level coverage, plus a cross-backend (`none`/`svg`/`native`) `capabilities()`-honesty check (task 246) |

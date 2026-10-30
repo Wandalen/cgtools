@@ -247,6 +247,8 @@ fn fs_main( in : VsOut ) -> @location( 0 ) vec4f
         supported_blend_modes : &[],
         text_on_path : false,
         premultiplied_images : false,
+        depth : false,
+        camera : false,
         max_texture_size : 8192,
       }
     }

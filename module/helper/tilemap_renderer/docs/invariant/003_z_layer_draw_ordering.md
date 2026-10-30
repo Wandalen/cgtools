@@ -16,11 +16,20 @@ layered on top of it, honored only where a depth buffer exists.
 Commands submitted at equal `Transform::depth` — including the default
 `depth : 0.0` — composite in **submission order**: a later command paints
 over an earlier one. This holds on every backend. On backends with a depth
-buffer (currently WebGL2 only), `Transform::depth` additionally reorders
-draws coarsely, per field, within `[-RenderConfig::max_depth, max_depth]` —
-and is **reliable only for fully opaque draws**. Backends without a depth
-buffer (SVG) ignore `depth` entirely; for them submission order is the whole
-contract.
+buffer (currently WebGL2 only, `Capabilities::depth`), `Transform::depth`
+additionally reorders draws coarsely, per field, within
+`[-RenderConfig::max_depth, max_depth]` — and is **reliable only for fully
+opaque draws**. Backends without a depth buffer (SVG) ignore `depth` entirely;
+for them submission order is the whole contract.
+
+**One exception, by request.** A sprite batch with
+`SpriteBatchParams::occlude_overlap` draws under `LESS` instead of `LEQUAL`, so
+at equal depth the *first* fragment at a pixel wins and the batch's later,
+overlapping instances are rejected there. That is the point of the flag:
+each pixel of the batch blends once. It applies only within that batch's
+draw (`LEQUAL` is restored after it), only on a backend with a depth buffer,
+and only while depth writes are on; draws without the flag keep submission
+order at equal depth.
 
 ### Enforcement Mechanism
 
@@ -34,7 +43,9 @@ contract.
   contract, GPU-enforced. The shader divides `depth` by `u_max_depth` before
   writing clip-space z; values outside `[-max_depth, max_depth]` are clipped
   by the GPU (the draw disappears). For batches the effective depth is
-  `parent_depth + instance_depth`, subject to the same range.
+  `parent_depth + instance_depth`, subject to the same range. An
+  `occlude_overlap` sprite batch switches to `LESS` for its own draw and back
+  to `LEQUAL` after it (`cmd_draw_batch` in `src/adapters/webgl.rs`).
 - **Type level**: `RenderConfig::max_depth`'s doc comment
   (`src/types.rs`) records the range contract, the precision trade-off
   (larger range → coarser depth precision), and that a zero or negative
@@ -51,6 +62,9 @@ contract.
   submitted back-to-front regardless of `depth`.
 - A `depth` outside `[-max_depth, max_depth]` is clipped — the draw vanishes
   rather than clamping.
+- An `occlude_overlap` batch whose instances are meant to stack (a later one
+  painting over an earlier one) shows the first instead: under `LESS` the
+  later ones lose every pixel they share with it.
 
 ### Features
 
@@ -73,4 +87,5 @@ contract.
 | File | Relationship |
 |------|--------------|
 | `tests/types_test.rs` | Pins `Transform`/`RenderConfig` defaults the contract builds on |
+| `tests/webgl_depth_coverage_test.rs` | `occlude_overlap_paints_an_overlap_once`: on a live WebGL2 context, the `occlude_overlap` exception paints two overlapping instances' shared pixels once; without the flag they blend twice |
 | `tests/svg_backend_test.rs` | `svg_ignores_depth_preserves_submission_order` submits sprites at non-monotonic depths (5.0, 1.0, 3.0) and asserts the emitted `<use>` elements land in submission order, not depth-sorted order — direct, explicit proof of the SVG half of this invariant |
