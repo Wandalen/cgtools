@@ -138,7 +138,7 @@ crate::mod_interface!
   own use position_bounds_dequantize;
 }
 
-// Only `gltf_skeleton`'s morph target reader, `skeleton_displacements_data_load`, calls it.
+// Only `gltf_skeleton`'s morph channel reader, `morph_channel_read`, calls it.
 pub( crate ) use private::accessor_vec3_read;
 // The skin reader ( `gltf_skeleton` ) and the animation loader check accessors with it before
 // reading them.
