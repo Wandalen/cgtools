@@ -121,7 +121,9 @@ mod private
     ///
     /// Must be `> 0.0`. Zero produces a shader divide-by-zero and nothing
     /// renders; a negative value inverts the depth ordering. Neither case is
-    /// defended against at runtime.
+    /// defended against at runtime. A caller's own depths must stay within it:
+    /// `tilemap_scene` pins its opaque and `occlude_overlap` layouts to
+    /// `[0, 1)`, so a value below `1.0` clips its upper layers.
     ///
     /// Default `1.0` — backwards-compatible with the original `[-1, 1]` contract.
     /// Ignored by SVG and terminal backends.

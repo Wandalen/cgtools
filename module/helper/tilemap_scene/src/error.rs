@@ -163,6 +163,36 @@ mod private
       /// The distinct solid ids, in pattern order.
       ids : Vec< String >,
     },
+    /// A pipeline layer turns on depth writes (`opaque` or `occlude_overlap`)
+    /// with `alpha_clip` at `0.0` or below.
+    ///
+    /// Without a clip every texel writes depth, the fully transparent ones
+    /// included: an opaque layer hides the layers under its gaps, and an
+    /// `occlude_overlap` layer's soft fringe blocks its neighbours.
+    UnclippedDepthLayer
+    {
+      /// Id of the pipeline layer.
+      layer : String,
+      /// The flag that writes depth: `"opaque"` or `"occlude_overlap"`.
+      flag : &'static str,
+      /// The declared `alpha_clip`.
+      alpha_clip : f32,
+    },
+    /// An object layer references several effects of one kind.
+    ///
+    /// The renderer applies only the first effect of each kind a layer lists,
+    /// so the others would be silently ignored.
+    DuplicateEffectKind
+    {
+      /// Owning object's id.
+      object : String,
+      /// State whose layer lists the effects.
+      state : String,
+      /// The effect kind, e.g. `"AlphaPulse"`.
+      kind : &'static str,
+      /// The ids of that kind, in the order the layer lists them.
+      ids : Vec< String >,
+    },
     /// A sprite source is not valid for the declaring object's anchor type.
     ///
     /// For example, `NeighborBitmask` only works on `Hex` anchors;
@@ -225,6 +255,10 @@ mod private
           write!( f, "tint {tint:?} declares mode {mode:?}; only Multiply is implemented" ),
         Self::ConflictingOrientSelfIds { object, state, ids } =>
           write!( f, "object {object:?} state {state:?}: orient_to_grid VertexCorners layer has solid patterns for several ids {ids:?}; only one is supported" ),
+        Self::UnclippedDepthLayer { layer, flag, alpha_clip } =>
+          write!( f, "pipeline layer {layer:?} sets {flag} with alpha_clip {alpha_clip}; a layer that writes depth needs alpha_clip above 0" ),
+        Self::DuplicateEffectKind { object, state, kind, ids } =>
+          write!( f, "object {object:?} state {state:?}: a layer lists several {kind} effects {ids:?}; only the first would apply" ),
         Self::AnchorSourceMismatch { anchor, source_kind } =>
           write!( f, "sprite source {source_kind} is not valid for anchor {anchor}" ),
         Self::MissingDefaultState { object, state } =>

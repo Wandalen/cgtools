@@ -1,7 +1,8 @@
 //! Commands tests.
 //!
 //! Covers:
-//! - `Copy` invariant for every command struct and `RenderCommand` enum (compile-time check)
+//! - `Copy` invariant for every command struct and `RenderCommand` enum (compile-time check),
+//!   one `assert_copy` per `RenderCommand` variant
 //! - `RenderCommand` enum size constraint (must fit within 256 bytes for cache efficiency)
 //! - Command stream construction: path, group, and clear commands in a `Vec`
 //! - `SpriteBatchParams` and `MeshBatchParams` struct construction and resource-id round-trip
@@ -46,6 +47,7 @@ fn all_commands_are_copy()
   assert_copy::< UnbindBatch >();
   assert_copy::< DrawBatch >();
   assert_copy::< DeleteBatch >();
+  assert_copy::< SetDepthWrite >();
   assert_copy::< BeginGroup >();
   assert_copy::< EndGroup >();
   assert_copy::< Effect >();
@@ -99,7 +101,10 @@ fn command_stream_construction()
 }
 
 /// Verifies that `SpriteBatchParams` and `MeshBatchParams` can be
-/// constructed with default field values and that resource ids round-trip.
+/// constructed with their neutral field values and that those round-trip.
+/// `SpriteBatchParams` has no `Default`: `alpha_clip : 0.0` (no clip) and
+/// `occlude_overlap : false` are the values every existing caller passes to
+/// keep the previous behaviour.
 #[ test ]
 fn batch_params_defaults()
 {
@@ -109,8 +114,12 @@ fn batch_params_defaults()
     sheet : ResourceId::new( 0 ),
     blend : BlendMode::Normal,
     clip : None,
+    alpha_clip : 0.0,
+    occlude_overlap : false,
   };
   assert_eq!( sp.sheet.inner(), 0 );
+  assert!( sp.alpha_clip.to_bits() == 0.0_f32.to_bits(), "no coverage clip" );
+  assert!( !sp.occlude_overlap, "no single-coverage depth test" );
 
   let mp = MeshBatchParams
   {

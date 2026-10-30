@@ -104,7 +104,7 @@ serde_json = { workspace = true }
 
 # Additional testing utilities for examples and benchmarks
 rand = { version = "0.10", features = ["std_rng"] }
-criterion = { version = "0.8", features = ["html_reports"] }
+criterion = { workspace = true, features = ["html_reports"] }
 tempfile = { version = "3.27" }
 
 # Benchmarks configuration
