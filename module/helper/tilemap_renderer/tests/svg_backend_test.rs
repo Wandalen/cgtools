@@ -726,7 +726,7 @@ fn sprite_batch_use_carries_explicit_dimensions_matching_region()
     RenderCommand::CreateSpriteBatch( CreateSpriteBatch
     {
       batch : batch_id,
-      params : SpriteBatchParams { transform : Transform::default(), sheet : ResourceId::new( 0 ), blend : BlendMode::Normal, clip : None },
+      params : SpriteBatchParams { transform : Transform::default(), sheet : ResourceId::new( 0 ), blend : BlendMode::Normal, clip : None, alpha_clip : 0.0, occlude_overlap : false },
     }),
     RenderCommand::BindBatch( BindBatch { batch : batch_id } ),
     RenderCommand::AddSpriteInstance( AddSpriteInstance
@@ -855,6 +855,8 @@ fn sprite_batch_create_draw()
         sheet : ResourceId::new( 0 ),
         blend : BlendMode::Normal,
         clip : None,
+        alpha_clip : 0.0,
+        occlude_overlap : false,
       },
     }),
     RenderCommand::BindBatch( BindBatch { batch : batch_id } ),
@@ -958,6 +960,8 @@ fn batch_set_and_remove_instance()
         sheet : ResourceId::new( 0 ),
         blend : BlendMode::Normal,
         clip : None,
+        alpha_clip : 0.0,
+        occlude_overlap : false,
       },
     }),
     RenderCommand::BindBatch( BindBatch { batch : batch_id } ),
@@ -1058,6 +1062,8 @@ fn set_sprite_instance_out_of_bounds_returns_error()
         sheet : ResourceId::new( 0 ),
         blend : BlendMode::Normal,
         clip : None,
+        alpha_clip : 0.0,
+        occlude_overlap : false,
       },
     }),
     RenderCommand::BindBatch( BindBatch { batch : batch_id } ),
@@ -1150,6 +1156,8 @@ fn delete_batch()
         sheet : ResourceId::new( 0 ),
         blend : BlendMode::Normal,
         clip : None,
+        alpha_clip : 0.0,
+        occlude_overlap : false,
       },
     }),
     RenderCommand::DeleteBatch( DeleteBatch { batch : batch_id } ),
@@ -1617,8 +1625,11 @@ fn capabilities_all_true()
   assert!( caps.effects );
   assert!( caps.blend_modes );
   assert!( caps.text_on_path );
-  // The one `false`: SVG embeds a premultiplied image's bytes as a straight-alpha PNG.
+  // SVG embeds a premultiplied image's bytes as a straight-alpha PNG.
   assert!( !caps.premultiplied_images );
+  // SVG paints in document order and ignores `SetDepthWrite` and `depth`.
+  assert!( !caps.depth );
+  assert!( !caps.camera, "the viewport transform wraps the whole document, so it is no world camera" );
   assert_eq!( caps.max_texture_size, 0 );
 }
 

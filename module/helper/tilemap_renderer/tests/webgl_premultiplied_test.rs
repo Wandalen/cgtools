@@ -150,7 +150,7 @@ fn mesh_pixel( assets : &Assets, fill : [ f32; 4 ], textured : bool ) -> [ u8; 4
 fn sprite_batch_pixel( assets : &Assets, tint : [ f32; 4 ] ) -> [ u8; 4 ]
 {
   let batch = ResourceId::new( 0 );
-  let params = SpriteBatchParams { transform : Transform::default(), sheet : ResourceId::new( 0 ), blend : BlendMode::Normal, clip : None };
+  let params = SpriteBatchParams { transform : Transform::default(), sheet : ResourceId::new( 0 ), blend : BlendMode::Normal, clip : None, alpha_clip : 0.0, occlude_overlap : false };
   pixel_after( assets, | transform | vec!
   [
     RenderCommand::CreateSpriteBatch( CreateSpriteBatch { batch, params } ),

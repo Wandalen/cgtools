@@ -38,10 +38,12 @@ Two independent mechanisms together enforce nearly every rule in the Invariant S
 | ✅ | Asset reference resolution — recursive walk over `Static`/`Variant`/`NeighborCondition`/`VertexCorners`/`NeighborBitmask` (`ByMapping` recursively, `ByAtlas` directly)/`EdgeConnectedBitmask`/`ViewportTiled`, stopping at `Animation`/`External` leaves, plus every `AnimationTiming` frame asset. |
 | ✅ | `VertexCorners.corner_source` resolution — when set, names the `global_layer` of at least one declared object (`UnresolvedRef { kind: "corner_source layer", .. }`); otherwise every corner of that layer would silently resolve to `VOID_ID`. |
 | ✅ | One self id per `orient_to_grid` layer — a `VertexCorners` layer with `orient_to_grid: true` declares solid `( X, X, X )` patterns for at most one id (`ConflictingOrientSelfIds`); orientation counts corners against the first one, so a second solid id's edge and corner tiles would silently take parity frames. |
+| ✅ | Depth layers clip — a pipeline layer with `opaque` or `occlude_overlap` has `alpha_clip > 0` (`UnclippedDepthLayer`); without a clip its transparent texels would write depth and hide or block the layers they should show. |
 | ✅ | `default_state` existence in `states`. |
 | ✅ | Reserved id `"void"` not used as a declared object id. |
 | ✅ | Id uniqueness within `assets` / `tints` / `animations` / `effects` / `objects` (each its own collection). |
 | ✅ | `TintRef` / `AnimationRef` / `EffectRef` resolution, including recursive occurrences inside `Variant` / `NeighborBitmask` / `EdgeConnectedBitmask` / `ViewportTiled`. |
+| ✅ | One effect per kind on a layer — no `ObjectLayer.behaviour.effects` lists two effects of the same `EffectKind` (`DuplicateEffectKind`); the renderer applies only the first of each kind. |
 | ✅ | `NeighborBitmask.connects_with` / `EdgeConnectedBitmask.connects_with` entry resolution (declared object id or reserved id `"void"`). |
 | ✅ | Composite-in-composite nesting rejection (`IllegalSourceNesting`). |
 | ✅ | Tiling whitelist — `pipeline.hex.tiling` restricted to `HexFlatTop`/`HexPointyTop`; `Square4`/`Square8` rejected (`UnsupportedTiling`). |
@@ -108,5 +110,5 @@ Where a rule is NOT enforced by either mechanism (anchor↔source compatibility 
 
 | File | Relationship |
 |------|--------------|
-| `tests/scene_model_test.rs` | `validate_rejects_*` / `validate_accepts_*` (14 tests) exercise every enforced `RenderSpec` rule in the table above; `validates_minimal_scene`, `validate_rejects_conflicting_tile_source`, `validate_rejects_owner_out_of_range` cover both enforced `SceneSnapshot` rules |
+| `tests/scene_model_test.rs` | the `validate_rejects_*` / `validate_accepts_*` tests exercise every enforced `RenderSpec` rule in the table above; `validates_minimal_scene`, `validate_rejects_conflicting_tile_source`, `validate_rejects_owner_out_of_range` cover both enforced `SceneSnapshot` rules |
 | `tests/scene_model_compile_test.rs` | `from_snapshot_rejects_unknown_initial_global_tint` / `_accepts_known_initial_global_tint`, `from_snapshot_rejects_unknown_tile_object`, `from_snapshot_rejects_unknown_palette_char` cover the three `Scene::from_snapshot` cross-file rules; `edge_rejects_external_source` pins the one remaining gap — passes `validate()`, then fails at compile (see `pitfall/001`) |

@@ -17,5 +17,27 @@ rustc-hash = { workspace = true }
 slotmap = { workspace = true }
 tilemap_renderer = { workspace = true, default-features = true, features = ["scene-model"] }
 
+[dev-dependencies]
+# `opaque_pass_test` feeds a frame to the SVG backend, which has no depth buffer.
+tilemap_renderer = { workspace = true, features = ["scene-model", "adapter-svg"] }
+
+# criterion does not build for wasm32, so the browser suites ( wasm32 only )
+# can only build without it; the benchmark is native-only.
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+criterion = { workspace = true }
+
+# `webgl_renderer_test` drives the renderer into a live WebGL backend.
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+tilemap_renderer = { workspace = true, features = ["scene-model", "adapter-webgl"] }
+minwebgl = { workspace = true }
+wasm-bindgen = { workspace = true }
+wasm-bindgen-test = { workspace = true }
+web-sys = { workspace = true, features = [ "HtmlCanvasElement" ] }
+
+# Renderer::render on a 469-hex dual-grid board (the frames #207 optimised).
+[[bench]]
+name = "frame_render"
+harness = false
+
 [lints]
 workspace = true

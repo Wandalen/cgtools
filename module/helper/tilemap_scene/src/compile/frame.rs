@@ -34,16 +34,7 @@ mod private
     tile_lookup as build_tile_lookup,
     tile_max_priority,
   };
-  use crate::compile::orient::dual_orientation_index;
   use crate::compile::tint::FrameTints;
-  use crate::compile::vertex::
-  {
-    canonicalize,
-    triangles_enumerate,
-    matching_pattern_find,
-    corners_resolve,
-    TriangleContext,
-  };
   use crate::hash::coord_hash;
   use crate::layer::{ LayerBehaviour, ObjectLayer };
   use crate::object::Object;
@@ -53,69 +44,67 @@ mod private
   use crate::instance::{ Instance, Placement };
   use crate::scene::Scene;
   use crate::snapshot::{ EdgeInstance, EdgePosition, Tile };
-  use crate::source::{ NeighborBitmaskSource, SpriteSource, TriBlendPattern, VariantSelection, ViewportTiling };
+  use crate::source::{ NeighborBitmaskSource, SpriteSource, VariantSelection, ViewportTiling };
   use crate::spec::RenderSpec;
   use tilemap_renderer::types::Transform;
   use rustc_hash::FxHashMap as HashMap;
+  use super::vertex_corners::{ project_vertex_sprite, resolve_vertex_pass_all, ResolvedVertexSprite };
+  pub use super::vertex_corners::VertexResolveCache;
 
   /// Bundled per-frame context threaded into helper functions.
   ///
   /// Consolidates 10+ parameters into a single `&ctx`. Fields are read-only —
   /// no mutation happens once the context is built in [`render_into`].
-  struct FrameContext< 'a >
+  pub( crate ) struct FrameContext< 'a >
   {
-    spec : &'a RenderSpec,
-    compiled : &'a CompiledAssets,
-    camera : &'a Camera,
-    time_seconds : f32,
-    tile_lookup : HashMap< ( i32, i32 ), &'a Tile >,
-    edge_lookup : HashMap< CanonicalEdge, &'a EdgeInstance >,
-    tiling : TilingStrategy,
-    grid_stride : ( u32, u32 ),
-    viewport_size : ( u32, u32 ),
+    pub( crate ) spec : &'a RenderSpec,
+    pub( crate ) compiled : &'a CompiledAssets,
+    pub( crate ) camera : &'a Camera,
+    /// Read-only access to the live [`Scene`] — currently only for
+    /// [`Scene::fade_value`] (`EffectKind::FadeGate`'s live eased progress).
+    pub( crate ) scene : &'a Scene,
+    pub( crate ) time_seconds : f32,
+    pub( crate ) tile_lookup : HashMap< ( i32, i32 ), &'a Tile >,
+    pub( crate ) edge_lookup : HashMap< CanonicalEdge, &'a EdgeInstance >,
+    pub( crate ) tiling : TilingStrategy,
+    pub( crate ) grid_stride : ( u32, u32 ),
+    pub( crate ) viewport_size : ( u32, u32 ),
     /// Scene-level seed folded to `u32` for `coord_hash`. Consumed by
     /// `VariantSelection::Random`.
-    scene_seed : u32,
+    pub( crate ) scene_seed : u32,
     /// Global tint and declared tints resolved once for this frame; the only
     /// source of an emitted `Sprite.tint` (see [`FrameTints::sprite_tint`]).
-    tints : FrameTints< 'a >,
+    pub( crate ) tints : FrameTints< 'a >,
   }
 
-  fn transform_make( sx : f32, sy : f32, zoom : f32 ) -> Transform
+  /// Build a **world-space** [`Transform`] at `( wx, wy )` with unit scale and no
+  /// rotation. Pan and zoom are supplied by the camera view matrix that the
+  /// backend applies on the GPU (see [`crate::compile::camera::Camera::to_view_mat3`]),
+  /// so a world instance always carries scale `1` and never has to be rewritten
+  /// when the camera moves — that is the whole point of emitting world-space.
+  pub( crate ) fn make_transform( wx : f32, wy : f32 ) -> Transform
   {
     Transform
     {
-      position : [ sx, sy ],
+      position : [ wx, wy ],
       rotation : 0.0,
-      scale : [ zoom, zoom ],
+      scale : [ 1.0, 1.0 ],
       skew : [ 0.0, 0.0 ],
       depth : 0.0,
     }
   }
 
-  /// Projects a world-space point through the camera, then shifts it by the
-  /// sprite's pivot, producing the final sprite transform.
-  fn point_to_transform
-  (
-    wx : f32,
-    wy : f32,
-    pivot : ( f32, f32 ),
-    sprite_id : tilemap_renderer::types::ResourceId< tilemap_renderer::types::asset::Sprite >,
-    ctx : &FrameContext< '_ >,
-  ) -> Transform
-  {
-    let ( sx, sy ) = ctx.camera.project( ( wx, wy ) );
-    let ( sx, sy ) = pivot_apply( sx, sy, ctx.camera.zoom, pivot, sprite_id, ctx.compiled );
-    transform_make( sx, sy, ctx.camera.zoom )
-  }
-
-  /// Shift the projected scene-anchor point so the sprite's anchor pixel
+  /// Shift the world-space scene-anchor point so the sprite's anchor pixel
   /// lands exactly on the original scene position.
   ///
   /// Backends render sprites with a bottom-left anchor (quad extends
   /// up-right from `transform.position`). To place some arbitrary anchor
   /// point of the sprite onto the scene position, we shift
-  /// `transform.position` in screen space.
+  /// `transform.position` by the anchor offset **in world pixels**. The camera
+  /// view matrix (applied by the backend) then scales that offset by zoom along
+  /// with the position, so the anchor stays glued at any zoom — the same result
+  /// the old screen-space `offset * zoom` produced, without depending on the
+  /// camera here.
   ///
   /// Priority for picking the anchor point:
   ///
@@ -124,18 +113,17 @@ mod private
   ///    the semantic contact point (feet, ground touch, vertex attachment).
   /// 2. **Object-level normalized `pivot`** — fraction of sprite size.
   ///    Used as a fallback when no per-frame anchor is set.
-  fn pivot_apply
+  pub( crate ) fn pivot_apply
   (
-    sx : f32,
-    sy : f32,
-    zoom : f32,
+    wx : f32,
+    wy : f32,
     pivot : ( f32, f32 ),
     sprite_id : tilemap_renderer::types::ResourceId< tilemap_renderer::types::asset::Sprite >,
     compiled : &CompiledAssets,
   ) -> ( f32, f32 )
   {
     let Some( s ) = compiled.assets.sprites.iter().find( | s | s.id == sprite_id )
-    else { return ( sx, sy ); };
+    else { return ( wx, wy ); };
 
     let w = s.region[ 2 ];
     let h = s.region[ 3 ];
@@ -144,17 +132,17 @@ mod private
     // top-left in image-y-down convention; the sprite renders with Y-up in
     // world, so the offset from sprite bottom in world is `h - ay`. That
     // flipped value is what we subtract to align the anchor pixel with
-    // (sx, sy).
+    // (wx, wy).
     if let Some( [ ax, ay ] ) = compiled.sprite_anchors.get( &sprite_id ).copied()
     {
-      return ( sx - ax * zoom, sy - ( h - ay ) * zoom );
+      return ( wx - ax, wy - ( h - ay ) );
     }
 
     // Normalized pivot fallback.
-    ( sx - pivot.0 * w * zoom, sy - pivot.1 * h * zoom )
+    ( wx - pivot.0 * w, wy - pivot.1 * h )
   }
 
-  fn hex_world_pixel
+  pub( crate ) fn hex_world_pixel
   (
     q : i32,
     r : i32,
@@ -187,193 +175,11 @@ mod private
   // bug has no compiler signal -- only a direct doc-vs-usage grep catches it.
   /// Returns `stack`'s layers ordered by ascending `z_in_object` (ties keep their
   /// relative declaration order, since `sort_by_key` is stable).
-  fn layers_in_z_order( stack : &[ ObjectLayer ] ) -> Vec< &ObjectLayer >
+  pub( crate ) fn layers_in_z_order( stack : &[ ObjectLayer ] ) -> Vec< &ObjectLayer >
   {
     let mut ordered : Vec< &ObjectLayer > = stack.iter().collect();
     ordered.sort_by_key( | layer | layer.z_in_object );
     ordered
-  }
-
-  /// One triangle's corners as read through one `corner_source` channel.
-  struct CornerChannel< 'a >
-  {
-    /// The layer's `corner_source` (`None` = terrain id).
-    source : Option< &'a str >,
-    /// Corner ids parallel to the triangle's corners.
-    raw : [ String; 3 ],
-    /// `raw` sorted for pattern matching.
-    canonical : [ String; 3 ],
-    /// Canonical-sort rotation (legacy `{rot}`).
-    rotation : u8,
-  }
-
-  /// The corners of `tri` read through channel `source`, resolved on first
-  /// use and cached in `channels` for every later layer that reads the same
-  /// channel. `channels` holds one triangle's channels; clear it per triangle.
-  fn corner_channel< 'c, 'a >
-  (
-    channels : &'c mut Vec< CornerChannel< 'a > >,
-    tri : &TriangleContext,
-    source : Option< &'a str >,
-    ctx : &FrameContext< '_ >,
-  ) -> &'c CornerChannel< 'a >
-  {
-    let idx = if let Some( i ) = channels.iter().position( | c | c.source == source )
-    {
-      i
-    }
-    else
-    {
-      let raw = corners_resolve( tri, &ctx.tile_lookup, ctx.spec, source );
-      let ( canonical, rotation ) = canonicalize( &raw );
-      channels.push( CornerChannel { source, raw, canonical, rotation } );
-      channels.len() - 1
-    };
-    &channels[ idx ]
-  }
-
-  /// A `VertexCorners` layer routed into the bucket being compiled, with its
-  /// triangle-independent state.
-  struct VertexLayer< 'a >
-  {
-    object : &'a Object,
-    layer : &'a ObjectLayer,
-    /// The id orient mode counts corners against: the value of the layer's
-    /// solid (X,X,X) pattern, so a neighbouring object's id (e.g. an adjacent
-    /// player's region) reads as void instead of being mistaken for the
-    /// distinguishing corner. `None` outside orient mode.
-    self_id : Option< &'a str >,
-  }
-
-  /// Every `VertexCorners` layer whose effective pipeline layer is
-  /// `bucket_id`, in object order and `z_in_object` order within an object.
-  fn vertex_layers_gather< 'a >( bucket_id : &str, spec : &'a RenderSpec ) -> Vec< VertexLayer< 'a > >
-  {
-    let mut layers = Vec::new();
-    for object in &spec.objects
-    {
-      let Some( stack ) = object.states.get( &object.default_state )
-      else { continue };
-      for layer in layers_in_z_order( stack )
-      {
-        let SpriteSource::VertexCorners { patterns, orient_to_grid, .. } = &layer.sprite_source
-        else { continue };
-        let effective = layer.pipeline_layer.as_deref().unwrap_or( object.global_layer.as_str() );
-        if effective == bucket_id
-        {
-          let self_id = if *orient_to_grid { patterns.iter().find_map( TriBlendPattern::self_id ) } else { None };
-          layers.push( VertexLayer { object, layer, self_id } );
-        }
-      }
-    }
-    layers
-  }
-
-  /// The sprite `vl` draws on a triangle whose corners read `corners`, or
-  /// `None` when no pattern matches. `corner_px` are the corner hex centres
-  /// and `( wx, wy )` their centroid.
-  fn vertex_sprite_build
-  (
-    vl : &VertexLayer< '_ >,
-    corners : &CornerChannel< '_ >,
-    corner_px : &[ ( f32, f32 ); 3 ],
-    ( wx, wy ) : ( f32, f32 ),
-    ctx : &FrameContext< '_ >,
-  ) -> Result< Option< Sprite >, CompileError >
-  {
-    let SpriteSource::VertexCorners { patterns, asset, orient_to_grid, offset, .. } = &vl.layer.sprite_source
-    else { return Ok( None ) };
-    let Some( pattern ) = matching_pattern_find( patterns, &corners.canonical )
-    else { return Ok( None ) };
-
-    // Both modes substitute `{rot}`; only the index source differs.
-    // Orient mode picks a pre-baked discrete orientation from triangle
-    // geometry; legacy mode uses the canonical-sort rotation. Either way
-    // `transform.rotation` stays 0 — no runtime sprite rotation.
-    let rot_index = if *orient_to_grid
-    {
-      dual_orientation_index( &corners.raw, vl.self_id, corner_px, wx, wy, ctx.tiling )
-    }
-    else
-    {
-      corners.rotation
-    };
-    let frame_name = pattern.sprite_pattern.replace( "{rot}", &rot_index.to_string() );
-
-    let sprite_id = ctx.compiled.ids.sprite( asset, &frame_name )
-      .ok_or_else( || CompileError::UnresolvedRef
-      {
-        kind : "sprite",
-        id : format!( "{asset}:{frame_name}" ),
-        context : format!( "object {:?} VertexCorners frame {frame_name}", vl.object.id ),
-      })?;
-
-    // Optional static world offset — shifts only the drawn sprite (a tinted,
-    // nudged copy for a 2.5D wall / drop-shadow), not the corner/orientation
-    // geometry resolved above.
-    let ( ox, oy ) = offset.unwrap_or( ( 0.0, 0.0 ) );
-    Ok( Some( Sprite
-    {
-      transform : point_to_transform( wx + ox, wy + oy, vl.object.pivot, sprite_id, ctx ),
-      sprite : sprite_id,
-      tint : ctx.tints.sprite_tint( vl.object, &vl.layer.behaviour, None )?,
-      blend : vl.layer.behaviour.blend,
-      clip : None,
-    }))
-  }
-
-  /// Emit dual-mesh triangle sprites for every `VertexCorners` layer that
-  /// routes into `bucket_id`. One sprite per triangle whose canonical
-  /// corner tuple matches at least one pattern.
-  fn vertex_pass_compile
-  (
-    bucket_id : &str,
-    tiles : &[ Tile ],
-    ctx : &FrameContext< '_ >,
-  ) -> Result< Vec< ( f32, f32, Sprite ) >, CompileError >
-  {
-    let layers = vertex_layers_gather( bucket_id, ctx.spec );
-    let Some( first ) = layers.first()
-    else { return Ok( Vec::new() ) };
-    // The object id passed to `hex_world_pixel` only affects an unsupported-
-    // tiling error message, so any layer's object id is fine.
-    let id_for_err = &first.object.id;
-
-    let mut out : Vec< ( f32, f32, Sprite ) > = Vec::new();
-    // Corners of the current triangle, resolved once per `corner_source`
-    // channel and shared by every layer that reads the same channel.
-    let mut channels : Vec< CornerChannel< '_ > > = Vec::new();
-
-    for tri in &triangles_enumerate( tiles, ctx.tiling )
-    {
-      channels.clear();
-      // Corner hex pixel centres, indexed parallel to `tri.corners`. Computed
-      // once per triangle — independent of the layer / corner channel — and
-      // reused for the centroid (their average) and the orient-mode frame pick.
-      let mut corner_px = [ ( 0.0_f32, 0.0_f32 ); 3 ];
-      for ( i, corner ) in tri.corners.iter().enumerate()
-      {
-        corner_px[ i ] = hex_world_pixel( corner.0, corner.1, ctx, id_for_err )?;
-      }
-      let wx = ( corner_px[ 0 ].0 + corner_px[ 1 ].0 + corner_px[ 2 ].0 ) / 3.0;
-      let wy = ( corner_px[ 0 ].1 + corner_px[ 1 ].1 + corner_px[ 2 ].1 ) / 3.0;
-
-      for vl in &layers
-      {
-        // Corners come from THIS layer's channel (terrain id by default, or
-        // the named draw layer), so independent dual grids — e.g. base
-        // terrain and per-player regions — coexist on the same cells.
-        let SpriteSource::VertexCorners { corner_source, .. } = &vl.layer.sprite_source
-        else { continue };
-        let corners = corner_channel( &mut channels, tri, corner_source.as_deref(), ctx );
-        if let Some( sprite ) = vertex_sprite_build( vl, corners, &corner_px, ( wx, wy ), ctx )?
-        {
-          out.push( ( wx, wy, sprite ) );
-        }
-      }
-    }
-
-    Ok( out )
   }
 
   /// Emit sprites for every `EdgeInstance` whose owning `Object` routes
@@ -452,8 +258,8 @@ mod private
   ///
   /// Dispatches over all non-vertex sources: `Static`, `Animation`,
   /// `Variant`, `NeighborBitmask`. `NeighborCondition` is handled by
-  /// [`emit_neighbor_condition`] directly (emits multiple sprites).
-  /// `VertexCorners` is handled by [`vertex_pass_compile`].
+  /// [`neighbor_condition_with_overrides_emit`] directly (emits multiple sprites).
+  /// `VertexCorners` is handled by [`resolve_vertex_pass_all`].
   fn sprite_source_resolve
   (
     source : &SpriteSource,
@@ -654,6 +460,169 @@ mod private
     /// Bucket's sort mode — needed by the batching renderer to decide
     /// whether instance order within a batch matters.
     pub sort : SortMode,
+    /// Coverage cut-off carried from the bucket's `PipelineLayer`; the
+    /// renderer copies it into every `SpriteBatchParams` it emits for this
+    /// bucket. `0.0` disables the discard.
+    pub alpha_clip : f32,
+    /// Single-coverage depth flag carried from the bucket's `PipelineLayer`
+    /// (see `PipelineLayer::occlude_overlap`).
+    pub occlude_overlap : bool,
+    /// Opaque-pass flag carried from the bucket's `PipelineLayer` (see
+    /// `PipelineLayer::opaque`). Drives the renderer's opaque/transparent
+    /// split; `false` for every bucket leaves the original single-pass path.
+    pub opaque : bool,
+  }
+
+  /// Every visible hex- and free-placed instance layer, routed to the
+  /// non-skipped buckets it draws in; see [`instances_route`].
+  struct Routed< 'a >
+  {
+    hex : Vec< Vec< HexWork< 'a > > >,
+    free : Vec< Vec< FreeWork< 'a > > >,
+    /// Whether a routed layer reads neighbouring cells (the per-cell tile table).
+    reads_tiles : bool,
+  }
+
+  /// Route every visible hex- and free-placed instance's layers to the buckets
+  /// they draw in, in ONE walk of the scene — per instance, its current state's
+  /// stack in z order, so each bucket's list keeps the instance-major, z-minor
+  /// order a per-bucket walk produced (at `buckets × instances` cost). A layer
+  /// goes to every non-skipped bucket carrying its id, as that per-bucket
+  /// filter did.
+  fn instances_route( scene : &Scene, skip : u64 ) -> Result< Routed< '_ >, CompileError >
+  {
+    let spec = scene.spec();
+    let bucket_count = spec.pipeline.layers.len();
+    let mut bucket_of : HashMap< &str, Vec< usize > > = HashMap::default();
+    for ( i, bucket ) in spec.pipeline.layers.iter().enumerate()
+    {
+      if !bucket_skipped( skip, i ) { bucket_of.entry( bucket.id.as_str() ).or_default().push( i ); }
+    }
+    let mut hex_work : Vec< Vec< HexWork< '_ > > > = ( 0..bucket_count ).map( | _ | Vec::new() ).collect();
+    let mut free_work : Vec< Vec< FreeWork< '_ > > > = ( 0..bucket_count ).map( | _ | Vec::new() ).collect();
+    // Whether a routed layer reads neighbouring cells (the per-cell tile table).
+    let mut layers_read_tiles = false;
+    if !bucket_of.is_empty()
+    {
+      let mut ordered : Vec< &ObjectLayer > = Vec::new();
+      for &handle in scene.hex_instances()
+      {
+        let inst = scene.instance( handle ).expect( "hex handle live" );
+        if !inst.visible { continue; }
+        let object = &spec.objects[ inst.object.index() as usize ];
+        match object.anchor
+        {
+          Anchor::Hex => {},
+          Anchor::Multihex { .. } => return Err( CompileError::UnsupportedAnchor
+          {
+            object : object.id.clone(),
+            anchor : "Multihex",
+          }),
+          _ => continue,
+        }
+        let stack = instance_stack( scene, inst, object )?;
+        let Placement::Hex { q, r } = inst.placement else { continue };
+        layers_z_order_into( stack, &mut ordered );
+        for &layer in &ordered
+        {
+          // `VertexCorners` layers emit nothing per instance — the vertex pass
+          // below draws them for the whole board.
+          if matches!( layer.sprite_source, SpriteSource::VertexCorners { .. } ) { continue; }
+          let effective = layer.pipeline_layer.as_deref().unwrap_or( object.global_layer.as_str() );
+          let Some( targets ) = bucket_of.get( effective ) else { continue };
+          layers_read_tiles |= source_reads_tiles( &layer.sprite_source );
+          for &bi in targets
+          {
+            hex_work[ bi ].push( HexWork { inst, object, layer, pos : ( q, r ) } );
+          }
+        }
+      }
+      for &handle in scene.free_instances()
+      {
+        let inst = scene.instance( handle ).expect( "free handle live" );
+        if !inst.visible { continue; }
+        let Placement::FreePos { x, y } = inst.placement else { unreachable!() };
+        let object = &spec.objects[ inst.object.index() as usize ];
+        if !matches!( object.anchor, Anchor::FreePos )
+        {
+          return Err( CompileError::UnsupportedAnchor
+          {
+            object : object.id.clone(),
+            anchor : "FreePos (object declares a different anchor)",
+          });
+        }
+        let stack = instance_stack( scene, inst, object )?;
+        layers_z_order_into( stack, &mut ordered );
+        for &layer in &ordered
+        {
+          let effective = layer.pipeline_layer.as_deref().unwrap_or( object.global_layer.as_str() );
+          let Some( targets ) = bucket_of.get( effective ) else { continue };
+          for &bi in targets
+          {
+            free_work[ bi ].push( FreeWork { inst, object, layer, pos : ( x, y ) } );
+          }
+        }
+      }
+    }
+
+    Ok( Routed { hex : hex_work, free : free_work, reads_tiles : layers_read_tiles } )
+  }
+
+  /// One hex-placed instance layer routed to a bucket by [`frame_emits_gather`].
+  struct HexWork< 'a >
+  {
+    inst : &'a Instance,
+    object : &'a Object,
+    layer : &'a ObjectLayer,
+    pos : ( i32, i32 ),
+  }
+
+  /// One free-placed instance layer routed to a bucket by [`frame_emits_gather`].
+  struct FreeWork< 'a >
+  {
+    inst : &'a Instance,
+    object : &'a Object,
+    layer : &'a ObjectLayer,
+    pos : ( f32, f32 ),
+  }
+
+  /// The layer stack of `inst`'s current state.
+  fn instance_stack< 'a >( scene : &Scene, inst : &Instance, object : &'a Object ) -> Result< &'a [ ObjectLayer ], CompileError >
+  {
+    let state_name = scene.state_name( inst.state ).ok_or_else( || CompileError::MissingDefaultState
+    {
+      object : object.id.clone(),
+    })?;
+    object.states.get( state_name ).map( Vec::as_slice ).ok_or_else( || CompileError::MissingDefaultState
+    {
+      object : object.id.clone(),
+    })
+  }
+
+  /// [`layers_in_z_order`] into a reused buffer (cleared first), so the
+  /// per-instance routing walk allocates nothing once the buffer has grown.
+  fn layers_z_order_into< 'a >( stack : &'a [ ObjectLayer ], out : &mut Vec< &'a ObjectLayer > )
+  {
+    out.clear();
+    out.extend( stack.iter() );
+    out.sort_by_key( | layer | layer.z_in_object );
+  }
+
+  /// Whether resolving `source` reads the cells around the instance (the
+  /// per-cell tile table): neighbour sources do, directly or as a variant.
+  fn source_reads_tiles( source : &SpriteSource ) -> bool
+  {
+    match source
+    {
+      SpriteSource::NeighborBitmask { .. } | SpriteSource::NeighborCondition { .. } => true,
+      SpriteSource::Variant { variants, .. } => variants.iter().any( | v | source_reads_tiles( &v.sprite ) ),
+      SpriteSource::Static( _ )
+      | SpriteSource::Animation( _ )
+      | SpriteSource::External { .. }
+      | SpriteSource::VertexCorners { .. }
+      | SpriteSource::EdgeConnectedBitmask { .. }
+      | SpriteSource::ViewportTiled { .. } => false,
+    }
   }
 
   /// Walk the scene and produce structured per-bucket emit data without
@@ -672,11 +641,23 @@ mod private
   /// Panics in debug builds if `scene` exposes an instance handle for
   /// which the underlying `Instance` is missing — only possible if the
   /// scene's spatial indexes are inconsistent with its slotmap.
+  /// `vcache` is an optional revision-keyed memo for the expensive dual-grid
+  /// vertex pass (see [`VertexResolveCache`]). When supplied, the structural
+  /// resolve is reused across frames as long as the scene `revision` is
+  /// unchanged — so an animating-but-idle board (clock ticking, nothing
+  /// spawned/despawned) skips the whole triangle / pattern / string walk and
+  /// only re-projects. Pass `None` for a one-shot uncached compile.
+  ///
+  /// `skip` masks out pipeline layers the caller will not draw (bit `i` = layer
+  /// `i`, the renderer's `disabled_buckets`): their bucket comes back empty and
+  /// neither the vertex resolve nor the per-bucket walk runs for them.
   pub fn frame_emits_gather
   (
     compiled : &CompiledAssets,
     scene : &Scene,
     camera : &Camera,
+    vcache : Option< &mut VertexResolveCache >,
+    skip : u64,
   ) -> Result< FrameEmits, CompileError >
   {
     let spec = scene.spec();
@@ -693,7 +674,17 @@ mod private
       });
     }
 
-    let synthetic_tiles = scene_tiles_build( scene );
+    let bucket_count = spec.pipeline.layers.len();
+    let Routed { hex : hex_work, free : free_work, reads_tiles : layers_read_tiles } = instances_route( scene, skip )?;
+
+    // The vertex resolve is reused while the scene's hex cells are unchanged.
+    let revision = scene.tiles_revision();
+    let vertex_miss = vcache.as_ref().is_none_or( | c | !c.valid || c.scene != scene.id() || c.revision != revision || c.skip != skip );
+
+    // The per-cell tile table — one `String` per hex instance — is read only by
+    // the vertex resolve and by neighbour-reading sources, so build it only when
+    // one of those will run this frame.
+    let synthetic_tiles = if vertex_miss || layers_read_tiles { scene_tiles_build( scene ) } else { Vec::new() };
     let synthetic_edges = scene_edges_build( scene, spec );
 
     let viewport_size = spec.pipeline.viewport_size.unwrap_or( camera.viewport_size );
@@ -705,6 +696,7 @@ mod private
       spec,
       compiled,
       camera,
+      scene,
       time_seconds : scene.clock(),
       tile_lookup : build_tile_lookup( &synthetic_tiles ),
       edge_lookup,
@@ -715,54 +707,55 @@ mod private
       tints : FrameTints::new( spec, scene )?,
     };
 
-    let mut buckets = Vec::with_capacity( spec.pipeline.layers.len() );
-
-    for bucket in &spec.pipeline.layers
+    // Vertex pass — resolve the camera/clock-independent structural half once,
+    // reusing the cached result while the scene's hex cells are unchanged. On a
+    // miss (or with no cache) it is recomputed; either way the cheap per-frame
+    // projection happens below, per bucket.
+    let local_resolved;
+    let resolved : &[ Vec< ResolvedVertexSprite > ] = if let Some( cache ) = vcache
     {
+      if vertex_miss
+      {
+        cache.store( resolve_vertex_pass_all( &synthetic_tiles, &ctx, skip )?, scene.id(), revision, skip );
+      }
+      &cache.buckets
+    }
+    else
+    {
+      local_resolved = resolve_vertex_pass_all( &synthetic_tiles, &ctx, skip )?;
+      &local_resolved
+    };
+    let mut buckets = Vec::with_capacity( bucket_count );
+
+    for ( bucket_idx, bucket ) in spec.pipeline.layers.iter().enumerate()
+    {
+      if bucket_skipped( skip, bucket_idx )
+      {
+        buckets.push( BucketEmits
+        {
+          sprites : Vec::new(),
+          screen_space : Vec::new(),
+          sort : bucket.sort,
+          alpha_clip : bucket.alpha_clip,
+          occlude_overlap : bucket.occlude_overlap,
+          opaque : bucket.opaque,
+        });
+        continue;
+      }
       let mut draws : Vec< ( f32, f32, Sprite ) > = Vec::new();
 
-      for &handle in scene.hex_instances()
+      for w in &hex_work[ bucket_idx ]
       {
-        let inst = scene.instance( handle ).expect( "hex handle live" );
-        if !inst.visible { continue; }
-
-        let object = &spec.objects[ inst.object.index() as usize ];
-        match object.anchor
-        {
-          Anchor::Hex => {},
-          Anchor::Multihex { .. } => return Err( CompileError::UnsupportedAnchor
-          {
-            object : object.id.clone(),
-            anchor : "Multihex",
-          }),
-          _ => continue,
-        }
-
-        let state_name = scene.state_name( inst.state ).ok_or_else( || CompileError::MissingDefaultState
-        {
-          object : object.id.clone(),
-        })?;
-        let stack = object.states.get( state_name ).ok_or_else( || CompileError::MissingDefaultState
-        {
-          object : object.id.clone(),
-        })?;
-
-        let Placement::Hex { q, r } = inst.placement else { continue };
-
-        // Fix(BUG-156): see `layers_in_z_order` doc comment for root cause.
-        for layer in layers_in_z_order( stack )
-        {
-          let effective = layer.pipeline_layer.as_deref().unwrap_or( object.global_layer.as_str() );
-          if effective != bucket.id { continue; }
-
-          let layer_draws = instance_layer_compile( object, layer, ( q, r ), inst, &ctx )?;
-          draws.extend( layer_draws );
-        }
+        draws.extend( instance_layer_compile( w.object, w.layer, w.pos, w.inst, &ctx )? );
       }
 
-      draws.extend( vertex_pass_compile( bucket.id.as_str(), &synthetic_tiles, &ctx )? );
+      // Vertex pass: project this bucket's cached (revision-stable) resolves —
+      // cheap per-frame work; the expensive resolve already ran (or was reused)
+      // above. Same triangle-outer / layer-inner order as before, so sort and
+      // batch grouping are unchanged.
+      draws.extend( resolved[ bucket_idx ].iter().map( | rv | project_vertex_sprite( rv, &ctx ) ) );
       draws.extend( edge_pass_scene_compile( bucket.id.as_str(), scene, &ctx )? );
-      draws.extend( free_pass_scene_compile( bucket.id.as_str(), scene, &ctx )? );
+      free_pass_scene_compile( &free_work[ bucket_idx ], &ctx, &mut draws )?;
 
       sort_mode_apply( &mut draws, bucket.sort );
 
@@ -780,7 +773,15 @@ mod private
         _ => None,
       }).collect();
 
-      buckets.push( BucketEmits { sprites, screen_space, sort : bucket.sort } );
+      buckets.push( BucketEmits
+      {
+        sprites,
+        screen_space,
+        sort : bucket.sort,
+        alpha_clip : bucket.alpha_clip,
+        occlude_overlap : bucket.occlude_overlap,
+        opaque : bucket.opaque,
+      });
     }
 
     Ok( FrameEmits { clear_color, buckets } )
@@ -802,7 +803,7 @@ mod private
     camera : &Camera,
   ) -> Result< (), CompileError >
   {
-    let emits = frame_emits_gather( compiled, scene, camera )?;
+    let emits = frame_emits_gather( compiled, scene, camera, None, 0 )?;
     out.push( RenderCommand::Clear( Clear { color : emits.clear_color } ) );
     for bucket in emits.buckets
     {
@@ -810,6 +811,13 @@ mod private
       for s in bucket.screen_space { out.push( RenderCommand::ScreenSpaceSprite( s ) ); }
     }
     Ok( () )
+  }
+
+  /// Whether pipeline layer `index` is masked out by `skip` (bit `index`; layers
+  /// past bit 63 are never skipped, matching `Renderer::disabled_buckets_set`).
+  pub( crate ) fn bucket_skipped( skip : u64, index : usize ) -> bool
+  {
+    index < 64 && skip & ( 1_u64 << index ) != 0
   }
 
   /// Build a synthetic `Vec<Tile>` from the scene's hex spatial index.
@@ -912,7 +920,8 @@ mod private
         })?;
       let ( q, r ) = pos;
       let ( wx, wy ) = hex_world_pixel( q, r, ctx, &object.id )?;
-      let transform = point_to_transform( wx, wy, object.pivot, sprite_id, ctx );
+      let ( sx, sy ) = pivot_apply( wx, wy, object.pivot, sprite_id, ctx.compiled );
+      let transform = make_transform( sx, sy );
       return Ok( vec!
       [
         (
@@ -944,7 +953,8 @@ mod private
 
     let ( q, r ) = pos;
     let ( wx, wy ) = hex_world_pixel( q, r, ctx, &object.id )?;
-    let transform = point_to_transform( wx, wy, object.pivot, sprite_id, ctx );
+    let ( sx, sy ) = pivot_apply( wx, wy, object.pivot, sprite_id, ctx.compiled );
+    let transform = make_transform( sx, sy );
 
     Ok( vec!
     [
@@ -1022,13 +1032,9 @@ mod private
     }
   }
 
-  /// `emit_neighbor_condition` variant that composes the per-instance
-  /// tint into each emitted sprite.
+  /// Emits a `NeighborCondition` source's sprites, composing the
+  /// per-instance tint into each.
   #[ allow( clippy::too_many_arguments, reason = "each parameter is a distinct input needed to resolve and place a neighbor-conditioned sprite variant with per-instance tint; grouping into a struct would add indirection without reducing call-site complexity" ) ]
-  // `raw_sx` / `raw_sy` denote one (x, y) screen-space pair produced together by
-  // `ctx.camera.project`; splitting the names further apart would obscure that
-  // pairing rather than reduce confusion.
-  #[ allow( clippy::similar_names, reason = "raw_sx/raw_sy denote one (x, y) screen-space pair produced together by ctx.camera.project; the shared prefix reflects that pairing" ) ]
   fn neighbor_condition_with_overrides_emit
   (
     object : &Object,
@@ -1045,7 +1051,6 @@ mod private
     let current_priority = tile_max_priority( tile, ctx.spec );
     let ( q, r ) = tile.pos;
     let ( wx, wy ) = hex_world_pixel( q, r, ctx, &object.id )?;
-    let ( raw_sx, raw_sy ) = ctx.camera.project( ( wx, wy ) );
 
     let mut out = Vec::new();
     for &side in sides
@@ -1064,8 +1069,8 @@ mod private
           context : format!( "object {:?} NeighborCondition side {side:?}", object.id ),
         })?;
 
-      let ( sx, sy ) = pivot_apply( raw_sx, raw_sy, ctx.camera.zoom, object.pivot, sprite_id, ctx.compiled );
-      let transform = transform_make( sx, sy, ctx.camera.zoom );
+      let ( sx, sy ) = pivot_apply( wx, wy, object.pivot, sprite_id, ctx.compiled );
+      let transform = make_transform( sx, sy );
 
       out.push
       ((
@@ -1148,14 +1153,15 @@ mod private
             anchor : "Edge (direction not valid for tiling)",
           });
         };
-        let ( sx, sy ) = ctx.camera.project( ( wx, wy ) );
-        let ( sx, sy ) = pivot_apply( sx, sy, ctx.camera.zoom, object.pivot, sprite_id, ctx.compiled );
+        let ( sx, sy ) = pivot_apply( wx, wy, object.pivot, sprite_id, ctx.compiled );
 
+        // World-space + unit scale; the edge's own rotation stays (the camera
+        // has none, so it composes cleanly). Pan/zoom comes from the view matrix.
         let transform = Transform
         {
           position : [ sx, sy ],
           rotation : edge_rotation( canon.1, ctx.tiling ),
-          scale : [ ctx.camera.zoom, ctx.camera.zoom ],
+          scale : [ 1.0, 1.0 ],
           skew : [ 0.0, 0.0 ],
           depth : 0.0,
         };
@@ -1180,43 +1186,14 @@ mod private
   /// Emit sprites for every Scene free-pos handle. Mirrors `compile_free_pass`.
   fn free_pass_scene_compile
   (
-    bucket_id : &str,
-    scene : &Scene,
+    work : &[ FreeWork< '_ > ],
     ctx : &FrameContext< '_ >,
-  ) -> Result< Vec< ( f32, f32, Sprite ) >, CompileError >
+    out : &mut Vec< ( f32, f32, Sprite ) >,
+  ) -> Result< (), CompileError >
   {
-    let mut out = Vec::new();
-    for &handle in scene.free_instances()
+    for &FreeWork { inst, object, layer, pos : ( x, y ) } in work
     {
-      let inst = scene.instance( handle ).expect( "free handle live" );
-      if !inst.visible { continue; }
-      let Placement::FreePos { x, y } = inst.placement else { unreachable!() };
-
-      let object = &ctx.spec.objects[ inst.object.index() as usize ];
-      if !matches!( object.anchor, Anchor::FreePos )
       {
-        return Err( CompileError::UnsupportedAnchor
-        {
-          object : object.id.clone(),
-          anchor : "FreePos (object declares a different anchor)",
-        });
-      }
-
-      let state_name = scene.state_name( inst.state ).ok_or_else( || CompileError::MissingDefaultState
-      {
-        object : object.id.clone(),
-      })?;
-      let stack = object.states.get( state_name ).ok_or_else( || CompileError::MissingDefaultState
-      {
-        object : object.id.clone(),
-      })?;
-
-      // Fix(BUG-156): see `layers_in_z_order` doc comment for root cause.
-      for layer in layers_in_z_order( stack )
-      {
-        let effective = layer.pipeline_layer.as_deref().unwrap_or( object.global_layer.as_str() );
-        if effective != bucket_id { continue; }
-
         match &layer.sprite_source
         {
           SpriteSource::NeighborBitmask { .. }
@@ -1233,7 +1210,6 @@ mod private
           },
           _ => {}
         }
-
         // External slot resolution for free-pos.
         if let SpriteSource::External { slot } = &layer.sprite_source
         {
@@ -1246,7 +1222,8 @@ mod private
               context : format!( "object {:?} free-pos external slot {slot:?}", object.id ),
             })?;
           let ( wx, wy ) = ( x, y );
-          let transform = point_to_transform( wx, wy, object.pivot, sprite_id, ctx );
+          let ( sx, sy ) = pivot_apply( wx, wy, object.pivot, sprite_id, ctx.compiled );
+          let transform = make_transform( sx, sy );
           out.push((
             wx, wy,
             Sprite
@@ -1275,7 +1252,8 @@ mod private
           })?;
 
         let ( wx, wy ) = ( x, y );
-        let transform = point_to_transform( wx, wy, object.pivot, sprite_id, ctx );
+        let ( sx, sy ) = pivot_apply( wx, wy, object.pivot, sprite_id, ctx.compiled );
+        let transform = make_transform( sx, sy );
 
         out.push
         ((
@@ -1291,7 +1269,7 @@ mod private
         ));
       }
     }
-    Ok( out )
+    Ok( () )
   }
 
   /// Emit `ScreenSpaceSprite` commands for every Scene viewport handle.
@@ -1412,10 +1390,13 @@ mod private
   }
 }
 
+mod vertex_corners;
+
 mod_interface::mod_interface!
 {
   own use render_into;
   own use frame_emits_gather;
   own use FrameEmits;
   own use BucketEmits;
+  own use VertexResolveCache;
 }

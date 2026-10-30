@@ -131,6 +131,19 @@ mod private
     /// used as stored, which draws a premultiplied image's semi-transparent
     /// texels differently ( the readme's capability table says how, per adapter ).
     pub premultiplied_images : bool,
+    /// Tests and writes a depth buffer: honours [`crate::commands::SetDepthWrite`],
+    /// `Transform::depth` and a batch's `occlude_overlap` `LESS` test. `false`
+    /// means every draw lands in command order whatever its depth, so a caller
+    /// that orders draws by depth must fall back to painter's order itself
+    /// ( `tilemap_scene`'s `Renderer::capabilities_set` does ).
+    pub depth : bool,
+    /// Applies a world→screen camera on the GPU: the adapter keeps a view
+    /// matrix ( `WebGlBackend::camera_set` ) and multiplies it into every
+    /// world-space draw. `false` means world coordinates are drawn as viewport
+    /// pixels, unpanned and unzoomed, so a caller must not scale anything else
+    /// for the camera either ( `tilemap_scene`'s `Renderer::capabilities_set`
+    /// reads this ).
+    pub camera : bool,
     /// Maximum texture/image dimension. 0 = unlimited (e.g. SVG).
     pub max_texture_size : u32,
   }

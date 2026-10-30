@@ -165,6 +165,37 @@ fn zoom_scales_distance_from_center()
   assert!( ( d_zoomed / d_one - 2.0 ).abs() < 1e-3, "zoom distance ratio: {d_zoomed} / {d_one}" );
 }
 
+/// The renderer projects on the GPU through `to_view_mat3`, while `project`
+/// stays the CPU form for callers mapping a single point. Both must place every
+/// point at the same screen position, for any centre, zoom and viewport.
+#[ test ]
+fn view_mat3_matches_project()
+{
+  let cameras =
+  [
+    Camera::default(),
+    Camera { world_center : ( 100.0, -40.0 ), ..Camera::default() },
+    Camera { world_center : ( -250.5, 75.25 ), zoom : 2.5, viewport_size : ( 1280, 720 ) },
+    Camera { world_center : ( 3.0, 7.0 ), zoom : 0.4, viewport_size : ( 333, 211 ) },
+  ];
+  let points = [ ( 0.0, 0.0 ), ( 50.0, 0.0 ), ( -120.0, 64.0 ), ( 1000.0, -999.5 ) ];
+
+  for cam in &cameras
+  {
+    let m = cam.to_view_mat3();
+    for &( wx, wy ) in &points
+    {
+      // Column-major: element ( row i, col j ) at index j*3+i, applied to ( wx, wy, 1 ).
+      let mx = m[ 0 ] * wx + m[ 3 ] * wy + m[ 6 ];
+      let my = m[ 1 ] * wx + m[ 4 ] * wy + m[ 7 ];
+      let mw = m[ 2 ] * wx + m[ 5 ] * wy + m[ 8 ];
+      let ( px, py ) = cam.project( ( wx, wy ) );
+      assert!( ( mx - px ).abs() < 1e-3 && ( my - py ).abs() < 1e-3, "{cam:?} at ( {wx}, {wy} ): matrix ( {mx}, {my} ), project ( {px}, {py} )" );
+      assert!( ( mw - 1.0 ).abs() < 1e-6, "{cam:?}: the matrix must keep w at 1, got {mw}" );
+    }
+  }
+}
+
 // === compile/edges.rs — canonical_edge / edge_rotation ===
 
 #[ test ]

@@ -15,6 +15,7 @@ use tilemap_scene::
   Anchor,
   Asset,
   AssetKind,
+  EdgeDirection,
   HexConfig,
   LayerBehaviour,
   Object,
@@ -120,7 +121,7 @@ fn spec_build() -> Arc< RenderSpec >
       hex : HexConfig { tiling : TilingStrategy::HexFlatTop, grid_stride : ( 72, 64 ) },
       layers : vec!
       [
-        PipelineLayer { id : "terrain".into(), sort : SortMode::None, tint_mask : None },
+        PipelineLayer { id : "terrain".into(), sort : SortMode::None, tint_mask : None, alpha_clip : 0.0, occlude_overlap : false, opaque : false },
       ],
       global_tint : None,
       viewport_size : None,
@@ -237,6 +238,66 @@ fn move_to_changes_anchor_kind()
   assert_eq!( scene.free_instances(), &[ h ] );
   // No longer indexed by hex.
   assert_eq!( scene.instances_at_hex( 2, 2 ).count(), 0 );
+}
+
+/// A move that keeps the instance's placement kind and its anchor cell keeps
+/// its place in the per-anchor list and in the cell's stack, for every kind:
+/// those lists are in spawn order, and their order is the draw order of a
+/// `SortMode::None` bucket and a cell's stack order. Only a change of kind or
+/// cell re-indexes, which puts the instance last.
+#[ test ]
+fn a_move_that_keeps_kind_and_cell_keeps_index_order()
+{
+  let mut scene = Scene::new( spec_build() );
+  let grass = scene.object( "grass" ).unwrap();
+  let edge = | dir | Placement::Edge { hex : ( 0, 0 ), dir };
+  let multihex = Placement::Multihex { anchor : ( 4, 4 ) };
+
+  let e0 = scene.spawn( grass, edge( EdgeDirection::N ) );
+  let e1 = scene.spawn( grass, edge( EdgeDirection::S ) );
+  scene.placement_move( e0, edge( EdgeDirection::NE ) );
+  assert_eq!( scene.edge_instances(), &[ e0, e1 ], "an edge turned on its hex keeps its place" );
+  assert_eq!( scene.instances_at_hex( 0, 0 ).collect::< Vec< _ > >(), vec![ e0, e1 ], "and its place in the cell" );
+
+  let f0 = scene.spawn( grass, Placement::FreePos { x : 0.0, y : 0.0 } );
+  let f1 = scene.spawn( grass, Placement::FreePos { x : 10.0, y : 0.0 } );
+  scene.placement_move( f0, Placement::FreePos { x : 50.0, y : 20.0 } );
+  assert_eq!( scene.free_instances(), &[ f0, f1 ], "a free mover keeps its place" );
+
+  let m0 = scene.spawn( grass, multihex );
+  let m1 = scene.spawn( grass, multihex );
+  scene.placement_move( m0, multihex );
+  assert_eq!( scene.multihex_instances(), &[ m0, m1 ], "a multihex kept on its anchor keeps its place" );
+
+  scene.placement_move( e0, Placement::Edge { hex : ( 1, 0 ), dir : EdgeDirection::N } );
+  scene.placement_move( e0, edge( EdgeDirection::N ) );
+  assert_eq!( scene.edge_instances(), &[ e1, e0 ], "a move to another cell and back re-indexes" );
+  assert_eq!( scene.instances_at_hex( 0, 0 ).collect::< Vec< _ > >(), vec![ e1, e0 ] );
+}
+
+/// The same-slot rule holds for any occupant of a crowded cell, not only the
+/// first : in a cell of three, moving the second or the third back onto its own
+/// cell keeps the cell's stack and the per-anchor list as they were, while
+/// moving the second away and back puts it last.
+#[ test ]
+fn a_same_cell_move_keeps_the_order_of_a_three_occupant_cell()
+{
+  let mut scene = Scene::new( spec_build() );
+  let grass = scene.object( "grass" ).unwrap();
+  let cell = Placement::Hex { q : 2, r : 1 };
+  let [ a, b, c ] = [ (), (), () ].map( | () | scene.spawn( grass, cell ) );
+  let cell_order = | scene : &Scene | scene.instances_at_hex( 2, 1 ).collect::< Vec< _ > >();
+
+  scene.placement_move( b, cell );
+  assert_eq!( cell_order( &scene ), vec![ a, b, c ], "the middle occupant keeps its place" );
+  scene.placement_move( c, cell );
+  assert_eq!( cell_order( &scene ), vec![ a, b, c ], "and so does the top one" );
+  assert_eq!( scene.hex_instances(), &[ a, b, c ], "the per-anchor list is unchanged" );
+
+  scene.placement_move( b, Placement::Hex { q : 3, r : 1 } );
+  scene.placement_move( b, cell );
+  assert_eq!( cell_order( &scene ), vec![ a, c, b ], "leaving the cell and coming back re-indexes" );
+  assert_eq!( scene.hex_instances(), &[ a, c, b ] );
 }
 
 #[ test ]

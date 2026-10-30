@@ -8,7 +8,7 @@
 mod private
 {
   use minwebgl as gl;
-  use super::super::webgl_helpers::{ GpuResources, GpuGeometry, GpuBatch, topology_to_gl };
+  use super::super::webgl_helpers::{ GpuResources, GpuGeometry, GpuBatch, mat3_mul, topology_to_gl };
   use crate::types::FillRef;
 
   /// The tint every fragment shader applies ( `shaders/tint.glsl` ), kept in one
@@ -24,6 +24,18 @@ mod private
     source.replacen( "#include \"tint.glsl\"", TINT_CHUNK, 1 )
   }
 
+  /// Prepend `#define <name>` to a GLSL source, inserted right AFTER the
+  /// `#version` line (which GLSL requires to be first). Used to compile the two
+  /// `sprite_batch.frag` variants (cutout / plain) from one source of truth.
+  fn inject_define( src : &str, name : &str ) -> String
+  {
+    match src.split_once( '\n' )
+    {
+      Some( ( first, rest ) ) => format!( "{first}\n#define {name}\n{rest}" ),
+      None => src.to_string(),
+    }
+  }
+
   // ============================================================================
   // Sprite renderer
   // ============================================================================
@@ -33,7 +45,14 @@ mod private
   pub struct SpriteRenderer
   {
     program : gl::Program,
+    /// Cutout variant of the batch shader (`#define USE_ALPHA_CLIP`): has the
+    /// `discard`, used for `alpha_clip > 0` batches (cutout tiles).
     batch_program : gl::Program,
+    /// Plain variant with NO `discard`, used for `alpha_clip == 0` batches.
+    /// Discard-free so the GPU keeps early-Z and rejects their fragments under
+    /// a nearer opaque layer before the fragment shader runs — the fillrate
+    /// win for stacked full-screen layers.
+    batch_program_noclip : gl::Program,
   }
 
   impl SpriteRenderer
@@ -50,13 +69,21 @@ mod private
         include_str!( "../shaders/sprite.vert" ),
         &fragment_source( include_str!( "../shaders/sprite.frag" ) ),
       )?;
+      let batch_vert = include_str!( "../shaders/sprite_batch.vert" );
+      let batch_frag = fragment_source( include_str!( "../shaders/sprite_batch.frag" ) );
       let batch_program = gl::Program::new
       (
         gl.clone(),
-        include_str!( "../shaders/sprite_batch.vert" ),
-        &fragment_source( include_str!( "../shaders/sprite_batch.frag" ) ),
+        batch_vert,
+        &inject_define( &batch_frag, "USE_ALPHA_CLIP" ),
       )?;
-      Ok( Self { program, batch_program } )
+      let batch_program_noclip = gl::Program::new
+      (
+        gl.clone(),
+        batch_vert,
+        &batch_frag,
+      )?;
+      Ok( Self { program, batch_program, batch_program_noclip } )
     }
 
     /// Draw a single sprite as a textured quad (triangle strip, 4 vertices from `gl_VertexID`).
@@ -80,12 +107,18 @@ mod private
       gl.draw_arrays( gl::TRIANGLE_STRIP, 0, 4 );
     }
 
-    /// Draw an instanced sprite batch. `premultiplied` is the flag `cmd_draw_batch`
-    /// already handed to `blend_apply`, so the shader and the blend agree.
-    pub fn batch_draw( &self, gl : &gl::GL, batch : &GpuBatch, resources : &GpuResources, premultiplied : bool, viewport : [ f32; 2 ], max_depth : f32 )
+    /// Draw an instanced sprite batch. `camera` is the world→screen view matrix
+    /// (column-major 3×3), pre-multiplied into the batch parent so world-space
+    /// instances are projected on the GPU (a pan/zoom updates this uniform only,
+    /// leaving the per-instance buffers untouched). `premultiplied` is the flag
+    /// `cmd_draw_batch` already handed to `blend_apply`, so the shader and the
+    /// blend agree.
+    #[ allow( clippy::too_many_arguments, reason = "each parameter is a distinct WebGL uniform upload target; grouping into a struct would add indirection without reducing call-site complexity for this single-call-site method" ) ]
+    pub fn batch_draw( &self, gl : &gl::GL, batch : &GpuBatch, resources : &GpuResources, camera : &[ f32; 9 ], premultiplied : bool, viewport : [ f32; 2 ], max_depth : f32 )
     {
       let GpuBatch::Sprite { instances, vao, params, .. } = batch else { return; };
-      if instances.is_empty() { return; }
+      // Draw only what the last flush put on the GPU (see `ArrayBuffer::gpu_len`).
+      if instances.gpu_len() == 0 { return; }
 
       let Some( gpu_tex ) = resources.texture( params.sheet ) else { return; };
       let tw = gpu_tex.width.get();
@@ -95,17 +128,28 @@ mod private
       gl.active_texture( gl::TEXTURE0 );
       gl.bind_texture( gl::TEXTURE_2D, Some( &gpu_tex.texture ) );
 
-      self.batch_program.activate();
-      self.batch_program.uniform_upload( "u_viewport", &viewport );
-      self.batch_program.uniform_upload( "u_tex_size", &[ tw as f32, th as f32 ] );
-      self.batch_program.uniform_upload( "u_premultiplied", &i32::from( premultiplied ) );
-      let parent_mat = params.transform.to_mat3();
-      self.batch_program.uniform_matrix_upload( "u_parent", &parent_mat, true );
-      self.batch_program.uniform_upload( "u_parent_depth", &params.transform.depth );
-      self.batch_program.uniform_upload( "u_max_depth", &max_depth );
+      // Pick the shader variant by whether this batch actually clips. Only
+      // `alpha_clip > 0` batches need the `discard`; the rest use the
+      // discard-free program so the GPU keeps early-Z (see the frag shader).
+      let clips = params.alpha_clip > 0.0;
+      let program = if clips { &self.batch_program } else { &self.batch_program_noclip };
+      program.activate();
+      program.uniform_upload( "u_viewport", &viewport );
+      program.uniform_upload( "u_tex_size", &[ tw as f32, th as f32 ] );
+      program.uniform_upload( "u_premultiplied", &i32::from( premultiplied ) );
+      let parent_mat = mat3_mul( camera, &params.transform.to_mat3() );
+      program.uniform_matrix_upload( "u_parent", &parent_mat, true );
+      program.uniform_upload( "u_parent_depth", &params.transform.depth );
+      program.uniform_upload( "u_max_depth", &max_depth );
+      // Coverage cut-off (cutout variant only): >0 discards low-alpha texels
+      // so transparent quad corners don't seal the depth buffer.
+      if clips
+      {
+        program.uniform_upload( "u_alpha_clip", &params.alpha_clip );
+      }
 
       gl.bind_vertex_array( Some( vao ) );
-      gl.draw_arrays_instanced( gl::TRIANGLE_STRIP, 0, 4, instances.len() as i32 );
+      gl.draw_arrays_instanced( gl::TRIANGLE_STRIP, 0, 4, instances.gpu_len() as i32 );
       // Unbind the batch VAO so subsequent GL state setup (e.g. a later
       // vertex_attrib_pointer call during batch construction) cannot
       // accidentally mutate this batch's attribute layout. The single-draw
@@ -192,12 +236,15 @@ mod private
     }
 
     /// Draw an instanced mesh batch. VAO is already configured via `mesh_batch_vao_setup`.
-    /// `premultiplied` is the flag `cmd_draw_batch` already handed to `blend_apply`,
-    /// so the shader and the blend agree.
-    pub fn batch_draw( &self, gl : &gl::GL, batch : &GpuBatch, resources : &GpuResources, premultiplied : bool, viewport : [ f32; 2 ], max_depth : f32 )
+    /// `camera` is the world→screen view matrix, composed into the batch parent (see
+    /// the sprite `batch_draw`). `premultiplied` is the flag `cmd_draw_batch` already
+    /// handed to `blend_apply`, so the shader and the blend agree.
+    #[ allow( clippy::too_many_arguments, reason = "each parameter is a distinct WebGL uniform upload target; grouping into a struct would add indirection without reducing call-site complexity for this single-call-site method" ) ]
+    pub fn batch_draw( &self, gl : &gl::GL, batch : &GpuBatch, resources : &GpuResources, camera : &[ f32; 9 ], premultiplied : bool, viewport : [ f32; 2 ], max_depth : f32 )
     {
       let GpuBatch::Mesh { instances, vao, params, .. } = batch else { return };
-      if instances.is_empty() { return; }
+      // Draw only what the last flush put on the GPU (see `ArrayBuffer::gpu_len`).
+      if instances.gpu_len() == 0 { return; }
 
       let Some( geom ) = resources.geometry( params.geometry ) else { return };
       let color = match params.fill { FillRef::Solid( c ) => c, _ => [ 1.0, 1.0, 1.0, 1.0 ] };
@@ -219,7 +266,7 @@ mod private
       self.batch_program.uniform_upload( "u_color", &color );
       self.batch_program.uniform_upload( "u_use_texture", &i32::from( use_texture ) );
       self.batch_program.uniform_upload( "u_premultiplied", &i32::from( premultiplied ) );
-      let parent_mat = params.transform.to_mat3();
+      let parent_mat = mat3_mul( camera, &params.transform.to_mat3() );
       self.batch_program.uniform_matrix_upload( "u_parent", &parent_mat, true );
       self.batch_program.uniform_upload( "u_parent_depth", &params.transform.depth );
       self.batch_program.uniform_upload( "u_max_depth", &max_depth );
@@ -228,11 +275,11 @@ mod private
 
       if let Some( ( count, gl_type ) ) = geom.index_count
       {
-        gl.draw_elements_instanced_with_i32( topology, count as i32, gl_type, 0, instances.len() as i32 );
+        gl.draw_elements_instanced_with_i32( topology, count as i32, gl_type, 0, instances.gpu_len() as i32 );
       }
       else
       {
-        gl.draw_arrays_instanced( topology, 0, geom.vertex_count as i32, instances.len() as i32 );
+        gl.draw_arrays_instanced( topology, 0, geom.vertex_count as i32, instances.gpu_len() as i32 );
       }
       // Unbind the batch VAO so subsequent GL state setup (e.g. a later
       // vertex_attrib_pointer call during batch construction) cannot

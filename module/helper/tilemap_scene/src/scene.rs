@@ -26,6 +26,7 @@
 mod private
 {
   use alloc::sync::Arc;
+  use core::sync::atomic::{ AtomicU64, Ordering };
   use rustc_hash::FxHashMap as HashMap;
   use slotmap::SlotMap;
   use crate::anchor::EdgeDirection;
@@ -34,14 +35,19 @@ mod private
   use crate::error::SnapshotLoadError;
   use crate::event::SceneEvent;
   use crate::instance::{ Instance, InstanceHandle, ObjectHandle, Placement, StateHandle };
-  use crate::resource::{ Animation, AnimationMode, SpriteRef, TintRef };
+  use crate::resource::{ Animation, AnimationMode, EffectKind, SpriteRef, TintRef };
   use crate::snapshot::{ EdgePosition, SceneSnapshot };
   use crate::source::SpriteSource;
   use crate::spec::RenderSpec;
 
+  /// Source of [`Scene::id`]: each new scene takes the next value.
+  static NEXT_SCENE_ID : AtomicU64 = AtomicU64::new( 0 );
+
   /// Retained-mode rendering scene.
   pub struct Scene
   {
+    /// Process-unique identity, see [`Self::id`].
+    id : u64,
     spec : Arc< RenderSpec >,
     instances : SlotMap< InstanceHandle, Instance >,
 
@@ -62,8 +68,9 @@ mod private
     instances_at_hex : HashMap< ( i32, i32 ), Vec< InstanceHandle > >,
 
     /// Per-anchor lists used by `Renderer` to iterate the world by pipeline
-    /// pass. Lists are kept in insertion order (spawn order); `Renderer`
-    /// applies per-bucket sort modes on top of this.
+    /// pass. Lists are kept in insertion order (spawn order; a move that
+    /// changes the placement kind or the anchor cell re-inserts at the end);
+    /// `Renderer` applies per-bucket sort modes on top of this.
     hex_instances : Vec< InstanceHandle >,
     edge_instances : Vec< InstanceHandle >,
     free_instances : Vec< InstanceHandle >,
@@ -94,11 +101,52 @@ mod private
     /// [`Self::clock`].
     revision : u64,
 
+    /// Narrower mutation counter: bumped only when the set of VISIBLE objects
+    /// standing in `Placement::Hex` cells changes — a hex-placed spawn / despawn,
+    /// a move into, out of or between hex cells, or a visibility flip of a
+    /// hex-placed instance. That set is the only scene input of the dual-grid
+    /// `VertexCorners` resolve, so its cache keys on this instead of
+    /// [`Self::revision`]: ambient `FreePos` movers (boats, birds, a drag
+    /// preview) and state / tint changes no longer force a whole-map re-resolve.
+    tiles_revision : u64,
+
     /// Counter that produces a unique `instance_phase_seed` for each
     /// spawned instance. Hashed once at spawn so the seed is varied
     /// enough that mixing it with `str_hash(anim.id)` gives independent
     /// per-instance / per-animation phases.
     next_phase_seed : u32,
+
+    /// Live state for every [`crate::resource::EffectKind::FadeGate`] a
+    /// consumer has driven via [`Self::fade_target_set`], keyed by the
+    /// effect's own id. Advanced toward `target` by [`Self::tick_into`];
+    /// read (not mutated) at render time via [`Self::fade_value`].
+    fade_gates : HashMap< String, FadeGateState >,
+  }
+
+  /// One [`crate::resource::EffectKind::FadeGate`]'s runtime progress.
+  #[ derive( Debug, Clone, Copy ) ]
+  struct FadeGateState
+  {
+    /// The value [`Scene::tick_into`] eases `value` toward — `1.0` when
+    /// `true`, `0.0` when `false`.
+    target : bool,
+    /// Current eased progress in `[0, 1]`.
+    value : f32,
+    /// The effect's declared `FadeGate::duration_ms`, read once when the gate
+    /// is first driven.
+    duration_ms : f32,
+  }
+
+  /// The cell a `Placement::Hex` instance stands in — the only placement that
+  /// puts an object into the per-cell stacks the dual-grid resolve reads (not
+  /// [`Placement::hex_coord`], which also reports an edge's owning hex).
+  fn hex_cell( p : Placement ) -> Option< ( i32, i32 ) >
+  {
+    match p
+    {
+      Placement::Hex { q, r } => Some( ( q, r ) ),
+      _ => None,
+    }
   }
 
   /// Per-object metadata cached at `Scene::new`.
@@ -318,7 +366,10 @@ mod private
         global_tint_override : None,
         seed : 0,
         revision : 0,
+        tiles_revision : 0,
+        id : NEXT_SCENE_ID.fetch_add( 1, Ordering::Relaxed ),
         next_phase_seed : 0,
+        fade_gates : HashMap::default(),
       }
     }
 
@@ -435,6 +486,7 @@ mod private
       let handle = self.instances.insert( instance );
       self.index_insert( handle, placement );
       self.revision += 1;
+      if hex_cell( placement ).is_some() { self.tiles_revision += 1; }
       handle
     }
 
@@ -450,11 +502,16 @@ mod private
       };
       self.index_remove( h, inst.placement );
       self.revision += 1;
+      if hex_cell( inst.placement ).is_some() && inst.visible { self.tiles_revision += 1; }
     }
 
     /// Move an existing instance to a new placement. The new placement
     /// MAY use a different variant than the previous one (e.g. `Hex` →
-    /// `FreePos`); spatial indexes are updated accordingly.
+    /// `FreePos`); spatial indexes are updated accordingly. A move that keeps
+    /// the placement kind and the anchor cell ([`Placement::hex_coord`]; none
+    /// for `FreePos` and `Viewport`) keeps the instance's place in its
+    /// per-anchor list and its cell's stack, so it keeps its draw order. A
+    /// move that changes either re-inserts it at the end of both.
     pub fn placement_move( &mut self, h : InstanceHandle, placement : Placement )
     {
       let Some( inst ) = self.instances.get_mut( h )
@@ -464,10 +521,34 @@ mod private
         return;
       };
       let old = inst.placement;
+      let visible = inst.visible;
       inst.placement = placement;
-      self.index_remove( h, old );
-      self.index_insert( h, placement );
+      // Fix(BUG-540): a move that keeps both index keys -- the placement kind
+      // (which per-anchor list holds the instance) and the hex cell it is
+      // anchored to (`Placement::hex_coord`, none for `FreePos` / `Viewport`)
+      // -- keeps its place in the spatial indexes: a same-cell `Hex` move, an
+      // `Edge` turned on its hex, a `Multihex` reshaped on its anchor, any
+      // `FreePos` or `Viewport` move.
+      // Root cause: re-indexing pushed it to the end of `hex_instances`, so a
+      // same-cell move reordered the cell's stack. The first corner terrain in
+      // that stack owns the cell's corner, yet `tiles_revision` (correctly) did
+      // not move, so the cached vertex resolve kept the old owner while a fresh
+      // resolve picked the new one. The other kinds' lists set their draw
+      // order, so a mover also jumped above the instances spawned after it.
+      // Pitfall: any other path that reorders a cell's stack must bump
+      // `tiles_revision` too.
+      let same_slot = core::mem::discriminant( &old ) == core::mem::discriminant( &placement )
+        && old.hex_coord() == placement.hex_coord();
+      if !same_slot
+      {
+        self.index_remove( h, old );
+        self.index_insert( h, placement );
+      }
       self.revision += 1;
+      if visible && hex_cell( old ) != hex_cell( placement )
+      {
+        self.tiles_revision += 1;
+      }
     }
 
     /// Switch the active state of `h`. `state` must belong to the same
@@ -506,6 +587,7 @@ mod private
     {
       if let Some( inst ) = self.instances.get_mut( h )
       {
+        if hex_cell( inst.placement ).is_some() && inst.visible != on { self.tiles_revision += 1; }
         inst.visible = on;
         self.revision += 1;
       }
@@ -574,6 +656,88 @@ mod private
       self.revision += 1;
     }
 
+    /// Set the target a [`crate::resource::EffectKind::FadeGate`] effect eases
+    /// toward — `true` eases to `1.0` (fully visible), `false` to `0.0`.
+    /// `effect_id` is the declared [`crate::resource::Effect::id`] named by
+    /// every layer's `behaviour.effects` that shares this one fade.
+    ///
+    /// The first call for a given `effect_id` snaps `value` straight to the
+    /// target with no ramp — an object's very first show/hide isn't a fade,
+    /// only a target *change* is.
+    ///
+    /// A target change does not bump `revision`: it moves nothing until
+    /// [`Self::tick_into`] eases the value, and that tick also advances the
+    /// master clock, which the renderer's idle-replay cache already keys on.
+    /// The first-call snap is the exception — `false` moves the value from
+    /// the implicit `1.0` to `0.0` with no tick — so it bumps `revision` to
+    /// make the next render re-walk instead of replaying the visible frame.
+    /// Neither path touches `tiles_revision`, so the vertex-resolve cache
+    /// stays valid.
+    ///
+    /// Returns `false`, and changes nothing, when the spec declares no
+    /// `FadeGate` effect named `effect_id` (a typo, or a gate the spec
+    /// dropped): no layer could read such a target.
+    pub fn fade_target_set( &mut self, effect_id : impl Into< String >, target : bool ) -> bool
+    {
+      use std::collections::hash_map::Entry;
+      let effect_id = effect_id.into();
+      let Some( duration_ms ) = self.spec.effects.iter()
+        .find( | e | e.id == effect_id )
+        .and_then( | e | if let EffectKind::FadeGate { duration_ms } = e.kind { Some( duration_ms ) } else { None } )
+      else
+      {
+        return false;
+      };
+      match self.fade_gates.entry( effect_id )
+      {
+        Entry::Occupied( mut e ) => { e.get_mut().target = target; },
+        Entry::Vacant( e ) =>
+        {
+          e.insert( FadeGateState { target, value : if target { 1.0 } else { 0.0 }, duration_ms } );
+          if !target { self.revision += 1; }
+        },
+      }
+      true
+    }
+
+    /// Current eased progress in `[0, 1]` of the [`crate::resource::EffectKind::FadeGate`]
+    /// effect named `effect_id`. `1.0` (fully visible, inert-effect default)
+    /// when no [`Self::fade_target_set`] call has ever named this id.
+    #[ inline ]
+    #[ must_use ]
+    pub fn fade_value( &self, effect_id : &str ) -> f32
+    {
+      self.fade_gates.get( effect_id ).map_or( 1.0, | s | s.value )
+    }
+
+    /// Advance every driven `FadeGate`'s eased value toward its target by
+    /// `1000.0 / duration_ms` per second, clamped at the target so it holds
+    /// there rather than overshooting (the `min`/`max` clamp also keeps an
+    /// already-arrived gate exactly at its target, so this needs no separate
+    /// early-exit check). Per-effect runtime state, not owned by any
+    /// instance, so this is independent of [`Self::tick_into`]'s per-instance
+    /// walk — split out purely to keep both functions short.
+    fn fade_gates_tick( &mut self, dt : f32 )
+    {
+      for state in self.fade_gates.values_mut()
+      {
+        let target_v = if state.target { 1.0 } else { 0.0 };
+        let duration_ms = state.duration_ms;
+        // No time passed, no step: a zero-length gate snaps on the next tick
+        // that moves the clock, not on a `tick( 0.0 )`, which bumps neither the
+        // revision nor the clock the idle replay keys on.
+        let step = if dt <= 0.0 { 0.0 } else if duration_ms > 0.0 { ( 1000.0 / duration_ms ) * dt } else { 1.0 };
+        state.value = if state.value < target_v
+        {
+          ( state.value + step ).min( target_v )
+        }
+        else
+        {
+          ( state.value - step ).max( target_v )
+        };
+      }
+    }
+
     /// Advance the master clock by `dt` seconds and return every
     /// [`SceneEvent`] produced during the interval.
     ///
@@ -630,6 +794,8 @@ mod private
       let clock_before = self.clock;
       self.clock += dt;
       let clock_after = self.clock;
+
+      self.fade_gates_tick( dt );
 
       // Iterate every live placement bucket; spawn-order preserved.
       let buckets : [ &[ InstanceHandle ]; 5 ] =
@@ -782,6 +948,22 @@ mod private
     #[ inline ]
     #[ must_use ]
     pub fn revision( &self ) -> u64 { self.revision }
+
+    /// Identity of this scene, unique within the process. The revision
+    /// counters start at 0 in every scene, so two scenes can share them; a
+    /// cache keyed on them must key on this too.
+    #[ inline ]
+    #[ must_use ]
+    pub fn id( &self ) -> u64 { self.id }
+
+    /// Monotonic counter of changes to which visible objects occupy which hex
+    /// cells — a subset of [`Self::revision`]'s bumps. Equal values guarantee
+    /// the per-cell object stacks the dual-grid `VertexCorners` pass reads are
+    /// unchanged; other state (placement of `FreePos` instances, states, tints,
+    /// the clock) may still differ.
+    #[ inline ]
+    #[ must_use ]
+    pub fn tiles_revision( &self ) -> u64 { self.tiles_revision }
 
     /// The override for `pipeline.global_tint`, if set.
     #[ inline ]
