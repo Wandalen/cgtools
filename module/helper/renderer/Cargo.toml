@@ -153,7 +153,7 @@ getrandom = { version = "0.2", features = [ "js" ] }
 name = "gltf_animation_loader_test"
 required-features = ["animation"]
 
-# The following three exercise pure sub-surfaces of the glTF loader gated
+# The following four exercise pure sub-surfaces of the glTF loader gated
 # behind `native` ( `#![cfg(all(feature = "native", not(target_arch =
 # "wasm32")))]` internally ) -- without `required-features`, a plain
 # `cargo test` silently compiles each to an empty crate and reports

@@ -10,7 +10,7 @@ counterpart to the d2 stack's z-layer ordering.
 
 - **Purpose**: State the visibility contract scenes rendered through `Renderer` can rely on.
 - **Responsibility**: Pin that neither opaque nor transparent correctness depends on CPU-side draw ordering, and name the framebuffer machinery enforcing it.
-- **In Scope**: Occlusion of opaque geometry; compositing of transparent geometry.
+- **In Scope**: Occlusion of opaque geometry; compositing of transparent geometry; visibility in `ScenePicker`'s id buffer.
 - **Out of Scope**: The material model deciding *which* path a mesh takes (see [002_pbr_metallic_roughness_baseline.md](002_pbr_metallic_roughness_baseline.md)); the numeric range of the targets involved (see [003_hdr_internal_tone_mapped_output.md](003_hdr_internal_tone_mapped_output.md)); shadow visibility from the light's viewpoint (see [../feature/003_shadow_mapping.md](../feature/003_shadow_mapping.md)).
 
 ### Invariant Statement
