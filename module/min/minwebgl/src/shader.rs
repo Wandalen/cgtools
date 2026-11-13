@@ -6,6 +6,7 @@ mod private
   use crate::*;
   pub use web_sys::{ WebGlShader, WebGlProgram };
   use std::cell::RefCell;
+  use std::collections::HashMap;
   use
   {
     uniform::{ UniformUpload, WebGlUniformLocation },
@@ -268,12 +269,18 @@ mod private
   /// This structure encapsulates a WebGL program and provides methods to compile,
   /// link, set uniforms (including matrix uniforms), and draw with the program.
   #[ derive( Debug ) ]
+  #[ allow( clippy::struct_field_names, reason = "`program` is the linked WebGL program the type wraps; the third field, the location cache, is what trips the lint" ) ]
   pub struct Program
   {
     /// The graphical context.
     gl : GL,
     /// Reference to `WebGlProgram`
     program : RefCell< Option< WebGlProgram > >,
+    /// Each uniform's location by name, looked up once per linked program. Asking
+    /// `getUniformLocation` on every upload made the browser marshal the name and
+    /// hand back a new location object every time, several per draw call, every
+    /// frame. Emptied whenever the program is linked anew.
+    locations : RefCell< HashMap< String, Option< WebGlUniformLocation > > >,
   }
 
   /// Implementation for `Program`.
@@ -296,7 +303,7 @@ mod private
     pub fn new( gl : GL, vertex_src : &str, fragment_src : &str ) -> Result< Self, WebglError >
     {
       let program = Self::compile_and_link( &gl, vertex_src, fragment_src )?;
-      Ok( Program { gl, program : RefCell::new( Some( program )) })
+      Ok( Program { gl, program : RefCell::new( Some( program ) ), locations : RefCell::new( HashMap::new() ) } )
     }
 
     /// Compiles and links the vertex and fragment shaders into a WebGL program
@@ -320,6 +327,19 @@ mod private
       ProgramFromSources::new( vertex_src, fragment_src )
       .compile_and_link( gl )
       .map_err( mingl::Into::into )
+    }
+
+    /// The location of uniform `name` in `program` (this one's linked program),
+    /// asked of the context the first time and remembered after.
+    fn location( &self, program : &WebGlProgram, name : &str ) -> Option< WebGlUniformLocation >
+    {
+      if let Some( location ) = self.locations.borrow().get( name )
+      {
+        return location.clone();
+      }
+      let location = self.gl.get_uniform_location( program, name );
+      self.locations.borrow_mut().insert( name.to_owned(), location.clone() );
+      location
     }
 
     /// Sets the current WebGL program as the active program in the WebGL context.
@@ -359,7 +379,7 @@ mod private
     {
       if let Some( ref prog ) = *self.program.borrow()
       {
-        let location : Option< WebGlUniformLocation > = self.gl.get_uniform_location( prog, name );
+        let location = self.location( prog, name );
         // log::info!( "location : {:?}", location );
         // log::info!( "value : {:?}", value );
         uniform::upload( &self.gl, location, value ).unwrap();
@@ -383,7 +403,7 @@ mod private
     {
       if let Some( ref prog ) = *self.program.borrow()
       {
-        let location : Option< WebGlUniformLocation > = self.gl.get_uniform_location( prog, name );
+        let location = self.location( prog, name );
         uniform::matrix_upload( &self.gl, location, data, column_major ).unwrap();
       }
     }
@@ -407,6 +427,7 @@ mod private
       let program = Self::compile_and_link( &self.gl, vertex_src, fragment_src )
         .map_err( |e| e.to_string() )?;
       *self.program.borrow_mut() = Some( program );
+      self.locations.borrow_mut().clear();
       Ok(())
     }
 
